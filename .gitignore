@@ -1,0 +1,261 @@
+# =========================
+# Python
+# =========================
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyd
+*.pyo
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Packaging / build
+build/
+dist/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+.hypothesis/
+.pyre/
+.pytype/
+
+# =========================
+# Frontend (Vite / Node)
+# =========================
+node_modules/
+frontend/node_modules/
+frontend/dist/
+frontend/build/
+frontend/.vite/
+frontend/.cache/
+frontend/.env
+frontend/.env.*
+!frontend/.env.example
+frontend/coverage/
+coverage/
+*.tsbuildinfo
+tsconfig.tsbuildinfo
+frontend/tsconfig.tsbuildinfo
+frontend/.tools/
+playwright-report/
+test-results/
+
+# Rust / Tauri
+src-tauri/target/
+src-tauri/gen/schemas/
+
+# =========================
+# IDE / OS
+# =========================
+.vscode/
+.idea/
+*.swp
+*.swo
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+.DS_Store
+
+# =========================
+# Logs / runtime files
+# =========================
+*.log
+*.pid
+*.tmp
+*.bak
+*.backup
+*.orig
+*.rej
+.runtime/
+runtime/
+tmp/
+temp/
+.cache/
+cache/
+logs/
+uploads/
+upload/
+exports/
+downloads/
+deploy-backups/
+_packages/
+artifacts/
+agent_artifacts/
+run_artifacts/
+runtime_artifacts/
+
+# Package manager logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# =========================
+# Environment / secrets
+# =========================
+.env
+.env.*
+!.env.example
+.envrc
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+*.env.local
+*.pem
+*.key
+*.crt
+*.csr
+*.p12
+*.pfx
+*.der
+*.jks
+*.keystore
+*.ovpn
+id_rsa*
+id_ed25519*
+known_hosts
+*.ppk
+*.pub
+secrets/
+secret/
+credentials/
+credentials.*
+service-account*.json
+*.kubeconfig
+kubeconfig
+.aws/
+.azure/
+.config/gcloud/
+.ssh/
+ssh-keys/
+server-secrets/
+server-env/
+systemd-overrides/
+
+# Do not commit copied server units or environment dumps.
+*.service.local
+*.envdump
+env.dump
+systemctl-cat-*.txt
+journalctl-*.txt
+
+# =========================
+# Project local large assets
+# (avoid pushing local datasets/models to GitHub)
+# =========================
+bge-small-zh-v1.5/
+models/
+literature/
+!backend/rag/literature/
+!backend/rag/literature/*.py
+experimental_photos/
+lab_tasks/
+lab_uploads/
+optimization_results/
+training_runs/
+data/**/*copy*
+data/**/*backup*
+data/**/*.xlsx
+data/**/*.xls
+
+# Model / ML artifacts
+*.pkl
+*.cbm
+*.joblib
+*.h5
+*.pt
+*.pth
+*.onnx
+*.safetensors
+runs/
+checkpoints/
+wandb/
+mlruns/
+
+# Database / vector stores
+*.db
+*.sqlite
+*.sqlite3
+*.db-shm
+*.db-wal
+*.sqlite-shm
+*.sqlite-wal
+*.duckdb
+*.duckdb.wal
+*.dump
+*.sql.gz
+pgdata/
+postgres_data/
+vector_store/
+faiss_index/
+chroma/
+chroma_db/
+qdrant_storage/
+milvus/
+
+# Project specific temp files
+review_diff.txt
+review_*.txt
+audit_*.txt
+*_audit.txt
+*_report.txt
+scratch/
+scratch_*/
+tmp_*/
+codex_tmp/
+codex_deploy/
+.codex_*
+codex-archive/
+rag-deploy-*.tar
+rag-deploy-*.tar.gz
+rag-*-fix-*.tar
+rag-*-patch-*.tar
+codex-clipboard-*.png
+generated_code_*.txt
+*_generated_code*.txt
+codex_kb_upload_smoke.pdf
+*.tmp.pdf
+*.smoke.pdf
+
+# Optional outputs
+db_setup.log
+literature_processor.log
+backend_uvicorn.log
+server_out.log
+nohup.out
+uvicorn*.log
+gunicorn*.log
+celery*.log
+worker*.log
+
+# Local debug outputs
+debug_*.json
+debug_*.md
+debug_*.log
+local_*.json
+backend/services/literature_ingestion_jobs.json
+backend/services/literature_ingestion_jobs.json.tmp
+backend/services/literature_knowledge_bases.json
+backend/services/literature_knowledge_bases.json.tmp
+backend/services/mineru_cloud_jobs.json
+backend/services/mineru_cloud_jobs.json.tmp
+
+# Local archives / handoff packages
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+*.rar
+*.7z
