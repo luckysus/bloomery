@@ -61,6 +61,7 @@ pub struct McpCallResult {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum McpError {
     InvalidConfiguration(String),
+    InvalidTransport(String),
     InvalidArguments,
     Initialization(String),
     Transport(String),
@@ -84,6 +85,9 @@ impl fmt::Display for McpError {
         match self {
             Self::InvalidConfiguration(message) => {
                 write!(formatter, "invalid MCP configuration: {message}")
+            }
+            Self::InvalidTransport(message) => {
+                write!(formatter, "invalid MCP transport: {message}")
             }
             Self::InvalidArguments => {
                 formatter.write_str("MCP tool arguments must be a JSON object")
