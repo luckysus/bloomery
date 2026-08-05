@@ -1,64 +1,71 @@
 # Bloomery
 
-Bloomery 是一个本地优先的钢铁材料研发智能体桌面应用，基于 Tauri 2 + Rust + React 构建。对话、历史记录、个人记忆和本地模型配置全部保存在本机 SQLite 中；云端能力（知识检索、模型训练、工艺寻优、文献解析）是可插拔的——不配置云端服务时，本地功能依然完整可用。
+Bloomery 是一个 Windows 优先、本地优先的钢铁与材料领域智能体工作台，使用 Tauri 2、Rust、React 和 SQLite 构建。
 
-> Bloomery（块炼炉）是人类最早的炼铁装置，以小而自足的方式将矿石炼成铁——正如这个应用以本地优先的方式运行智能体。
+当前 `main` 正在按正式发行规格重构。开发构建用于工程验证，不代表可公开分发的稳定版本。
 
-## 特性
+## 产品边界
 
-- **本地优先**：Rust 本地智能体负责意图识别、上下文组装和 LLM 流式回答；对话与记忆保存在本机 `bloomery` SQLite 数据库中，不依赖任何服务器。
-- **本地 LLM 配置**：直接连接任意 OpenAI 兼容 API（Ollama、vLLM、DeepSeek、通义等），API Key 只保存在本机。
-- **云端能力可插拔**：在设置中填写云端 API 地址后，可选择启用知识库检索、模型训练、成分/工艺寻优、文献 OCR 解析等云端长任务；云任务经过路径与方法白名单校验，并镜像到本地任务列表。
-- **富文本体验**：Markdown、KaTeX 数学公式、代码高亮、docx/PDF 预览、图表可视化。
+- 无需注册或登录，启动后直接进入固定的 `local` 工作区。
+- 对话、消息、摘要、草稿、记忆和设置保存在本机 SQLite。
+- 智能体运行、上下文组装、流式输出和数据访问由 Rust 进程负责。
+- 模型与解析服务使用用户自己选择、自己付费并自己保管凭据的 Provider。
+- React 只通过单一 Tauri bridge 调用本地命令，不依赖旧 Web 应用或项目作者的私有后端。
 
-## 目录结构
+## 本地数据
 
-```
+数据库文件名为 `bloomery.sqlite3`，位于操作系统为 Bloomery 分配的应用数据目录。程序不会在仓库目录保存用户会话，也不会创建 `auth-session.json`。
+
+现阶段不自动迁移、上传或删除已有用户数据。后续存储迁移必须保持可回滚并经过版本化测试。
+
+## Provider
+
+正式发行版将支持用户自有 Provider，包括：
+
+- OpenAI-compatible LLM 与本地模型服务；
+- SiliconFlow 的 BGE-M3 向量模型与 BGE-Reranker-V2-M3 重排模型；
+- MinerU 文档解析服务；
+- 可选的本地实现和社区 Provider。
+
+API Key 只允许通过系统凭据库保存。配置文件和 SQLite 不得存储明文密钥。
+
+## 仓库结构
+
+```text
 bloomery/
-├── frontend/     # React 18 + Vite + Tailwind 前端（含 src/desktop/ 桌面适配层）
-└── src-tauri/    # Tauri 2 / Rust 宿主：本地智能体、SQLite、云任务代理
+|-- frontend/     React 18、Vite、桌面交互界面与唯一 Tauri bridge
+|-- src-tauri/    Tauri 2、Rust Agent、本地 SQLite、Provider 与安全边界
+`-- docs/         正式设计规格、实施计划和发布门禁
 ```
-
-## 快速开始
-
-依赖：Node.js 20/22/24、Rust（stable）、[Tauri 2 前置依赖](https://tauri.app/start/prerequisites/)。
-
-```bash
-# 安装前端依赖
-cd frontend
-npm install
-
-# 开发模式（自动启动前端 + 桌面窗口）
-cd ../src-tauri
-cargo tauri dev
-
-# 构建发行版
-cargo tauri build
-```
-
-Windows 用户可以直接双击根目录的 `start-desktop.bat`，它会自动安装缺失的依赖并进入开发模式。
-
-## 配置
-
-| 配置项 | 位置 | 说明 |
-| --- | --- | --- |
-| 本地 LLM | 应用内「设置 → 模型」 | OpenAI 兼容 base_url / model / API Key，仅存本机 |
-| 云端 API 地址 | 应用内「设置」 | 留空即纯本地模式；填写后启用云任务能力 |
-| 数据库 | 系统应用数据目录 | SQLite 单文件，按用户隔离 |
 
 ## 开发
 
-```bash
-# Rust 检查与测试
-cd src-tauri
-cargo check
-cargo test
+环境要求：Windows 10 或更高版本、Node.js 20/22/24、Rust stable，以及 Tauri 2 的 Windows 前置依赖。
 
-# 前端类型检查 + 构建
-cd frontend
+```powershell
+Set-Location frontend
+npm install
+npm run test:boundaries
 npm run build
+
+Set-Location ../src-tauri
+cargo test
+cargo check
+cargo tauri dev
 ```
+
+也可以从仓库根目录运行 `start-desktop.bat` 启动开发环境。
+
+## Non-goals
+
+Bloomery 不做以下事情：
+
+- 不复用旧 Web 登录、会话或后端 API；
+- 不要求连接项目作者维护的服务器；
+- 不托管用户密钥、知识库或聊天记录；
+- 不在用户未确认的情况下执行高风险工具；
+- 不以“又一个通用聊天客户端”为产品定位。
 
 ## License
 
-[MIT](./LICENSE)
+MIT，详见 `LICENSE`。

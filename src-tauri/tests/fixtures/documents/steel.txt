@@ -1,0 +1,4 @@
+Q355B production note
+
+屈服强度要求为 355 MPa。
+第二段保留中文和 Latin identifiers。

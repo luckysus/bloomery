@@ -1,8 +1,7 @@
 import type { ReactNode } from "react";
-import { API_BASE } from "../services/api";
 
 export function proxyImg(imagePath: string) {
-  return `${API_BASE}/api/image?image_path=${encodeURIComponent(imagePath)}`;
+  return imagePath;
 }
 
 function escapeRegExp(text: string) {

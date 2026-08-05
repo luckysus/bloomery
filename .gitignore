@@ -53,6 +53,10 @@ test-results/
 # Rust / Tauri
 src-tauri/target/
 src-tauri/gen/schemas/
+src-tauri/final_local_agent_tests.txt
+src-tauri/final_test_results.txt
+src-tauri/test_output_*.txt
+src-tauri/test_results_*.txt
 
 # =========================
 # IDE / OS

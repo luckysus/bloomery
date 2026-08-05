@@ -40,9 +40,13 @@ pub fn search(
 
     let mut df = HashMap::new();
     let total_len = indexed.iter().map(|(_, _, len)| *len).sum::<usize>();
-    for (_, counts, _) in &indexed {
-        for term in counts.keys() {
-            *df.entry(term.clone()).or_insert(0usize) += 1;
+    for query_term in &query_terms {
+        let matching_docs = indexed
+            .iter()
+            .filter(|(_, counts, _)| counts.keys().any(|term| term_matches(term, query_term)))
+            .count();
+        if matching_docs > 0 {
+            df.insert(query_term.clone(), matching_docs);
         }
     }
     let avg_len = total_len as f64 / indexed.len() as f64;
@@ -156,9 +160,14 @@ fn bm25_score(
     let b = 0.75;
     let doc_len = length as f64;
     query_terms.iter().fold(0.0, |score, term| {
-        let Some(tf) = counts.get(term).copied() else {
+        let tf = counts
+            .iter()
+            .filter(|(indexed_term, _)| term_matches(indexed_term, term))
+            .map(|(_, count)| *count)
+            .sum::<usize>();
+        if tf == 0 {
             return score;
-        };
+        }
         let Some(term_df) = df.get(term).copied() else {
             return score;
         };
@@ -167,6 +176,14 @@ fn bm25_score(
             + idf * (tf as f64 * (k1 + 1.0))
                 / (tf as f64 + k1 * (1.0 - b + b * doc_len / avg_len.max(1.0)))
     })
+}
+
+fn term_matches(indexed_term: &str, query_term: &str) -> bool {
+    indexed_term == query_term
+        || (query_term.len() >= 3
+            && query_term.chars().any(|ch| ch.is_ascii_alphabetic())
+            && query_term.chars().any(|ch| ch.is_ascii_digit())
+            && indexed_term.starts_with(query_term))
 }
 
 fn make_snippet(text: &str, query: &str, terms: &[String], max_chars: usize) -> String {
@@ -235,6 +252,18 @@ mod tests {
             },
         ];
         let hits = search("prompt cache", &docs, 4, 80);
+        assert_eq!(hits.first().map(|hit| hit.index), Some(0));
+    }
+
+    #[test]
+    fn matches_ascii_identifier_prefix() {
+        let docs = vec![SearchDocument {
+            index: 0,
+            text: "Steel grade Q355B".into(),
+        }];
+
+        let hits = search("Q355", &docs, 4, 80);
+
         assert_eq!(hits.first().map(|hit| hit.index), Some(0));
     }
 }

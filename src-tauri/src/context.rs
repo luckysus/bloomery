@@ -1,9 +1,7 @@
-use crate::auth::AuthState;
-use crate::db::{
-    conversation_belongs_to_user, current_user_id, rank_history_hits, with_conn, DbState,
-};
+use crate::db::{current_workspace_id, with_conn, DbState};
 use crate::models::HistoryHit;
 use crate::retrieval::{estimate_text_tokens, search, SearchDocument};
+use crate::storage::repositories::conversations::{belongs_to_workspace, rank_history_hits};
 use rusqlite::params;
 use serde::Serialize;
 
@@ -52,24 +50,23 @@ struct RecentMessage {
 
 #[tauri::command]
 pub fn build_context_packet(
-    auth: tauri::State<AuthState>,
     db: tauri::State<DbState>,
     conversation_id: String,
     message: String,
 ) -> Result<DesktopContextPacket, String> {
-    let user_id = current_user_id(&auth)?;
+    let workspace_id = current_workspace_id();
     let conversation_id = conversation_id.trim().to_string();
     if conversation_id.is_empty() {
         return Err("conversation_id is required".to_string());
     }
     with_conn(&db, |conn| {
-        ensure_context_conversation_belongs_to_user(conn, &user_id, &conversation_id)?;
+        ensure_context_conversation_belongs_to_workspace(conn, &workspace_id, &conversation_id)?;
         let raw_conversation_summary = conn
             .query_row(
                 "SELECT summary FROM conversation_summaries
-                 WHERE user_id = ?1 AND conversation_id = ?2
+                 WHERE workspace_id = ?1 AND conversation_id = ?2
                  ORDER BY updated_at DESC LIMIT 1",
-                params![user_id, conversation_id],
+                params![workspace_id, conversation_id],
                 |row| row.get::<_, String>(0),
             )
             .unwrap_or_default();
@@ -78,10 +75,10 @@ pub fn build_context_packet(
         let conversation_summary_truncated =
             raw_conversation_summary_chars > CONVERSATION_SUMMARY_CHAR_LIMIT;
 
-        let recent_messages = load_recent_messages(conn, &user_id, &conversation_id)?;
+        let recent_messages = load_recent_messages(conn, &workspace_id, &conversation_id)?;
         let (recent_messages, recent_tokens) = budget_recent_messages(recent_messages);
 
-        let memories = load_enabled_memories(conn, &user_id)?;
+        let memories = load_enabled_memories(conn, &workspace_id)?;
         let memory_index_total_count = memories.len();
         let memory_index = build_memory_index(&memories);
         let memory_index_tokens = memory_index
@@ -94,7 +91,7 @@ pub fn build_context_packet(
             .map(|value| estimate_text_tokens(&value.to_string()))
             .sum::<usize>();
 
-        let history_hits = load_history_hits(conn, &user_id, &conversation_id, &message)?;
+        let history_hits = load_history_hits(conn, &workspace_id, &conversation_id, &message)?;
         let history_tokens = history_hits
             .iter()
             .map(|value| estimate_text_tokens(&value.to_string()))
@@ -140,12 +137,12 @@ pub fn build_context_packet(
     })
 }
 
-fn ensure_context_conversation_belongs_to_user(
+fn ensure_context_conversation_belongs_to_workspace(
     conn: &rusqlite::Connection,
-    user_id: &str,
+    workspace_id: &str,
     conversation_id: &str,
 ) -> Result<(), String> {
-    if !conversation_belongs_to_user(conn, user_id, conversation_id)? {
+    if !belongs_to_workspace(conn, workspace_id, conversation_id)? {
         return Err("conversation not found".to_string());
     }
     Ok(())
@@ -157,19 +154,19 @@ fn budget_conversation_summary(summary: String) -> String {
 
 fn load_recent_messages(
     conn: &rusqlite::Connection,
-    user_id: &str,
+    workspace_id: &str,
     conversation_id: &str,
 ) -> Result<Vec<RecentMessage>, String> {
     let mut stmt = conn
         .prepare(
             "SELECT role, content, created_at FROM messages
-             WHERE user_id = ?1 AND conversation_id = ?2
+             WHERE workspace_id = ?1 AND conversation_id = ?2
              ORDER BY created_at DESC LIMIT ?3",
         )
         .map_err(|err| err.to_string())?;
     let rows = stmt
         .query_map(
-            params![user_id, conversation_id, RECENT_MESSAGE_READ_LIMIT],
+            params![workspace_id, conversation_id, RECENT_MESSAGE_READ_LIMIT],
             |row| {
                 Ok(RecentMessage {
                     role: row.get(0)?,
@@ -208,18 +205,19 @@ fn budget_recent_messages(messages: Vec<RecentMessage>) -> (Vec<serde_json::Valu
 
 fn load_enabled_memories(
     conn: &rusqlite::Connection,
-    user_id: &str,
+    workspace_id: &str,
 ) -> Result<Vec<MemoryCandidate>, String> {
     let mut stmt = conn
         .prepare(
             "SELECT id, scope, type, title, description, body, tags_json, updated_at
              FROM memories
-             WHERE user_id = ?1 AND enabled = 1 AND archived_at IS NULL
+             WHERE workspace_id = ?1 AND enabled = 1 AND archived_at IS NULL
+               AND status = 'confirmed'
              ORDER BY updated_at DESC",
         )
         .map_err(|err| err.to_string())?;
     let rows = stmt
-        .query_map(params![user_id], |row| {
+        .query_map(params![workspace_id], |row| {
             Ok(MemoryCandidate {
                 id: row.get(0)?,
                 scope: row.get(1)?,
@@ -293,7 +291,7 @@ fn select_memories(memories: &[MemoryCandidate], query: &str) -> Vec<serde_json:
 
 fn load_history_hits(
     conn: &rusqlite::Connection,
-    user_id: &str,
+    workspace_id: &str,
     conversation_id: &str,
     query: &str,
 ) -> Result<Vec<serde_json::Value>, String> {
@@ -301,15 +299,15 @@ fn load_history_hits(
         .prepare(
             "SELECT m.id, m.conversation_id, c.title, m.role, m.content, m.created_at
              FROM messages m
-             LEFT JOIN conversations c ON c.user_id = m.user_id AND c.id = m.conversation_id
-             WHERE m.user_id = ?1 AND m.conversation_id != ?2 AND TRIM(m.content) != ''
+             LEFT JOIN conversations c ON c.workspace_id = m.workspace_id AND c.id = m.conversation_id
+             WHERE m.workspace_id = ?1 AND m.conversation_id != ?2 AND TRIM(m.content) != ''
              ORDER BY m.created_at DESC
              LIMIT ?3",
         )
         .map_err(|err| err.to_string())?;
     let rows = stmt
         .query_map(
-            params![user_id, conversation_id, HISTORY_READ_LIMIT],
+            params![workspace_id, conversation_id, HISTORY_READ_LIMIT],
             |row| {
                 Ok(HistoryHit {
                     message_id: row.get(0)?,
@@ -360,9 +358,8 @@ mod tests {
     use rusqlite::Connection;
 
     fn memory_conn() -> Connection {
-        let conn = Connection::open_in_memory().expect("open memory sqlite");
-        conn.execute_batch(include_str!("schema.sql"))
-            .expect("schema");
+        let mut conn = Connection::open_in_memory().expect("open memory sqlite");
+        crate::storage::migrations::migrate(&mut conn).expect("migrate schema");
         conn
     }
 
@@ -370,18 +367,20 @@ mod tests {
     fn context_packet_requires_user_owned_conversation() {
         let conn = memory_conn();
         conn.execute(
-            "INSERT INTO conversations (id, user_id, title, created_at, updated_at)
+            "INSERT INTO conversations (id, workspace_id, title, created_at, updated_at)
              VALUES ('c1', 'user-1', 'title', 't1', 't1')",
             [],
         )
         .expect("insert conversation");
 
-        ensure_context_conversation_belongs_to_user(&conn, "user-1", "c1")
+        ensure_context_conversation_belongs_to_workspace(&conn, "user-1", "c1")
             .expect("owned conversation");
-        let err = ensure_context_conversation_belongs_to_user(&conn, "user-2", "c1")
+        let err = ensure_context_conversation_belongs_to_workspace(&conn, "user-2", "c1")
             .expect_err("cross-user context should fail");
         assert!(err.contains("conversation not found"));
-        assert!(ensure_context_conversation_belongs_to_user(&conn, "user-1", "missing").is_err());
+        assert!(
+            ensure_context_conversation_belongs_to_workspace(&conn, "user-1", "missing").is_err()
+        );
     }
 
     #[test]

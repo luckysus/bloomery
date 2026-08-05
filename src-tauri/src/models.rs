@@ -1,5 +1,14 @@
 use serde::{Deserialize, Serialize};
 
+use crate::agent::context::MemoryStatus;
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct ConversationSnapshotMessage {
+    pub role: String,
+    pub content: String,
+    pub response_json: Option<String>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Conversation {
     pub id: String,
@@ -45,6 +54,11 @@ pub struct Memory {
     pub archived_at: Option<String>,
     pub created_at: String,
     pub updated_at: String,
+    pub source_message_id: Option<String>,
+    pub source_run_id: Option<String>,
+    pub confidence: f64,
+    pub status: MemoryStatus,
+    pub dedup_key: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -70,28 +84,4 @@ pub struct MemorySuggestion {
     pub tags_json: String,
     pub reason: String,
     pub evidence: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct CloudJob {
-    pub id: String,
-    pub conversation_id: Option<String>,
-    pub cloud_job_id: String,
-    pub r#type: String,
-    pub status: String,
-    pub payload_json: String,
-    pub result_json: Option<String>,
-    pub created_at: String,
-    pub updated_at: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct CloudJobInput {
-    pub id: Option<String>,
-    pub conversation_id: Option<String>,
-    pub cloud_job_id: String,
-    pub r#type: String,
-    pub status: String,
-    pub payload_json: Option<String>,
-    pub result_json: Option<String>,
 }

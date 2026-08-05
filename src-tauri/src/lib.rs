@@ -1,0 +1,14 @@
+pub mod agent;
+mod app;
+mod context;
+mod db;
+pub mod diagnostics;
+mod local_agent;
+pub mod models;
+pub mod providers;
+pub mod rag;
+mod retrieval;
+pub mod storage;
+pub mod tasks;
+
+pub use app::run;
