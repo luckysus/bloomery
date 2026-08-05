@@ -81,10 +81,12 @@ Persist permanent rules by stable tool ID, version range, source identity, actio
 
 **Files:** Create `permissions/path.rs` and `tests/permission_paths.rs`.
 
-- [ ] **Step 1: Write Windows tests** for relative paths, `..`, UNC, device paths, alternate streams, symlink/junction escape, case folding, nonexistent targets, and post-open target verification.
-- [ ] **Step 2: Run `cargo test --test permission_paths`** and expect failure.
-- [ ] **Step 3: Implement authorized-root handles.** Canonicalize existing ancestors, reject device namespaces, verify resolved targets remain under granted roots, and re-check opened handles before effects.
-- [ ] **Step 4: Run path tests on Windows** and expect pass.
+- [x] **Step 1: Write Windows tests** for relative paths, `..`, UNC, device paths, alternate streams, symlink/junction escape, case folding, nonexistent targets, and post-open target verification.
+- [x] **Step 2: Run `cargo test --test permission_paths`** and expect failure.
+- [x] **Step 3: Implement authorized-root handles.** Canonicalize existing ancestors, reject device namespaces, verify resolved targets remain under granted roots, and re-check opened handles before effects.
+- [x] **Step 4: Run path tests on Windows** and expect pass.
+
+**Execution record (2026-08-05):** Added strict absolute-path validation, explicit UNC/device/alternate-stream rejection, canonicalization of existing ancestors with missing-tail support, case-insensitive root containment, symlink/reparse-point escape checks, and Windows `GetFinalPathNameByHandleW` verification for opened files. The Windows path suite passed 10 tests; the related permission, tool, Agent loop, architecture, migration, and library suites passed 46, 10, 14, 13, 21, 9, and 46 tests respectively. `cargo fmt --all -- --check` passed. A full unfiltered `cargo test` run exceeded five minutes and was split into bounded groups; no individual failure was observed.
 
 ### Task 5: Integrate MCP through the standard SDK
 

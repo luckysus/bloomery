@@ -29,6 +29,9 @@ quick-xml = "0.39"
 sha2 = "0.10"
 zip = { version = "4.0", default-features = false, features = ["deflate-flate2"] }
 
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.59", features = ["Win32_Foundation", "Win32_Storage_FileSystem"] }
+
 [[bench]]
 name = "retrieval"
 harness = false

@@ -1,4 +1,5 @@
 mod model;
+pub mod path;
 mod policy;
 
 pub use model::{
