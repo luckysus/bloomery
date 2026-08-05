@@ -12,6 +12,7 @@ import {
   Trash2,
   X,
 } from "lucide-react";
+import { useLocale } from "../../i18n/locale";
 import {
   desktop,
   type BackgroundTask,
@@ -41,8 +42,8 @@ const emptyRetrieval: RetrievalSetup = {
   mineruProfileId: null,
 };
 
-function errorMessage(error: unknown) {
-  return error instanceof Error ? error.message : "本地操作失败，请检查配置后重试。";
+function errorMessage(error: unknown, fallback: string) {
+  return error instanceof Error ? error.message : fallback;
 }
 
 function parseRetrievalSetup(value: string | null): RetrievalSetup {
@@ -58,35 +59,36 @@ function parseRetrievalSetup(value: string | null): RetrievalSetup {
   }
 }
 
-function taskStateLabel(task: BackgroundTask) {
+function taskStateLabel(task: BackgroundTask, translate: (key: "taskQueued" | "taskProcessing" | "taskCompleted" | "taskFailed" | "taskCancelled" | "taskInterrupted" | "taskPaused") => string) {
   switch (task.state) {
     case "queued":
-      return "排队中";
+      return translate("taskQueued");
     case "running":
     case "waiting_external":
-      return "处理中";
+      return translate("taskProcessing");
     case "completed":
-      return "已完成";
+      return translate("taskCompleted");
     case "failed":
-      return "失败";
+      return translate("taskFailed");
     case "cancelled":
-      return "已取消";
+      return translate("taskCancelled");
     case "interrupted":
-      return "已中断";
+      return translate("taskInterrupted");
     default:
-      return "已暂停";
+      return translate("taskPaused");
   }
 }
 
-function taskKindLabel(kind: string) {
-  return kind === "mineru_parse" ? "文献解析" : kind === "rag_index_rebuild" ? "索引重建" : "后台任务";
+function taskKindLabel(kind: string, translate: (key: "taskLiteratureParse" | "taskIndexRebuild" | "taskBackground") => string) {
+  return kind === "mineru_parse" ? translate("taskLiteratureParse") : kind === "rag_index_rebuild" ? translate("taskIndexRebuild") : translate("taskBackground");
 }
 
-function documentStateLabel(document: SourceDocumentRecord) {
-  return document.active_version_id ? "已激活" : "处理中";
+function documentStateLabel(document: SourceDocumentRecord, translate: (key: "documentActive" | "documentProcessing") => string) {
+  return document.active_version_id ? translate("documentActive") : translate("documentProcessing");
 }
 
 export default function KnowledgePage() {
+  const { t } = useLocale();
   const [bases, setBases] = useState<KnowledgeBaseRecord[]>([]);
   const [selectedBaseId, setSelectedBaseId] = useState<string | null>(null);
   const [documents, setDocuments] = useState<SourceDocumentRecord[]>([]);
@@ -119,7 +121,7 @@ export default function KnowledgePage() {
       setRetrieval(parseRetrievalSetup(setting));
       setSelectedBaseId((current) => current && nextBases.some((base) => base.id === current) ? current : nextBases[0]?.id ?? null);
     } catch (cause) {
-      setError(errorMessage(cause));
+      setError(errorMessage(cause, t("knowledgeError")));
     } finally {
       setLoading(false);
     }
@@ -138,7 +140,7 @@ export default function KnowledgePage() {
     desktop.listKnowledgeDocuments(selectedBaseId).then((items) => {
       if (mounted) setDocuments(items);
     }).catch((cause) => {
-      if (mounted) setError(errorMessage(cause));
+      if (mounted) setError(errorMessage(cause, t("knowledgeError")));
     });
     return () => {
       mounted = false;
@@ -161,7 +163,7 @@ export default function KnowledgePage() {
       setNewName("");
       setHealth((current) => ({ ...current, knowledge_base_count: current.knowledge_base_count + 1 }));
     } catch (cause) {
-      setError(errorMessage(cause));
+      setError(errorMessage(cause, t("knowledgeError")));
     } finally {
       setBusy(false);
     }
@@ -182,7 +184,7 @@ export default function KnowledgePage() {
       setBases((current) => current.map((base) => base.id === updated.id ? updated : base));
       setRenameId(null);
     } catch (cause) {
-      setError(errorMessage(cause));
+      setError(errorMessage(cause, t("knowledgeError")));
     } finally {
       setBusy(false);
     }
@@ -194,7 +196,7 @@ export default function KnowledgePage() {
     try {
       setDeleteImpact(await desktop.previewDeleteKnowledgeBase(base.id));
     } catch (cause) {
-      setError(errorMessage(cause));
+      setError(errorMessage(cause, t("knowledgeError")));
     } finally {
       setBusy(false);
     }
@@ -212,7 +214,7 @@ export default function KnowledgePage() {
       setDeleteImpact(null);
       setHealth((current) => ({ ...current, knowledge_base_count: Math.max(0, current.knowledge_base_count - 1) }));
     } catch (cause) {
-      setError(errorMessage(cause));
+      setError(errorMessage(cause, t("knowledgeError")));
     } finally {
       setBusy(false);
     }
@@ -222,7 +224,7 @@ export default function KnowledgePage() {
     event.preventDefault();
     if (!selectedBaseId || !filePath.trim()) return;
     if (!retrieval.embeddingProfileId || !retrieval.mineruProfileId) {
-      setError("导入文档前需要先配置 SiliconFlow Embedding 和 MinerU。请到设置中完成配置。");
+      setError(t("setupRetrievalFirst"));
       return;
     }
     setBusy(true);
@@ -237,10 +239,10 @@ export default function KnowledgePage() {
         embedding_dimension: 1024,
       });
       setFilePath("");
-      setNotice("导入任务已创建");
+      setNotice(t("importCreated"));
       await loadOverview();
     } catch (cause) {
-      setError(errorMessage(cause));
+      setError(errorMessage(cause, t("knowledgeError")));
     } finally {
       setBusy(false);
     }
@@ -251,10 +253,10 @@ export default function KnowledgePage() {
       <header className="bloomery-knowledge-header">
         <div>
           <p className="bloomery-eyebrow">LOCAL KNOWLEDGE / STEEL DOMAIN</p>
-          <h1 id="knowledge-heading">知识库</h1>
-          <p className="bloomery-lede">管理标准、论文和工艺资料，让每一次检索都能回到原始文档。</p>
+          <h1 id="knowledge-heading">{t("knowledgeTitle")}</h1>
+          <p className="bloomery-lede">{t("knowledgeLede")}</p>
         </div>
-        <button type="button" className="bloomery-icon-button" onClick={() => void loadOverview()} disabled={loading} aria-label="刷新知识库" title="刷新知识库">
+        <button type="button" className="bloomery-icon-button" onClick={() => void loadOverview()} disabled={loading} aria-label={t("refreshKnowledge")} title={t("refreshKnowledge")}>
           <RefreshCw size={17} aria-hidden="true" />
         </button>
       </header>
@@ -262,41 +264,41 @@ export default function KnowledgePage() {
       {error && <div className="bloomery-knowledge-alert" role="alert"><AlertCircle size={17} aria-hidden="true" /><span>{error}</span></div>}
       {notice && <div className="bloomery-knowledge-notice" role="status"><Check size={17} aria-hidden="true" /><span>{notice}</span></div>}
 
-      <div className="bloomery-knowledge-metrics" aria-label="知识库统计">
-        <div><span>知识库</span><strong>{health.knowledge_base_count}</strong></div>
-        <div><span>文档</span><strong>{health.document_count}</strong></div>
-        <div><span>已激活</span><strong>{health.active_document_count}</strong></div>
-        <div><span>索引块</span><strong>{health.indexed_chunk_count} / {health.chunk_count}</strong></div>
-        <div><span>活动任务</span><strong>{health.active_task_count}</strong></div>
+      <div className="bloomery-knowledge-metrics" aria-label={t("knowledgeStats")}>
+        <div><span>{t("knowledgeBase")}</span><strong>{health.knowledge_base_count}</strong></div>
+        <div><span>{t("document")}</span><strong>{health.document_count}</strong></div>
+        <div><span>{t("activeDocuments")}</span><strong>{health.active_document_count}</strong></div>
+        <div><span>{t("indexedChunks")}</span><strong>{health.indexed_chunk_count} / {health.chunk_count}</strong></div>
+        <div><span>{t("activeTasks")}</span><strong>{health.active_task_count}</strong></div>
       </div>
 
       <div className="bloomery-knowledge-layout">
-        <aside className="bloomery-knowledge-sidebar" aria-label="知识库列表">
-          <div className="bloomery-knowledge-section-heading"><span>知识库目录</span><Database size={16} aria-hidden="true" /></div>
+        <aside className="bloomery-knowledge-sidebar" aria-label={t("knowledgeDirectory")}>
+          <div className="bloomery-knowledge-section-heading"><span>{t("knowledgeDirectory")}</span><Database size={16} aria-hidden="true" /></div>
           <form className="bloomery-knowledge-create" onSubmit={createBase}>
-            <label htmlFor="knowledge-base-name">知识库名称</label>
+            <label htmlFor="knowledge-base-name">{t("baseName")}</label>
             <div>
-              <input id="knowledge-base-name" value={newName} onChange={(event) => setNewName(event.target.value)} placeholder="例如：钢铁标准" />
-              <button type="submit" className="bloomery-icon-button" disabled={busy || !newName.trim()} aria-label="创建知识库" title="创建知识库"><Plus size={17} aria-hidden="true" /></button>
+              <input id="knowledge-base-name" value={newName} onChange={(event) => setNewName(event.target.value)} placeholder={t("baseNamePlaceholder")} />
+              <button type="submit" className="bloomery-icon-button" disabled={busy || !newName.trim()} aria-label={t("createKnowledgeBase")} title={t("createKnowledgeBase")}><Plus size={17} aria-hidden="true" /></button>
             </div>
           </form>
-          {loading ? <div className="bloomery-knowledge-loading"><LoaderCircle size={17} className="bloomery-spin" />正在读取</div> : bases.length === 0 ? (
-            <p className="bloomery-knowledge-empty">还没有知识库</p>
+          {loading ? <div className="bloomery-knowledge-loading"><LoaderCircle size={17} className="bloomery-spin" />{t("loading")}</div> : bases.length === 0 ? (
+            <p className="bloomery-knowledge-empty">{t("noKnowledgeBases")}</p>
           ) : (
             <div className="bloomery-knowledge-base-list">
               {bases.map((base) => (
                 <div key={base.id} className={`bloomery-knowledge-base ${selectedBaseId === base.id ? "is-active" : ""}`}>
                   {renameId === base.id ? (
                     <div className="bloomery-knowledge-rename">
-                      <input aria-label="重命名知识库" value={renameName} onChange={(event) => setRenameName(event.target.value)} autoFocus />
-                      <button type="button" className="bloomery-icon-button" onClick={() => void saveRename()} disabled={busy} aria-label="保存名称"><Check size={15} /></button>
-                      <button type="button" className="bloomery-icon-button" onClick={() => setRenameId(null)} aria-label="取消重命名"><X size={15} /></button>
+                      <input aria-label={t("renameKnowledgeBase")} value={renameName} onChange={(event) => setRenameName(event.target.value)} autoFocus />
+                      <button type="button" className="bloomery-icon-button" onClick={() => void saveRename()} disabled={busy} aria-label={t("saveName")}><Check size={15} /></button>
+                      <button type="button" className="bloomery-icon-button" onClick={() => setRenameId(null)} aria-label={t("cancelRename")}><X size={15} /></button>
                     </div>
                   ) : (
                     <>
                       <button type="button" className="bloomery-knowledge-base-select" onClick={() => setSelectedBaseId(base.id)}>{base.name}</button>
-                      <button type="button" className="bloomery-icon-button" onClick={() => startRename(base)} aria-label={`重命名 ${base.name}`} title="重命名"><Pencil size={14} /></button>
-                      <button type="button" className="bloomery-icon-button" onClick={() => void requestDelete(base)} aria-label={`删除 ${base.name}`} title="删除"><Trash2 size={14} /></button>
+                      <button type="button" className="bloomery-icon-button" onClick={() => startRename(base)} aria-label={`${t("rename")} ${base.name}`} title={t("rename")}><Pencil size={14} /></button>
+                      <button type="button" className="bloomery-icon-button" onClick={() => void requestDelete(base)} aria-label={`${t("delete")} ${base.name}`} title={t("delete")}><Trash2 size={14} /></button>
                     </>
                   )}
                 </div>
@@ -310,43 +312,43 @@ export default function KnowledgePage() {
             <>
               <div className="bloomery-knowledge-content-header">
                 <div><p className="bloomery-eyebrow">SELECTED KNOWLEDGE BASE</p><h2>{selectedBase.name}</h2></div>
-                <span className="bloomery-knowledge-count">{documents.length} 份文档</span>
+                <span className="bloomery-knowledge-count">{t("documents", { count: documents.length })}</span>
               </div>
               <form className="bloomery-knowledge-import" onSubmit={importDocument}>
-                <div className="bloomery-knowledge-import-title"><FolderUp size={18} aria-hidden="true" /><strong>导入本地文档</strong></div>
-                <label htmlFor="knowledge-file-path">文件路径</label>
+                <div className="bloomery-knowledge-import-title"><FolderUp size={18} aria-hidden="true" /><strong>{t("importLocalDocument")}</strong></div>
+                <label htmlFor="knowledge-file-path">{t("filePath")}</label>
                 <div className="bloomery-knowledge-import-row">
-                  <input id="knowledge-file-path" value={filePath} onChange={(event) => setFilePath(event.target.value)} placeholder="输入 Windows 文件完整路径" required />
-                  <button type="submit" className="bloomery-action-primary" disabled={busy || !filePath.trim()}><FileText size={17} aria-hidden="true" />导入文档</button>
+                  <input id="knowledge-file-path" value={filePath} onChange={(event) => setFilePath(event.target.value)} placeholder={t("filePathPlaceholder")} required />
+                  <button type="submit" className="bloomery-action-primary" disabled={busy || !filePath.trim()}><FileText size={17} aria-hidden="true" />{t("importDocumentAction")}</button>
                 </div>
-                <p>使用当前配置的 MinerU 解析文档，并用 BGE-M3 建立本地索引。</p>
+                <p>{t("importDescription")}</p>
               </form>
 
               <section className="bloomery-knowledge-list-section" aria-labelledby="documents-heading">
-                <div className="bloomery-knowledge-section-heading"><h3 id="documents-heading">文档</h3><span>{documents.length} 项</span></div>
-                {documents.length === 0 ? <div className="bloomery-knowledge-empty-content"><FileText size={21} /><span>这个知识库还没有文档</span></div> : (
+                <div className="bloomery-knowledge-section-heading"><h3 id="documents-heading">{t("document")}</h3><span>{t("items", { count: documents.length })}</span></div>
+                {documents.length === 0 ? <div className="bloomery-knowledge-empty-content"><FileText size={21} /><span>{t("noDocuments")}</span></div> : (
                   <div className="bloomery-knowledge-document-list">
-                    {documents.map((document) => <div className="bloomery-knowledge-document" key={document.id}><FileText size={18} /><div><strong>{document.display_name}</strong><span>{document.source_kind.toUpperCase()} · {documentStateLabel(document)}</span></div></div>)}
+                    {documents.map((document) => <div className="bloomery-knowledge-document" key={document.id}><FileText size={18} /><div><strong>{document.display_name}</strong><span>{document.source_kind.toUpperCase()} · {documentStateLabel(document, (key) => t(key))}</span></div></div>)}
                   </div>
                 )}
               </section>
             </>
           ) : (
-            <div className="bloomery-knowledge-empty-content is-large"><Database size={28} /><strong>先创建一个知识库</strong><span>知识库会保存文档、版本和可追溯的检索证据。</span></div>
+            <div className="bloomery-knowledge-empty-content is-large"><Database size={28} /><strong>{t("createKnowledgeBaseFirst")}</strong><span>{t("knowledgeBaseDescription")}</span></div>
           )}
 
           <section className="bloomery-knowledge-list-section" aria-labelledby="tasks-heading">
-            <div className="bloomery-knowledge-section-heading"><h3 id="tasks-heading">后台任务</h3><span>{tasks.length} 项</span></div>
-            {tasks.length === 0 ? <div className="bloomery-knowledge-empty-content"><LoaderCircle size={19} /><span>暂无后台任务</span></div> : (
+            <div className="bloomery-knowledge-section-heading"><h3 id="tasks-heading">{t("backgroundTasks")}</h3><span>{t("items", { count: tasks.length })}</span></div>
+            {tasks.length === 0 ? <div className="bloomery-knowledge-empty-content"><LoaderCircle size={19} /><span>{t("noBackgroundTasks")}</span></div> : (
               <div className="bloomery-knowledge-task-list">
-                {tasks.slice(0, 5).map((task) => <div className="bloomery-knowledge-task" key={task.id}><div><strong>{taskKindLabel(task.kind)}</strong><span>{taskStateLabel(task)} · 第 {task.attempt} 次</span></div><div className="bloomery-knowledge-progress"><span style={{ width: `${task.progress}%` }} /><b>{task.progress}%</b></div></div>)}
+                {tasks.slice(0, 5).map((task) => <div className="bloomery-knowledge-task" key={task.id}><div><strong>{taskKindLabel(task.kind, (key) => t(key))}</strong><span>{taskStateLabel(task, (key) => t(key))} · {t("taskAttempt", { count: task.attempt })}</span></div><div className="bloomery-knowledge-progress"><span style={{ width: `${task.progress}%` }} /><b>{task.progress}%</b></div></div>)}
               </div>
             )}
           </section>
         </div>
       </div>
 
-      {deleteImpact && <div className="bloomery-knowledge-confirm" role="dialog" aria-modal="true" aria-labelledby="delete-heading"><div className="bloomery-knowledge-confirm-panel"><p className="bloomery-eyebrow">DESTRUCTIVE ACTION</p><h2 id="delete-heading">删除“{deleteImpact.name}”？</h2><p>这会删除 {deleteImpact.document_count} 份文档、{deleteImpact.version_count} 个版本和 {deleteImpact.chunk_count} 个索引块。</p>{deleteImpact.active_task_count > 0 && <strong className="bloomery-knowledge-danger">请先取消活动任务。</strong>}<div><button type="button" className="bloomery-action-secondary" onClick={() => setDeleteImpact(null)}>取消</button><button type="button" className="bloomery-action-primary" onClick={() => void confirmDelete()} disabled={busy || deleteImpact.active_task_count > 0}><Trash2 size={16} aria-hidden="true" />确认删除</button></div></div></div>}
+      {deleteImpact && <div className="bloomery-knowledge-confirm" role="dialog" aria-modal="true" aria-labelledby="delete-heading"><div className="bloomery-knowledge-confirm-panel"><p className="bloomery-eyebrow">{t("destructiveAction")}</p><h2 id="delete-heading">{t("deleteKnowledgeBaseTitle", { name: deleteImpact.name })}</h2><p>{t("deleteKnowledgeBaseImpact", { documents: deleteImpact.document_count, versions: deleteImpact.version_count, chunks: deleteImpact.chunk_count })}</p>{deleteImpact.active_task_count > 0 && <strong className="bloomery-knowledge-danger">{t("activeTaskWarning")}</strong>}<div><button type="button" className="bloomery-action-secondary" onClick={() => setDeleteImpact(null)}>{t("cancel")}</button><button type="button" className="bloomery-action-primary" onClick={() => void confirmDelete()} disabled={busy || deleteImpact.active_task_count > 0}><Trash2 size={16} aria-hidden="true" />{t("confirmDelete")}</button></div></div></div>}
     </section>
   );
 }

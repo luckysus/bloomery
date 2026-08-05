@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, Minus, Plus } from "lucide-react";
+import { useLocale } from "../i18n/locale";
 // legacy 构建自带旧内核兼容垫片：现代构建用了 Uint8Array.toHex 等新 API，
 // 老一点的手机浏览器会报 "toHex is not a function" 导致预览失败。
 import * as pdfjsLib from "pdfjs-dist/legacy/build/pdf.mjs";
@@ -19,6 +20,7 @@ const OVERSCAN_PAGES = 2;
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
 export default function PdfCanvasViewer({ url, title }: PdfCanvasViewerProps) {
+  const { t } = useLocale();
   const containerRef = useRef<HTMLDivElement | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const pageCanvasRefs = useRef(new Map<number, HTMLCanvasElement>());
@@ -85,7 +87,7 @@ export default function PdfCanvasViewer({ url, title }: PdfCanvasViewerProps) {
           if (cancelled || retryError?.name === "PasswordException") return;
           console.error("Failed to load PDF preview", retryError);
           const detail = String(retryError?.message || retryError?.name || "").slice(0, 120);
-          setError(detail ? `PDF 预览失败：${detail}` : "PDF 预览失败");
+          setError(detail ? `${t("pdfPreviewFailed")}: ${detail}` : t("pdfPreviewFailed"));
           return;
         }
       } finally {
@@ -103,7 +105,7 @@ export default function PdfCanvasViewer({ url, title }: PdfCanvasViewerProps) {
       } catch (pageError: any) {
         if (cancelled) return;
         console.error("Failed to read first PDF page", pageError);
-        setError("PDF 预览失败");
+        setError(t("pdfPreviewFailed"));
       }
     }
 
@@ -120,7 +122,7 @@ export default function PdfCanvasViewer({ url, title }: PdfCanvasViewerProps) {
       void loadingTask?.destroy();
       void loadedDocument?.destroy();
     };
-  }, [url]);
+  }, [t, url]);
 
   const totalPages = pdfDocument?.numPages || 0;
   const zoomLabel = useMemo(() => `${Math.round(zoom * 100)}%`, [zoom]);
@@ -178,7 +180,7 @@ export default function PdfCanvasViewer({ url, title }: PdfCanvasViewerProps) {
       } catch (renderError: any) {
         if (!cancelled && renderError?.name !== "RenderingCancelledException") {
           console.error("Failed to render PDF page", renderError);
-          setError("PDF 页面渲染失败");
+          setError(t("pdfPageRenderFailed"));
         }
       }
     }
@@ -190,7 +192,7 @@ export default function PdfCanvasViewer({ url, title }: PdfCanvasViewerProps) {
       renderTasksRef.current.forEach(task => task.cancel());
       renderTasksRef.current = [];
     };
-  }, [availableWidth, containerWidth, pagesToRenderKey, pdfDocument, zoom]);
+  }, [availableWidth, containerWidth, pagesToRenderKey, pdfDocument, t, zoom]);
 
   const setPageCanvas = (targetPage: number, canvas: HTMLCanvasElement | null) => {
     if (canvas) {
@@ -257,7 +259,7 @@ export default function PdfCanvasViewer({ url, title }: PdfCanvasViewerProps) {
           onClick={goPrevious}
           disabled={pageNumber <= 1 || loading}
           className="rounded p-1 text-slate-500 hover:bg-slate-100 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-35"
-          aria-label="上一页"
+          aria-label={t("previousPage")}
         >
           <ChevronLeft className="h-3.5 w-3.5" />
         </button>
@@ -269,7 +271,7 @@ export default function PdfCanvasViewer({ url, title }: PdfCanvasViewerProps) {
           onClick={goNext}
           disabled={loading || Boolean(totalPages && pageNumber >= totalPages)}
           className="rounded p-1 text-slate-500 hover:bg-slate-100 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-35"
-          aria-label="下一页"
+          aria-label={t("nextPage")}
         >
           <ChevronRight className="h-3.5 w-3.5" />
         </button>
@@ -279,7 +281,7 @@ export default function PdfCanvasViewer({ url, title }: PdfCanvasViewerProps) {
           onClick={zoomOut}
           disabled={zoom <= MIN_ZOOM || loading}
           className="rounded p-1 text-slate-500 hover:bg-slate-100 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-35"
-          aria-label="缩小"
+          aria-label={t("zoomOut")}
         >
           <Minus className="h-3.5 w-3.5" />
         </button>
@@ -289,7 +291,7 @@ export default function PdfCanvasViewer({ url, title }: PdfCanvasViewerProps) {
           onClick={zoomIn}
           disabled={zoom >= MAX_ZOOM || loading}
           className="rounded p-1 text-slate-500 hover:bg-slate-100 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-35"
-          aria-label="放大"
+          aria-label={t("zoomIn")}
         >
           <Plus className="h-3.5 w-3.5" />
         </button>
@@ -316,7 +318,7 @@ export default function PdfCanvasViewer({ url, title }: PdfCanvasViewerProps) {
                 <canvas
                   ref={canvas => setPageCanvas(targetPage, canvas)}
                   className="block bg-white"
-                  aria-label={`${title} 第 ${targetPage} 页`}
+                  aria-label={t("pageAria", { title, page: targetPage })}
                 />
               </div>
             ))}

@@ -87,6 +87,44 @@
   gap: 18px;
 }
 
+.bloomery-language-control {
+  align-items: center;
+  border: 1px solid var(--bloomery-line);
+  border-radius: var(--bloomery-radius-small);
+  color: var(--bloomery-text-muted);
+  display: inline-flex;
+  gap: 6px;
+  min-height: 30px;
+  padding: 0 8px;
+}
+
+.bloomery-language-control select {
+  appearance: none;
+  background: transparent;
+  border: 0;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  max-width: 118px;
+  outline: 0;
+  padding: 2px 0;
+}
+
+.bloomery-language-control:focus-within {
+  border-color: var(--bloomery-amber);
+  color: var(--bloomery-text);
+}
+
+.sr-only {
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  position: absolute;
+  width: 1px;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}
+
 .bloomery-local-indicator {
   color: var(--bloomery-text-soft);
   font-size: 12px;
@@ -1728,6 +1766,115 @@
 .bloomery-chat-answer pre {
   background: #243238;
   border-radius: var(--bloomery-radius-small);
+}
+
+.bloomery-chat-citations {
+  border-top: 1px solid var(--bloomery-line);
+  margin-top: 14px;
+  padding-top: 11px;
+}
+
+.bloomery-chat-citations-heading,
+.bloomery-chat-citation-detail-heading {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+}
+
+.bloomery-chat-citations-heading {
+  color: var(--bloomery-text-muted);
+  font-size: 11px;
+  letter-spacing: 0;
+  margin-bottom: 8px;
+  text-transform: uppercase;
+}
+
+.bloomery-chat-citations-heading > span {
+  align-items: center;
+  display: inline-flex;
+  gap: 6px;
+}
+
+.bloomery-chat-citations-heading .bloomery-icon-button {
+  min-height: 24px;
+  min-width: 24px;
+}
+
+.bloomery-chat-citation-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.bloomery-chat-citation {
+  align-items: center;
+  background: var(--bloomery-bg-soft);
+  border: 1px solid var(--bloomery-line);
+  border-radius: var(--bloomery-radius-small);
+  color: var(--bloomery-text-soft);
+  cursor: pointer;
+  display: inline-flex;
+  gap: 6px;
+  min-height: 30px;
+  padding: 5px 9px;
+  text-align: left;
+}
+
+.bloomery-chat-citation:hover,
+.bloomery-chat-citation.is-active {
+  background: var(--bloomery-bg-raised);
+  border-color: var(--bloomery-accent);
+}
+
+.bloomery-chat-citation strong {
+  color: var(--bloomery-accent);
+  font-size: 11px;
+}
+
+.bloomery-chat-citation span {
+  max-width: 230px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bloomery-chat-citation-detail {
+  background: var(--bloomery-bg-soft);
+  border-left: 2px solid var(--bloomery-accent);
+  margin-top: 9px;
+  padding: 10px 12px;
+}
+
+.bloomery-chat-citation-detail-heading {
+  gap: 12px;
+}
+
+.bloomery-chat-citation-detail-heading strong {
+  color: var(--bloomery-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bloomery-chat-citation-detail-heading span,
+.bloomery-chat-citation-loading {
+  color: var(--bloomery-text-muted);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.bloomery-chat-citation-detail p {
+  color: var(--bloomery-text-soft);
+  font-size: 12px;
+  line-height: 1.65;
+  margin: 7px 0 0;
+  white-space: pre-wrap;
+}
+
+.bloomery-chat-citation-loading {
+  align-items: center;
+  display: inline-flex;
+  gap: 6px;
 }
 
 .bloomery-chat-composer {

@@ -28,9 +28,9 @@ docs/extensions/{mcp,skills,domain-packages}.md
 
 **Files:** Create tool modules and `tests/tools.rs`.
 
-- [ ] **Step 1: Write registry tests** for stable ID/version, duplicate IDs, invalid schemas, enable/disable, domain filtering, source attribution, and deterministic ordering.
-- [ ] **Step 2: Run `cargo test --test tools registry`** and expect missing registry.
-- [ ] **Step 3: Implement:**
+- [x] **Step 1: Write registry tests** for stable ID/version, duplicate IDs, invalid schemas, enable/disable, domain filtering, source attribution, and deterministic ordering.
+- [x] **Step 2: Run `cargo test --test tools registry`** and confirm the expected missing-module failure.
+- [x] **Step 3: Implement:**
 
 ```rust
 pub struct ToolDefinition {
@@ -43,16 +43,20 @@ pub struct ToolDefinition {
 ```
 
 The registry accepts only validated definitions and exposes immutable snapshots to each run.
-- [ ] **Step 4: Run registry and agent-loop tests** and expect pass.
+- [x] **Step 4: Run registry and agent-loop tests** and confirm pass.
+
+**Execution record (2026-08-05):** Added `tools::ToolDefinition`, strict stable `ToolId` and `ToolVersion` values, built-in/MCP/domain source attribution, JSON Schema shape validation, enabled-state management, global/domain filtering, and deterministic immutable snapshots. The registry contract suite passed 7 tests, the Agent loop regression passed 13 tests, the architecture suite passed 21 tests, `cargo check --offline -j 1` passed, and `cargo fmt --all -- --check` passed. Existing warnings for `ChatPreparation.packet` and `summary_result` remain unrelated to this task.
 
 ### Task 2: Execute tools with bounds and cancellation
 
 **Files:** Create `tools/executor.rs`, `output.rs`; extend `tests/tools.rs`.
 
-- [ ] **Step 1: Write tests** for timeout, cancellation, large output, structured errors, read parallelism, write serialization, panic isolation, and artifact storage.
-- [ ] **Step 2: Run `cargo test --test tools execution`** and expect failure.
-- [ ] **Step 3: Implement executor rules.** Store oversized complete results as local artifacts and return bounded model summaries. Convert handler failures into stable tool errors and never unwind through the runtime.
-- [ ] **Step 4: Run tool and agent-loop tests** and expect pass.
+- [x] **Step 1: Write tests** for timeout, cancellation, large output, structured errors, read parallelism, write serialization, panic isolation, and artifact storage.
+- [x] **Step 2: Run the focused executor tests and confirm the expected missing-type failure.**
+- [x] **Step 3: Implement executor rules.** Store oversized complete results as local artifacts and return bounded model summaries. Convert handler failures into stable tool errors and never unwind through the runtime.
+- [x] **Step 4: Run tool and agent-loop tests** and confirm pass.
+
+**Execution record (2026-08-05):** Added the async tool executor with stable structured errors, timeout and cancellation races, panic isolation, a shared serial gate for writes/exclusive tools, parallel read execution, and SHA-256-addressed local artifact files for oversized JSON results. The complete tool suite passed 14 tests, the Agent loop regression passed 13 tests, the architecture suite passed 21 tests, `cargo check --offline -j 1` passed, and formatting passed. Existing unrelated dead-code warnings remain.
 
 ### Task 3: Implement permission policy and durable rules
 

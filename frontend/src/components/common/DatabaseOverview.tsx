@@ -1,4 +1,5 @@
 import { Database, FileText, Image as ImageIcon, Microscope } from "lucide-react";
+import { useLocale } from "../../i18n/locale";
 
 type FieldRange = {
   min_val: number;
@@ -18,20 +19,21 @@ export type DatabaseOverviewData = {
 };
 
 export default function DatabaseOverview({ data }: { data: DatabaseOverviewData | null }) {
+  const { locale, t } = useLocale();
   const stats = [
-    { icon: FileText, label: "文献数量", value: data?.literature_papers_count ?? 0, unit: "", bgColor: "bg-indigo-50", textColor: "text-indigo-600" },
-    { icon: ImageIcon, label: "文献配图", value: data?.literature_images_count ?? 0, unit: "", bgColor: "bg-cyan-50", textColor: "text-cyan-600" },
-    { icon: Microscope, label: "金相照片", value: data?.experimental_images_count ?? 0, unit: "", bgColor: "bg-emerald-50", textColor: "text-emerald-600" },
-    { icon: Database, label: "生产数据", value: data?.production_count ?? 0, unit: "", bgColor: "bg-amber-50", textColor: "text-amber-600" },
+    { icon: FileText, label: t("literatureCount"), value: data?.literature_papers_count ?? 0, unit: "", bgColor: "bg-indigo-50", textColor: "text-indigo-600" },
+    { icon: ImageIcon, label: t("literatureImages"), value: data?.literature_images_count ?? 0, unit: "", bgColor: "bg-cyan-50", textColor: "text-cyan-600" },
+    { icon: Microscope, label: t("metallographyCount"), value: data?.experimental_images_count ?? 0, unit: "", bgColor: "bg-emerald-50", textColor: "text-emerald-600" },
+    { icon: Database, label: t("productionData"), value: data?.production_count ?? 0, unit: "", bgColor: "bg-amber-50", textColor: "text-amber-600" },
   ];
 
-  const formatNumber = (num: number) => num.toLocaleString("zh-CN");
+  const formatNumber = (num: number) => num.toLocaleString(locale);
 
   return (
     <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-3 mb-4 max-md:p-2 max-md:mb-2">
       <div className="flex items-center gap-2 text-base font-semibold text-slate-500 mb-3 max-md:mb-1.5 max-md:text-sm">
         <Database size={18} />
-        数据库概览
+        {t("databaseOverview")}
       </div>
       <div className="flex flex-col gap-2 max-md:grid max-md:grid-cols-2 max-md:gap-1.5">
         {stats.map((stat) => {

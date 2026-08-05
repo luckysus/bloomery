@@ -8,6 +8,7 @@ import {
   MessageSquarePlus,
   Server,
 } from "lucide-react";
+import { useLocale, type MessageKey } from "../i18n/locale";
 
 interface WorkbenchHomeProps {
   initializationState: "loading" | "ready" | "failed";
@@ -15,21 +16,22 @@ interface WorkbenchHomeProps {
 }
 
 const statusRows = [
-  { label: "本地运行时", value: "已启动", icon: Server, tone: "good" },
-  { label: "知识库", value: "尚未建立", icon: BookOpen, tone: "neutral" },
-  { label: "后台任务", value: "无活动任务", icon: Clock3, tone: "neutral" },
+  { labelKey: "localRuntime", valueKey: "started", icon: Server, tone: "good" },
+  { labelKey: "knowledgeBase", valueKey: "notCreated", icon: BookOpen, tone: "neutral" },
+  { labelKey: "backgroundTasks", valueKey: "noActiveTasks", icon: Clock3, tone: "neutral" },
 ] as const;
 
 export default function WorkbenchHome({ initializationState, onOpenSection }: WorkbenchHomeProps) {
   const ready = initializationState === "ready";
+  const { t } = useLocale();
 
   return (
     <div className="bloomery-workbench" data-testid="workbench-home">
       <section className="bloomery-hero" aria-labelledby="workbench-heading">
         <div>
-          <p className="bloomery-eyebrow">LOCAL WORKSPACE / STEEL DOMAIN</p>
-          <h1 id="workbench-heading">工作台</h1>
-          <p className="bloomery-lede">从本地知识、对话和生产数据开始一次可追溯的工作。</p>
+          <p className="bloomery-eyebrow">{t("workbenchEyebrow")}</p>
+          <h1 id="workbench-heading">{t("workbenchTitle")}</h1>
+          <p className="bloomery-lede">{t("workbenchLede")}</p>
         </div>
         <div className="bloomery-hero-mark" aria-hidden="true">
           <span className="bloomery-hero-mark-line" />
@@ -38,19 +40,19 @@ export default function WorkbenchHome({ initializationState, onOpenSection }: Wo
         </div>
       </section>
 
-      <section className="bloomery-action-strip" aria-label="常用操作">
+      <section className="bloomery-action-strip" aria-label={t("commonActions")}>
         <button type="button" className="bloomery-action-primary" onClick={() => onOpenSection("chat")}>
           <MessageSquarePlus size={18} aria-hidden="true" />
-          <span>新建对话</span>
+          <span>{t("newConversation")}</span>
           <ArrowUpRight size={16} aria-hidden="true" />
         </button>
         <button type="button" className="bloomery-action-secondary" onClick={() => onOpenSection("knowledge")}>
           <FileUp size={17} aria-hidden="true" />
-          <span>导入文档</span>
+          <span>{t("importDocument")}</span>
         </button>
         <button type="button" className="bloomery-action-secondary" onClick={() => onOpenSection("analysis")}>
           <Database size={17} aria-hidden="true" />
-          <span>导入数据</span>
+          <span>{t("importData")}</span>
         </button>
       </section>
 
@@ -58,21 +60,21 @@ export default function WorkbenchHome({ initializationState, onOpenSection }: Wo
         <div className="bloomery-section-heading">
           <div>
             <p className="bloomery-eyebrow">RUNTIME STATUS</p>
-            <h2 id="status-heading">运行状态</h2>
+            <h2 id="status-heading">{t("runtimeStatus")}</h2>
           </div>
           <span className={`bloomery-state-badge ${ready ? "is-good" : "is-pending"}`}>
             <span className="bloomery-state-dot" aria-hidden="true" />
-            {ready ? "本地就绪" : initializationState === "failed" ? "需要检查" : "初始化中"}
+            {ready ? t("runtimeReady") : initializationState === "failed" ? t("runtimeCheck") : t("runtimeInitializing")}
           </span>
         </div>
         <div className="bloomery-status-list">
-          {statusRows.map(({ label, value, icon: Icon, tone }) => (
-            <div className="bloomery-status-row" key={label}>
+          {statusRows.map(({ labelKey, valueKey, icon: Icon, tone }) => (
+            <div className="bloomery-status-row" key={labelKey}>
               <span className={`bloomery-status-icon is-${tone}`} aria-hidden="true">
                 <Icon size={16} />
               </span>
-              <span className="bloomery-status-label">{label}</span>
-              <span className="bloomery-status-value">{value}</span>
+              <span className="bloomery-status-label">{t(labelKey as MessageKey)}</span>
+              <span className="bloomery-status-value">{t(valueKey as MessageKey)}</span>
               <CircleCheck className="bloomery-status-check" size={16} aria-hidden="true" />
             </div>
           ))}
@@ -83,17 +85,17 @@ export default function WorkbenchHome({ initializationState, onOpenSection }: Wo
         <div className="bloomery-section-heading">
           <div>
             <p className="bloomery-eyebrow">RECENT WORK</p>
-            <h2 id="recent-heading">最近工作</h2>
+            <h2 id="recent-heading">{t("recentWork")}</h2>
           </div>
-          <span className="bloomery-muted-label">0 项记录</span>
+          <span className="bloomery-muted-label">{t("records", { count: 0 })}</span>
         </div>
         <div className="bloomery-empty-state">
           <div className="bloomery-empty-icon" aria-hidden="true">
             <BookOpen size={22} />
           </div>
           <div>
-            <strong>工作区还没有记录</strong>
-            <p>新建一次对话或导入一份文档后，内容会出现在这里。</p>
+            <strong>{t("noRecords")}</strong>
+            <p>{t("workbenchEmptyCopy")}</p>
           </div>
         </div>
       </section>

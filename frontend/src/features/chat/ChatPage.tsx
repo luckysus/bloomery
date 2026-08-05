@@ -9,25 +9,56 @@ import {
   Sparkles,
 } from "lucide-react";
 import AIAnswerRenderer from "../../components/answer/AnswerRenderer";
-import { desktop, type Conversation, type Message } from "../../bridge/desktop";
+import { useLocale } from "../../i18n/locale";
+import CitationPanel from "./CitationPanel";
+import {
+  desktop,
+  type Conversation,
+  type EvidenceItem,
+  type Message,
+} from "../../bridge/desktop";
 
-function errorMessage(error: unknown) {
-  return error instanceof Error ? error.message : "本地对话失败，请检查模型配置后重试。";
+function errorMessage(error: unknown, fallback: string) {
+  return error instanceof Error ? error.message : fallback;
 }
 
 function isAssistant(message: Message) {
   return message.role === "agent" || message.role === "assistant";
 }
 
-function conversationTitle(message: string) {
+function conversationTitle(message: string, fallback: string) {
   const title = message.trim().slice(0, 28);
-  return title || "新对话";
+  return title || fallback;
+}
+
+interface MessageEvidence {
+  evidencePackId: string;
+  evidence: EvidenceItem[];
+}
+
+function messageEvidence(message: Message): MessageEvidence | null {
+  if (!isAssistant(message) || !message.response_json) return null;
+  try {
+    const response = JSON.parse(message.response_json) as {
+      evidence_pack_id?: unknown;
+      evidence?: unknown;
+    };
+    if (typeof response.evidence_pack_id !== "string" || !Array.isArray(response.evidence)) return null;
+    return {
+      evidencePackId: response.evidence_pack_id,
+      evidence: response.evidence as EvidenceItem[],
+    };
+  } catch {
+    return null;
+  }
 }
 
 export default function ChatPage() {
+  const { t } = useLocale();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
+  const [knowledgeBaseIds, setKnowledgeBaseIds] = useState<string[]>([]);
   const [draft, setDraft] = useState("");
   const [pendingQuestion, setPendingQuestion] = useState<string | null>(null);
   const [streamingAnswer, setStreamingAnswer] = useState("");
@@ -50,7 +81,7 @@ export default function ChatPage() {
         ? current
         : next[0]?.id ?? null);
     } catch (cause) {
-      setError(errorMessage(cause));
+      setError(errorMessage(cause, t("chatError")));
     } finally {
       setLoading(false);
     }
@@ -66,7 +97,7 @@ export default function ChatPage() {
       setMessages(nextMessages);
       setDraft(nextDraft);
     } catch (cause) {
-      setError(errorMessage(cause));
+      setError(errorMessage(cause, t("chatError")));
     } finally {
       setLoadingMessages(false);
     }
@@ -74,6 +105,9 @@ export default function ChatPage() {
 
   useEffect(() => {
     void loadConversations();
+    void desktop.listKnowledgeBases()
+      .then((bases) => setKnowledgeBaseIds(bases.map((base) => base.id)))
+      .catch((cause) => setError(errorMessage(cause, t("chatError"))));
   }, []);
 
   useEffect(() => {
@@ -88,7 +122,7 @@ export default function ChatPage() {
   useEffect(() => {
     if (!selectedId || loadingMessages || pendingQuestion !== null) return;
     const timer = window.setTimeout(() => {
-      void desktop.saveConversationDraft(selectedId, draft).catch((cause) => setError(errorMessage(cause)));
+      void desktop.saveConversationDraft(selectedId, draft).catch((cause) => setError(errorMessage(cause, t("chatError"))));
     }, 450);
     return () => window.clearTimeout(timer);
   }, [draft, loadingMessages, pendingQuestion, selectedId]);
@@ -96,13 +130,13 @@ export default function ChatPage() {
   const createConversation = async () => {
     setError(null);
     try {
-      const created = await desktop.createConversation("新对话");
+      const created = await desktop.createConversation(t("newConversation"));
       setConversations((current) => [created, ...current]);
       setSelectedId(created.id);
       setMessages([]);
       setDraft("");
     } catch (cause) {
-      setError(errorMessage(cause));
+      setError(errorMessage(cause, t("chatError")));
     }
   };
 
@@ -124,7 +158,7 @@ export default function ChatPage() {
     let conversationId = selectedId;
     try {
       if (!conversationId) {
-        const created = await desktop.createConversation(conversationTitle(question));
+        const created = await desktop.createConversation(conversationTitle(question, t("newConversation")));
         conversationId = created.id;
         setConversations((current) => [created, ...current]);
         setSelectedId(created.id);
@@ -136,6 +170,19 @@ export default function ChatPage() {
       setActiveRunId(runId);
       setDraft("");
 
+      let evidencePackId: string | undefined;
+      if (knowledgeBaseIds.length > 0) {
+        try {
+          const evidencePack = await desktop.queryLocalKnowledge({
+            query: question,
+            knowledge_base_ids: knowledgeBaseIds,
+          });
+          evidencePackId = evidencePack.id;
+        } catch (cause) {
+          setError(errorMessage(cause, t("chatError")));
+        }
+      }
+
       let receivedDelta = false;
       const unlisten = await desktop.listenDesktopAgentDeltas((delta) => {
         if (delta.run_id !== runId) return;
@@ -144,17 +191,18 @@ export default function ChatPage() {
       });
       try {
         const response = await desktop.desktopAgentChat({
-          sessionId: conversationId,
-          message: question,
-          runId,
-        });
+            sessionId: conversationId,
+            message: question,
+            runId,
+            evidencePackId,
+          });
         if (!receivedDelta && response.answer) setStreamingAnswer(response.answer);
         await refreshConversation(conversationId);
       } finally {
         unlisten();
       }
     } catch (cause) {
-      setError(errorMessage(cause));
+      setError(errorMessage(cause, t("chatError")));
       if (conversationId) {
         await refreshConversation(conversationId).catch(() => undefined);
       }
@@ -170,25 +218,25 @@ export default function ChatPage() {
     try {
       await desktop.cancelDesktopRun(activeRunId);
     } catch (cause) {
-      setError(errorMessage(cause));
+      setError(errorMessage(cause, t("chatError")));
     }
   };
 
   return (
     <section className="bloomery-chat" aria-labelledby="chat-heading">
-      <aside className="bloomery-chat-sidebar" aria-label="对话列表">
+      <aside className="bloomery-chat-sidebar" aria-label={t("conversationList")}>
         <div className="bloomery-chat-sidebar-heading">
           <div>
-            <p className="bloomery-eyebrow">LOCAL SESSIONS</p>
-            <h1 id="chat-heading">对话</h1>
+            <p className="bloomery-eyebrow">{t("localSessions")}</p>
+            <h1 id="chat-heading">{t("chatTitle")}</h1>
           </div>
-          <button type="button" className="bloomery-icon-button" onClick={() => void createConversation()} aria-label="新建对话" title="新建对话">
+          <button type="button" className="bloomery-icon-button" onClick={() => void createConversation()} aria-label={t("newConversation")} title={t("newConversation")}>
             <MessageSquarePlus size={17} aria-hidden="true" />
           </button>
         </div>
         <div className="bloomery-chat-session-list">
-          {loading ? <div className="bloomery-chat-list-state"><LoaderCircle size={16} className="bloomery-spin" />正在读取</div> : conversations.length === 0 ? (
-            <div className="bloomery-chat-list-state">还没有本地会话</div>
+          {loading ? <div className="bloomery-chat-list-state"><LoaderCircle size={16} className="bloomery-spin" />{t("loading")}</div> : conversations.length === 0 ? (
+            <div className="bloomery-chat-list-state">{t("noLocalSessions")}</div>
           ) : conversations.map((conversation) => (
             <button
               type="button"
@@ -200,51 +248,57 @@ export default function ChatPage() {
             </button>
           ))}
         </div>
-        <p className="bloomery-sidebar-footer">本地保存 · 上下文可追溯</p>
+        <p className="bloomery-sidebar-footer">{t("chatSidebarFooter")}</p>
       </aside>
 
       <div className="bloomery-chat-main">
         <header className="bloomery-chat-header">
           <div>
-            <p className="bloomery-eyebrow">STEEL AGENT / LOCAL RUNTIME</p>
-            <h2>{selectedConversation?.title ?? "开始一次钢铁领域工作"}</h2>
+            <p className="bloomery-eyebrow">{t("steelRuntime")}</p>
+            <h2>{selectedConversation?.title ?? t("startSpecificQuestion")}</h2>
           </div>
-          <span className="bloomery-chat-runtime"><span className="bloomery-state-dot" />本地智能体</span>
+          <span className="bloomery-chat-runtime"><span className="bloomery-state-dot" />{t("localAgent")}</span>
         </header>
 
         {error && <div className="bloomery-knowledge-alert" role="alert">{error}</div>}
 
         <div className="bloomery-chat-messages" aria-live="polite">
           {loadingMessages ? (
-            <div className="bloomery-chat-empty"><LoaderCircle size={20} className="bloomery-spin" /><span>正在读取会话</span></div>
+            <div className="bloomery-chat-empty"><LoaderCircle size={20} className="bloomery-spin" /><span>{t("loading")}</span></div>
           ) : messages.length === 0 && pendingQuestion === null ? (
             <div className="bloomery-chat-empty bloomery-chat-empty-large">
               <span className="bloomery-chat-empty-icon"><Sparkles size={22} /></span>
-              <strong>从一个具体问题开始</strong>
-              <span>例如：比较 Q345B 与 Q355B 的屈服强度要求，并指出适用标准。</span>
+              <strong>{t("startSpecificQuestion")}</strong>
+              <span>{t("exampleQuestion")}</span>
             </div>
           ) : (
             <>
               {messages.map((message) => (
                 <article className={`bloomery-chat-message ${isAssistant(message) ? "is-assistant" : "is-user"}`} key={message.id}>
                   <div className="bloomery-chat-message-meta">
-                    {isAssistant(message) ? <Bot size={15} aria-hidden="true" /> : <span>我</span>}
-                    <span>{isAssistant(message) ? "Bloomery" : "提问"}</span>
+                    {isAssistant(message) ? <Bot size={15} aria-hidden="true" /> : <span>{t("me")}</span>}
+                    <span>{isAssistant(message) ? "Bloomery" : t("question")}</span>
                   </div>
                   {isAssistant(message) ? (
-                    <div className="bloomery-chat-answer ai-markdown-body"><AIAnswerRenderer answer={message.content} literatureResults={[]} /></div>
+                    <>
+                      <div className="bloomery-chat-answer ai-markdown-body"><AIAnswerRenderer answer={message.content} literatureResults={[]} /></div>
+                      {(() => {
+                        const evidence = messageEvidence(message);
+                        return evidence ? <CitationPanel auditId={evidence.evidencePackId} evidence={evidence.evidence} /> : null;
+                      })()}
+                    </>
                   ) : <p>{message.content}</p>}
                 </article>
               ))}
               {pendingQuestion && (
                 <>
                   <article className="bloomery-chat-message is-user is-pending">
-                    <div className="bloomery-chat-message-meta"><span>我</span><span>提问</span></div>
+                    <div className="bloomery-chat-message-meta"><span>{t("me")}</span><span>{t("question")}</span></div>
                     <p>{pendingQuestion}</p>
                   </article>
                   <article className="bloomery-chat-message is-assistant is-streaming">
-                    <div className="bloomery-chat-message-meta"><Bot size={15} aria-hidden="true" /><span>Bloomery · 正在生成</span></div>
-                    <div className="bloomery-chat-answer ai-markdown-body"><AIAnswerRenderer answer={streamingAnswer || "正在整理本地上下文…"} literatureResults={[]} /></div>
+                    <div className="bloomery-chat-message-meta"><Bot size={15} aria-hidden="true" /><span>Bloomery · {t("generating")}</span></div>
+                    <div className="bloomery-chat-answer ai-markdown-body"><AIAnswerRenderer answer={streamingAnswer || t("contextPreparing")} literatureResults={[]} /></div>
                   </article>
                 </>
               )}
@@ -254,19 +308,19 @@ export default function ChatPage() {
 
         <form className="bloomery-chat-composer" onSubmit={submitMessage}>
           <textarea
-            aria-label="输入消息"
+            aria-label={t("inputMessage")}
             value={draft}
             onChange={(event) => setDraft(event.target.value)}
-            placeholder="询问钢材、工艺、标准或实验数据…"
+            placeholder={t("askPlaceholder")}
             rows={3}
             disabled={pendingQuestion !== null}
           />
           <div className="bloomery-chat-composer-footer">
-            <span>Enter 发送 · 本地上下文优先</span>
+            <span>{t("enterSend")}</span>
             {pendingQuestion ? (
-              <button type="button" className="bloomery-action-secondary" onClick={() => void cancelRun()}><Square size={15} />停止生成</button>
+              <button type="button" className="bloomery-action-secondary" onClick={() => void cancelRun()}><Square size={15} />{t("stopGenerating")}</button>
             ) : (
-              <button type="submit" className="bloomery-action-primary" disabled={!draft.trim()}><Send size={16} />发送</button>
+              <button type="submit" className="bloomery-action-primary" disabled={!draft.trim()}><Send size={16} />{t("send")}</button>
             )}
           </div>
         </form>

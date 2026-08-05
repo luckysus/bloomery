@@ -61,6 +61,7 @@ pub async fn desktop_agent_chat(
         &preparation.config.model_name,
         !preparation.config.api_key.trim().is_empty(),
         &preparation.route,
+        preparation.evidence_pack.as_ref(),
     );
     if streamed.stopped {
         response["status"] = Value::String("cancelled".to_string());

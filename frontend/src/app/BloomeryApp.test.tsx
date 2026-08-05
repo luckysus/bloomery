@@ -7,7 +7,12 @@ vi.mock("../bridge/desktop", () => ({
   isDesktopRuntime: vi.fn().mockReturnValue(true),
   desktop: {
     initialize: vi.fn().mockResolvedValue(undefined),
-    getSetting: vi.fn().mockResolvedValue(JSON.stringify({ completed: true })),
+    getSetting: vi.fn((key: string) => Promise.resolve(
+      key === "ui.locale"
+        ? JSON.stringify({ preference: "zh-CN" })
+        : JSON.stringify({ completed: true }),
+    )),
+    setSetting: vi.fn().mockResolvedValue(undefined),
     listKnowledgeBases: vi.fn().mockResolvedValue([]),
     listKnowledgeDocuments: vi.fn().mockResolvedValue([]),
     listBackgroundTasks: vi.fn().mockResolvedValue([]),
@@ -86,5 +91,20 @@ describe("BloomeryApp", () => {
 
     expect(screen.getByRole("heading", { name: "知识库" })).toBeInTheDocument();
     expect(screen.getByRole("main", { name: "知识库" })).toBeInTheDocument();
+  });
+
+  it("switches the shell language and persists the preference", async () => {
+    render(<BloomeryApp />);
+
+    await screen.findByRole("heading", { name: "工作台" });
+    const language = screen.getByRole("combobox", { name: "界面语言" });
+    fireEvent.change(language, { target: { value: "en-US" } });
+
+    expect(await screen.findByRole("heading", { name: "Workbench" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Chat" })).toBeInTheDocument();
+    expect(desktop.setSetting).toHaveBeenCalledWith(
+      "ui.locale",
+      JSON.stringify({ version: 1, preference: "en-US" }),
+    );
   });
 });

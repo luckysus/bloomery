@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react"
 import { Download, FileWarning, Minus, Plus } from "lucide-react";
 import * as XLSX from "xlsx";
 import { renderAsync } from "docx-preview";
+import { useLocale } from "../i18n/locale";
 import PdfCanvasViewer from "./PdfCanvasViewer";
 
 type RawDocumentViewerProps = {
@@ -26,6 +27,7 @@ function guessImageMime(ext: string) {
 }
 
 export default function RawDocumentViewer({ url, title }: RawDocumentViewerProps) {
+  const { t } = useLocale();
   const ext = useMemo(() => getExtension(title), [title]);
   const isImage = IMAGE_EXTS.includes(ext);
   const isDocx = ext === "docx";
@@ -161,7 +163,7 @@ export default function RawDocumentViewer({ url, title }: RawDocumentViewerProps
             onClick={zoomOut}
             disabled={zoom <= MIN_ZOOM}
             className="rounded p-1 text-slate-500 hover:bg-slate-100 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-35"
-            aria-label="缩小"
+            aria-label={t("zoomOut")}
           >
             <Minus className="h-3.5 w-3.5" />
           </button>
@@ -171,7 +173,7 @@ export default function RawDocumentViewer({ url, title }: RawDocumentViewerProps
             onClick={zoomIn}
             disabled={zoom >= MAX_ZOOM}
             className="rounded p-1 text-slate-500 hover:bg-slate-100 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-35"
-            aria-label="放大"
+            aria-label={t("zoomIn")}
           >
             <Plus className="h-3.5 w-3.5" />
           </button>
@@ -180,10 +182,10 @@ export default function RawDocumentViewer({ url, title }: RawDocumentViewerProps
 
       <div className="h-full overflow-auto px-5 pb-5 pt-12">
         {status === "loading" ? (
-          <div className="mx-auto mt-20 max-w-sm text-center text-sm text-[#8f8174]">正在加载原始文档…</div>
+          <div className="mx-auto mt-20 max-w-sm text-center text-sm text-[#8f8174]">{t("documentLoading")}</div>
         ) : status === "error" ? (
           <div className="mx-auto mt-20 max-w-sm rounded-lg border border-red-100 bg-white px-4 py-6 text-center text-sm text-red-500">
-            原始文档加载失败，请稍后重试
+            {t("documentLoadFailed")}
           </div>
         ) : isImage ? (
           <div style={zoomStyle} className="flex min-h-full items-start justify-center">
@@ -205,9 +207,9 @@ export default function RawDocumentViewer({ url, title }: RawDocumentViewerProps
         ) : isPptx ? (
           <div className="mx-auto mt-16 max-w-sm rounded-xl border border-[#eadccf] bg-white px-6 py-8 text-center shadow-sm">
             <FileWarning className="mx-auto mb-3 h-8 w-8 text-[#c99a52]" />
-            <div className="text-sm font-medium text-[#241b15]">PPTX 暂不支持在线预览</div>
+            <div className="text-sm font-medium text-[#241b15]">{t("pptxNoPreview")}</div>
             <div className="mt-2 text-xs leading-6 text-[#8f8174]">
-              右侧可查看解析后的文本内容，或下载原文在本地打开
+              {t("documentDownloadHint")}
             </div>
             <button
               type="button"
@@ -215,11 +217,11 @@ export default function RawDocumentViewer({ url, title }: RawDocumentViewerProps
               className="mt-4 inline-flex items-center gap-1.5 rounded-lg bg-[#cc785c] px-3 py-1.5 text-sm font-semibold text-white hover:bg-[#a9583e]"
             >
               <Download className="h-3.5 w-3.5" />
-              下载原文
+              {t("downloadOriginal")}
             </button>
           </div>
         ) : (
-          <div className="mx-auto mt-16 max-w-sm text-center text-sm text-[#8f8174]">该格式暂不支持在线预览</div>
+          <div className="mx-auto mt-16 max-w-sm text-center text-sm text-[#8f8174]">{t("unsupportedPreview")}</div>
         )}
       </div>
     </div>

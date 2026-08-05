@@ -1,10 +1,11 @@
 use super::{
     assistant_content_for_stream_result,
     cancellation::LocalAgentState,
-    model::{DesktopIntentKind, StreamedLlmAnswer},
-    prompt::build_local_ask_prompt,
+    model::{DesktopIntentKind, LocalAgentChatRequest, StreamedLlmAnswer},
+    prompt::{build_desktop_context_prompt, build_local_ask_prompt},
     routing::classify_desktop_intent,
 };
+use serde_json::json;
 
 #[test]
 fn routes_steel_requests_without_cloud_dependencies() {
@@ -56,4 +57,35 @@ fn stopped_answers_are_marked_partial() {
     });
     assert!(answer.contains("partial answer"));
     assert!(answer.contains("generation stopped"));
+}
+
+#[test]
+fn chat_request_accepts_evidence_pack_reference() {
+    let request: LocalAgentChatRequest = serde_json::from_value(json!({
+        "message": "Q355B strength",
+        "evidencePackId": "audit-1"
+    }))
+    .expect("deserialize desktop chat request");
+
+    assert_eq!(request.evidence_pack_id.as_deref(), Some("audit-1"));
+}
+
+#[test]
+fn desktop_prompt_includes_bounded_evidence_context() {
+    let prompt = build_desktop_context_prompt(&json!({
+        "evidence_pack": {
+            "id": "audit-1",
+            "evidence": [{
+                "citation_number": 1,
+                "chunk": {
+                    "source_name": "GB 50017",
+                    "source_location": {"kind": "pdf_page", "page": 12, "bbox": null},
+                    "text": "Q355B has a nominal yield strength of 355 MPa."
+                }
+            }]
+        }
+    }));
+
+    assert!(prompt.contains("evidence_pack:"));
+    assert!(prompt.contains("355 MPa"));
 }

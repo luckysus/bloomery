@@ -8,6 +8,7 @@ import {
   Settings,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import type { MessageKey } from "../i18n/locale";
 
 export type SectionId =
   | "workbench"
@@ -20,19 +21,19 @@ export type SectionId =
 
 export interface NavigationSection {
   id: SectionId;
-  label: string;
-  description: string;
+  labelKey: MessageKey;
+  descriptionKey: MessageKey;
   icon: LucideIcon;
 }
 
 export const navigationSections: readonly NavigationSection[] = [
-  { id: "workbench", label: "工作台", description: "最近工作与系统状态", icon: LayoutDashboard },
-  { id: "chat", label: "对话", description: "智能体会话与运行记录", icon: MessageSquareText },
-  { id: "knowledge", label: "知识库", description: "文档、索引与证据", icon: BookOpen },
-  { id: "analysis", label: "数据分析", description: "数据集、预测与优化", icon: BarChart3 },
-  { id: "extensions", label: "扩展", description: "MCP、Skills 与领域包", icon: Puzzle },
-  { id: "settings", label: "设置", description: "Provider、数据目录与权限", icon: Settings },
-  { id: "diagnostics", label: "诊断", description: "存储、任务与运行健康", icon: Activity },
+  { id: "workbench", labelKey: "navWorkbench", descriptionKey: "navWorkbenchDescription", icon: LayoutDashboard },
+  { id: "chat", labelKey: "navChat", descriptionKey: "navChatDescription", icon: MessageSquareText },
+  { id: "knowledge", labelKey: "navKnowledge", descriptionKey: "navKnowledgeDescription", icon: BookOpen },
+  { id: "analysis", labelKey: "navAnalysis", descriptionKey: "navAnalysisDescription", icon: BarChart3 },
+  { id: "extensions", labelKey: "navExtensions", descriptionKey: "navExtensionsDescription", icon: Puzzle },
+  { id: "settings", labelKey: "navSettings", descriptionKey: "navSettingsDescription", icon: Settings },
+  { id: "diagnostics", labelKey: "navDiagnostics", descriptionKey: "navDiagnosticsDescription", icon: Activity },
 ];
 
 export function getNavigationSection(id: SectionId) {

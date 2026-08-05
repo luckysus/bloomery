@@ -6,6 +6,7 @@ use crate::agent::context::{
     build_summary_prompt, estimate_summary_tokens, messages_after_covered_id, plan_summary,
 };
 use crate::context::build_context_packet_for_connection;
+use crate::rag::citation::{load_evidence_pack, EvidencePack};
 use rusqlite::Connection;
 use serde_json::Value;
 use uuid::Uuid;
@@ -18,6 +19,7 @@ pub struct ChatPreparation {
     pub packet: Value,
     pub prompt: String,
     pub config: LocalLlmConfig,
+    pub evidence_pack: Option<EvidencePack>,
     pub unavailable_response: Option<Value>,
 }
 
@@ -60,6 +62,10 @@ pub fn prepare_chat(
     .map_err(|error| error.to_string())?;
     let mut packet = packet;
     packet["desktop_route"] = super::routing::route_to_json(&route);
+    let evidence_pack = load_evidence_pack_reference(conn, workspace_id, request.evidence_pack_id)?;
+    if let Some(pack) = &evidence_pack {
+        packet["evidence_pack"] = serde_json::to_value(pack).map_err(|error| error.to_string())?;
+    }
     super::session::start_agent_run(conn, workspace_id, conversation_id, run_id, &message)?;
 
     let unavailable_response = route.unavailable_capability.map(|_| {
@@ -85,8 +91,25 @@ pub fn prepare_chat(
         packet,
         prompt,
         config,
+        evidence_pack,
         unavailable_response,
     })
+}
+
+fn load_evidence_pack_reference(
+    conn: &Connection,
+    workspace_id: &str,
+    evidence_pack_id: Option<String>,
+) -> Result<Option<EvidencePack>, String> {
+    let Some(raw_id) = evidence_pack_id else {
+        return Ok(None);
+    };
+    let audit_id = Uuid::parse_str(raw_id.trim())
+        .map_err(|_| "evidence_pack_id must be a UUID".to_string())?;
+    load_evidence_pack(conn, workspace_id, audit_id)
+        .map_err(|error| error.to_string())?
+        .ok_or_else(|| "evidence pack not found".to_string())
+        .map(Some)
 }
 
 pub fn prepare_local_ask(

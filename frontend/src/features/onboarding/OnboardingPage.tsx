@@ -1,6 +1,8 @@
 import { useState, type FormEvent } from "react";
 import { ArrowRight, Check, CircleAlert, Database, KeyRound, Server, ShieldCheck } from "lucide-react";
 import { desktop, type ProviderKind, type ProviderProfileInput, type ProviderProfileResponse } from "../../bridge/desktop";
+import LanguageSelect from "../../components/common/LanguageSelect";
+import { useLocale } from "../../i18n/locale";
 
 type SetupStep = "workspace" | "llm" | "retrieval" | "finish";
 
@@ -26,11 +28,11 @@ interface RetrievalForm {
   mineruKey: string;
 }
 
-const steps: Array<{ id: SetupStep; label: string }> = [
-  { id: "workspace", label: "本地工作区" },
-  { id: "llm", label: "连接 LLM" },
-  { id: "retrieval", label: "检索服务" },
-  { id: "finish", label: "完成配置" },
+const steps: Array<{ id: SetupStep; labelKey: "stepWorkspace" | "stepLlm" | "stepRetrieval" | "stepFinish" }> = [
+  { id: "workspace", labelKey: "stepWorkspace" },
+  { id: "llm", labelKey: "stepLlm" },
+  { id: "retrieval", labelKey: "stepRetrieval" },
+  { id: "finish", labelKey: "stepFinish" },
 ];
 
 const defaultLlm: LlmForm = {
@@ -51,26 +53,27 @@ const defaultRetrieval: RetrievalForm = {
   mineruKey: "",
 };
 
-function providerError(errorCode: string | null | undefined) {
+function providerError(errorCode: string | null | undefined, translate: (key: "credentialAuthentication" | "providerQuota" | "providerTimeout" | "providerNetwork" | "providerInvalidResponse") => string) {
   switch (errorCode) {
     case "authentication":
-      return "凭据验证失败，请检查 API Key。";
+      return translate("credentialAuthentication");
     case "quota":
-      return "服务商额度不足，请检查账户套餐或更换 Provider。";
+      return translate("providerQuota");
     case "timeout":
-      return "连接超时，请检查网络或服务地址。";
+      return translate("providerTimeout");
     case "network":
-      return "无法连接服务商，请检查网络和 Base URL。";
+      return translate("providerNetwork");
     default:
-      return "Provider 返回了无法使用的响应，请检查配置后重试。";
+      return translate("providerInvalidResponse");
   }
 }
 
-function errorMessage(error: unknown) {
-  return error instanceof Error ? error.message : "配置失败，请检查输入后重试。";
+function errorMessage(error: unknown, fallback: string) {
+  return error instanceof Error ? error.message : fallback;
 }
 
 export default function OnboardingPage({ onComplete }: OnboardingPageProps) {
+  const { t } = useLocale();
   const [step, setStep] = useState<SetupStep>("workspace");
   const [llm, setLlm] = useState<LlmForm>(defaultLlm);
   const [retrieval, setRetrieval] = useState<RetrievalForm>(defaultRetrieval);
@@ -95,7 +98,7 @@ export default function OnboardingPage({ onComplete }: OnboardingPageProps) {
     }
     const probe = await desktop.testProviderProfile(profile.id);
     if (!probe.ok) {
-      throw new Error(providerError(probe.error_code));
+      throw new Error(providerError(probe.error_code, (key) => t(key)));
     }
     return profile;
   };
@@ -120,7 +123,7 @@ export default function OnboardingPage({ onComplete }: OnboardingPageProps) {
       setLlm((current) => ({ ...current, apiKey: "" }));
       setStep("retrieval");
     } catch (cause) {
-      setError(errorMessage(cause));
+      setError(errorMessage(cause, t("setupError")));
     } finally {
       setBusy(false);
     }
@@ -187,7 +190,7 @@ export default function OnboardingPage({ onComplete }: OnboardingPageProps) {
       setRetrieval((current) => ({ ...current, siliconFlowKey: "", mineruKey: "" }));
       setStep("finish");
     } catch (cause) {
-      setError(errorMessage(cause));
+      setError(errorMessage(cause, t("setupError")));
     } finally {
       setBusy(false);
     }
@@ -202,7 +205,7 @@ export default function OnboardingPage({ onComplete }: OnboardingPageProps) {
       setMineruConfigured(false);
       setStep("finish");
     } catch (cause) {
-      setError(errorMessage(cause));
+      setError(errorMessage(cause, t("setupError")));
     } finally {
       setBusy(false);
     }
@@ -223,14 +226,14 @@ export default function OnboardingPage({ onComplete }: OnboardingPageProps) {
       );
       onComplete();
     } catch (cause) {
-      setError(errorMessage(cause));
+      setError(errorMessage(cause, t("setupError")));
     } finally {
       setBusy(false);
     }
   };
 
   return (
-    <main className="bloomery-setup" aria-label="首次启动配置">
+    <main className="bloomery-setup" aria-label={t("setupFirstRun")}>
       <div className="bloomery-setup-frame">
         <header className="bloomery-setup-header">
           <div className="bloomery-setup-brand">
@@ -244,15 +247,16 @@ export default function OnboardingPage({ onComplete }: OnboardingPageProps) {
           </div>
           <span className="bloomery-setup-local-state">
             <span className="bloomery-state-dot" aria-hidden="true" />
-            数据仅存本机
+            {t("dataOnlyLocal")}
           </span>
+          <LanguageSelect />
         </header>
 
         <div className="bloomery-setup-layout">
-          <aside className="bloomery-setup-progress" aria-label="配置进度">
-            <p className="bloomery-eyebrow">FIRST RUN</p>
-            <h1>建立你的本地工作区</h1>
-            <p>先连接模型，再决定是否启用检索服务。</p>
+          <aside className="bloomery-setup-progress" aria-label={t("setupProgress")}>
+            <p className="bloomery-eyebrow">{t("setupFirstRunEyebrow")}</p>
+            <h1>{t("setupTitle")}</h1>
+            <p>{t("setupIntro")}</p>
             <ol>
               {steps.map((item, index) => {
                 const active = item.id === step;
@@ -262,7 +266,7 @@ export default function OnboardingPage({ onComplete }: OnboardingPageProps) {
                     <span className="bloomery-setup-step-number" aria-hidden="true">
                       {completeStep ? <Check size={14} /> : index + 1}
                     </span>
-                    <span>{item.label}</span>
+                    <span>{t(item.labelKey)}</span>
                   </li>
                 );
               })}
@@ -281,15 +285,15 @@ export default function OnboardingPage({ onComplete }: OnboardingPageProps) {
                 <span className="bloomery-setup-icon" aria-hidden="true">
                   <Database size={21} />
                 </span>
-                <p className="bloomery-eyebrow">STEP 01 / STORAGE</p>
-                <h2 id="workspace-step-heading">本地工作区</h2>
-                <p className="bloomery-setup-copy">Bloomery 会使用 Windows 应用数据目录保存数据库、索引和任务状态。</p>
+                <p className="bloomery-eyebrow">{t("storageStep")}</p>
+                <h2 id="workspace-step-heading">{t("localWorkspaceTitle")}</h2>
+                <p className="bloomery-setup-copy">{t("localWorkspaceCopy")}</p>
                 <div className="bloomery-setup-fact">
-                  <span>数据目录</span>
-                  <strong>系统应用数据目录</strong>
+                  <span>{t("dataDirectory")}</span>
+                  <strong>{t("systemAppData")}</strong>
                 </div>
                 <button type="button" className="bloomery-setup-primary" onClick={() => setStep("llm")}>
-                  开始配置
+                  {t("startSetup")}
                   <ArrowRight size={17} aria-hidden="true" />
                 </button>
               </section>
@@ -299,19 +303,19 @@ export default function OnboardingPage({ onComplete }: OnboardingPageProps) {
                 <span className="bloomery-setup-icon" aria-hidden="true">
                   <KeyRound size={21} />
                 </span>
-                <p className="bloomery-eyebrow">STEP 02 / CHAT PROVIDER</p>
-                <h2 id="llm-step-heading">连接 LLM</h2>
-                <p className="bloomery-setup-copy">API Key 只会写入操作系统凭据库，不会进入 SQLite 或前端日志。</p>
+                <p className="bloomery-eyebrow">{t("chatProviderStep")}</p>
+                <h2 id="llm-step-heading">{t("connectLlm")}</h2>
+                <p className="bloomery-setup-copy">{t("connectLlmCopy")}</p>
                 <form className="bloomery-setup-form" onSubmit={handleLlmSubmit}>
                   <label>
-                    LLM 服务商
+                    {t("llmProvider")}
                     <select value={llm.kind} onChange={(event) => updateLlm("kind", event.target.value as LlmForm["kind"])}>
                       <option value="open_ai_compatible">OpenAI Compatible</option>
-                      <option value="ollama">Ollama（本地）</option>
+                      <option value="ollama">{t("ollamaLocal")}</option>
                     </select>
                   </label>
                   <label>
-                    显示名称
+                    {t("displayName")}
                     <input value={llm.displayName} onChange={(event) => updateLlm("displayName", event.target.value)} required />
                   </label>
                   <label>
@@ -319,17 +323,17 @@ export default function OnboardingPage({ onComplete }: OnboardingPageProps) {
                     <input value={llm.baseUrl} onChange={(event) => updateLlm("baseUrl", event.target.value)} required />
                   </label>
                   <label>
-                    模型 ID
+                    {t("modelId")}
                     <input value={llm.modelId} onChange={(event) => updateLlm("modelId", event.target.value)} required />
                   </label>
                   {llm.kind !== "ollama" && (
                     <label>
-                      API Key
+                      {t("apiKey")}
                       <input type="password" autoComplete="new-password" value={llm.apiKey} onChange={(event) => updateLlm("apiKey", event.target.value)} required />
                     </label>
                   )}
                   <button type="submit" className="bloomery-setup-primary" disabled={busy}>
-                    {busy ? "正在测试..." : "测试 LLM 并继续"}
+                    {busy ? t("testing") : t("testLlmContinue")}
                     {!busy && <ArrowRight size={17} aria-hidden="true" />}
                   </button>
                 </form>
@@ -340,21 +344,21 @@ export default function OnboardingPage({ onComplete }: OnboardingPageProps) {
                 <span className="bloomery-setup-icon" aria-hidden="true">
                   <ShieldCheck size={21} />
                 </span>
-                <p className="bloomery-eyebrow">STEP 03 / RETRIEVAL</p>
-                <h2 id="retrieval-step-heading">检索服务</h2>
-                <p className="bloomery-setup-copy">SiliconFlow 用于 BGE-M3 向量与 BGE Reranker 重排，MinerU 用于高质量 PDF 解析。两者都可以稍后配置。</p>
+                <p className="bloomery-eyebrow">{t("retrievalStep")}</p>
+                <h2 id="retrieval-step-heading">{t("retrievalTitle")}</h2>
+                <p className="bloomery-setup-copy">{t("retrievalCopy")}</p>
                 <form className="bloomery-setup-form" onSubmit={handleRetrievalSubmit}>
                   <label className="bloomery-setup-check-row">
                     <input type="checkbox" checked={retrieval.enabled} onChange={(event) => updateRetrieval("enabled", event.target.checked)} />
-                    <span>现在配置 SiliconFlow</span>
+                    <span>{t("configureSiliconFlowNow")}</span>
                   </label>
                   {retrieval.enabled && (
                     <>
                       <label>
-                        SiliconFlow 套餐
+                        {t("siliconFlowPlan")}
                         <select value={retrieval.plan} onChange={(event) => updateRetrieval("plan", event.target.value as RetrievalForm["plan"])}>
-                          <option value="free">免费版</option>
-                          <option value="pro">Pro 版</option>
+                          <option value="free">{t("freePlan")}</option>
+                          <option value="pro">{t("proPlan")}</option>
                         </select>
                       </label>
                       <label>
@@ -362,26 +366,26 @@ export default function OnboardingPage({ onComplete }: OnboardingPageProps) {
                         <input value={retrieval.baseUrl} onChange={(event) => updateRetrieval("baseUrl", event.target.value)} required />
                       </label>
                       <label>
-                        Embedding 模型
+                        {t("embeddingModel")}
                         <input value={retrieval.embeddingModel} onChange={(event) => updateRetrieval("embeddingModel", event.target.value)} required />
                       </label>
                       <label>
-                        Reranker 模型
+                        {t("rerankerModel")}
                         <input value={retrieval.rerankerModel} onChange={(event) => updateRetrieval("rerankerModel", event.target.value)} required />
                       </label>
                       <label>
-                        SiliconFlow API Key
+                        {t("siliconFlowApiKey")}
                         <input type="password" autoComplete="new-password" value={retrieval.siliconFlowKey} onChange={(event) => updateRetrieval("siliconFlowKey", event.target.value)} required />
                       </label>
                     </>
                   )}
                   <label>
-                    MinerU API Key（可选）
+                    {t("mineruOptional")}
                     <input type="password" autoComplete="new-password" value={retrieval.mineruKey} onChange={(event) => updateRetrieval("mineruKey", event.target.value)} />
                   </label>
                   <div className="bloomery-setup-form-actions">
-                    <button type="button" className="bloomery-setup-secondary" disabled={busy} onClick={skipRetrieval}>暂时跳过</button>
-                    <button type="submit" className="bloomery-setup-primary" disabled={busy}>{busy ? "正在测试..." : "保存并继续"}<ArrowRight size={17} aria-hidden="true" /></button>
+                    <button type="button" className="bloomery-setup-secondary" disabled={busy} onClick={skipRetrieval}>{t("skipForNow")}</button>
+                    <button type="submit" className="bloomery-setup-primary" disabled={busy}>{busy ? t("testing") : t("saveContinue")}<ArrowRight size={17} aria-hidden="true" /></button>
                   </div>
                 </form>
               </section>
@@ -391,16 +395,16 @@ export default function OnboardingPage({ onComplete }: OnboardingPageProps) {
                 <span className="bloomery-setup-icon is-success" aria-hidden="true">
                   <Check size={21} />
                 </span>
-                <p className="bloomery-eyebrow">STEP 04 / READY</p>
-                <h2 id="finish-step-heading">完成配置</h2>
-                <p className="bloomery-setup-copy">本地工作区已经可以使用。检索服务状态会在工作台和设置中持续显示。</p>
+                <p className="bloomery-eyebrow">{t("readyStep")}</p>
+                <h2 id="finish-step-heading">{t("finishSetup")}</h2>
+                <p className="bloomery-setup-copy">{t("finishCopy")}</p>
                 <div className="bloomery-setup-summary">
-                  <div><span>LLM</span><strong>已连接</strong></div>
-                  <div><span>SiliconFlow</span><strong>{retrievalState === "configured" ? "已配置" : "稍后配置"}</strong></div>
-                  <div><span>MinerU</span><strong>{mineruConfigured ? "已配置" : "可选"}</strong></div>
+                  <div><span>{t("llm")}</span><strong>{t("connected")}</strong></div>
+                  <div><span>SiliconFlow</span><strong>{retrievalState === "configured" ? t("configured") : t("configureLater")}</strong></div>
+                  <div><span>MinerU</span><strong>{mineruConfigured ? t("configured") : t("optional")}</strong></div>
                 </div>
                 <button type="button" className="bloomery-setup-primary" disabled={busy} onClick={complete}>
-                  {busy ? "正在保存..." : "进入工作台"}
+                  {busy ? t("saving") : t("enterWorkbench")}
                   {!busy && <ArrowRight size={17} aria-hidden="true" />}
                 </button>
               </section>

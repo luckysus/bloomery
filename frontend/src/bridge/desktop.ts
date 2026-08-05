@@ -23,6 +23,7 @@ export interface LocalAgentChatRequest {
   sessionId?: string;
   message: string;
   runId?: string;
+  evidencePackId?: string;
 }
 
 export interface LocalAgentDelta {
@@ -35,6 +36,8 @@ export interface LocalAgentChatResponse {
   session_id: string;
   status: string;
   answer: string;
+  evidence_pack_id?: string;
+  evidence?: EvidenceItem[];
   intent?: {
     intent_type?: string;
     unavailable_capability?: string | null;

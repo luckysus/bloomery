@@ -41,6 +41,7 @@ pub fn build_desktop_context_prompt(packet: &Value) -> String {
         packet.get("selected_memories"),
     );
     push_json_section(&mut sections, "history_hits", packet.get("history_hits"));
+    push_bounded_evidence_section(&mut sections, packet.get("evidence_pack"));
     push_json_section(
         &mut sections,
         "recent_messages",
@@ -48,6 +49,38 @@ pub fn build_desktop_context_prompt(packet: &Value) -> String {
     );
     push_json_section(&mut sections, "desktop_meta", packet.get("desktop_meta"));
     sections.join("\n\n")
+}
+
+const EVIDENCE_CONTEXT_LIMIT: usize = 20;
+const EVIDENCE_TEXT_CHAR_LIMIT: usize = 1800;
+
+fn push_bounded_evidence_section(sections: &mut Vec<String>, value: Option<&Value>) {
+    let Some(value) = value else {
+        return;
+    };
+    let mut bounded = value.clone();
+    let Some(items) = bounded.get_mut("evidence").and_then(Value::as_array_mut) else {
+        return;
+    };
+    let total = items.len();
+    items.truncate(EVIDENCE_CONTEXT_LIMIT);
+    for item in items {
+        let text = item
+            .get("chunk")
+            .and_then(Value::as_object)
+            .and_then(|chunk| chunk.get("text"))
+            .and_then(Value::as_str)
+            .map(|text| truncate_text(text, EVIDENCE_TEXT_CHAR_LIMIT));
+        if let Some(text) = text {
+            if let Some(chunk) = item.get_mut("chunk").and_then(Value::as_object_mut) {
+                chunk.insert("text".to_string(), Value::String(text));
+            }
+        }
+    }
+    if total > EVIDENCE_CONTEXT_LIMIT {
+        bounded["evidence_truncated"] = Value::Bool(true);
+    }
+    push_json_section(sections, "evidence_pack", Some(&bounded));
 }
 
 pub fn build_local_ask_prompt(query: &str, contexts: &[String], mode: &str) -> String {

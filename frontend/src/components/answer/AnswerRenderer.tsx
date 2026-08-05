@@ -5,6 +5,7 @@ import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { PluggableList } from "unified";
 import { proxyImg } from "../../utils/searchRender";
+import { useLocale } from "../../i18n/locale";
 
 export interface AnswerReferenceResult {
   paper_name: string;
@@ -136,17 +137,19 @@ function HoverCardTag({
 
 function ReferenceTag({
   index,
+  label,
   content,
   paperName,
   headerPath,
 }: {
   index: number;
+  label: string;
   content: string;
   paperName: string;
   headerPath: string;
 }) {
   return (
-    <HoverCardTag tagLabel={`文献${index}`}>
+    <HoverCardTag tagLabel={`${label}${index}`}>
       <div className="flex items-start gap-2.5 px-4 pt-4 pb-2.5 border-b border-slate-100">
         <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-indigo-50 mt-0.5">
           <FileText size={14} className="text-indigo-500" />
@@ -206,7 +209,7 @@ function ImageReferenceTag({
   );
 }
 
-function InlineReferenceText({ index, prefix = "文献" }: { index: number; prefix?: string }) {
+function InlineReferenceText({ index, prefix }: { index: number; prefix: string }) {
   return (
     <span className="ref-tag cursor-default text-indigo-600 font-medium">
       {prefix}{index}
@@ -279,6 +282,9 @@ export default function AIAnswerRenderer({
   fallbackPrefix?: string;
   webSources?: WebSourceRef[];
 }) {
+  const { locale, t } = useLocale();
+  const referenceLabel = fallbackPrefix === "文献" ? t("literatureReference") : fallbackPrefix;
+
   const preprocessAnswer = (text: string): string => {
     if (webSources.length) {
       text = text.replace(/\[(\d+)\]/g, (m, n) => {
@@ -286,21 +292,21 @@ export default function AIAnswerRenderer({
         return i >= 1 && i <= webSources.length ? `AIWEBTOKEN${i}AIWEBEND` : m;
       });
     }
-    text = text.replace(/(?:文献|参考资料|成分标准)(\d+)([、,，]\d+)+/g, (match) => {
+    text = text.replace(/(?:文献|参考资料|成分标准|references?|standards?)\s*(\d+)(?:[、,，]\s*\d+)+/gi, (match) => {
       const nums = match.match(/\d+/g) || [];
-      return nums.map(n => `AIREFTOKEN${n}AIREFEND`).join("、");
+      return nums.map(n => `AIREFTOKEN${n}AIREFEND`).join(locale === "en-US" ? ", " : "、");
     });
-    text = text.replace(/(?:文献|参考资料|成分标准)(\d+)/g, "AIREFTOKEN$1AIREFEND");
-    text = text.replace(/金相照片(\d+)([、,，]\d+)+/g, (match) => {
+    text = text.replace(/(?:文献|参考资料|成分标准|references?|standards?)\s*(\d+)/gi, "AIREFTOKEN$1AIREFEND");
+    text = text.replace(/(?:金相照片|metallography\s*photos?|metallography)(\d+)(?:[、,，]\s*\d+)+/gi, (match) => {
       const nums = match.match(/\d+/g) || [];
-      return nums.map(n => `AIMETALTOKEN${n}AIMETALEND`).join("、");
+      return nums.map(n => `AIMETALTOKEN${n}AIMETALEND`).join(locale === "en-US" ? ", " : "、");
     });
-    text = text.replace(/金相照片(\d+)/g, "AIMETALTOKEN$1AIMETALEND");
-    text = text.replace(/图片(\d+)([、,，]\d+)+/g, (match) => {
+    text = text.replace(/(?:金相照片|metallography\s*photos?|metallography)\s*(\d+)/gi, "AIMETALTOKEN$1AIMETALEND");
+    text = text.replace(/(?:图片|images?)\s*(\d+)(?:[、,，]\s*\d+)+/gi, (match) => {
       const nums = match.match(/\d+/g) || [];
-      return nums.map(n => `AIIMGTOKEN${n}AIIMGEND`).join("、");
+      return nums.map(n => `AIIMGTOKEN${n}AIIMGEND`).join(locale === "en-US" ? ", " : "、");
     });
-    text = text.replace(/图片(\d+)/g, "AIIMGTOKEN$1AIIMGEND");
+    text = text.replace(/(?:图片|images?)\s*(\d+)/gi, "AIIMGTOKEN$1AIIMGEND");
     return text;
   };
 
@@ -326,31 +332,32 @@ export default function AIAnswerRenderer({
               <ReferenceTag
                 key={idx}
                 index={refIndex}
+                label={referenceLabel}
                 content={lit.content}
                 paperName={lit.paper_name}
                 headerPath={lit.header_path}
               />
             );
           }
-          return <InlineReferenceText key={idx} index={refIndex} prefix={fallbackPrefix} />;
+          return <InlineReferenceText key={idx} index={refIndex} prefix={referenceLabel} />;
         }
         const imgMatch = part.match(/^AIIMGTOKEN(\d+)AIIMGEND$/);
         if (imgMatch) {
           const imgIndex = parseInt(imgMatch[1], 10);
           const img = imageResults[imgIndex - 1];
           if (img) {
-            return <ImageReferenceTag key={idx} label="图片" index={imgIndex} image={img} />;
+            return <ImageReferenceTag key={idx} label={t("imageLabel")} index={imgIndex} image={img} />;
           }
-          return <InlineReferenceText key={idx} index={imgIndex} prefix="图片" />;
+          return <InlineReferenceText key={idx} index={imgIndex} prefix={t("imageLabel")} />;
         }
         const metalMatch = part.match(/^AIMETALTOKEN(\d+)AIMETALEND$/);
         if (metalMatch) {
           const metalIndex = parseInt(metalMatch[1], 10);
           const img = experimentalImageResults[metalIndex - 1];
           if (img) {
-            return <ImageReferenceTag key={idx} label="金相照片" index={metalIndex} image={img} />;
+            return <ImageReferenceTag key={idx} label={t("metallographyLabel")} index={metalIndex} image={img} />;
           }
-          return <InlineReferenceText key={idx} index={metalIndex} prefix="金相照片" />;
+          return <InlineReferenceText key={idx} index={metalIndex} prefix={t("metallographyLabel")} />;
         }
         return part;
       });

@@ -1,4 +1,5 @@
 use super::model::{DesktopIntentKind, DesktopRoute};
+use crate::rag::citation::EvidencePack;
 use serde_json::{json, Value};
 
 pub fn classify_desktop_intent(message: &str) -> DesktopRoute {
@@ -123,7 +124,11 @@ pub fn build_agent_response_json(
     config_model: &str,
     has_api_key: bool,
     route: &DesktopRoute,
+    evidence_pack: Option<&EvidencePack>,
 ) -> Value {
+    let evidence = evidence_pack
+        .map(|pack| pack.evidence.clone())
+        .unwrap_or_default();
     json!({
         "run_id": run_id,
         "session_id": conversation_id,
@@ -132,11 +137,12 @@ pub fn build_agent_response_json(
         "follow_up_questions": [],
         "plan_steps": [],
         "tool_calls": [],
-        "evidence": [],
+        "evidence_pack_id": evidence_pack.map(|pack| pack.id),
+        "evidence": evidence,
         "recommendations": [],
         "verification": {
             "confidence": "medium",
-            "citation_count": 0,
+            "citation_count": evidence_pack.map_or(0, |pack| pack.evidence.len()),
             "missing_citations": [],
             "numeric_warnings": [],
             "unsupported_claims": [],

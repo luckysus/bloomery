@@ -1,20 +1,31 @@
 import { useEffect, useState } from "react";
 import { Factory, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { desktop, isDesktopRuntime } from "../bridge/desktop";
+import LanguageSelect from "../components/common/LanguageSelect";
 import ChatPage from "../features/chat/ChatPage";
 import KnowledgePage from "../features/knowledge/KnowledgePage";
 import OnboardingPage from "../features/onboarding/OnboardingPage";
 import SectionPlaceholder from "./SectionPlaceholder";
 import WorkbenchHome from "./WorkbenchHome";
 import { getNavigationSection, navigationSections, type SectionId } from "./navigation";
+import { LocaleProvider, useLocale } from "../i18n/locale";
 
 type InitializationState = "loading" | "setup" | "ready" | "failed";
 
 export default function BloomeryApp() {
+  return (
+    <LocaleProvider>
+      <BloomeryAppShell />
+    </LocaleProvider>
+  );
+}
+
+function BloomeryAppShell() {
   const [initializationState, setInitializationState] = useState<InitializationState>("loading");
   const [activeSection, setActiveSection] = useState<SectionId>("workbench");
   const [collapsed, setCollapsed] = useState(false);
   const active = getNavigationSection(activeSection);
+  const { t } = useLocale();
 
   useEffect(() => {
     let mounted = true;
@@ -51,53 +62,54 @@ export default function BloomeryApp() {
           {!collapsed && (
             <div className="bloomery-brand-copy">
               <strong>BLOOMERY</strong>
-              <span>STEEL AGENT WORKBENCH</span>
+            <span>{t("brandTagline")}</span>
             </div>
           )}
         </div>
         <div className="bloomery-topbar-meta">
           <span className="bloomery-local-indicator">
             <span className="bloomery-state-dot" aria-hidden="true" />
-            本地工作区
+            {t("localWorkspace")}
           </span>
           <span className="bloomery-version-label">LOCAL / 0.1</span>
+          <LanguageSelect />
         </div>
       </header>
 
       <div className="bloomery-body">
-        <nav className="bloomery-sidebar" aria-label="主导航">
+        <nav className="bloomery-sidebar" aria-label={t("mainNavigation")}>
           <div className="bloomery-sidebar-head">
-            {!collapsed && <span className="bloomery-sidebar-caption">工作区</span>}
+            {!collapsed && <span className="bloomery-sidebar-caption">{t("workspace")}</span>}
             <button
               type="button"
               className="bloomery-icon-button"
-              aria-label={collapsed ? "展开侧栏" : "折叠侧栏"}
-              title={collapsed ? "展开侧栏" : "折叠侧栏"}
+              aria-label={collapsed ? t("expandSidebar") : t("collapseSidebar")}
+              title={collapsed ? t("expandSidebar") : t("collapseSidebar")}
               onClick={() => setCollapsed((value) => !value)}
             >
               {collapsed ? <PanelLeftOpen size={17} aria-hidden="true" /> : <PanelLeftClose size={17} aria-hidden="true" />}
             </button>
           </div>
-          <div className="bloomery-nav-list" aria-label="模块导航">
-            {navigationSections.map(({ id, label, icon: Icon }) => (
+          <div className="bloomery-nav-list" aria-label={t("moduleNavigation")}>
+            {navigationSections.map(({ id, labelKey, icon: Icon }) => (
               <button
                 key={id}
                 type="button"
                 className={`bloomery-nav-item ${activeSection === id ? "is-active" : ""}`}
-                aria-label={label}
+                aria-label={t(labelKey)}
                 aria-current={activeSection === id ? "page" : undefined}
-                title={collapsed ? label : undefined}
+                title={collapsed ? t(labelKey) : undefined}
                 onClick={() => setActiveSection(id)}
               >
                 <Icon size={18} strokeWidth={activeSection === id ? 2.2 : 1.8} aria-hidden="true" />
-                {!collapsed && <span data-testid={`nav-label-${id}`}>{label}</span>}
+                {!collapsed && <span data-testid={`nav-label-${id}`}>{t(labelKey)}</span>}
               </button>
             ))}
           </div>
-          {!collapsed && <p className="bloomery-sidebar-footer">离线优先 · 数据归本地</p>}
+          {!collapsed && <p className="bloomery-sidebar-footer">{t("offlineFooter")}</p>}
         </nav>
 
-        <main className="bloomery-main" aria-label={active.label}>
+        <main className="bloomery-main" aria-label={t(active.labelKey)}>
           <div className="bloomery-main-inner">
             {activeSection === "workbench" ? (
               <WorkbenchHome

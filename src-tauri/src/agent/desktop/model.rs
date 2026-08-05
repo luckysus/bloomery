@@ -13,6 +13,7 @@ pub struct LocalAgentChatRequest {
     pub session_id: Option<String>,
     pub message: String,
     pub run_id: Option<String>,
+    pub evidence_pack_id: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
