@@ -147,10 +147,12 @@ Return a `ContextReport` with included IDs, omitted IDs, token estimates, trunca
 
 **Files:** Modify runtime, add `app/agent_commands.rs`, create `tests/agent_recovery.rs`.
 
-- [ ] **Step 1: Write tests** for shutdown during generation/tool/permission, replay after lost UI events, duplicate command submission, cancel, retry from user message, and stale run cleanup.
-- [ ] **Step 2: Run `cargo test --test agent_recovery`** and expect failure.
-- [ ] **Step 3: Implement recovery semantics.** Generating runs become interrupted and can regenerate; idempotent tool calls can resume from checkpoints; unresolved dangerous calls return to permission; terminal runs only replay.
-- [ ] **Step 4: Run recovery and task scheduler tests** and expect pass.
+- [x] **Step 1: Write tests** for shutdown during generation/tool/permission, replay after lost UI events, duplicate command submission, cancel, retry from user message, and stale run cleanup.
+- [x] **Step 2: Run `cargo test --test agent_recovery`** and expect failure.
+- [x] **Step 3: Implement recovery semantics.** Generating runs become interrupted and can regenerate; idempotent tool calls can resume from checkpoints; unresolved dangerous calls return to permission; terminal runs only replay.
+- [x] **Step 4: Run recovery and task scheduler tests** and expect pass.
+
+**Execution record (2026-08-05):** Added a Tauri-independent recovery service that replays ordered events, atomically interrupts active generation/unknown-tool runs on startup, preserves unresolved permission requests, resumes only fully declared idempotent tool checkpoints, and leaves terminal runs replay-only. Added idempotent duplicate run submission through `SessionService`, retry-from-user-message, cancel, stale cleanup, and four Tauri commands for replay/cancel/retry/manual recovery. Database initialization now performs safe recovery before exposing the SQLite connection. Fresh verification passed 6 recovery, 33 scheduler, 20 architecture, 13 session, and 11 persistence tests; `cargo fmt --all -- --check` and `cargo check --tests --offline` passed.
 
 ### Task 10: Generate TypeScript contracts and document the protocol
 

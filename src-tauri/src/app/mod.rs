@@ -1,3 +1,4 @@
+pub(crate) mod agent_commands;
 pub(crate) mod commands;
 pub(crate) mod event_sink;
 pub(crate) mod identity;

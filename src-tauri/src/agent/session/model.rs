@@ -1,5 +1,6 @@
+use crate::agent::protocol::AgentEventEnvelope;
 use crate::models::{Conversation, Message};
-use crate::storage::repositories::runs::RunWithEvent;
+use crate::storage::repositories::runs::{AgentRunRecord, RunWithEvent};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Deserializer, Serialize};
 use uuid::Uuid;
@@ -56,4 +57,13 @@ pub struct StartRunRequest {
 pub struct StartedRun {
     pub user_message: Message,
     pub run: RunWithEvent,
+}
+
+#[derive(Debug, Clone)]
+pub enum StartRunOutcome {
+    Started(StartedRun),
+    Existing {
+        run: AgentRunRecord,
+        events: Vec<AgentEventEnvelope>,
+    },
 }

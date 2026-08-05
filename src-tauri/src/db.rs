@@ -1,6 +1,6 @@
 use chrono::Utc;
 use rusqlite::{params, Connection};
-use std::{fs, path::PathBuf, sync::Arc, sync::Mutex};
+use std::{collections::HashSet, fs, path::PathBuf, sync::Arc, sync::Mutex};
 use tauri::Manager;
 
 use crate::tasks::scheduler::SchedulerState;
@@ -61,8 +61,13 @@ pub fn db_init(
     scheduler_state: tauri::State<SchedulerState>,
 ) -> Result<(), String> {
     let path = database_path(&app)?;
-    let (connection, _migration_report) =
+    let (mut connection, _migration_report) =
         crate::storage::database::open(&path).map_err(|error| error.to_string())?;
+    let mut recovery =
+        crate::agent::runtime::AgentRecoveryService::new(&mut connection, current_workspace_id())?;
+    recovery
+        .recover_active(&HashSet::new(), Utc::now())
+        .map_err(|error| format!("recover agent runs failed: {error}"))?;
     *db.conn.lock().map_err(|_| "db state poisoned")? = Some(connection);
     // Start scheduler with Tauri event sink for real progress updates
     use crate::app::event_sink::TauriEventSink;

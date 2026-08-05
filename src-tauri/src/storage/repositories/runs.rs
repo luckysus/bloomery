@@ -6,7 +6,8 @@ use crate::agent::protocol::{
 use crate::storage::StorageError;
 use chrono::{DateTime, Utc};
 use rusqlite::ffi::SQLITE_CONSTRAINT_PRIMARYKEY;
-use rusqlite::{params, Connection, OptionalExtension, Transaction, TransactionBehavior};
+use rusqlite::{params, Connection, OptionalExtension, Row, Transaction, TransactionBehavior};
+use serde::Serialize;
 use uuid::Uuid;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -19,7 +20,7 @@ pub struct NewAgentRun {
     pub timestamp: DateTime<Utc>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct AgentRunRecord {
     pub id: Uuid,
     pub workspace_id: String,
@@ -32,7 +33,7 @@ pub struct AgentRunRecord {
     pub completed_at: Option<DateTime<Utc>>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct RunWithEvent {
     pub run: AgentRunRecord,
     pub event: AgentEventEnvelope,
@@ -117,6 +118,31 @@ pub fn get(
 ) -> Result<Option<AgentRunRecord>, StorageError> {
     validate_workspace(workspace_id)?;
     read(connection, workspace_id, run_id)
+}
+
+pub fn list_nonterminal(
+    connection: &Connection,
+    workspace_id: &str,
+    updated_before: Option<DateTime<Utc>>,
+) -> Result<Vec<AgentRunRecord>, StorageError> {
+    validate_workspace(workspace_id)?;
+    let updated_before = updated_before.map(timestamp_text);
+    let mut statement = connection
+        .prepare(
+            "SELECT id, workspace_id, conversation_id, user_message_id, state,
+                    next_sequence, created_at, updated_at, completed_at
+             FROM agent_runs
+             WHERE workspace_id = ?1
+               AND state NOT IN ('completed', 'cancelled', 'failed', 'interrupted')
+               AND (?2 IS NULL OR updated_at <= ?2)
+             ORDER BY updated_at ASC, id ASC",
+        )
+        .map_err(storage)?;
+    let rows = statement
+        .query_map(params![workspace_id, updated_before], row_to_raw_run)
+        .map_err(storage)?;
+    rows.map(|row| row.map_err(storage).and_then(decode_run))
+        .collect()
 }
 
 pub fn transition(
@@ -330,19 +356,7 @@ fn read(
                     next_sequence, created_at, updated_at, completed_at
              FROM agent_runs WHERE workspace_id = ?1 AND id = ?2",
             params![workspace_id, run_id.to_string()],
-            |row| {
-                Ok(RawRun {
-                    id: row.get(0)?,
-                    workspace_id: row.get(1)?,
-                    conversation_id: row.get(2)?,
-                    user_message_id: row.get(3)?,
-                    state: row.get(4)?,
-                    next_sequence: row.get(5)?,
-                    created_at: row.get(6)?,
-                    updated_at: row.get(7)?,
-                    completed_at: row.get(8)?,
-                })
-            },
+            row_to_raw_run,
         )
         .optional()
         .map_err(storage)?
@@ -360,6 +374,20 @@ struct RawRun {
     created_at: String,
     updated_at: String,
     completed_at: Option<String>,
+}
+
+fn row_to_raw_run(row: &Row<'_>) -> rusqlite::Result<RawRun> {
+    Ok(RawRun {
+        id: row.get(0)?,
+        workspace_id: row.get(1)?,
+        conversation_id: row.get(2)?,
+        user_message_id: row.get(3)?,
+        state: row.get(4)?,
+        next_sequence: row.get(5)?,
+        created_at: row.get(6)?,
+        updated_at: row.get(7)?,
+        completed_at: row.get(8)?,
+    })
 }
 
 fn decode_run(raw: RawRun) -> Result<AgentRunRecord, StorageError> {

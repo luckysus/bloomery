@@ -1,8 +1,9 @@
 use super::model::{
-    SessionSnapshot, SessionSummary, StartRunRequest, StartedRun, SESSION_SNAPSHOT_FORMAT_VERSION,
+    SessionSnapshot, SessionSummary, StartRunOutcome, StartRunRequest, StartedRun,
+    SESSION_SNAPSHOT_FORMAT_VERSION,
 };
 use crate::models::{Conversation, ConversationSnapshotMessage, HistoryHit, Message};
-use crate::storage::repositories::{conversations, runs};
+use crate::storage::repositories::{conversations, events, runs};
 use rusqlite::{Connection, TransactionBehavior};
 
 pub struct SessionService<'a> {
@@ -233,6 +234,25 @@ impl<'a> SessionService<'a> {
         .map_err(|error| error.to_string())?;
         transaction.commit().map_err(|error| error.to_string())?;
         Ok(StartedRun { user_message, run })
+    }
+
+    pub fn start_or_replay(&mut self, request: StartRunRequest) -> Result<StartRunOutcome, String> {
+        if request.content.trim().is_empty() {
+            return Err("user message is required".to_string());
+        }
+        if let Some(run) = runs::get(self.connection, self.workspace_id, request.run_id)
+            .map_err(|error| error.to_string())?
+        {
+            if run.conversation_id != request.conversation_id
+                || run.user_message_id != request.user_message_id
+            {
+                return Err("run_id belongs to a different conversation or message".to_string());
+            }
+            let events = events::replay(self.connection, self.workspace_id, request.run_id, 0)
+                .map_err(|error| error.to_string())?;
+            return Ok(StartRunOutcome::Existing { run, events });
+        }
+        self.start_run(request).map(StartRunOutcome::Started)
     }
 
     fn require_conversation(&self, conversation_id: &str) -> Result<Conversation, String> {
