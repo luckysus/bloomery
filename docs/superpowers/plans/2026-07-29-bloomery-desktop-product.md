@@ -14,19 +14,19 @@
 
 **Files:** Modify `package.json`; create Vitest setup, fake desktop bridge, Playwright config, and smoke tests.
 
-- [ ] **Step 1: Write a failing test** that renders `BloomeryApp` with fake initialization and expects the workbench landmark.
-- [ ] **Step 2: Run `npm run test`** and expect missing script/config.
-- [ ] **Step 3: Add Vitest, Testing Library, jsdom, and Playwright scripts.** The fake bridge records calls and emits deterministic protocol events; production imports are forbidden.
-- [ ] **Step 4: Run `npm run test`, `npm run test:boundaries`, and `npm run build`** and expect pass.
+- [x] **Step 1: Write a failing test** that renders `BloomeryApp` with fake initialization and expects the workbench landmark.
+- [x] **Step 2: Run `npm run test`** and expect missing script/config.
+- [x] **Step 3: Add Vitest, Testing Library, jsdom, and Playwright scripts.** The fake bridge records calls and emits deterministic protocol events; production imports are forbidden.
+- [x] **Step 4: Run `npm run test`, `npm run test:boundaries`, and `npm run build`** and expect pass.
 
 ### Task 2: Establish the industrial design system and shell
 
 **Files:** Create `design/tokens.css`, `theme.css`, app shell/router, layout/common components, and tests.
 
-- [ ] **Step 1: Write layout tests** for every navigation section, active/collapsed states, focus, 1024x720, 1440x900, 1920x1080, and long text.
-- [ ] **Step 2: Run tests** and expect missing shell.
-- [ ] **Step 3: Implement a restrained steel palette** with neutral metal gray, safety amber, process green, error red, and one limited accent. Use lucide icons, radii at most 8px, no nested cards, decorative gradients/orbs, viewport-scaled fonts, or negative letter spacing.
-- [ ] **Step 4: Run tests and Playwright screenshots** at supported sizes and verify no overlap/clipping.
+- [x] **Step 1: Write layout tests** for every navigation section, active/collapsed states, focus, 1024x720, 1440x900, 1920x1080, and long text.
+- [x] **Step 2: Run tests** and expect missing shell.
+- [x] **Step 3: Implement a restrained steel palette** with neutral metal gray, safety amber, process green, error red, and one limited accent. Use lucide icons, radii at most 8px, no nested cards, decorative gradients/orbs, viewport-scaled fonts, or negative letter spacing.
+- [x] **Step 4: Run tests and Playwright screenshots** at supported sizes and verify no overlap/clipping.
 
 ### Task 3: Build first-run setup without login
 
