@@ -8,6 +8,18 @@ vi.mock("../bridge/desktop", () => ({
   desktop: {
     initialize: vi.fn().mockResolvedValue(undefined),
     getSetting: vi.fn().mockResolvedValue(JSON.stringify({ completed: true })),
+    listKnowledgeBases: vi.fn().mockResolvedValue([]),
+    listKnowledgeDocuments: vi.fn().mockResolvedValue([]),
+    listBackgroundTasks: vi.fn().mockResolvedValue([]),
+    getKnowledgeHealth: vi.fn().mockResolvedValue({
+      knowledge_base_count: 0,
+      document_count: 0,
+      active_document_count: 0,
+      version_count: 0,
+      chunk_count: 0,
+      indexed_chunk_count: 0,
+      active_task_count: 0,
+    }),
   },
 }));
 

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Factory, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { desktop, isDesktopRuntime } from "../bridge/desktop";
+import KnowledgePage from "../features/knowledge/KnowledgePage";
 import OnboardingPage from "../features/onboarding/OnboardingPage";
 import SectionPlaceholder from "./SectionPlaceholder";
 import WorkbenchHome from "./WorkbenchHome";
@@ -102,6 +103,8 @@ export default function BloomeryApp() {
                 initializationState={initializationState}
                 onOpenSection={setActiveSection}
               />
+            ) : activeSection === "knowledge" ? (
+              <KnowledgePage />
             ) : (
               <SectionPlaceholder section={active} />
             )}

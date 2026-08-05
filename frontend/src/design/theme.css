@@ -182,7 +182,7 @@
 
 .bloomery-nav-item.is-active {
   background: var(--bloomery-amber-soft);
-  border-color: #75592c;
+  border-color: #d3a354;
   color: var(--bloomery-amber);
 }
 
@@ -360,7 +360,7 @@
 
 .bloomery-state-badge {
   background: var(--bloomery-green-soft);
-  border: 1px solid #315a45;
+  border: 1px solid #9bcdb1;
   border-radius: 999px;
   color: var(--bloomery-green);
   font-size: 11px;
@@ -370,7 +370,7 @@
 
 .bloomery-state-badge.is-pending {
   background: var(--bloomery-amber-soft);
-  border-color: #6b512b;
+  border-color: #d2a254;
   color: var(--bloomery-amber);
 }
 
@@ -637,7 +637,7 @@
 
 .bloomery-setup-progress li.is-complete .bloomery-setup-step-number {
   background: var(--bloomery-green-soft);
-  border-color: #315a45;
+  border-color: #9bcdb1;
   color: var(--bloomery-green);
 }
 
@@ -659,7 +659,7 @@
 .bloomery-setup-icon {
   align-items: center;
   background: var(--bloomery-amber-soft);
-  border: 1px solid #75592c;
+  border: 1px solid #d3a354;
   border-radius: var(--bloomery-radius-small);
   color: var(--bloomery-amber);
   display: inline-flex;
@@ -671,7 +671,7 @@
 
 .bloomery-setup-icon.is-success {
   background: var(--bloomery-green-soft);
-  border-color: #315a45;
+  border-color: #9bcdb1;
   color: var(--bloomery-green);
 }
 
@@ -808,7 +808,7 @@
 .bloomery-setup-error {
   align-items: flex-start;
   background: var(--bloomery-red-soft);
-  border: 1px solid #754044;
+  border: 1px solid #d89ba1;
   border-radius: var(--bloomery-radius-small);
   color: var(--bloomery-red);
   display: flex;
@@ -997,5 +997,514 @@
   .bloomery-setup-step {
     animation: none;
     transition: none;
+  }
+}
+
+/* ========================= Knowledge workspace ========================= */
+.bloomery-knowledge {
+  animation: bloomery-enter 220ms ease-out both;
+}
+
+.bloomery-knowledge-header,
+.bloomery-knowledge-content-header,
+.bloomery-knowledge-section-heading,
+.bloomery-knowledge-import-title,
+.bloomery-knowledge-base,
+.bloomery-knowledge-document,
+.bloomery-knowledge-task,
+.bloomery-knowledge-alert,
+.bloomery-knowledge-notice {
+  align-items: center;
+  display: flex;
+}
+
+.bloomery-knowledge-header {
+  border-bottom: 1px solid var(--bloomery-line);
+  justify-content: space-between;
+  padding-bottom: 28px;
+}
+
+.bloomery-knowledge-header h1 {
+  color: var(--bloomery-text);
+  font-size: clamp(28px, 3vw, 40px);
+  font-weight: 620;
+  line-height: 1.12;
+  margin: 0;
+}
+
+.bloomery-knowledge-header .bloomery-lede {
+  max-width: 650px;
+}
+
+.bloomery-knowledge-alert,
+.bloomery-knowledge-notice {
+  gap: 9px;
+  line-height: 1.5;
+  margin-top: 18px;
+  padding: 11px 13px;
+}
+
+.bloomery-knowledge-alert {
+  background: var(--bloomery-red-soft);
+  border: 1px solid #d89ba1;
+  color: var(--bloomery-red);
+}
+
+.bloomery-knowledge-notice {
+  background: var(--bloomery-green-soft);
+  border: 1px solid #9bcdb1;
+  color: var(--bloomery-green);
+}
+
+.bloomery-knowledge-metrics {
+  border-bottom: 1px solid var(--bloomery-line);
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  margin-top: 24px;
+}
+
+.bloomery-knowledge-metrics > div {
+  border-left: 1px solid var(--bloomery-line);
+  display: grid;
+  gap: 7px;
+  min-height: 74px;
+  padding: 0 18px 17px;
+}
+
+.bloomery-knowledge-metrics > div:first-child {
+  border-left: 0;
+  padding-left: 0;
+}
+
+.bloomery-knowledge-metrics span,
+.bloomery-knowledge-count,
+.bloomery-knowledge-section-heading > span,
+.bloomery-knowledge-document span,
+.bloomery-knowledge-task span {
+  color: var(--bloomery-text-muted);
+  font-size: 11px;
+}
+
+.bloomery-knowledge-metrics strong {
+  color: var(--bloomery-text);
+  font-size: 20px;
+  font-weight: 620;
+  line-height: 1;
+}
+
+.bloomery-knowledge-layout {
+  display: grid;
+  gap: 28px;
+  grid-template-columns: minmax(210px, 0.28fr) minmax(0, 0.72fr);
+  padding-top: 28px;
+}
+
+.bloomery-knowledge-sidebar {
+  border-right: 1px solid var(--bloomery-line);
+  min-width: 0;
+  padding-right: 24px;
+}
+
+.bloomery-knowledge-section-heading {
+  justify-content: space-between;
+  min-height: 36px;
+}
+
+.bloomery-knowledge-section-heading > span,
+.bloomery-knowledge-section-heading h3 {
+  color: var(--bloomery-text-soft);
+  font-size: 12px;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  margin: 0;
+}
+
+.bloomery-knowledge-section-heading h3 {
+  color: var(--bloomery-text);
+  font-size: 15px;
+  letter-spacing: 0;
+}
+
+.bloomery-knowledge-create {
+  border-bottom: 1px solid var(--bloomery-line);
+  display: grid;
+  gap: 8px;
+  padding: 14px 0 18px;
+}
+
+.bloomery-knowledge-create label,
+.bloomery-knowledge-import label {
+  color: var(--bloomery-text-muted);
+  font-size: 11px;
+}
+
+.bloomery-knowledge-create > div {
+  display: flex;
+  gap: 7px;
+}
+
+.bloomery-knowledge-create input,
+.bloomery-knowledge-rename input,
+.bloomery-knowledge-import input {
+  background: var(--bloomery-bg-soft);
+  border: 1px solid var(--bloomery-line-strong);
+  border-radius: var(--bloomery-radius-small);
+  color: var(--bloomery-text);
+  min-height: 36px;
+  min-width: 0;
+  outline: none;
+  padding: 0 10px;
+  width: 100%;
+}
+
+.bloomery-knowledge-create input:focus,
+.bloomery-knowledge-rename input:focus,
+.bloomery-knowledge-import input:focus {
+  border-color: var(--bloomery-accent);
+  box-shadow: 0 0 0 2px rgba(183, 208, 214, 0.15);
+}
+
+.bloomery-knowledge-base-list {
+  display: grid;
+  gap: 5px;
+  padding-top: 12px;
+}
+
+.bloomery-knowledge-base {
+  gap: 2px;
+  min-height: 38px;
+}
+
+.bloomery-knowledge-base-select {
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--bloomery-radius-small);
+  color: var(--bloomery-text-muted);
+  cursor: pointer;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  padding: 9px 10px;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bloomery-knowledge-base-select:hover,
+.bloomery-knowledge-base.is-active .bloomery-knowledge-base-select {
+  background: var(--bloomery-amber-soft);
+  border-color: #d3a354;
+  color: var(--bloomery-amber);
+}
+
+.bloomery-knowledge-base .bloomery-icon-button {
+  flex: 0 0 30px;
+  height: 30px;
+  opacity: 0;
+}
+
+.bloomery-knowledge-base:hover .bloomery-icon-button,
+.bloomery-knowledge-base.is-active .bloomery-icon-button,
+.bloomery-knowledge-base:focus-within .bloomery-icon-button {
+  opacity: 1;
+}
+
+.bloomery-knowledge-rename {
+  align-items: center;
+  display: flex;
+  flex: 1;
+  gap: 3px;
+}
+
+.bloomery-knowledge-loading,
+.bloomery-knowledge-empty,
+.bloomery-knowledge-empty-content {
+  color: var(--bloomery-text-muted);
+  font-size: 12px;
+}
+
+.bloomery-knowledge-loading {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+  padding: 20px 0;
+}
+
+.bloomery-knowledge-empty {
+  border-bottom: 1px solid var(--bloomery-line);
+  padding: 19px 0;
+}
+
+.bloomery-knowledge-content {
+  min-width: 0;
+}
+
+.bloomery-knowledge-content-header {
+  border-bottom: 1px solid var(--bloomery-line);
+  justify-content: space-between;
+  min-height: 55px;
+  padding-bottom: 15px;
+}
+
+.bloomery-knowledge-content-header .bloomery-eyebrow {
+  margin-bottom: 5px;
+}
+
+.bloomery-knowledge-content-header h2 {
+  color: var(--bloomery-text);
+  font-size: 21px;
+  font-weight: 620;
+  line-height: 1.25;
+  margin: 0;
+}
+
+.bloomery-knowledge-count {
+  white-space: nowrap;
+}
+
+.bloomery-knowledge-import {
+  background: var(--bloomery-bg-soft);
+  border: 1px solid var(--bloomery-line);
+  display: grid;
+  gap: 10px;
+  margin-top: 20px;
+  padding: 17px;
+}
+
+.bloomery-knowledge-import-title {
+  color: var(--bloomery-text);
+  gap: 8px;
+}
+
+.bloomery-knowledge-import-title svg {
+  color: var(--bloomery-amber);
+}
+
+.bloomery-knowledge-import-row {
+  align-items: stretch;
+  display: flex;
+  gap: 9px;
+}
+
+.bloomery-knowledge-import-row .bloomery-action-primary {
+  flex: 0 0 auto;
+}
+
+.bloomery-knowledge-import > p {
+  color: var(--bloomery-text-muted);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.bloomery-knowledge-list-section {
+  border-top: 1px solid var(--bloomery-line);
+  margin-top: 28px;
+  padding-top: 15px;
+}
+
+.bloomery-knowledge-document-list,
+.bloomery-knowledge-task-list {
+  border-bottom: 1px solid var(--bloomery-line);
+  margin-top: 8px;
+}
+
+.bloomery-knowledge-document,
+.bloomery-knowledge-task {
+  border-top: 1px solid var(--bloomery-line);
+  gap: 11px;
+  min-height: 58px;
+  padding: 9px 4px;
+}
+
+.bloomery-knowledge-document > svg {
+  color: var(--bloomery-steel);
+  flex: 0 0 auto;
+}
+
+.bloomery-knowledge-document > div,
+.bloomery-knowledge-task > div:first-child {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.bloomery-knowledge-document strong,
+.bloomery-knowledge-task strong {
+  color: var(--bloomery-text-soft);
+  font-size: 13px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bloomery-knowledge-empty-content {
+  align-items: center;
+  border-bottom: 1px dashed var(--bloomery-line-strong);
+  display: flex;
+  gap: 10px;
+  min-height: 70px;
+  padding: 14px 4px;
+}
+
+.bloomery-knowledge-empty-content.is-large {
+  align-items: flex-start;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 156px;
+  padding-top: 28px;
+}
+
+.bloomery-knowledge-empty-content.is-large svg {
+  color: var(--bloomery-amber);
+}
+
+.bloomery-knowledge-empty-content strong {
+  color: var(--bloomery-text-soft);
+  font-size: 14px;
+}
+
+.bloomery-knowledge-task {
+  display: grid;
+  grid-template-columns: minmax(0, 0.5fr) minmax(160px, 0.5fr);
+}
+
+.bloomery-knowledge-progress {
+  align-items: center;
+  display: flex;
+  gap: 9px;
+  min-width: 0;
+}
+
+.bloomery-knowledge-progress > span {
+  background: var(--bloomery-amber);
+  display: block;
+  height: 4px;
+  max-width: calc(100% - 35px);
+  min-width: 2px;
+}
+
+.bloomery-knowledge-progress::before {
+  background: var(--bloomery-line-strong);
+  content: "";
+  height: 4px;
+  margin-right: -100%;
+  width: 100%;
+}
+
+.bloomery-knowledge-progress b {
+  color: var(--bloomery-amber);
+  flex: 0 0 28px;
+  font-size: 11px;
+  font-weight: 650;
+  text-align: right;
+}
+
+.bloomery-knowledge-confirm {
+  align-items: center;
+  background: rgba(5, 9, 11, 0.78);
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  padding: 20px;
+  position: fixed;
+  z-index: 10;
+}
+
+.bloomery-knowledge-confirm-panel {
+  background: var(--bloomery-bg-raised);
+  border: 1px solid var(--bloomery-line-strong);
+  box-shadow: var(--bloomery-shadow);
+  max-width: 480px;
+  padding: 26px;
+  width: 100%;
+}
+
+.bloomery-knowledge-confirm-panel h2 {
+  color: var(--bloomery-text);
+  font-size: 21px;
+  font-weight: 620;
+  line-height: 1.3;
+  margin: 0;
+}
+
+.bloomery-knowledge-confirm-panel > p:not(.bloomery-eyebrow) {
+  color: var(--bloomery-text-soft);
+  line-height: 1.65;
+  margin: 12px 0 0;
+}
+
+.bloomery-knowledge-confirm-panel > div:last-child {
+  display: flex;
+  gap: 9px;
+  justify-content: flex-end;
+  margin-top: 24px;
+}
+
+.bloomery-knowledge-danger {
+  color: var(--bloomery-red);
+  display: block;
+  font-size: 12px;
+  margin-top: 12px;
+}
+
+.bloomery-spin {
+  animation: bloomery-spin 900ms linear infinite;
+}
+
+@keyframes bloomery-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (max-width: 880px) {
+  .bloomery-knowledge-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .bloomery-knowledge-sidebar {
+    border-bottom: 1px solid var(--bloomery-line);
+    border-right: 0;
+    padding-bottom: 20px;
+    padding-right: 0;
+  }
+}
+
+@media (max-width: 640px) {
+  .bloomery-knowledge-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    row-gap: 18px;
+    padding-bottom: 18px;
+  }
+
+  .bloomery-knowledge-metrics > div,
+  .bloomery-knowledge-metrics > div:first-child {
+    border-left: 0;
+    min-height: 52px;
+    padding: 0;
+  }
+
+  .bloomery-knowledge-import-row {
+    flex-direction: column;
+  }
+
+  .bloomery-knowledge-import-row .bloomery-action-primary {
+    width: 100%;
+  }
+
+  .bloomery-knowledge-task {
+    gap: 7px;
+    grid-template-columns: 1fr;
+  }
+
+  .bloomery-knowledge-confirm-panel > div:last-child {
+    align-items: stretch;
+    flex-direction: column-reverse;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bloomery-knowledge,
+  .bloomery-spin {
+    animation: none;
   }
 }
