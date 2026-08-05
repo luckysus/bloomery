@@ -150,6 +150,9 @@ fn accept_request(listener: &TcpListener) -> TcpStream {
         match listener.accept() {
             Ok((stream, _)) => {
                 stream
+                    .set_nonblocking(false)
+                    .expect("configure blocking mock stream");
+                stream
                     .set_read_timeout(Some(SERVER_TIMEOUT))
                     .expect("configure mock stream");
                 return stream;
@@ -176,6 +179,9 @@ fn redirect_target_server(
         loop {
             match listener.accept() {
                 Ok((mut stream, _)) => {
+                    stream
+                        .set_nonblocking(false)
+                        .expect("configure blocking redirect target");
                     stream
                         .set_read_timeout(Some(SERVER_TIMEOUT))
                         .expect("configure redirect target");

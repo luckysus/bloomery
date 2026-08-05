@@ -20,6 +20,14 @@ vi.mock("../bridge/desktop", () => ({
       indexed_chunk_count: 0,
       active_task_count: 0,
     }),
+    listConversations: vi.fn().mockResolvedValue([]),
+    createConversation: vi.fn(),
+    listMessages: vi.fn().mockResolvedValue([]),
+    getConversationDraft: vi.fn().mockResolvedValue(""),
+    saveConversationDraft: vi.fn().mockResolvedValue(undefined),
+    listenDesktopAgentDeltas: vi.fn().mockResolvedValue(() => undefined),
+    desktopAgentChat: vi.fn(),
+    cancelDesktopRun: vi.fn().mockResolvedValue(undefined),
   },
 }));
 

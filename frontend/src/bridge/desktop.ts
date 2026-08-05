@@ -1,4 +1,45 @@
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
+
+export interface Conversation {
+  id: string;
+  title: string;
+  created_at: string;
+  updated_at: string;
+  pinned: boolean;
+  archived: boolean;
+}
+
+export interface Message {
+  id: string;
+  conversation_id: string;
+  role: "user" | "agent" | "assistant" | "system";
+  content: string;
+  response_json: string | null;
+  created_at: string;
+}
+
+export interface LocalAgentChatRequest {
+  sessionId?: string;
+  message: string;
+  runId?: string;
+}
+
+export interface LocalAgentDelta {
+  run_id: string;
+  delta: string;
+}
+
+export interface LocalAgentChatResponse {
+  run_id: string;
+  session_id: string;
+  status: string;
+  answer: string;
+  intent?: {
+    intent_type?: string;
+    unavailable_capability?: string | null;
+  };
+}
 
 export function isDesktopRuntime() {
   return "__TAURI_INTERNALS__" in window;
@@ -237,6 +278,23 @@ export const desktop = {
   getSetting: (key: string) => call<string | null>("get_setting", { key }),
   setSetting: (key: string, valueJson: string) =>
     call<void>("set_setting", { key, valueJson }),
+  listConversations: () => call<Conversation[]>("list_conversations"),
+  createConversation: (title: string) =>
+    call<Conversation>("create_conversation", { title }),
+  listMessages: (conversationId: string) =>
+    call<Message[]>("list_messages", { conversationId }),
+  getConversationDraft: (conversationId: string) =>
+    call<string>("get_conversation_draft", { conversationId }),
+  saveConversationDraft: (conversationId: string, content: string) =>
+    call<void>("save_conversation_draft", { conversationId, content }),
+  desktopAgentChat: (request: LocalAgentChatRequest) =>
+    call<LocalAgentChatResponse>("desktop_agent_chat", { request }),
+  cancelDesktopRun: (runId: string) =>
+    call<void>("desktop_cancel_llm_run", { runId }),
+  listenDesktopAgentDeltas: (handler: (delta: LocalAgentDelta) => void) => {
+    if (!isDesktopRuntime()) return Promise.resolve(() => undefined);
+    return listen<LocalAgentDelta>("desktop-agent-delta", (event) => handler(event.payload));
+  },
   listProviderProfiles: () => call<ProviderProfileResponse[]>("list_provider_profiles"),
   saveProviderProfile: (profile: ProviderProfileInput) =>
     call<ProviderProfileResponse>("save_provider_profile", { profile }),

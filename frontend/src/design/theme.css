@@ -1508,3 +1508,325 @@
     animation: none;
   }
 }
+
+/* ========================= Chat workspace ========================= */
+.bloomery-chat {
+  display: grid;
+  grid-template-columns: minmax(210px, 0.28fr) minmax(0, 0.72fr);
+  min-height: calc(100vh - var(--bloomery-topbar-height) - 84px);
+}
+
+.bloomery-chat-sidebar {
+  border-right: 1px solid var(--bloomery-line);
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding-right: 24px;
+}
+
+.bloomery-chat-sidebar-heading,
+.bloomery-chat-header,
+.bloomery-chat-composer-footer,
+.bloomery-chat-message-meta,
+.bloomery-chat-runtime {
+  align-items: center;
+  display: flex;
+}
+
+.bloomery-chat-sidebar-heading {
+  border-bottom: 1px solid var(--bloomery-line);
+  justify-content: space-between;
+  min-height: 62px;
+  padding-bottom: 15px;
+}
+
+.bloomery-chat-sidebar-heading .bloomery-eyebrow {
+  margin-bottom: 4px;
+}
+
+.bloomery-chat-sidebar-heading h1 {
+  color: var(--bloomery-text);
+  font-size: 21px;
+  font-weight: 620;
+  margin: 0;
+}
+
+.bloomery-chat-session-list {
+  display: grid;
+  gap: 5px;
+  padding-top: 14px;
+}
+
+.bloomery-chat-session {
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--bloomery-radius-small);
+  color: var(--bloomery-text-muted);
+  cursor: pointer;
+  min-height: 40px;
+  overflow: hidden;
+  padding: 0 11px;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bloomery-chat-session:hover,
+.bloomery-chat-session.is-active {
+  background: var(--bloomery-amber-soft);
+  border-color: #d3a354;
+  color: var(--bloomery-amber);
+}
+
+.bloomery-chat-list-state {
+  align-items: center;
+  color: var(--bloomery-text-muted);
+  display: flex;
+  font-size: 12px;
+  gap: 8px;
+  padding: 20px 2px;
+}
+
+.bloomery-chat-main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding-left: 28px;
+}
+
+.bloomery-chat-header {
+  border-bottom: 1px solid var(--bloomery-line);
+  justify-content: space-between;
+  min-height: 62px;
+  padding-bottom: 15px;
+}
+
+.bloomery-chat-header .bloomery-eyebrow {
+  margin-bottom: 5px;
+}
+
+.bloomery-chat-header h2 {
+  color: var(--bloomery-text);
+  font-size: 21px;
+  font-weight: 620;
+  line-height: 1.25;
+  margin: 0;
+}
+
+.bloomery-chat-runtime {
+  color: var(--bloomery-green);
+  font-size: 11px;
+  gap: 7px;
+  white-space: nowrap;
+}
+
+.bloomery-chat-messages {
+  flex: 1;
+  min-height: 360px;
+  overflow: auto;
+  padding: 26px 4px 22px;
+}
+
+.bloomery-chat-empty {
+  align-items: center;
+  color: var(--bloomery-text-muted);
+  display: flex;
+  gap: 9px;
+  justify-content: center;
+  min-height: 200px;
+}
+
+.bloomery-chat-empty-large {
+  align-items: flex-start;
+  flex-direction: column;
+  justify-content: center;
+  margin: 0 auto;
+  max-width: 480px;
+  min-height: 360px;
+  padding: 20px;
+}
+
+.bloomery-chat-empty-icon {
+  align-items: center;
+  background: var(--bloomery-amber-soft);
+  border: 1px solid #d3a354;
+  color: var(--bloomery-amber);
+  display: inline-flex;
+  height: 42px;
+  justify-content: center;
+  width: 42px;
+}
+
+.bloomery-chat-empty strong {
+  color: var(--bloomery-text);
+  font-size: 16px;
+}
+
+.bloomery-chat-empty span:last-child {
+  color: var(--bloomery-text-soft);
+  line-height: 1.65;
+}
+
+.bloomery-chat-message {
+  margin: 0 auto 22px;
+  max-width: 780px;
+}
+
+.bloomery-chat-message.is-user {
+  background: var(--bloomery-bg-soft);
+  border-left: 3px solid var(--bloomery-amber);
+  padding: 13px 16px;
+}
+
+.bloomery-chat-message.is-assistant {
+  padding: 3px 16px 5px;
+}
+
+.bloomery-chat-message.is-pending {
+  opacity: 0.82;
+}
+
+.bloomery-chat-message-meta {
+  color: var(--bloomery-text-muted);
+  font-size: 11px;
+  gap: 7px;
+  margin-bottom: 8px;
+}
+
+.bloomery-chat-message.is-assistant .bloomery-chat-message-meta svg {
+  color: var(--bloomery-accent);
+}
+
+.bloomery-chat-message p {
+  color: var(--bloomery-text-soft);
+  line-height: 1.75;
+  white-space: pre-wrap;
+}
+
+.bloomery-chat-answer {
+  color: var(--bloomery-text-soft);
+  line-height: 1.75;
+}
+
+.bloomery-chat-answer p {
+  color: inherit;
+  line-height: inherit;
+}
+
+.bloomery-chat-answer h1,
+.bloomery-chat-answer h2,
+.bloomery-chat-answer h3 {
+  color: var(--bloomery-text);
+}
+
+.bloomery-chat-answer code {
+  background: var(--bloomery-bg-soft);
+  border-color: var(--bloomery-line);
+  color: var(--bloomery-accent);
+}
+
+.bloomery-chat-answer pre {
+  background: #243238;
+  border-radius: var(--bloomery-radius-small);
+}
+
+.bloomery-chat-composer {
+  border-top: 1px solid var(--bloomery-line);
+  margin: 0 auto;
+  max-width: 780px;
+  padding-top: 15px;
+  width: 100%;
+}
+
+.bloomery-chat-composer textarea {
+  background: var(--bloomery-bg-raised);
+  border: 1px solid var(--bloomery-line-strong);
+  border-radius: var(--bloomery-radius-small);
+  color: var(--bloomery-text);
+  display: block;
+  font: inherit;
+  line-height: 1.6;
+  outline: none;
+  padding: 12px 13px;
+  resize: vertical;
+  width: 100%;
+}
+
+.bloomery-chat-composer textarea:focus {
+  border-color: var(--bloomery-accent);
+  box-shadow: 0 0 0 2px rgba(71, 114, 126, 0.14);
+}
+
+.bloomery-chat-composer textarea:disabled {
+  background: var(--bloomery-bg-soft);
+  cursor: wait;
+}
+
+.bloomery-chat-composer-footer {
+  color: var(--bloomery-text-muted);
+  font-size: 11px;
+  justify-content: space-between;
+  padding-top: 9px;
+}
+
+.bloomery-chat-composer-footer button {
+  min-height: 36px;
+}
+
+.bloomery-chat-mobile-icon {
+  display: none;
+}
+
+@media (max-width: 880px) {
+  .bloomery-chat {
+    grid-template-columns: 1fr;
+  }
+
+  .bloomery-chat-sidebar {
+    border-bottom: 1px solid var(--bloomery-line);
+    border-right: 0;
+    padding: 0 0 15px;
+  }
+
+  .bloomery-chat-session-list {
+    display: flex;
+    overflow-x: auto;
+  }
+
+  .bloomery-chat-session {
+    flex: 0 0 auto;
+    max-width: 210px;
+  }
+
+  .bloomery-chat-sidebar .bloomery-sidebar-footer {
+    display: none;
+  }
+
+  .bloomery-chat-main {
+    min-height: calc(100vh - var(--bloomery-topbar-height) - 160px);
+    padding-left: 0;
+    padding-top: 18px;
+  }
+}
+
+@media (max-width: 560px) {
+  .bloomery-chat-header {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .bloomery-chat-messages {
+    padding-left: 0;
+    padding-right: 0;
+  }
+
+  .bloomery-chat-composer-footer {
+    align-items: flex-end;
+    gap: 10px;
+  }
+
+  .bloomery-chat-composer-footer > span {
+    max-width: 170px;
+  }
+}
