@@ -92,10 +92,12 @@ Persist permanent rules by stable tool ID, version range, source identity, actio
 
 **Files:** Create MCP model/client modules, modify `Cargo.toml`, and create `tests/mcp.rs`.
 
-- [ ] **Step 1: Write common MCP tests** for initialize, capability discovery, tools/resources/prompts, schema conversion, call result, timeout, cancellation, protocol error, and server version change.
-- [ ] **Step 2: Run `cargo test --test mcp client`** and expect missing client.
-- [ ] **Step 3: Add the maintained Rust MCP SDK and a thin Bloomery adapter.** Convert discovered tools into `ToolDefinition`; keep SDK types out of Agent and UI contracts.
-- [ ] **Step 4: Run MCP client and tool registry tests** and expect pass.
+- [x] **Step 1: Write common MCP tests** for initialize, capability discovery, tools/resources/prompts, schema conversion, call result, timeout, cancellation, protocol error, and server version change.
+- [x] **Step 2: Run `cargo test --test mcp client`** and expect missing client.
+- [x] **Step 3: Add the maintained Rust MCP SDK and a thin Bloomery adapter.** Convert discovered tools into `ToolDefinition`; keep SDK types out of Agent and UI contracts.
+- [x] **Step 4: Run MCP client and tool registry tests** and expect pass.
+
+**Execution record (2026-08-05):** Added the official `rmcp` 3.1.1 client SDK with Bloomery-owned configuration, server identity, capability, tool/resource/prompt, and call-result models. The adapter performs initialization, bounded requests, Agent cancellation polling, stable protocol errors, server-version fencing, and MCP-to-`ToolDefinition` conversion with confirmation-by-default permissions. The MCP contract suite passed 8 tests; the tool registry and Agent loop suites passed 14 and 13 tests; formatting passed.
 
 ### Task 6: Support stdio, Streamable HTTP, and legacy SSE
 
