@@ -1,0 +1,756 @@
+{
+  "$defs": {
+    "agent_error": {
+      "additionalProperties": false,
+      "properties": {
+        "category": {
+          "$ref": "#/$defs/agent_error_category"
+        },
+        "code": {
+          "type": "string"
+        },
+        "details": {
+          "anyOf": [
+            {},
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "message": {
+          "type": "string"
+        },
+        "retryable": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "code",
+        "category",
+        "message",
+        "retryable",
+        "details"
+      ],
+      "type": "object"
+    },
+    "agent_error_category": {
+      "enum": [
+        "configuration",
+        "authentication",
+        "quota",
+        "network",
+        "parsing",
+        "indexing",
+        "model_capability",
+        "tool_permission",
+        "mcp",
+        "database",
+        "internal"
+      ],
+      "type": "string"
+    },
+    "agent_event_data": {
+      "oneOf": [
+        {
+          "properties": {
+            "data": {
+              "$ref": "#/$defs/run_created"
+            },
+            "type": {
+              "const": "run_created"
+            }
+          },
+          "required": [
+            "type",
+            "data"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "data": {
+              "$ref": "#/$defs/run_state_changed"
+            },
+            "type": {
+              "const": "run_state_changed"
+            }
+          },
+          "required": [
+            "type",
+            "data"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "data": {
+              "$ref": "#/$defs/message_delta"
+            },
+            "type": {
+              "const": "message_delta"
+            }
+          },
+          "required": [
+            "type",
+            "data"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "data": {
+              "$ref": "#/$defs/message_completed"
+            },
+            "type": {
+              "const": "message_completed"
+            }
+          },
+          "required": [
+            "type",
+            "data"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "data": {
+              "$ref": "#/$defs/tool_requested"
+            },
+            "type": {
+              "const": "tool_requested"
+            }
+          },
+          "required": [
+            "type",
+            "data"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "data": {
+              "$ref": "#/$defs/tool_started"
+            },
+            "type": {
+              "const": "tool_started"
+            }
+          },
+          "required": [
+            "type",
+            "data"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "data": {
+              "$ref": "#/$defs/tool_progress"
+            },
+            "type": {
+              "const": "tool_progress"
+            }
+          },
+          "required": [
+            "type",
+            "data"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "data": {
+              "$ref": "#/$defs/tool_completed"
+            },
+            "type": {
+              "const": "tool_completed"
+            }
+          },
+          "required": [
+            "type",
+            "data"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "data": {
+              "$ref": "#/$defs/permission_requested"
+            },
+            "type": {
+              "const": "permission_requested"
+            }
+          },
+          "required": [
+            "type",
+            "data"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "data": {
+              "$ref": "#/$defs/permission_resolved"
+            },
+            "type": {
+              "const": "permission_resolved"
+            }
+          },
+          "required": [
+            "type",
+            "data"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "data": {
+              "$ref": "#/$defs/evidence_attached"
+            },
+            "type": {
+              "const": "evidence_attached"
+            }
+          },
+          "required": [
+            "type",
+            "data"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "data": {
+              "$ref": "#/$defs/usage_updated"
+            },
+            "type": {
+              "const": "usage_updated"
+            }
+          },
+          "required": [
+            "type",
+            "data"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "data": {
+              "$ref": "#/$defs/task_progress"
+            },
+            "type": {
+              "const": "task_progress"
+            }
+          },
+          "required": [
+            "type",
+            "data"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "data": {
+              "$ref": "#/$defs/run_completed"
+            },
+            "type": {
+              "const": "run_completed"
+            }
+          },
+          "required": [
+            "type",
+            "data"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "data": {
+              "$ref": "#/$defs/error_raised"
+            },
+            "type": {
+              "const": "error_raised"
+            }
+          },
+          "required": [
+            "type",
+            "data"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "agent_message_role": {
+      "enum": [
+        "user",
+        "assistant",
+        "tool",
+        "system"
+      ],
+      "type": "string"
+    },
+    "agent_run_state": {
+      "enum": [
+        "created",
+        "preparing",
+        "generating",
+        "awaiting_permission",
+        "executing_tools",
+        "verifying",
+        "completing",
+        "completed",
+        "cancelled",
+        "failed",
+        "interrupted"
+      ],
+      "type": "string"
+    },
+    "envelope_base": {
+      "properties": {
+        "conversation_id": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "event_id": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "protocol_version": {
+          "const": 1
+        },
+        "run_id": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "sequence": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "timestamp": {
+          "format": "date-time",
+          "type": "string"
+        }
+      },
+      "required": [
+        "protocol_version",
+        "event_id",
+        "run_id",
+        "conversation_id",
+        "sequence",
+        "timestamp"
+      ],
+      "type": "object"
+    },
+    "error_raised": {
+      "additionalProperties": false,
+      "properties": {
+        "error": {
+          "$ref": "#/$defs/agent_error"
+        },
+        "fatal": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "error",
+        "fatal"
+      ],
+      "type": "object"
+    },
+    "evidence_attached": {
+      "additionalProperties": false,
+      "properties": {
+        "citation_numbers": {
+          "items": {
+            "maximum": 4294967295,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "type": "array"
+        },
+        "evidence_pack_id": {
+          "format": "uuid",
+          "type": "string"
+        }
+      },
+      "required": [
+        "evidence_pack_id",
+        "citation_numbers"
+      ],
+      "type": "object"
+    },
+    "message_completed": {
+      "additionalProperties": false,
+      "properties": {
+        "content": {
+          "type": "string"
+        },
+        "message_id": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "partial": {
+          "type": "boolean"
+        },
+        "role": {
+          "$ref": "#/$defs/agent_message_role"
+        }
+      },
+      "required": [
+        "message_id",
+        "role",
+        "content",
+        "partial"
+      ],
+      "type": "object"
+    },
+    "message_delta": {
+      "additionalProperties": false,
+      "properties": {
+        "delta": {
+          "type": "string"
+        },
+        "message_id": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "role": {
+          "$ref": "#/$defs/agent_message_role"
+        }
+      },
+      "required": [
+        "message_id",
+        "role",
+        "delta"
+      ],
+      "type": "object"
+    },
+    "permission_decision": {
+      "enum": [
+        "allow_once",
+        "allow_session",
+        "allow_always",
+        "deny"
+      ],
+      "type": "string"
+    },
+    "permission_requested": {
+      "additionalProperties": false,
+      "properties": {
+        "permission_id": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "risk": {
+          "$ref": "#/$defs/permission_risk"
+        },
+        "summary": {
+          "type": "string"
+        },
+        "tool_call_id": {
+          "format": "uuid",
+          "type": "string"
+        }
+      },
+      "required": [
+        "permission_id",
+        "tool_call_id",
+        "risk",
+        "reason",
+        "summary"
+      ],
+      "type": "object"
+    },
+    "permission_resolved": {
+      "additionalProperties": false,
+      "properties": {
+        "decision": {
+          "$ref": "#/$defs/permission_decision"
+        },
+        "permission_id": {
+          "format": "uuid",
+          "type": "string"
+        }
+      },
+      "required": [
+        "permission_id",
+        "decision"
+      ],
+      "type": "object"
+    },
+    "permission_risk": {
+      "enum": [
+        "automatic",
+        "confirmation_required",
+        "dangerous"
+      ],
+      "type": "string"
+    },
+    "run_completed": {
+      "additionalProperties": false,
+      "properties": {
+        "assistant_message_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "outcome": {
+          "$ref": "#/$defs/run_outcome"
+        }
+      },
+      "required": [
+        "outcome",
+        "assistant_message_id"
+      ],
+      "type": "object"
+    },
+    "run_created": {
+      "additionalProperties": false,
+      "properties": {
+        "state": {
+          "$ref": "#/$defs/agent_run_state"
+        },
+        "user_message_id": {
+          "format": "uuid",
+          "type": "string"
+        }
+      },
+      "required": [
+        "state",
+        "user_message_id"
+      ],
+      "type": "object"
+    },
+    "run_outcome": {
+      "enum": [
+        "completed",
+        "cancelled",
+        "failed",
+        "interrupted"
+      ],
+      "type": "string"
+    },
+    "run_state_changed": {
+      "additionalProperties": false,
+      "properties": {
+        "current": {
+          "$ref": "#/$defs/agent_run_state"
+        },
+        "previous": {
+          "$ref": "#/$defs/agent_run_state"
+        },
+        "reason": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "previous",
+        "current",
+        "reason"
+      ],
+      "type": "object"
+    },
+    "task_progress": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "type": "string"
+        },
+        "progress": {
+          "maximum": 100,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "state": {
+          "$ref": "#/$defs/task_progress_state"
+        },
+        "task_id": {
+          "format": "uuid",
+          "type": "string"
+        }
+      },
+      "required": [
+        "task_id",
+        "kind",
+        "state",
+        "progress"
+      ],
+      "type": "object"
+    },
+    "task_progress_state": {
+      "enum": [
+        "queued",
+        "running",
+        "waiting_external",
+        "paused",
+        "completed",
+        "failed",
+        "cancelled",
+        "interrupted"
+      ],
+      "type": "string"
+    },
+    "tool_completed": {
+      "additionalProperties": false,
+      "properties": {
+        "error": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/agent_error"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "outcome": {
+          "$ref": "#/$defs/tool_outcome"
+        },
+        "output": {
+          "anyOf": [
+            {},
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "tool_call_id": {
+          "format": "uuid",
+          "type": "string"
+        }
+      },
+      "required": [
+        "tool_call_id",
+        "outcome",
+        "output",
+        "error"
+      ],
+      "type": "object"
+    },
+    "tool_outcome": {
+      "enum": [
+        "succeeded",
+        "failed",
+        "cancelled"
+      ],
+      "type": "string"
+    },
+    "tool_progress": {
+      "additionalProperties": false,
+      "properties": {
+        "message": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "progress": {
+          "maximum": 100,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "tool_call_id": {
+          "format": "uuid",
+          "type": "string"
+        }
+      },
+      "required": [
+        "tool_call_id",
+        "progress",
+        "message"
+      ],
+      "type": "object"
+    },
+    "tool_requested": {
+      "additionalProperties": false,
+      "properties": {
+        "arguments": {},
+        "tool_call_id": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "tool_id": {
+          "type": "string"
+        },
+        "tool_name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "tool_call_id",
+        "tool_id",
+        "tool_name",
+        "arguments"
+      ],
+      "type": "object"
+    },
+    "tool_started": {
+      "additionalProperties": false,
+      "properties": {
+        "tool_call_id": {
+          "format": "uuid",
+          "type": "string"
+        }
+      },
+      "required": [
+        "tool_call_id"
+      ],
+      "type": "object"
+    },
+    "usage_updated": {
+      "additionalProperties": false,
+      "properties": {
+        "completion_tokens": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "prompt_tokens": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "total_tokens": {
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "prompt_tokens",
+        "completion_tokens",
+        "total_tokens"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "https://bloomery.dev/protocol/v1/event.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "allOf": [
+    {
+      "$ref": "#/$defs/envelope_base"
+    },
+    {
+      "$ref": "#/$defs/agent_event_data"
+    }
+  ],
+  "description": "Versioned events emitted by the local-first Bloomery agent runtime.",
+  "title": "Bloomery Agent Event Envelope",
+  "type": "object",
+  "unevaluatedProperties": false
+}

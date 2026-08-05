@@ -158,10 +158,12 @@ Return a `ContextReport` with included IDs, omitted IDs, token estimates, trunca
 
 **Files:** Create protocol exporter, `frontend/src/bridge/generated/protocol.ts`, `docs/PROTOCOL.md`, and contract tests.
 
-- [ ] **Step 1: Add a failing freshness test** comparing generated output with tracked TypeScript and protocol schema files.
-- [ ] **Step 2: Run the freshness test** and expect generated artifacts absent.
-- [ ] **Step 3: Implement deterministic export.** Document compatibility, envelope, event ordering, replay, cancellation, permissions, errors, examples, and versioning. Generated files include a do-not-edit header.
-- [ ] **Step 4: Run exporter, TypeScript build, and protocol tests** and expect pass.
+- [x] **Step 1: Add a failing freshness test** comparing generated output with tracked TypeScript and protocol schema files.
+- [x] **Step 2: Run the freshness test** and expect generated artifacts absent.
+- [x] **Step 3: Implement deterministic export.** Document compatibility, envelope, event ordering, replay, cancellation, permissions, errors, examples, and versioning. Generated files include a do-not-edit header.
+- [x] **Step 4: Run exporter, TypeScript build, and protocol tests** and expect pass.
+
+**Execution record (2026-08-05):** Added a deterministic Rust protocol exporter and a no-write `--check` mode. It generates the version-1 JSON Schema at `docs/protocol.schema.json` and discriminated TypeScript contracts at `frontend/src/bridge/generated/protocol.ts`, including a do-not-edit header. Added a public `docs/PROTOCOL.md` covering compatibility, envelope fields, event ordering, replay cursors, cancellation/recovery, permissions, errors, versioning, and TypeScript consumption. TDD RED first failed because the export boundary and artifacts were absent; the final contract suite passed 3 tests, protocol snapshots passed 5 tests, exporter `--check` passed, and `npm run build` passed.
 
 ### Task 11: Remove the monolithic runtime
 
