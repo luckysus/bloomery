@@ -39,6 +39,10 @@
 
 ### Task 4: Build the workbench home
 
+#### Progress checkpoint (2026-08-05)
+
+The current implementation has completed the first-run shell slice: local workspace initialization, OpenAI-compatible/Ollama setup, API-key storage through the desktop bridge, SiliconFlow embedding and reranker profiles with free/Pro selection, optional MinerU credentials, skipped retrieval state, and provider error presentation. Frontend unit tests, runtime-boundary checks, and the production build pass. The remaining Task 3 acceptance items are still open: steel package installation, restart/resume coverage, degraded/retry UX, and first-chat/document actions. Playwright remains pending until the matching browser executable is available locally.
+
 **Files:** Create `features/workbench/` summary hook/components and tests.
 
 - [ ] **Step 1: Write tests** for recent conversations/tasks/datasets, knowledge/index/provider health, primary actions, and empty/loading/error/degraded states.

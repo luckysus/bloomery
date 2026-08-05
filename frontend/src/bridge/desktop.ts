@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 
-function isTauriRuntime() {
+export function isDesktopRuntime() {
   return "__TAURI_INTERNALS__" in window;
 }
 
@@ -189,16 +189,63 @@ export interface DocumentImportResponse {
   duplicate_content: boolean;
 }
 
+export type ProviderKind = "open_ai_compatible" | "ollama" | "siliconflow" | "mineru";
+
+export interface ProviderProfileInput {
+  id?: string;
+  kind: ProviderKind;
+  display_name: string;
+  base_url: string;
+  model_id?: string | null;
+  credential_name?: string | null;
+  enabled: boolean;
+}
+
+export interface ProviderProfileResponse {
+  id: string;
+  kind: ProviderKind;
+  display_name: string;
+  base_url: string;
+  model_id: string | null;
+  enabled: boolean;
+  revision: number;
+  secret_generation: number;
+  secret_configured: boolean;
+}
+
+export interface ProviderProbeResponse {
+  ok: boolean;
+  status_code: number | null;
+  error_code: string | null;
+  elapsed_ms: number;
+}
+
+export interface SecretStatus {
+  configured: boolean;
+}
+
 function call<T>(command: string, args?: Record<string, unknown>) {
-  if (!isTauriRuntime()) return Promise.reject(new Error("Desktop runtime is unavailable"));
+  if (!isDesktopRuntime()) return Promise.reject(new Error("Desktop runtime is unavailable"));
   return invoke<T>(command, args);
 }
 
 export const desktop = {
   async initialize() {
-    if (!isTauriRuntime()) return;
+    if (!isDesktopRuntime()) return;
     await invoke<void>("db_init");
   },
+  getSetting: (key: string) => call<string | null>("get_setting", { key }),
+  setSetting: (key: string, valueJson: string) =>
+    call<void>("set_setting", { key, valueJson }),
+  listProviderProfiles: () => call<ProviderProfileResponse[]>("list_provider_profiles"),
+  saveProviderProfile: (profile: ProviderProfileInput) =>
+    call<ProviderProfileResponse>("save_provider_profile", { profile }),
+  testProviderProfile: (id: string) =>
+    call<ProviderProbeResponse>("test_provider_profile", { id }),
+  setProviderSecret: (profileId: string, credentialName: string, value: string) =>
+    call<SecretStatus>("secret_set", { profileId, credentialName, value }),
+  deleteProviderSecret: (profileId: string, credentialName: string) =>
+    call<SecretStatus>("secret_delete", { profileId, credentialName }),
   listKnowledgeBases: () => call<KnowledgeBaseRecord[]>("list_knowledge_bases"),
   createKnowledgeBase: (name: string) =>
     call<KnowledgeBaseRecord>("create_knowledge_base", { name }),

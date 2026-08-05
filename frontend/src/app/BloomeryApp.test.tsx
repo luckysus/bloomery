@@ -4,8 +4,10 @@ import BloomeryApp from "./BloomeryApp";
 import { desktop } from "../bridge/desktop";
 
 vi.mock("../bridge/desktop", () => ({
+  isDesktopRuntime: vi.fn().mockReturnValue(true),
   desktop: {
     initialize: vi.fn().mockResolvedValue(undefined),
+    getSetting: vi.fn().mockResolvedValue(JSON.stringify({ completed: true })),
   },
 }));
 

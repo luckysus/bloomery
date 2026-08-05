@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
 import { Factory, PanelLeftClose, PanelLeftOpen } from "lucide-react";
-import { desktop } from "../bridge/desktop";
+import { desktop, isDesktopRuntime } from "../bridge/desktop";
+import OnboardingPage from "../features/onboarding/OnboardingPage";
 import SectionPlaceholder from "./SectionPlaceholder";
 import WorkbenchHome from "./WorkbenchHome";
 import { getNavigationSection, navigationSections, type SectionId } from "./navigation";
 
-type InitializationState = "loading" | "ready" | "failed";
+type InitializationState = "loading" | "setup" | "ready" | "failed";
 
 export default function BloomeryApp() {
   const [initializationState, setInitializationState] = useState<InitializationState>("loading");
@@ -15,14 +16,28 @@ export default function BloomeryApp() {
 
   useEffect(() => {
     let mounted = true;
-    desktop.initialize().then(
-      () => mounted && setInitializationState("ready"),
-      () => mounted && setInitializationState("failed"),
-    );
+    desktop.initialize().then(async () => {
+      if (!mounted) return;
+      if (!isDesktopRuntime()) {
+        setInitializationState("ready");
+        return;
+      }
+      try {
+        const value = await desktop.getSetting("onboarding.completed");
+        const complete = value ? JSON.parse(value).completed === true : false;
+        if (mounted) setInitializationState(complete ? "ready" : "setup");
+      } catch {
+        if (mounted) setInitializationState("failed");
+      }
+    }, () => mounted && setInitializationState("failed"));
     return () => {
       mounted = false;
     };
   }, []);
+
+  if (initializationState === "setup") {
+    return <OnboardingPage onComplete={() => setInitializationState("ready")} />;
+  }
 
   return (
     <div className={`bloomery-app ${collapsed ? "is-collapsed" : ""}`}>
