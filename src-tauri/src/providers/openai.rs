@@ -1,6 +1,6 @@
 use crate::diagnostics::redaction::Redactor;
 use crate::providers::capabilities::{
-    ChatEvent, ChatProvider, ChatRequest, ChatResponse, ChatToolCall, ChatUsage,
+    ChatEvent, ChatMessage, ChatProvider, ChatRequest, ChatResponse, ChatToolCall, ChatUsage,
     ProviderCapabilities, ToolCallDelta,
 };
 use crate::providers::http::{build_client, HttpClientConfig, ProviderError, ProviderErrorCode};
@@ -80,7 +80,7 @@ impl OpenAiProvider {
 #[derive(Serialize)]
 struct OpenAiChatRequest<'a> {
     model: &'a str,
-    messages: &'a [crate::providers::capabilities::ChatMessage],
+    messages: &'a [OpenAiChatMessage<'a>],
     stream: bool,
     temperature: f32,
     stream_options: Value,
@@ -88,6 +88,30 @@ struct OpenAiChatRequest<'a> {
     tools: Option<&'a Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
     response_format: Option<&'a Value>,
+}
+
+#[derive(Serialize)]
+struct OpenAiChatMessage<'a> {
+    role: &'a str,
+    content: &'a str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    tool_call_id: Option<&'a str>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    tool_calls: Vec<OpenAiToolCall<'a>>,
+}
+
+#[derive(Serialize)]
+struct OpenAiToolCall<'a> {
+    id: &'a str,
+    #[serde(rename = "type")]
+    kind: &'static str,
+    function: OpenAiFunction<'a>,
+}
+
+#[derive(Serialize)]
+struct OpenAiFunction<'a> {
+    name: &'a str,
+    arguments: &'a str,
 }
 
 impl ChatProvider for OpenAiProvider {
@@ -109,9 +133,14 @@ impl ChatProvider for OpenAiProvider {
             });
         }
 
+        let messages = request
+            .messages
+            .iter()
+            .map(openai_message)
+            .collect::<Vec<_>>();
         let body = OpenAiChatRequest {
             model: &self.capabilities.model_id,
-            messages: &request.messages,
+            messages: &messages,
             stream: true,
             temperature: request.temperature,
             stream_options: serde_json::json!({"include_usage": true}),
@@ -180,6 +209,26 @@ impl ChatProvider for OpenAiProvider {
             })?;
             read_json_response(body, on_event, &redactor)
         }
+    }
+}
+
+fn openai_message(message: &ChatMessage) -> OpenAiChatMessage<'_> {
+    OpenAiChatMessage {
+        role: &message.role,
+        content: &message.content,
+        tool_call_id: message.tool_call_id.as_deref(),
+        tool_calls: message
+            .tool_calls
+            .iter()
+            .map(|call| OpenAiToolCall {
+                id: &call.id,
+                kind: "function",
+                function: OpenAiFunction {
+                    name: &call.name,
+                    arguments: &call.arguments,
+                },
+            })
+            .collect(),
     }
 }
 

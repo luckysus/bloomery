@@ -136,10 +136,12 @@ Return a `ContextReport` with included IDs, omitted IDs, token estimates, trunca
 
 **Files:** Create `runtime/model_adapter.rs`, `runtime/loop.rs`, `runtime/mod.rs`, and `tests/agent_loop.rs`.
 
-- [ ] **Step 1: Write scripted-provider tests** for direct answer, RAG answer, one/multiple tools, parallel read tools, serial write tools, repair, provider error, cancellation, and context overflow.
-- [ ] **Step 2: Run `cargo test --test agent_loop`** and expect missing runtime.
-- [ ] **Step 3: Implement the loop.** Ask `ProviderCapabilities`; stream normalized deltas; persist events before publish; execute only registered/authorized tools; append observations with output bounds; restore selected recent turns to chronological provider-message order; verify citations; complete exactly once.
-- [ ] **Step 4: Run loop, protocol, context, and provider tests** and expect pass.
+- [x] **Step 1: Write scripted-provider tests** for direct answer, RAG answer, one/multiple tools, parallel read tools, serial write tools, repair, provider error, cancellation, and context overflow.
+- [x] **Step 2: Run `cargo test --test agent_loop`** and expect missing runtime.
+- [x] **Step 3: Implement the loop.** Ask `ProviderCapabilities`; stream normalized deltas; persist events before publish; execute only registered/authorized tools; append observations with output bounds; restore selected recent turns to chronological provider-message order; verify citations; complete exactly once.
+- [x] **Step 4: Run loop, protocol, context, and provider tests** and expect pass.
+
+**Execution record (2026-08-05):** Added the provider-normalized Rust Agent loop with capability checks, streamed normalized events, bounded context restoration, parallel read and serial write tool execution, permission gates, bounded Tool-Call Repair, citation validation, cancellation, provider error mapping, and bounded tool observations. Added `SqliteAgentEventSink` plus atomic run transition/finalization repositories: every event is committed before publication, and terminal state changes are committed with `RunCompleted` exactly once. Fixed the nested repository ignore rule that previously hid `src-tauri/src/agent/runtime/` source files. Fresh verification passed 14 context, 3 event-sink, 13 Agent loop, 11 persistence, 5 protocol, 12 state-machine, 20 architecture, and 52 provider tests; `cargo fmt --all -- --check` passed.
 
 ### Task 9: Recover interrupted runs and replay UI state
 

@@ -99,6 +99,10 @@ agent_artifacts/
 run_artifacts/
 runtime_artifacts/
 
+# The agent runtime is source code, not a runtime artifact directory.
+!src-tauri/src/agent/runtime/
+!src-tauri/src/agent/runtime/**
+
 # Package manager logs
 npm-debug.log*
 yarn-debug.log*
