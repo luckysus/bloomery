@@ -1,5 +1,10 @@
 pub(crate) mod agent_commands;
 pub(crate) mod commands;
+pub(crate) mod desktop_ask_commands;
+pub(crate) mod desktop_cancel_commands;
+pub(crate) mod desktop_chat_commands;
+pub(crate) mod desktop_stream;
+pub(crate) mod desktop_summary_commands;
 pub(crate) mod event_sink;
 pub(crate) mod identity;
 pub(crate) mod knowledge_commands;
@@ -8,7 +13,7 @@ pub(crate) mod secret_commands;
 pub(crate) mod storage_commands;
 pub(crate) mod task_commands;
 
-use crate::{db, local_agent, tasks::scheduler::SchedulerState};
+use crate::{db, tasks::scheduler::SchedulerState};
 use std::time::Duration;
 use tauri::{Manager, RunEvent};
 
@@ -23,7 +28,7 @@ pub fn run() {
         }))
         .manage(identity::LocalIdentity)
         .manage(db::DbState::default())
-        .manage(local_agent::LocalAgentState::default())
+        .manage(crate::agent::desktop::LocalAgentState::default())
         .manage(crate::storage::secrets::SecretState::default())
         .manage(SchedulerState::default())
         .invoke_handler(commands::handler!())

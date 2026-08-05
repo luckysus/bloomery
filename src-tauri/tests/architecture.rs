@@ -36,7 +36,7 @@ fn tauri_entrypoint_has_no_auth_or_cloud_commands() {
 #[test]
 fn transitional_rust_files_stay_within_budget() {
     let root = manifest_dir().join("src");
-    let budgets = [("local_agent.rs", 3_000), ("db.rs", 400)];
+    let budgets = [("db.rs", 400)];
 
     for (name, budget) in budgets {
         let actual = line_count(root.join(name));
@@ -44,6 +44,72 @@ fn transitional_rust_files_stay_within_budget() {
             actual <= budget,
             "src/{name} has {actual} lines; transitional budget is {budget}"
         );
+    }
+}
+
+#[test]
+fn task_11_removes_legacy_runtime_and_enforces_module_budgets() {
+    let source_root = manifest_dir().join("src");
+    assert!(
+        !source_root.join("local_agent.rs").exists(),
+        "the legacy local_agent.rs runtime must be removed"
+    );
+
+    let runtime_root = source_root.join("agent/runtime");
+    for entry in fs::read_dir(&runtime_root).expect("read agent runtime modules") {
+        let path = entry.expect("agent runtime entry").path();
+        if path.extension().and_then(|value| value.to_str()) != Some("rs") {
+            continue;
+        }
+        assert!(
+            line_count(&path) <= 500,
+            "{} exceeds the 500-line runtime module budget",
+            path.display()
+        );
+    }
+
+    let repository_root = source_root.join("storage/repositories");
+    let mut pending = vec![repository_root];
+    while let Some(directory) = pending.pop() {
+        for entry in fs::read_dir(&directory).expect("read repository module directory") {
+            let path = entry.expect("repository module entry").path();
+            if path.is_dir() {
+                pending.push(path);
+                continue;
+            }
+            if path.extension().and_then(|value| value.to_str()) != Some("rs") {
+                continue;
+            }
+            assert!(
+                line_count(&path) <= 400,
+                "{} exceeds the 400-line repository module budget",
+                path.display()
+            );
+        }
+    }
+
+    let mut app_modules = vec![source_root.join("app")];
+    while let Some(directory) = app_modules.pop() {
+        for entry in fs::read_dir(&directory).expect("read app command modules") {
+            let path = entry.expect("app module entry").path();
+            if path.is_dir() {
+                app_modules.push(path);
+                continue;
+            }
+            if path.extension().and_then(|value| value.to_str()) != Some("rs") {
+                continue;
+            }
+            let module = source(&path);
+            if !module.contains("#[tauri::command]") {
+                continue;
+            }
+            let production = module.split("#[cfg(test)]").next().unwrap_or(&module);
+            assert!(
+                production.lines().count() <= 150,
+                "{} exceeds the 150-line Tauri command module budget",
+                path.display()
+            );
+        }
     }
 }
 
@@ -74,7 +140,16 @@ fn rust_runtime_has_no_auth_or_private_cloud_paths() {
             ],
         ),
         (
-            "local_agent.rs",
+            "agent/desktop/model.rs",
+            vec![
+                "AuthState",
+                "ConfirmedCloudTask",
+                "fetch_cloud_knowledge",
+                "CLOUD_API_BASE_KEY",
+            ],
+        ),
+        (
+            "agent/desktop/provider.rs",
             vec![
                 "AuthState",
                 "ConfirmedCloudTask",
@@ -176,7 +251,7 @@ fn database_runtime_uses_ordered_workspace_migrations() {
         "runtime and test setup must not bypass ordered migrations"
     );
 
-    for name in ["db.rs", "context.rs", "local_agent.rs"] {
+    for name in ["db.rs", "context.rs"] {
         let module = source(manifest_dir().join("src").join(name));
         assert!(
             !module.contains("user_id")
@@ -351,11 +426,11 @@ fn memory_repository_modules_are_bounded_and_user_lifecycle_commands_are_registe
 fn registered_local_agent_routes_session_state_through_session_service() {
     let registrations = source(manifest_dir().join("src/app/commands.rs"));
     assert!(
-        registrations.contains("crate::local_agent::desktop_agent_chat"),
+        registrations.contains("crate::app::desktop_chat_commands::desktop_agent_chat"),
         "active desktop agent chat command must remain registered"
     );
 
-    let agent = source(manifest_dir().join("src/local_agent.rs"));
+    let agent = source(manifest_dir().join("src/agent/desktop/session.rs"));
     assert!(
         agent.contains("SessionService::new") && agent.contains(".start_run("),
         "active local agent must construct SessionService and start runs through it"
@@ -512,7 +587,7 @@ fn local_document_import_is_registered_through_a_sql_free_adapter() {
     let source_root = manifest_dir().join("src");
     let registrations = source(source_root.join("app/commands.rs"));
     assert!(
-        registrations.contains("knowledge_commands::import_local_document"),
+        registrations.contains("knowledge_commands::commands::import_local_document"),
         "missing local document import command"
     );
     let adapter = source(source_root.join("app/knowledge_commands.rs"));
@@ -561,8 +636,8 @@ fn http_clients_are_built_only_by_the_shared_factory() {
 }
 
 #[test]
-fn local_agent_routes_chat_through_provider_capabilities() {
-    let agent = source(manifest_dir().join("src/local_agent.rs"));
+fn desktop_agent_routes_chat_through_provider_capabilities() {
+    let agent = source(manifest_dir().join("src/agent/desktop/provider.rs"));
 
     assert!(
         agent.contains("configured_chat_provider(profile, credential)"),

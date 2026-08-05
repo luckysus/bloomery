@@ -3,7 +3,6 @@ mod app;
 mod context;
 mod db;
 pub mod diagnostics;
-mod local_agent;
 pub mod models;
 pub mod providers;
 pub mod rag;

@@ -169,10 +169,12 @@ Return a `ContextReport` with included IDs, omitted IDs, token estimates, trunca
 
 **Files:** Remove `src-tauri/src/local_agent.rs`; modify composition and old context/retrieval modules.
 
-- [ ] **Step 1: Tighten architecture budgets** to 500 lines per runtime file, 400 per repository, and 150 for Tauri command modules; reject legacy module names.
-- [ ] **Step 2: Run architecture tests** and expect `local_agent.rs` failure.
-- [ ] **Step 3: Migrate remaining summary, prompt, cancellation, and response behavior into focused modules, then delete `local_agent.rs`.** Delete compatibility commands after frontend bridge migration.
-- [ ] **Step 4: Run Gate D verification:** all agent tests, all Rust tests, `cargo check`, protocol freshness, frontend boundaries/build, event replay smoke test, and restart smoke test.
+- [x] **Step 1: Tighten architecture budgets** to 500 lines per runtime file, 400 per repository, and 150 for Tauri command modules; reject legacy module names.
+- [x] **Step 2: Run architecture tests** and expect `local_agent.rs` failure.
+- [x] **Step 3: Migrate remaining summary, prompt, cancellation, and response behavior into focused modules, then delete `local_agent.rs`.** Delete compatibility commands after frontend bridge migration.
+- [x] **Step 4: Run Gate D verification:** all agent tests, all Rust tests, `cargo check`, protocol freshness, frontend boundaries/build, event replay smoke test, and restart smoke test.
+
+**Execution record (2026-08-05):** Removed `local_agent.rs`, split the desktop runtime, provider/session/context boundaries, conversation repositories, and Tauri command adapters into focused modules. Added recursive command-module budget enforcement and preserved the single registration entrypoint. Gate D passed with the full offline Rust suite, 21 architecture tests, protocol exporter freshness, frontend runtime boundaries, and the production frontend build.
 
 ## Completion evidence
 

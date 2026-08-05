@@ -60,80 +60,89 @@ pub fn build_context_packet(
         return Err("conversation_id is required".to_string());
     }
     with_conn(&db, |conn| {
-        ensure_context_conversation_belongs_to_workspace(conn, &workspace_id, &conversation_id)?;
-        let raw_conversation_summary = conn
-            .query_row(
-                "SELECT summary FROM conversation_summaries
+        build_context_packet_for_connection(conn, workspace_id, &conversation_id, &message)
+    })
+}
+
+pub(crate) fn build_context_packet_for_connection(
+    conn: &rusqlite::Connection,
+    workspace_id: &str,
+    conversation_id: &str,
+    message: &str,
+) -> Result<DesktopContextPacket, String> {
+    ensure_context_conversation_belongs_to_workspace(conn, workspace_id, conversation_id)?;
+    let raw_conversation_summary = conn
+        .query_row(
+            "SELECT summary FROM conversation_summaries
                  WHERE workspace_id = ?1 AND conversation_id = ?2
                  ORDER BY updated_at DESC LIMIT 1",
-                params![workspace_id, conversation_id],
-                |row| row.get::<_, String>(0),
-            )
-            .unwrap_or_default();
-        let raw_conversation_summary_chars = raw_conversation_summary.chars().count();
-        let conversation_summary = budget_conversation_summary(raw_conversation_summary.clone());
-        let conversation_summary_truncated =
-            raw_conversation_summary_chars > CONVERSATION_SUMMARY_CHAR_LIMIT;
+            params![workspace_id, conversation_id],
+            |row| row.get::<_, String>(0),
+        )
+        .unwrap_or_default();
+    let raw_conversation_summary_chars = raw_conversation_summary.chars().count();
+    let conversation_summary = budget_conversation_summary(raw_conversation_summary.clone());
+    let conversation_summary_truncated =
+        raw_conversation_summary_chars > CONVERSATION_SUMMARY_CHAR_LIMIT;
 
-        let recent_messages = load_recent_messages(conn, &workspace_id, &conversation_id)?;
-        let (recent_messages, recent_tokens) = budget_recent_messages(recent_messages);
+    let recent_messages = load_recent_messages(conn, workspace_id, conversation_id)?;
+    let (recent_messages, recent_tokens) = budget_recent_messages(recent_messages);
 
-        let memories = load_enabled_memories(conn, &workspace_id)?;
-        let memory_index_total_count = memories.len();
-        let memory_index = build_memory_index(&memories);
-        let memory_index_tokens = memory_index
-            .iter()
-            .map(|value| estimate_text_tokens(&value.to_string()))
-            .sum::<usize>();
-        let selected_memories = select_memories(&memories, &message);
-        let selected_memory_tokens = selected_memories
-            .iter()
-            .map(|value| estimate_text_tokens(&value.to_string()))
-            .sum::<usize>();
+    let memories = load_enabled_memories(conn, workspace_id)?;
+    let memory_index_total_count = memories.len();
+    let memory_index = build_memory_index(&memories);
+    let memory_index_tokens = memory_index
+        .iter()
+        .map(|value| estimate_text_tokens(&value.to_string()))
+        .sum::<usize>();
+    let selected_memories = select_memories(&memories, message);
+    let selected_memory_tokens = selected_memories
+        .iter()
+        .map(|value| estimate_text_tokens(&value.to_string()))
+        .sum::<usize>();
 
-        let history_hits = load_history_hits(conn, &workspace_id, &conversation_id, &message)?;
-        let history_tokens = history_hits
-            .iter()
-            .map(|value| estimate_text_tokens(&value.to_string()))
-            .sum::<usize>();
-        let summary_tokens = estimate_text_tokens(&conversation_summary);
-        let estimated_context_tokens = recent_tokens
-            + selected_memory_tokens
-            + memory_index_tokens
-            + history_tokens
-            + summary_tokens;
-        let recent_message_count = recent_messages.len();
-        let selected_memory_count = selected_memories.len();
-        let memory_index_count = memory_index.len();
-        let history_hit_count = history_hits.len();
+    let history_hits = load_history_hits(conn, workspace_id, conversation_id, message)?;
+    let history_tokens = history_hits
+        .iter()
+        .map(|value| estimate_text_tokens(&value.to_string()))
+        .sum::<usize>();
+    let summary_tokens = estimate_text_tokens(&conversation_summary);
+    let estimated_context_tokens = recent_tokens
+        + selected_memory_tokens
+        + memory_index_tokens
+        + history_tokens
+        + summary_tokens;
+    let recent_message_count = recent_messages.len();
+    let selected_memory_count = selected_memories.len();
+    let memory_index_count = memory_index.len();
+    let history_hit_count = history_hits.len();
 
-        Ok(DesktopContextPacket {
-            conversation_summary,
-            recent_messages,
-            memory_index,
-            selected_memories,
-            history_hits,
-            desktop_meta: serde_json::json!({
-                "client": "tauri",
-                "context_version": 2,
-                "conversation_id": conversation_id,
-                "query_length": message.chars().count(),
-                "budget_meta": {
-                    "recent_message_token_budget": RECENT_MESSAGE_TOKEN_BUDGET,
-                    "recent_message_count": recent_message_count,
-                    "selected_memory_count": selected_memory_count,
-                    "memory_index_count": memory_index_count,
-                    "memory_index_total_count": memory_index_total_count,
-                    "memory_index_truncated": memory_index_total_count > memory_index_count,
-                    "history_hit_count": history_hit_count,
-                    "estimated_context_tokens": estimated_context_tokens,
-                    "summary_tokens": summary_tokens,
-                    "conversation_summary_char_limit": CONVERSATION_SUMMARY_CHAR_LIMIT,
-                    "conversation_summary_truncated": conversation_summary_truncated,
-                    "memory_index_tokens": memory_index_tokens,
-                }
-            }),
-        })
+    Ok(DesktopContextPacket {
+        conversation_summary,
+        recent_messages,
+        memory_index,
+        selected_memories,
+        history_hits,
+        desktop_meta: serde_json::json!({
+            "client": "tauri",
+            "context_version": 2,
+            "conversation_id": conversation_id,
+            "query_length": message.chars().count(),
+            "budget_meta": {
+                "recent_message_token_budget": RECENT_MESSAGE_TOKEN_BUDGET,
+                "recent_message_count": recent_message_count,
+                "selected_memory_count": selected_memory_count,
+                "memory_index_count": memory_index_count,
+                "memory_index_total_count": memory_index_total_count,
+                "memory_index_truncated": memory_index_total_count > memory_index_count,
+                "history_hit_count": history_hit_count,
+                "estimated_context_tokens": estimated_context_tokens,
+                "summary_tokens": summary_tokens,
+                "conversation_summary_char_limit": CONVERSATION_SUMMARY_CHAR_LIMIT,
+                "conversation_summary_truncated": conversation_summary_truncated,
+                "memory_index_tokens": memory_index_tokens,
+            }
+        }),
     })
 }
 
