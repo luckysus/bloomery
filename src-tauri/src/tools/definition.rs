@@ -1,8 +1,10 @@
 use crate::agent::protocol::PermissionRisk;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::{collections::BTreeSet, fmt, time::Duration};
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[serde(transparent)]
 pub struct ToolId(String);
 
 impl ToolId {
@@ -52,7 +54,7 @@ impl fmt::Display for ToolIdError {
 
 impl std::error::Error for ToolIdError {}
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct ToolVersion {
     pub major: u64,
     pub minor: u64,
@@ -108,7 +110,8 @@ pub enum ConcurrencyPolicy {
     Exclusive,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
 pub enum ToolSource {
     Builtin,
     Mcp {

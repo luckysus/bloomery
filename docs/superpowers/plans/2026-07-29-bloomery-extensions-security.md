@@ -62,9 +62,9 @@ The registry accepts only validated definitions and exposes immutable snapshots 
 
 **Files:** Create permission modules, `0009_extensions.sql`, and `tests/permissions.rs`.
 
-- [ ] **Step 1: Write tests** for automatic, confirm, dangerous-disabled, once, session, always, deny, revoked rules, tool-version change, source change, and parameter scopes.
-- [ ] **Step 2: Run `cargo test --test permissions policy`** and expect missing engine.
-- [ ] **Step 3: Implement decisions:**
+- [x] **Step 1: Write tests** for automatic, confirm, dangerous-disabled, once, session, always, deny, revoked rules, tool-version change, source change, and parameter scopes.
+- [x] **Step 2: Run the focused policy tests and confirm the expected missing-engine failure.**
+- [x] **Step 3: Implement decisions:**
 
 ```rust
 pub enum PermissionDecision {
@@ -73,7 +73,9 @@ pub enum PermissionDecision {
 ```
 
 Persist permanent rules by stable tool ID, version range, source identity, action, and normalized scope. Display names never grant authority.
-- [ ] **Step 4: Run permission and agent-state tests** and expect pass.
+- [x] **Step 4: Run permission and agent-state tests** and confirm pass.
+
+**Execution record (2026-08-05):** Added the Tauri-independent permission policy with automatic read-only allowance, confirmation requests, dangerous-by-default denial, once/session/always approval, deny and revoke behavior, exact tool version/source matching, normalized parameter scopes, and persistent-rule restoration. Added migration 0014 and a workspace-scoped SQLite repository with active-rule filtering and revocation timestamps. Verification passed 10 policy tests, 2 repository tests, 9 migration tests, 14 tool tests, 13 Agent loop tests, `cargo check --offline -j 1`, and formatting. Existing unrelated dead-code warnings remain.
 
 ### Task 4: Enforce Windows path authorization
 

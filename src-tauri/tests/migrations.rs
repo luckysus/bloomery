@@ -51,7 +51,7 @@ fn migrates_empty_database_to_latest_schema() {
 
     assert_eq!(
         report.applied_versions,
-        vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]
+        vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]
     );
     assert_eq!(user_version(&conn), latest_version());
     assert!(columns(&conn, "conversations").contains(&"workspace_id".to_string()));
@@ -93,8 +93,10 @@ fn migrates_empty_database_to_latest_schema() {
         conn.query_row("SELECT COUNT(*) FROM schema_migrations", [], |row| row
             .get::<_, i64>(0))
             .expect("count schema migrations"),
-        13
+        14
     );
+    assert!(columns(&conn, "permission_rules").contains(&"source_json".to_string()));
+    assert!(columns(&conn, "permission_rules").contains(&"revoked_at".to_string()));
 }
 
 #[test]
@@ -304,7 +306,7 @@ fn version_twelve_database_receives_summary_source_backfill() {
 
     let report = migrate(&mut conn).expect("apply post-v12 migrations");
 
-    assert_eq!(report.applied_versions, vec![13]);
+    assert_eq!(report.applied_versions, vec![13, 14]);
     assert_eq!(
         conn.query_row(
             "SELECT source_message_ids_json FROM conversation_summaries WHERE id = 's-v12'",
@@ -334,7 +336,7 @@ fn file_database_uses_wal_and_ordered_migrations() {
     assert_eq!(version, latest_version());
     assert_eq!(
         report.applied_versions,
-        vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]
+        vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]
     );
 }
 #[test]

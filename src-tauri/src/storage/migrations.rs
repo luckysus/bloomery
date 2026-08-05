@@ -66,6 +66,10 @@ const MIGRATIONS: &[Migration] = &[
         version: 13,
         sql: include_str!("migrations/0013_backfill_summary_source.sql"),
     },
+    Migration {
+        version: 14,
+        sql: include_str!("migrations/0014_permission_rules.sql"),
+    },
 ];
 
 pub fn latest_version() -> u32 {
