@@ -1,0 +1,3 @@
+{"id":"term-q355b","kind":"terminology","question":"What does Q355B identify?","expected":"Preserve the grade identifier and request standard, product form, thickness, and temperature context before asserting a property."}
+{"id":"trace-heat","kind":"data_mapping","question":"Which field should identify a melt batch?","expected":"Map heat number or 炉号 to heat_id and preserve the original source column."}
+{"id":"citation-required","kind":"citation","question":"Can a nominal yield value be stated without evidence?","expected":"No. Retrieve local evidence and cite its source and location, or state that evidence is unavailable."}

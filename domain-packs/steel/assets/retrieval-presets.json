@@ -1,0 +1,21 @@
+{
+  "schema_version": "1.0.0",
+  "presets": [
+    {
+      "id": "steel-evidence",
+      "description": "Evidence-first retrieval for steel grades, metallurgy, and process data.",
+      "required_tags": ["steel", "materials"],
+      "citation_required": true,
+      "max_evidence_items": 12,
+      "preferred_locations": ["pdf_page", "sheet_range", "heading", "text_offsets"]
+    },
+    {
+      "id": "production-traceability",
+      "description": "Traceability-oriented retrieval keyed by heat and production identifiers.",
+      "required_tags": ["production", "heat"],
+      "citation_required": true,
+      "max_evidence_items": 8,
+      "preferred_locations": ["sheet_range", "text_offsets"]
+    }
+  ]
+}

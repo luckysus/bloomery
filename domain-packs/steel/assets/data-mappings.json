@@ -1,0 +1,19 @@
+{
+  "schema_version": "1.0.0",
+  "datasets": [
+    {
+      "id": "production",
+      "description": "Optional user-owned CSV/XLSX production dataset mapping preset.",
+      "fields": {
+        "heat_id": {"canonical": "heat_id", "type": "string", "required": true},
+        "steel_grade": {"canonical": "steel_grade", "type": "string", "required": false},
+        "temperature": {"canonical": "temperature_c", "type": "number", "unit": "celsius", "required": false},
+        "carbon": {"canonical": "carbon_pct", "type": "number", "unit": "percent_mass", "required": false},
+        "silicon": {"canonical": "silicon_pct", "type": "number", "unit": "percent_mass", "required": false},
+        "manganese": {"canonical": "manganese_pct", "type": "number", "unit": "percent_mass", "required": false},
+        "phosphorus": {"canonical": "phosphorus_pct", "type": "number", "unit": "percent_mass", "required": false},
+        "sulfur": {"canonical": "sulfur_pct", "type": "number", "unit": "percent_mass", "required": false}
+      }
+    }
+  ]
+}

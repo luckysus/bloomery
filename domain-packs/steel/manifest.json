@@ -1,0 +1,89 @@
+{
+  "id": "steel",
+  "version": "1.0.0",
+  "compatibility": {
+    "min_app_version": "0.1.0",
+    "max_app_version": null
+  },
+  "author": "Bloomery contributors",
+  "license": "Apache-2.0",
+  "prompts": {
+    "system": "You are Bloomery's steel and materials domain assistant. Preserve grades, chemical compositions, temperatures, units, standards, and process stages exactly. Prefer evidence from the active local knowledge base.",
+    "workflow": "Classify the steel question, retrieve local evidence when relevant, distinguish measured values from nominal values, state applicability limits, and cite the source for technical claims. Never copy restricted standards text."
+  },
+  "terminology": {
+    "Q235B": "Chinese structural carbon steel grade; verify the applicable standard and product form before using a property value.",
+    "Q355B": "Chinese structural steel grade with nominal yield-strength naming; verify thickness, temperature, and standard before using a property value.",
+    "heat": "A traceable batch of steel produced from one melt or heat; use heat_id as its stable dataset identifier.",
+    "ladle_furnace": "Secondary metallurgy stage used for temperature, composition, inclusion, and cleanliness control before casting.",
+    "continuous_casting": "Process that solidifies molten steel into a semi-finished strand such as slab, bloom, or billet."
+  },
+  "retrieval": {
+    "required_tags": ["steel", "materials"],
+    "citation_required": true,
+    "max_evidence_items": 12
+  },
+  "builtin_tool_allowlist": ["knowledge.query"],
+  "mcp_recommendations": [
+    {
+      "id": "standards-reference",
+      "transport": "streamable_http",
+      "description": "Optional standards and public technical-reference service; configure credentials and permissions separately."
+    }
+  ],
+  "data_mappings": [
+    {
+      "dataset": "production",
+      "fields": {
+        "heat_id": "heat_id",
+        "steel_grade": "steel_grade",
+        "cast_time": "cast_time",
+        "temperature": "temperature_c",
+        "carbon": "carbon_pct",
+        "silicon": "silicon_pct",
+        "manganese": "manganese_pct",
+        "phosphorus": "phosphorus_pct",
+        "sulfur": "sulfur_pct"
+      },
+      "units": {
+        "temperature": "celsius",
+        "carbon": "percent_mass",
+        "silicon": "percent_mass",
+        "manganese": "percent_mass",
+        "phosphorus": "percent_mass",
+        "sulfur": "percent_mass"
+      }
+    }
+  ],
+  "evaluations": [
+    {
+      "id": "steel-terminology-baseline",
+      "kind": "terminology",
+      "dataset": "evaluations/steel-qa.jsonl",
+      "expected_behavior": "Use canonical steel terms, preserve units, and avoid unsupported standard claims.",
+      "threshold": 1.0
+    }
+  ],
+  "assets": [
+    {
+      "path": "assets/terminology.json",
+      "kind": "terminology",
+      "sha256": "bc17313791b8b92c923b8467a123d85247ea2bc161a08ea79e83d2a9f9122d19"
+    },
+    {
+      "path": "assets/retrieval-presets.json",
+      "kind": "retrieval_preset",
+      "sha256": "b4f35ed3309b21db8e8adbce94509bd4558374fb2d8735623026e4a1d3650aaa"
+    },
+    {
+      "path": "assets/data-mappings.json",
+      "kind": "data_mapping",
+      "sha256": "3a2523d7d91ad7bf83ad84b9b484557ea2b115dd760efc4f1044bd574ef44833"
+    },
+    {
+      "path": "evaluations/steel-qa.jsonl",
+      "kind": "evaluation_fixture",
+      "sha256": "d313cc7f5c1a774303fcab493f7b27f5c9328385aa7698e645f3c6a911c871bb"
+    }
+  ]
+}

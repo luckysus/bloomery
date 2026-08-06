@@ -1,5 +1,6 @@
 use super::manifest::{AssetSpec, DomainManifest};
 use serde::Deserialize;
+use sha2::{Digest, Sha256};
 use std::collections::HashSet;
 use std::fmt::{Display, Formatter};
 use std::fs;
@@ -114,6 +115,20 @@ pub fn load_package(root: &Path, app_version: &str) -> Result<LoadedDomainPackag
                 "asset is too large: {}",
                 spec.path
             )));
+        }
+        if let Some(expected) = &spec.sha256 {
+            let actual = format!(
+                "{:x}",
+                Sha256::digest(fs::read(&path).map_err(|error| {
+                    DomainError::InvalidResource(format!("{}: {error}", spec.path))
+                })?)
+            );
+            if !actual.eq_ignore_ascii_case(expected) {
+                return Err(DomainError::InvalidResource(format!(
+                    "asset SHA-256 mismatch: {}",
+                    spec.path
+                )));
+            }
         }
         total_bytes = total_bytes
             .checked_add(size)
@@ -252,6 +267,16 @@ fn validate_manifest(manifest: &DomainManifest, app_version: &str) -> Result<(),
             return Err(DomainError::InvalidManifest(
                 "evaluation threshold is out of range".to_string(),
             ));
+        }
+    }
+    for asset in &manifest.assets {
+        if let Some(hash) = &asset.sha256 {
+            if hash.len() != 64 || !hash.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+                return Err(DomainError::InvalidManifest(format!(
+                    "asset SHA-256 is invalid: {}",
+                    asset.path
+                )));
+            }
         }
     }
     Ok(())

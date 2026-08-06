@@ -1,0 +1,31 @@
+{
+  "schema_version": "1.0.0",
+  "license": "Apache-2.0",
+  "source_policy": "Canonical terms are authored by Bloomery contributors. Standards text is not redistributed.",
+  "terms": [
+    {
+      "id": "q355b",
+      "canonical": "Q355B",
+      "aliases": ["Q355 B", "Q355级钢"],
+      "category": "steel_grade",
+      "definition": "A Chinese structural steel grade identifier. Property values require product form, thickness, temperature, and applicable standard context.",
+      "source": "domain-authored-baseline"
+    },
+    {
+      "id": "heat_id",
+      "canonical": "heat_id",
+      "aliases": ["heat number", "炉号"],
+      "category": "production_identifier",
+      "definition": "Stable identifier for a traceable melt or heat in production data.",
+      "source": "domain-authored-baseline"
+    },
+    {
+      "id": "ladle_furnace",
+      "canonical": "ladle furnace",
+      "aliases": ["LF", "钢包炉"],
+      "category": "process_stage",
+      "definition": "Secondary metallurgy stage for temperature, composition, inclusion, and cleanliness control.",
+      "source": "domain-authored-baseline"
+    }
+  ]
+}

@@ -131,6 +131,20 @@ fn rejects_executable_asset_extensions() {
     assert!(error.to_string().contains("executable"));
 }
 
+#[test]
+fn rejects_asset_with_declared_hash_mismatch() {
+    let package = TempPackage::new();
+    fs::write(package.path().join("assets/steel.json"), "trusted content").expect("write asset");
+    let mut manifest = valid_manifest();
+    manifest["assets"][0]["sha256"] = json!("0".repeat(64));
+    package.write_manifest(manifest);
+
+    let error = load_package(package.path(), "0.1.0")
+        .expect_err("declared asset hash mismatch must be rejected");
+
+    assert!(error.to_string().contains("SHA-256"));
+}
+
 fn hex(bytes: &[u8]) -> String {
     bytes.iter().map(|byte| format!("{byte:02x}")).collect()
 }
