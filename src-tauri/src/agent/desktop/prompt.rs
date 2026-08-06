@@ -2,6 +2,7 @@ use super::model::{
     LocalLlmConfig, StreamedLlmAnswer, LOCAL_ASK_CONTEXT_CHAR_LIMIT, LOCAL_ASK_CONTEXT_LIMIT,
     LOCAL_SUMMARY_CONTEXT_CHAR_LIMIT, LOCAL_SUMMARY_CONTEXT_LIMIT,
 };
+use crate::domains::DomainManifest;
 use serde_json::Value;
 
 pub fn assistant_content_for_stream_result(answer: &StreamedLlmAnswer) -> String {
@@ -25,11 +26,12 @@ pub fn conversation_title(message: &str) -> String {
     }
 }
 
-pub fn build_desktop_context_prompt(packet: &Value) -> String {
+pub fn build_desktop_context_prompt(packet: &Value, domain: Option<&DomainManifest>) -> String {
     let mut sections = vec![
         "You are Bloomery, a local-first steel research desktop agent. Prefer the local context, long-term memory, conversation history, and session summary before making claims.".to_string(),
         "Answer directly and professionally. State uncertainty when evidence is missing; never invent sources or measurements.".to_string(),
     ];
+    push_domain_sections(&mut sections, domain);
     push_json_section(
         &mut sections,
         "conversation_summary",
@@ -50,6 +52,38 @@ pub fn build_desktop_context_prompt(packet: &Value) -> String {
     );
     push_json_section(&mut sections, "desktop_meta", packet.get("desktop_meta"));
     sections.join("\n\n")
+}
+
+/// Inject the active domain package's prompts, terminology, and citation policy.
+///
+/// Ordered immediately after the base system sections so the domain guidance carries
+/// system-level priority in the assembled prompt.
+fn push_domain_sections(sections: &mut Vec<String>, domain: Option<&DomainManifest>) {
+    let Some(manifest) = domain else {
+        return;
+    };
+    let system = manifest.prompts.system.trim();
+    if !system.is_empty() {
+        sections.push(format!("domain_system:\n{system}"));
+    }
+    let workflow = manifest.prompts.workflow.trim();
+    if !workflow.is_empty() {
+        sections.push(format!("domain_workflow:\n{workflow}"));
+    }
+    if !manifest.terminology.is_empty() {
+        let table = manifest
+            .terminology
+            .iter()
+            .map(|(term, definition)| format!("- {term}: {definition}"))
+            .collect::<Vec<_>>()
+            .join("\n");
+        sections.push(format!("domain_terminology:\n{table}"));
+    }
+    if manifest.retrieval.citation_required {
+        sections.push(
+            "domain_citation_policy:\nThis domain requires citations. Ground every claim in the supplied evidence and cite the source; do not answer from unsupported knowledge.".to_string(),
+        );
+    }
 }
 
 const EVIDENCE_CONTEXT_LIMIT: usize = 20;

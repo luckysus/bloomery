@@ -1,4 +1,5 @@
 pub mod conversations;
+pub mod domains;
 pub mod events;
 pub mod knowledge;
 pub mod memories;

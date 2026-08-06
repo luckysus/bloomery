@@ -72,19 +72,22 @@ fn chat_request_accepts_evidence_pack_reference() {
 
 #[test]
 fn desktop_prompt_includes_bounded_evidence_context() {
-    let prompt = build_desktop_context_prompt(&json!({
-        "evidence_pack": {
-            "id": "audit-1",
-            "evidence": [{
-                "citation_number": 1,
-                "chunk": {
-                    "source_name": "GB 50017",
-                    "source_location": {"kind": "pdf_page", "page": 12, "bbox": null},
-                    "text": "Q355B has a nominal yield strength of 355 MPa."
-                }
-            }]
-        }
-    }));
+    let prompt = build_desktop_context_prompt(
+        &json!({
+            "evidence_pack": {
+                "id": "audit-1",
+                "evidence": [{
+                    "citation_number": 1,
+                    "chunk": {
+                        "source_name": "GB 50017",
+                        "source_location": {"kind": "pdf_page", "page": 12, "bbox": null},
+                        "text": "Q355B has a nominal yield strength of 355 MPa."
+                    }
+                }]
+            }
+        }),
+        None,
+    );
 
     assert!(prompt.contains("evidence_pack:"));
     assert!(prompt.contains("355 MPa"));
@@ -92,14 +95,49 @@ fn desktop_prompt_includes_bounded_evidence_context() {
 
 #[test]
 fn desktop_prompt_includes_enabled_skills() {
-    let prompt = build_desktop_context_prompt(&json!({
-        "skills": {
-            "enabled_versions": ["steel-review@1.0.0#abc123"],
-            "prompt": "enabled_skills:\n\n## steel-review (v1.0.0)\nUse source evidence."
-        }
-    }));
+    let prompt = build_desktop_context_prompt(
+        &json!({
+            "skills": {
+                "enabled_versions": ["steel-review@1.0.0#abc123"],
+                "prompt": "enabled_skills:\n\n## steel-review (v1.0.0)\nUse source evidence."
+            }
+        }),
+        None,
+    );
 
     assert!(prompt.contains("skills:"));
     assert!(prompt.contains("steel-review@1.0.0#abc123"));
     assert!(prompt.contains("Use source evidence."));
+}
+
+#[test]
+fn desktop_prompt_injects_active_domain_manifest() {
+    let manifest: crate::domains::DomainManifest = serde_json::from_value(json!({
+        "id": "steel",
+        "version": "1.0.0",
+        "compatibility": {"min_app_version": "0.1.0", "max_app_version": null},
+        "author": "Bloomery contributors",
+        "license": "Apache-2.0",
+        "prompts": {"system": "Use steel terminology.", "workflow": "Cite the source."},
+        "terminology": {"Q355B": "Chinese structural steel grade"},
+        "retrieval": {"required_tags": [], "citation_required": true, "max_evidence_items": 8}
+    }))
+    .expect("deserialize manifest");
+
+    let prompt = build_desktop_context_prompt(&json!({}), Some(&manifest));
+
+    assert!(prompt.contains("domain_system:\nUse steel terminology."));
+    assert!(prompt.contains("domain_workflow:\nCite the source."));
+    assert!(prompt.contains("domain_terminology:"));
+    assert!(prompt.contains("- Q355B: Chinese structural steel grade"));
+    assert!(prompt.contains("domain_citation_policy:"));
+}
+
+#[test]
+fn desktop_prompt_omits_domain_sections_without_active_package() {
+    let prompt = build_desktop_context_prompt(&json!({}), None);
+
+    assert!(!prompt.contains("domain_system:"));
+    assert!(!prompt.contains("domain_terminology:"));
+    assert!(!prompt.contains("domain_citation_policy:"));
 }

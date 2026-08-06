@@ -88,7 +88,9 @@ pub fn prepare_chat(
     } else {
         let config = super::provider::load_local_llm_config(conn, workspace_id)?;
         super::provider::validate_local_llm_config(&config)?;
-        let prompt = super::prompt::build_desktop_context_prompt(&packet);
+        let active_domain =
+            crate::storage::repositories::domains::active_manifest(conn, workspace_id)?;
+        let prompt = super::prompt::build_desktop_context_prompt(&packet, active_domain.as_ref());
         (config, prompt)
     };
     Ok(ChatPreparation {

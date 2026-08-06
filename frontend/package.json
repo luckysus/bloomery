@@ -17,6 +17,7 @@
   },
   "dependencies": {
     "@tauri-apps/api": "^2.11.1",
+    "@tauri-apps/plugin-dialog": "^2",
     "docx-preview": "^0.3.5",
     "katex": "^0.16.47",
     "lucide-react": "^0.468.0",

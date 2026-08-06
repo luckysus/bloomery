@@ -2808,6 +2808,70 @@
   line-height: 1.55;
 }
 
+.bloomery-domain-install {
+  align-items: center;
+  display: grid;
+  gap: 9px;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  margin-top: 16px;
+}
+
+.bloomery-domain-install > svg {
+  color: var(--bloomery-accent);
+}
+
+.bloomery-domain-install input {
+  background: var(--bloomery-bg);
+  border: 1px solid var(--bloomery-line-strong);
+  border-radius: 4px;
+  color: var(--bloomery-text);
+  font: inherit;
+  min-height: 36px;
+  min-width: 0;
+  padding: 0 11px;
+}
+
+.bloomery-domain-install input:focus {
+  border-color: var(--bloomery-accent);
+  outline: 2px solid var(--bloomery-accent-soft);
+  outline-offset: 1px;
+}
+
+.bloomery-secondary-button {
+  background: var(--bloomery-bg);
+  border: 1px solid var(--bloomery-line-strong);
+  border-radius: 4px;
+  color: var(--bloomery-text);
+  cursor: pointer;
+  font: inherit;
+  min-height: 36px;
+  padding: 0 13px;
+  white-space: nowrap;
+}
+
+.bloomery-secondary-button:hover:not(:disabled) {
+  border-color: var(--bloomery-accent);
+  color: var(--bloomery-accent);
+}
+
+.bloomery-secondary-button:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}
+
+.bloomery-domain-actions {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+  margin-left: 14px;
+}
+
+.bloomery-domain-status {
+  color: var(--bloomery-text-muted);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
 @media (max-width: 680px) {
   .bloomery-extension-item {
     flex-direction: column;
@@ -2815,6 +2879,23 @@
 
   .bloomery-extension-toggle {
     border-top: 1px solid var(--bloomery-line);
+    padding-top: 12px;
+    width: 100%;
+  }
+
+  .bloomery-domain-install {
+    align-items: stretch;
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .bloomery-domain-install .bloomery-secondary-button {
+    grid-column: 1 / -1;
+  }
+
+  .bloomery-domain-actions {
+    border-top: 1px solid var(--bloomery-line);
+    justify-content: flex-end;
+    margin: 0;
     padding-top: 12px;
     width: 100%;
   }

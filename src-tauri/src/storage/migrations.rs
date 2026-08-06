@@ -70,6 +70,10 @@ const MIGRATIONS: &[Migration] = &[
         version: 14,
         sql: include_str!("migrations/0014_permission_rules.sql"),
     },
+    Migration {
+        version: 15,
+        sql: include_str!("migrations/0015_domain_packages.sql"),
+    },
 ];
 
 pub fn latest_version() -> u32 {

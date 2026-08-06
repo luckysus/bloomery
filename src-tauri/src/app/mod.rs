@@ -5,6 +5,7 @@ pub(crate) mod desktop_cancel_commands;
 pub(crate) mod desktop_chat_commands;
 pub(crate) mod desktop_stream;
 pub(crate) mod desktop_summary_commands;
+pub(crate) mod domain_commands;
 pub(crate) mod event_sink;
 pub(crate) mod identity;
 pub(crate) mod knowledge_commands;
@@ -21,6 +22,7 @@ use tauri::{Manager, RunEvent};
 pub fn run() {
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
             if let Some(window) = app.get_webview_window("main") {
                 let _ = window.unminimize();

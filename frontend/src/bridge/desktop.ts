@@ -305,6 +305,38 @@ export interface SkillCatalog {
   errors: SkillLoadError[];
 }
 
+export type DomainTrust = "OfficialSigned" | "ThirdPartyUnsigned";
+
+export interface DomainManifestSummary {
+  id: string;
+  version: string;
+  author: string;
+  license: string;
+  builtin_tool_allowlist: string[];
+  mcp_recommendations: Array<{ id: string; transport: string; description: string }>;
+  assets: Array<{ path: string; kind: string; sha256: string | null }>;
+}
+
+export interface DomainPackageRecord {
+  id: string;
+  version: string;
+  path: string;
+  package_sha256: string;
+  trust: DomainTrust;
+  manifest: DomainManifestSummary;
+  installed_at: string;
+  active: boolean;
+}
+
+export interface DomainPackageImpact {
+  package_id: string;
+  version: string;
+  active: boolean;
+  tool_count: number;
+  mcp_recommendation_count: number;
+  asset_count: number;
+}
+
 function call<T>(command: string, args?: Record<string, unknown>) {
   if (!isDesktopRuntime()) return Promise.reject(new Error("Desktop runtime is unavailable"));
   return invoke<T>(command, args);
@@ -348,6 +380,18 @@ export const desktop = {
   listSkills: () => call<SkillCatalog>("list_skills"),
   setSkillEnabled: (name: string, enabled: boolean) =>
     call<SkillCatalog>("set_skill_enabled", { name, enabled }),
+  listDomainPackages: () => call<DomainPackageRecord[]>("list_domain_packages"),
+  installDomainPackage: (sourcePath: string) =>
+    call<{ package: DomainPackageRecord; replaced_active_version: string | null }>(
+      "install_domain_package",
+      { sourcePath },
+    ),
+  activateDomainPackage: (packageId: string, version: string) =>
+    call<DomainPackageRecord>("activate_domain_package", { packageId, version }),
+  previewRemoveDomainPackage: (packageId: string, version: string) =>
+    call<DomainPackageImpact>("preview_remove_domain_package", { packageId, version }),
+  removeDomainPackage: (packageId: string, version: string) =>
+    call<void>("remove_domain_package", { packageId, version }),
   listKnowledgeBases: () => call<KnowledgeBaseRecord[]>("list_knowledge_bases"),
   createKnowledgeBase: (name: string) =>
     call<KnowledgeBaseRecord>("create_knowledge_base", { name }),

@@ -14,12 +14,18 @@ vi.mock("../../bridge/desktop", () => ({
   desktop: {
     listSkills: vi.fn(),
     setSkillEnabled: vi.fn(),
+    listDomainPackages: vi.fn(),
+    installDomainPackage: vi.fn(),
+    activateDomainPackage: vi.fn(),
+    previewRemoveDomainPackage: vi.fn(),
+    removeDomainPackage: vi.fn(),
   },
 }));
 
 describe("ExtensionsPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(desktop.listDomainPackages).mockResolvedValue([]);
     vi.mocked(desktop.listSkills).mockResolvedValue({
       skills: [{
         name: "steel-review",
@@ -64,5 +70,41 @@ describe("ExtensionsPage", () => {
 
     await waitFor(() => expect(desktop.setSkillEnabled).toHaveBeenCalledWith("steel-review", true));
     expect(await screen.findByText("extensionsSaved")).toBeInTheDocument();
+  });
+
+  it("shows installed domain packages and activates an inactive version", async () => {
+    vi.mocked(desktop.listDomainPackages).mockResolvedValue([
+      {
+        id: "steel",
+        version: "1.0.0",
+        path: "C:/AppData/Bloomery/domains/steel/1.0.0",
+        package_sha256: "0123456789abcdef0123456789abcdef",
+        trust: "OfficialSigned",
+        manifest: {
+          id: "steel",
+          version: "1.0.0",
+          author: "Bloomery",
+          license: "Apache-2.0",
+          builtin_tool_allowlist: ["knowledge.query"],
+          mcp_recommendations: [],
+          assets: [],
+        },
+        installed_at: "2026-08-06T00:00:00Z",
+        active: false,
+      },
+    ]);
+    vi.mocked(desktop.activateDomainPackage).mockResolvedValue({
+      ...(await desktop.listDomainPackages())[0],
+      active: true,
+    } as never);
+
+    render(<ExtensionsPage />);
+
+    expect(await screen.findByRole("heading", { name: "extensionsDomainsTitle" })).toBeInTheDocument();
+    expect(screen.getByText("steel")).toBeInTheDocument();
+    expect(screen.getByText("extensionsDomainOfficial")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "extensionsDomainActivate" }));
+
+    await waitFor(() => expect(desktop.activateDomainPackage).toHaveBeenCalledWith("steel", "1.0.0"));
   });
 });

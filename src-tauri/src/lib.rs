@@ -3,6 +3,7 @@ mod app;
 mod context;
 mod db;
 pub mod diagnostics;
+pub mod domains;
 pub mod mcp;
 pub mod models;
 pub mod permissions;
