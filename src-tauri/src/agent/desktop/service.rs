@@ -7,6 +7,7 @@ use crate::agent::context::{
 };
 use crate::context::build_context_packet_for_connection;
 use crate::rag::citation::{load_evidence_pack, EvidencePack};
+use crate::skills::SkillContext;
 use rusqlite::Connection;
 use serde_json::Value;
 use uuid::Uuid;
@@ -20,6 +21,7 @@ pub struct ChatPreparation {
     pub prompt: String,
     pub config: LocalLlmConfig,
     pub evidence_pack: Option<EvidencePack>,
+    pub skills: SkillContext,
     pub unavailable_response: Option<Value>,
 }
 
@@ -66,6 +68,11 @@ pub fn prepare_chat(
     if let Some(pack) = &evidence_pack {
         packet["evidence_pack"] = serde_json::to_value(pack).map_err(|error| error.to_string())?;
     }
+    let skills = crate::skills::load_context(conn, workspace_id, env!("CARGO_PKG_VERSION"))?;
+    packet["skills"] = serde_json::json!({
+        "enabled_versions": skills.rendered.enabled_versions,
+        "prompt": skills.rendered.prompt,
+    });
     super::session::start_agent_run(conn, workspace_id, conversation_id, run_id, &message)?;
 
     let unavailable_response = route.unavailable_capability.map(|_| {
@@ -73,6 +80,7 @@ pub fn prepare_chat(
             &run_id.to_string(),
             &conversation_id_text,
             &route,
+            &skills.rendered.enabled_versions,
         )
     });
     let (config, prompt) = if unavailable_response.is_some() {
@@ -92,6 +100,7 @@ pub fn prepare_chat(
         prompt,
         config,
         evidence_pack,
+        skills,
         unavailable_response,
     })
 }

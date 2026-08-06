@@ -125,6 +125,7 @@ pub fn build_agent_response_json(
     has_api_key: bool,
     route: &DesktopRoute,
     evidence_pack: Option<&EvidencePack>,
+    enabled_skill_versions: &[String],
 ) -> Value {
     let evidence = evidence_pack
         .map(|pack| pack.evidence.clone())
@@ -139,6 +140,7 @@ pub fn build_agent_response_json(
         "tool_calls": [],
         "evidence_pack_id": evidence_pack.map(|pack| pack.id),
         "evidence": evidence,
+        "skills": {"enabled_versions": enabled_skill_versions},
         "recommendations": [],
         "verification": {
             "confidence": "medium",
@@ -194,6 +196,7 @@ pub fn build_capability_unavailable_response_json(
     run_id: &str,
     conversation_id: &str,
     route: &DesktopRoute,
+    enabled_skill_versions: &[String],
 ) -> Value {
     let capability = route.unavailable_capability.unwrap_or("unknown");
     json!({
@@ -204,6 +207,7 @@ pub fn build_capability_unavailable_response_json(
         "follow_up_questions": [],
         "plan_steps": [],
         "tool_calls": [],
+        "skills": {"enabled_versions": enabled_skill_versions},
         "evidence": [],
         "recommendations": [],
         "verification": {"confidence": "high", "citation_count": 0, "missing_citations": [], "numeric_warnings": [], "unsupported_claims": [], "summary": "The requested local capability is unavailable."},

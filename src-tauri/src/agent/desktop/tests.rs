@@ -89,3 +89,17 @@ fn desktop_prompt_includes_bounded_evidence_context() {
     assert!(prompt.contains("evidence_pack:"));
     assert!(prompt.contains("355 MPa"));
 }
+
+#[test]
+fn desktop_prompt_includes_enabled_skills() {
+    let prompt = build_desktop_context_prompt(&json!({
+        "skills": {
+            "enabled_versions": ["steel-review@1.0.0#abc123"],
+            "prompt": "enabled_skills:\n\n## steel-review (v1.0.0)\nUse source evidence."
+        }
+    }));
+
+    assert!(prompt.contains("skills:"));
+    assert!(prompt.contains("steel-review@1.0.0#abc123"));
+    assert!(prompt.contains("Use source evidence."));
+}

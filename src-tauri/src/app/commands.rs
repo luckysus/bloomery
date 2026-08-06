@@ -39,6 +39,8 @@ macro_rules! handler {
             crate::app::secret_commands::commands::secret_set,
             crate::app::secret_commands::commands::secret_status,
             crate::app::secret_commands::commands::secret_delete,
+            crate::app::skills_commands::list_skills,
+            crate::app::skills_commands::set_skill_enabled,
             crate::app::provider_commands::commands::list_provider_profiles,
             crate::app::provider_commands::commands::save_provider_profile,
             crate::app::provider_commands::commands::test_provider_profile,

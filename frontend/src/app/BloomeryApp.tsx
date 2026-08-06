@@ -4,6 +4,7 @@ import { desktop, isDesktopRuntime } from "../bridge/desktop";
 import LanguageSelect from "../components/common/LanguageSelect";
 import ChatPage from "../features/chat/ChatPage";
 import DiagnosticsPage from "../features/diagnostics/DiagnosticsPage";
+import ExtensionsPage from "../features/extensions/ExtensionsPage";
 import KnowledgePage from "../features/knowledge/KnowledgePage";
 import OnboardingPage from "../features/onboarding/OnboardingPage";
 import SettingsPage from "../features/settings/SettingsPage";
@@ -126,6 +127,8 @@ function BloomeryAppShell() {
               <SettingsPage />
             ) : activeSection === "diagnostics" ? (
               <DiagnosticsPage />
+            ) : activeSection === "extensions" ? (
+              <ExtensionsPage />
             ) : (
               <SectionPlaceholder section={active} />
             )}

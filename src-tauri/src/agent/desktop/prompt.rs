@@ -40,6 +40,7 @@ pub fn build_desktop_context_prompt(packet: &Value) -> String {
         "selected_memories",
         packet.get("selected_memories"),
     );
+    push_json_section(&mut sections, "skills", packet.get("skills"));
     push_json_section(&mut sections, "history_hits", packet.get("history_hits"));
     push_bounded_evidence_section(&mut sections, packet.get("evidence_pack"));
     push_json_section(

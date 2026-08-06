@@ -277,6 +277,34 @@ export interface SecretStatus {
   configured: boolean;
 }
 
+export type SkillScope = "user" | "workspace" | "domain";
+
+export interface SkillSource {
+  scope: SkillScope;
+  path: string;
+}
+
+export interface SkillSummary {
+  name: string;
+  description: string;
+  version: string;
+  compatibility: string[];
+  source: SkillSource;
+  content_sha256: string;
+  enabled: boolean;
+}
+
+export interface SkillLoadError {
+  code: string;
+  path: string;
+  message: string;
+}
+
+export interface SkillCatalog {
+  skills: SkillSummary[];
+  errors: SkillLoadError[];
+}
+
 function call<T>(command: string, args?: Record<string, unknown>) {
   if (!isDesktopRuntime()) return Promise.reject(new Error("Desktop runtime is unavailable"));
   return invoke<T>(command, args);
@@ -317,6 +345,9 @@ export const desktop = {
   deleteProviderSecret: (profileId: string, credentialName: string) =>
     call<SecretStatus>("secret_delete", { profileId, credentialName }),
   deleteProviderProfile: (id: string) => call<void>("delete_provider_profile", { id }),
+  listSkills: () => call<SkillCatalog>("list_skills"),
+  setSkillEnabled: (name: string, enabled: boolean) =>
+    call<SkillCatalog>("set_skill_enabled", { name, enabled }),
   listKnowledgeBases: () => call<KnowledgeBaseRecord[]>("list_knowledge_bases"),
   createKnowledgeBase: (name: string) =>
     call<KnowledgeBaseRecord>("create_knowledge_base", { name }),
