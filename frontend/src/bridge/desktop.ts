@@ -307,6 +307,7 @@ export const desktop = {
     call<SecretStatus>("secret_set", { profileId, credentialName, value }),
   deleteProviderSecret: (profileId: string, credentialName: string) =>
     call<SecretStatus>("secret_delete", { profileId, credentialName }),
+  deleteProviderProfile: (id: string) => call<void>("delete_provider_profile", { id }),
   listKnowledgeBases: () => call<KnowledgeBaseRecord[]>("list_knowledge_bases"),
   createKnowledgeBase: (name: string) =>
     call<KnowledgeBaseRecord>("create_knowledge_base", { name }),

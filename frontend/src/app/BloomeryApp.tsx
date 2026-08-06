@@ -5,6 +5,7 @@ import LanguageSelect from "../components/common/LanguageSelect";
 import ChatPage from "../features/chat/ChatPage";
 import KnowledgePage from "../features/knowledge/KnowledgePage";
 import OnboardingPage from "../features/onboarding/OnboardingPage";
+import SettingsPage from "../features/settings/SettingsPage";
 import SectionPlaceholder from "./SectionPlaceholder";
 import WorkbenchHome from "./WorkbenchHome";
 import { getNavigationSection, navigationSections, type SectionId } from "./navigation";
@@ -120,6 +121,8 @@ function BloomeryAppShell() {
               <ChatPage />
             ) : activeSection === "knowledge" ? (
               <KnowledgePage />
+            ) : activeSection === "settings" ? (
+              <SettingsPage />
             ) : (
               <SectionPlaceholder section={active} />
             )}

@@ -1,0 +1,133 @@
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import SettingsPage from "./SettingsPage";
+import { desktop, type ProviderProfileResponse } from "../../bridge/desktop";
+
+vi.mock("../../i18n/locale", () => ({
+  useLocale: () => ({
+    t: (key: string, params?: Record<string, string | number>) =>
+      params ? `${key}:${JSON.stringify(params)}` : key,
+  }),
+}));
+
+vi.mock("../../bridge/desktop", () => ({
+  desktop: {
+    listProviderProfiles: vi.fn(),
+    getSetting: vi.fn(),
+    setSetting: vi.fn(),
+    saveProviderProfile: vi.fn(),
+    setProviderSecret: vi.fn(),
+    deleteProviderSecret: vi.fn(),
+    deleteProviderProfile: vi.fn(),
+    testProviderProfile: vi.fn(),
+  },
+}));
+
+const chatProfile: ProviderProfileResponse = {
+  id: "chat-1",
+  kind: "open_ai_compatible",
+  display_name: "Steel LLM",
+  base_url: "https://api.example.com/v1",
+  model_id: "steel-model",
+  enabled: true,
+  revision: 1,
+  secret_generation: 1,
+  secret_configured: true,
+};
+
+const embeddingProfile: ProviderProfileResponse = {
+  id: "embedding-1",
+  kind: "siliconflow",
+  display_name: "SiliconFlow Embedding (free)",
+  base_url: "https://api.siliconflow.cn/v1",
+  model_id: "BAAI/bge-m3",
+  enabled: true,
+  revision: 1,
+  secret_generation: 1,
+  secret_configured: true,
+};
+
+describe("SettingsPage", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(desktop.listProviderProfiles).mockResolvedValue([chatProfile, embeddingProfile]);
+    vi.mocked(desktop.getSetting).mockImplementation(async (key) => {
+      if (key === "onboarding.completed") return JSON.stringify({ llm_profile_id: chatProfile.id });
+      if (key === "onboarding.retrieval") {
+        return JSON.stringify({ plan: "free", embedding_profile_id: embeddingProfile.id });
+      }
+      return null;
+    });
+    vi.mocked(desktop.setSetting).mockResolvedValue(undefined);
+    vi.mocked(desktop.setProviderSecret).mockResolvedValue({ configured: true });
+    vi.mocked(desktop.deleteProviderProfile).mockResolvedValue(undefined);
+    vi.mocked(desktop.testProviderProfile).mockResolvedValue({
+      ok: true,
+      status_code: 200,
+      error_code: null,
+      elapsed_ms: 12,
+    });
+    vi.mocked(desktop.saveProviderProfile).mockImplementation(async (input) => ({
+      ...chatProfile,
+      id: input.id ?? "new-profile",
+      kind: input.kind,
+      display_name: input.display_name,
+      base_url: input.base_url,
+      model_id: input.model_id ?? null,
+      enabled: input.enabled,
+    }));
+  });
+
+  it("loads provider cards and never displays a configured secret", async () => {
+    render(<SettingsPage />);
+
+    expect(await screen.findByRole("heading", { name: "settingsTitle" })).toBeInTheDocument();
+    expect(screen.getByDisplayValue("https://api.example.com/v1")).toBeInTheDocument();
+    expect(screen.getAllByText("settingsSecretConfigured").length).toBeGreaterThan(0);
+    expect(screen.queryByText("secret-token")).not.toBeInTheDocument();
+  });
+
+  it("saves an edited provider and writes a replacement key through the secret bridge", async () => {
+    render(<SettingsPage />);
+
+    const name = await screen.findByDisplayValue("Steel LLM");
+    fireEvent.change(name, { target: { value: "Updated Steel LLM" } });
+    const chatForm = name.closest("form");
+    if (!chatForm) throw new Error("chat provider form is missing");
+    fireEvent.change(within(chatForm).getByLabelText("provider.chat.apiKey"), {
+      target: { value: "replacement-key" },
+    });
+    fireEvent.click(within(chatForm).getByRole("button", { name: "settingsSave" }));
+
+    await waitFor(() =>
+      expect(desktop.saveProviderProfile).toHaveBeenCalledWith({
+        id: chatProfile.id,
+        kind: chatProfile.kind,
+        display_name: "Updated Steel LLM",
+        base_url: chatProfile.base_url,
+        model_id: chatProfile.model_id,
+        credential_name: "api_key",
+        enabled: true,
+      }),
+    );
+    expect(desktop.setProviderSecret).toHaveBeenCalledWith(
+      chatProfile.id,
+      "api_key",
+      "replacement-key",
+    );
+  });
+
+  it("persists the SiliconFlow free or Pro selection without exposing credentials", async () => {
+    render(<SettingsPage />);
+
+    const pro = await screen.findByLabelText("settingsPlanPro");
+    fireEvent.click(pro);
+
+    await waitFor(() =>
+      expect(desktop.setSetting).toHaveBeenCalledWith(
+        "onboarding.retrieval",
+        expect.stringContaining('"plan":"pro"'),
+      ),
+    );
+  });
+});
