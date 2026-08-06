@@ -1,9 +1,11 @@
+mod domain_tools;
 mod r#loop;
 pub mod model_adapter;
 pub mod persistence;
 pub mod recovery;
 pub mod state_machine;
 
+pub use domain_tools::DomainToolExecutor;
 pub use model_adapter::{ModelAdapter, ModelFuture, ProviderModelAdapter};
 pub use persistence::{AgentEventPublisher, NoopAgentEventPublisher, SqliteAgentEventSink};
 pub use r#loop::{
