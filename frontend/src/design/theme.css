@@ -2296,3 +2296,274 @@
     flex-direction: column;
   }
 }
+
+/* ========================= Diagnostics ========================= */
+.bloomery-diagnostics {
+  animation: slideUp 0.35s ease-out both;
+  margin: 0 auto;
+  max-width: 1180px;
+  padding-bottom: 36px;
+}
+
+.bloomery-diagnostics-header,
+.bloomery-diagnostics-card-heading,
+.bloomery-diagnostics-actions,
+.bloomery-diagnostics-section-heading,
+.bloomery-diagnostics-task-meta,
+.bloomery-diagnostics-privacy {
+  align-items: center;
+  display: flex;
+}
+
+.bloomery-diagnostics-header {
+  justify-content: space-between;
+  margin-bottom: 22px;
+}
+
+.bloomery-diagnostics-header h1 {
+  color: var(--bloomery-text);
+  font-size: clamp(26px, 3vw, 36px);
+  line-height: 1.1;
+  margin: 5px 0 8px;
+}
+
+.bloomery-diagnostics-actions {
+  gap: 8px;
+}
+
+.bloomery-diagnostics-alert,
+.bloomery-diagnostics-notice {
+  align-items: center;
+  border: 1px solid;
+  display: flex;
+  gap: 9px;
+  margin-bottom: 14px;
+  padding: 10px 12px;
+}
+
+.bloomery-diagnostics-alert {
+  background: var(--bloomery-red-soft);
+  border-color: #efc4ca;
+  color: var(--bloomery-red);
+}
+
+.bloomery-diagnostics-notice {
+  background: var(--bloomery-green-soft);
+  border-color: #b9dfca;
+  color: var(--bloomery-green);
+}
+
+.bloomery-diagnostics-grid {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.bloomery-diagnostics-card,
+.bloomery-diagnostics-tasks {
+  background: var(--bloomery-bg-raised);
+  border: 1px solid var(--bloomery-line);
+  min-width: 0;
+  padding: 18px;
+}
+
+.bloomery-diagnostics-card-heading {
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.bloomery-diagnostics-card-heading > div {
+  min-width: 0;
+}
+
+.bloomery-diagnostics-card-icon {
+  align-items: center;
+  background: var(--bloomery-bg-soft);
+  border: 1px solid var(--bloomery-line);
+  color: var(--bloomery-accent);
+  display: inline-flex;
+  flex: 0 0 32px;
+  height: 32px;
+  justify-content: center;
+  width: 32px;
+}
+
+.bloomery-diagnostics-card h2,
+.bloomery-diagnostics-section-heading h2 {
+  color: var(--bloomery-text);
+  font-size: 16px;
+  line-height: 1.3;
+  margin-top: 4px;
+}
+
+.bloomery-diagnostics-status {
+  border: 1px solid;
+  font-size: 10px;
+  margin-left: auto;
+  padding: 4px 7px;
+  white-space: nowrap;
+}
+
+.bloomery-diagnostics-status.is-healthy {
+  background: var(--bloomery-green-soft);
+  border-color: #b9dfca;
+  color: var(--bloomery-green);
+}
+
+.bloomery-diagnostics-status.is-warning {
+  background: var(--bloomery-amber-soft);
+  border-color: #ebcb9d;
+  color: var(--bloomery-amber);
+}
+
+.bloomery-diagnostics-details {
+  display: grid;
+  gap: 0;
+  margin-top: 18px;
+}
+
+.bloomery-diagnostics-details > div {
+  align-items: center;
+  border-top: 1px solid var(--bloomery-line);
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 38px;
+}
+
+.bloomery-diagnostics-details dt {
+  color: var(--bloomery-text-muted);
+  font-size: 12px;
+}
+
+.bloomery-diagnostics-details dd {
+  color: var(--bloomery-text-soft);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.bloomery-diagnostics-tasks {
+  margin-top: 14px;
+}
+
+.bloomery-diagnostics-section-heading {
+  border-bottom: 1px solid var(--bloomery-line);
+  justify-content: space-between;
+  padding-bottom: 14px;
+}
+
+.bloomery-diagnostics-section-heading svg {
+  color: var(--bloomery-accent);
+}
+
+.bloomery-diagnostics-empty,
+.bloomery-diagnostics-loading {
+  color: var(--bloomery-text-muted);
+  font-size: 13px;
+}
+
+.bloomery-diagnostics-empty {
+  padding: 22px 2px 4px;
+}
+
+.bloomery-diagnostics-loading {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  min-height: 260px;
+}
+
+.bloomery-diagnostics-task-list {
+  display: grid;
+}
+
+.bloomery-diagnostics-task {
+  align-items: center;
+  border-bottom: 1px solid var(--bloomery-line);
+  display: flex;
+  gap: 18px;
+  justify-content: space-between;
+  min-width: 0;
+  padding: 13px 0;
+}
+
+.bloomery-diagnostics-task:last-child {
+  border-bottom: 0;
+  padding-bottom: 2px;
+}
+
+.bloomery-diagnostics-task > div:first-child {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.bloomery-diagnostics-task strong {
+  color: var(--bloomery-text-soft);
+  font-size: 13px;
+}
+
+.bloomery-diagnostics-task span {
+  color: var(--bloomery-text-muted);
+  font-size: 11px;
+}
+
+.bloomery-diagnostics-task-meta {
+  flex: 0 0 auto;
+  gap: 12px;
+}
+
+.bloomery-diagnostics-task-meta .bloomery-action-secondary {
+  min-height: 32px;
+}
+
+.bloomery-diagnostics-privacy {
+  align-items: flex-start;
+  background: var(--bloomery-bg-soft);
+  border: 1px solid var(--bloomery-line);
+  color: var(--bloomery-accent);
+  gap: 10px;
+  margin-top: 14px;
+  padding: 13px 15px;
+}
+
+.bloomery-diagnostics-privacy > div {
+  display: grid;
+  gap: 3px;
+}
+
+.bloomery-diagnostics-privacy strong {
+  color: var(--bloomery-text);
+  font-size: 13px;
+}
+
+.bloomery-diagnostics-privacy span {
+  color: var(--bloomery-text-muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+@media (max-width: 800px) {
+  .bloomery-diagnostics-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 600px) {
+  .bloomery-diagnostics-header,
+  .bloomery-diagnostics-task {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .bloomery-diagnostics-actions {
+    justify-content: flex-start;
+    margin-top: 14px;
+  }
+
+  .bloomery-diagnostics-task-meta {
+    justify-content: space-between;
+  }
+}

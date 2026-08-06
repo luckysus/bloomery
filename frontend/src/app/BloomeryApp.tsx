@@ -3,6 +3,7 @@ import { Factory, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { desktop, isDesktopRuntime } from "../bridge/desktop";
 import LanguageSelect from "../components/common/LanguageSelect";
 import ChatPage from "../features/chat/ChatPage";
+import DiagnosticsPage from "../features/diagnostics/DiagnosticsPage";
 import KnowledgePage from "../features/knowledge/KnowledgePage";
 import OnboardingPage from "../features/onboarding/OnboardingPage";
 import SettingsPage from "../features/settings/SettingsPage";
@@ -123,6 +124,8 @@ function BloomeryAppShell() {
               <KnowledgePage />
             ) : activeSection === "settings" ? (
               <SettingsPage />
+            ) : activeSection === "diagnostics" ? (
+              <DiagnosticsPage />
             ) : (
               <SectionPlaceholder section={active} />
             )}

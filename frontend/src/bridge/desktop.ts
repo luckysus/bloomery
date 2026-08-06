@@ -216,6 +216,15 @@ export interface IndexHealthReport {
   rebuild_task_id: string | null;
 }
 
+export interface StorageHealth {
+  database_ok: boolean;
+  current_migration_version: number;
+  latest_migration_version: number;
+  database_size_bytes: number;
+  reclaimable_bytes: number;
+  available_disk_bytes: number | null;
+}
+
 export interface DocumentImportRequest {
   source_path: string;
   knowledge_base: { mode: "existing"; id: string } | { mode: "create"; name: string };
@@ -337,4 +346,7 @@ export const desktop = {
   resolveKnowledgeCitation: (auditId: string, citationNumber: number) =>
     call<ResolvedCitation | null>("resolve_knowledge_citation", { auditId, citationNumber }),
   getKnowledgeHealth: () => call<KnowledgeHealth>("get_knowledge_health"),
+  getStorageHealth: () => call<StorageHealth>("get_storage_health"),
+  exportDiagnostics: (lastErrorKind?: string) =>
+    call<Record<string, unknown>>("export_diagnostics", lastErrorKind ? { lastErrorKind } : undefined),
 };
