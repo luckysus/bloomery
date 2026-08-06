@@ -44,3 +44,8 @@ windows-sys = { version = "0.59", features = ["Win32_Foundation", "Win32_Storage
 [[bench]]
 name = "retrieval"
 harness = false
+
+# 压缩 debug 构建的调试信息，显著减小 target/ 体积（仅保留行号表，
+# 保留 panic backtrace 的文件/行号定位能力，基本不影响日常调试）。
+[profile.dev]
+debug = "line-tables-only"

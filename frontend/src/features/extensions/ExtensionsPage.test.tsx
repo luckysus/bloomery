@@ -79,7 +79,7 @@ describe("ExtensionsPage", () => {
         version: "1.0.0",
         path: "C:/AppData/Bloomery/domains/steel/1.0.0",
         package_sha256: "0123456789abcdef0123456789abcdef",
-        trust: "OfficialSigned",
+        trust: "official_signed",
         manifest: {
           id: "steel",
           version: "1.0.0",

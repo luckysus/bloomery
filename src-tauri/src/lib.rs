@@ -1,5 +1,5 @@
 pub mod agent;
-mod app;
+pub mod app;
 mod context;
 mod db;
 pub mod diagnostics;

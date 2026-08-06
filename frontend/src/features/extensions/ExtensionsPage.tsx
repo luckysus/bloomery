@@ -227,7 +227,7 @@ export default function ExtensionsPage() {
                   </div>
                   <dl className="bloomery-extension-details">
                     <div><dt>{t("extensionsVersion")}</dt><dd>{item.version}</dd></div>
-                    <div><dt>{t("extensionsDomainTrust")}</dt><dd>{item.trust === "OfficialSigned" ? t("extensionsDomainOfficial") : t("extensionsDomainThirdParty")}</dd></div>
+                    <div><dt>{t("extensionsDomainTrust")}</dt><dd>{item.trust === "official_signed" ? t("extensionsDomainOfficial") : t("extensionsDomainThirdParty")}</dd></div>
                     <div><dt>{t("extensionsHash")}</dt><dd title={item.package_sha256}>{shortHash(item.package_sha256)}</dd></div>
                   </dl>
                   <div className="bloomery-extension-path"><FolderOpen size={14} aria-hidden="true" /><code>{item.path}</code></div>

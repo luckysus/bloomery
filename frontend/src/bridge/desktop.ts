@@ -305,7 +305,7 @@ export interface SkillCatalog {
   errors: SkillLoadError[];
 }
 
-export type DomainTrust = "OfficialSigned" | "ThirdPartyUnsigned";
+export type DomainTrust = "official_signed" | "third_party_unsigned";
 
 export interface DomainManifestSummary {
   id: string;
