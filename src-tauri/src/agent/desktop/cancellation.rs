@@ -1,9 +1,9 @@
 use std::collections::HashSet;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub struct LocalAgentState {
-    cancelled_runs: Mutex<HashSet<String>>,
+    cancelled_runs: Arc<Mutex<HashSet<String>>>,
 }
 
 impl LocalAgentState {
@@ -31,5 +31,16 @@ impl LocalAgentState {
         if let Ok(mut cancelled) = self.cancelled_runs.lock() {
             cancelled.remove(run_id);
         }
+    }
+
+    pub fn cancellation_token(&self, run_id: &str) -> crate::agent::runtime::CancellationToken {
+        let cancelled_runs = Arc::clone(&self.cancelled_runs);
+        let run_id = run_id.trim().to_string();
+        crate::agent::runtime::CancellationToken::new(move || {
+            cancelled_runs
+                .lock()
+                .map(|cancelled| cancelled.contains(&run_id))
+                .unwrap_or(true)
+        })
     }
 }

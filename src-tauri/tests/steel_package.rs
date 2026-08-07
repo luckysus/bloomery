@@ -18,6 +18,10 @@ fn official_steel_package_fixture_is_declaration_only_and_loadable() {
         .builtin_tool_allowlist
         .contains(&"knowledge.query".to_string()));
     assert!(package
+        .manifest
+        .builtin_tool_allowlist
+        .contains(&"steel.carbon_equivalent".to_string()));
+    assert!(package
         .assets
         .iter()
         .all(|asset| !asset.path.extension().is_some_and(|extension| {

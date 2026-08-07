@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import type { AgentEventEnvelope, AgentRunState } from "./generated/protocol";
 
 export interface Conversation {
   id: string;
@@ -29,6 +30,40 @@ export interface LocalAgentChatRequest {
 export interface LocalAgentDelta {
   run_id: string;
   delta: string;
+}
+
+export interface AgentRunRecord {
+  id: string;
+  workspace_id: string;
+  conversation_id: string;
+  user_message_id: string;
+  state: AgentRunState;
+  next_sequence: number;
+  created_at: string;
+  updated_at: string;
+  completed_at: string | null;
+}
+
+export interface RunCommandResult {
+  run: AgentRunRecord;
+  events: AgentEventEnvelope[];
+  replay_only: boolean;
+}
+
+export type RecoveryAction =
+  | { kind: "regenerate" }
+  | { kind: "await_permissions"; data: unknown[] }
+  | { kind: "resume_tools"; data: unknown[] };
+
+export interface RecoveredRun {
+  run: AgentRunRecord;
+  action: RecoveryAction;
+  events: AgentEventEnvelope[];
+}
+
+export interface RunWithEvent {
+  run: AgentRunRecord;
+  event: AgentEventEnvelope;
 }
 
 export interface LocalAgentChatResponse {
@@ -367,6 +402,22 @@ export const desktop = {
     if (!isDesktopRuntime()) return Promise.resolve(() => undefined);
     return listen<LocalAgentDelta>("desktop-agent-delta", (event) => handler(event.payload));
   },
+  listenAgentEvents: (handler: (event: AgentEventEnvelope) => void) => {
+    if (!isDesktopRuntime()) return Promise.resolve(() => undefined);
+    return listen<AgentEventEnvelope>("agent-event", (event) => handler(event.payload));
+  },
+  replayAgentRun: (runId: string, afterSequence = 0) =>
+    call<AgentEventEnvelope[]>("replay_agent_run", {
+      request: { runId, afterSequence },
+    }),
+  cancelAgentRun: (runId: string, assistantMessageId?: string) =>
+    call<RunCommandResult>("cancel_agent_run", {
+      runId,
+      assistantMessageId,
+    }),
+  retryAgentRun: (sourceRunId: string, runId: string, eventId?: string) =>
+    call<RunWithEvent>("retry_agent_run", { sourceRunId, runId, eventId }),
+  recoverAgentRuns: () => call<RecoveredRun[]>("recover_agent_runs"),
   listProviderProfiles: () => call<ProviderProfileResponse[]>("list_provider_profiles"),
   saveProviderProfile: (profile: ProviderProfileInput) =>
     call<ProviderProfileResponse>("save_provider_profile", { profile }),

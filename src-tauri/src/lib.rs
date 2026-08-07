@@ -11,6 +11,7 @@ pub mod providers;
 pub mod rag;
 mod retrieval;
 pub mod skills;
+pub mod steel;
 pub mod storage;
 pub mod tasks;
 pub mod tools;

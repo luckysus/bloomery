@@ -1,3 +1,4 @@
+use super::service::build_agent_loop_request;
 use super::{
     assistant_content_for_stream_result,
     cancellation::LocalAgentState,
@@ -6,6 +7,7 @@ use super::{
     routing::classify_desktop_intent,
 };
 use serde_json::json;
+use uuid::Uuid;
 
 #[test]
 fn routes_steel_requests_without_cloud_dependencies() {
@@ -47,6 +49,27 @@ fn cancellation_state_is_scoped_to_run_id() {
     assert!(!state.is_cancelled("run-b").expect("read cancellation"));
     state.clear_cancelled("run-a");
     assert!(!state.is_cancelled("run-a").expect("read cancellation"));
+}
+
+#[test]
+fn cloned_cancellation_state_observes_the_same_run() {
+    let state = LocalAgentState::default();
+    let clone = state.clone();
+
+    state.cancel_run("run-a").expect("cancel");
+
+    assert!(clone.is_cancelled("run-a").expect("shared cancellation"));
+}
+
+#[test]
+fn cancellation_token_reads_the_shared_run_state() {
+    let state = LocalAgentState::default();
+    let token = state.cancellation_token("run-a");
+    assert!(!token.is_cancelled());
+
+    state.cancel_run("run-a").expect("cancel");
+
+    assert!(token.is_cancelled());
 }
 
 #[test]
@@ -140,4 +163,30 @@ fn desktop_prompt_omits_domain_sections_without_active_package() {
     assert!(!prompt.contains("domain_system:"));
     assert!(!prompt.contains("domain_terminology:"));
     assert!(!prompt.contains("domain_citation_policy:"));
+}
+
+#[test]
+fn desktop_chat_builds_a_standard_agent_loop_request() {
+    let request = build_agent_loop_request(
+        Uuid::new_v4(),
+        "system prompt",
+        "calculate carbon equivalent",
+        None,
+    );
+
+    assert_eq!(request.context.len(), 2);
+    assert_eq!(request.context[0].item.content, "system prompt");
+    assert_eq!(
+        request.context[1].item.content,
+        "calculate carbon equivalent"
+    );
+    assert!(matches!(
+        request.context[0].item.source,
+        crate::agent::context::ContextSource::System
+    ));
+    assert!(matches!(
+        request.context[1].item.source,
+        crate::agent::context::ContextSource::CurrentRequest
+    ));
+    assert!(request.evidence.is_none());
 }

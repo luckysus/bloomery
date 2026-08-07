@@ -5,6 +5,8 @@ use super::model::{
 use crate::agent::context::{
     build_summary_prompt, estimate_summary_tokens, messages_after_covered_id, plan_summary,
 };
+use crate::agent::context::{ContextItem, ContextSource};
+use crate::agent::runtime::{AgentLoopRequest, ContextEntry, EvidenceAttachment};
 use crate::context::build_context_packet_for_connection;
 use crate::rag::citation::{load_evidence_pack, EvidencePack};
 use crate::skills::SkillContext;
@@ -17,11 +19,11 @@ pub struct ChatPreparation {
     pub conversation_id: Uuid,
     pub message: String,
     pub route: DesktopRoute,
-    pub packet: Value,
     pub prompt: String,
     pub config: LocalLlmConfig,
     pub evidence_pack: Option<EvidencePack>,
     pub skills: SkillContext,
+    pub active_domain: Option<crate::domains::DomainManifest>,
     pub unavailable_response: Option<Value>,
 }
 
@@ -30,6 +32,38 @@ pub struct LocalAskPreparation {
     pub query: String,
     pub prompt: String,
     pub config: LocalLlmConfig,
+}
+
+pub fn build_agent_loop_request(
+    assistant_message_id: Uuid,
+    prompt: &str,
+    message: &str,
+    evidence_pack: Option<&EvidencePack>,
+) -> AgentLoopRequest {
+    AgentLoopRequest {
+        assistant_message_id,
+        context: vec![
+            ContextEntry::new(ContextItem::new(
+                "desktop-system",
+                ContextSource::System,
+                prompt,
+            )),
+            ContextEntry::new(ContextItem::new(
+                "desktop-current-request",
+                ContextSource::CurrentRequest,
+                message,
+            )),
+        ],
+        output_reservation: 2_048,
+        evidence: evidence_pack.map(|pack| EvidenceAttachment {
+            evidence_pack_id: pack.id,
+            citation_numbers: pack
+                .evidence
+                .iter()
+                .map(|item| item.citation_number)
+                .collect(),
+        }),
+    }
 }
 
 pub fn prepare_chat(
@@ -83,26 +117,26 @@ pub fn prepare_chat(
             &skills.rendered.enabled_versions,
         )
     });
-    let (config, prompt) = if unavailable_response.is_some() {
-        (LocalLlmConfig::default(), String::new())
+    let (config, prompt, active_domain) = if unavailable_response.is_some() {
+        (LocalLlmConfig::default(), String::new(), None)
     } else {
         let config = super::provider::load_local_llm_config(conn, workspace_id)?;
         super::provider::validate_local_llm_config(&config)?;
         let active_domain =
             crate::storage::repositories::domains::active_manifest(conn, workspace_id)?;
         let prompt = super::prompt::build_desktop_context_prompt(&packet, active_domain.as_ref());
-        (config, prompt)
+        (config, prompt, active_domain)
     };
     Ok(ChatPreparation {
         run_id,
         conversation_id,
         message,
         route,
-        packet,
         prompt,
         config,
         evidence_pack,
         skills,
+        active_domain,
         unavailable_response,
     })
 }
@@ -193,19 +227,6 @@ pub fn prepare_summary(
         prompt: super::prompt::build_local_ask_prompt(&query, &contexts, "summary"),
         plan,
     }))
-}
-
-pub fn summary_result(
-    summary: String,
-    plan: &crate::agent::context::SummaryPlan,
-) -> SummarizeConversationResponse {
-    SummarizeConversationResponse {
-        summarized: !summary.trim().is_empty(),
-        summary: (!summary.trim().is_empty()).then_some(summary),
-        covered_message_id: Some(plan.covered_message_id.clone()),
-        total_tokens: plan.total_tokens,
-        folded_tokens: plan.folded_tokens,
-    }
 }
 
 pub fn append_agent_message(

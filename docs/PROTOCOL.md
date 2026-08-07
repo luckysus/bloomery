@@ -65,6 +65,10 @@ The runtime persists an event and advances the run cursor in one SQLite
 transaction before publishing it to the UI. A lost UI notification therefore
 does not mean a lost event. An event that is visible in a replay is committed.
 
+The Tauri live channel for `AgentEventEnvelope` values is `agent-event`. The
+legacy `desktop-agent-delta` channel remains available for existing chat views;
+it carries only assistant text fragments and is not a replacement for replay.
+
 ## Event Types
 
 | Type | Meaning |
