@@ -1,6 +1,6 @@
 use crate::steel::{
-    calculate_carbon_equivalent, CarbonEquivalentFormula, CarbonEquivalentResult, CompositionInput,
-    CompositionUnit,
+    calculate_carbon_equivalent, preview_dataset, CarbonEquivalentFormula, CarbonEquivalentResult,
+    CompositionInput, CompositionUnit, DatasetPreview, DatasetPreviewRequest,
 };
 use serde::Deserialize;
 use std::collections::BTreeMap;
@@ -25,6 +25,11 @@ pub fn calculate_steel_carbon_equivalent(
         request.formula,
     )
     .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub fn preview_steel_dataset(request: DatasetPreviewRequest) -> Result<DatasetPreview, String> {
+    preview_dataset(&request)
 }
 
 #[cfg(test)]

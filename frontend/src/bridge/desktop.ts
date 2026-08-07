@@ -91,6 +91,30 @@ export interface CarbonEquivalentResult {
   applicability_note: string;
 }
 
+export interface DatasetPreviewColumn {
+  name: string;
+  duplicate: boolean;
+  inferredType: "number" | "text" | "date";
+  nonEmptyCount: number;
+  missingCount: number;
+  invalidCount: number;
+  min: number | null;
+  max: number | null;
+}
+
+export interface DatasetPreview {
+  sourceName: string;
+  format: string;
+  sheets: string[];
+  selectedSheet: string;
+  rowCount: number;
+  columnCount: number;
+  truncated: boolean;
+  columns: DatasetPreviewColumn[];
+  sampleRows: string[][];
+  warnings: string[];
+}
+
 export function isDesktopRuntime() {
   return "__TAURI_INTERNALS__" in window;
 }
@@ -435,6 +459,8 @@ export const desktop = {
     unit: CompositionUnit;
     composition: Record<string, number>;
   }) => call<CarbonEquivalentResult>("calculate_steel_carbon_equivalent", { request }),
+  previewSteelDataset: (request: { sourcePath: string; sheet?: string }) =>
+    call<DatasetPreview>("preview_steel_dataset", { request }),
   listProviderProfiles: () => call<ProviderProfileResponse[]>("list_provider_profiles"),
   saveProviderProfile: (profile: ProviderProfileInput) =>
     call<ProviderProfileResponse>("save_provider_profile", { profile }),
