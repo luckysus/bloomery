@@ -1,5 +1,6 @@
 pub(crate) mod agent_commands;
 pub(crate) mod commands;
+pub(crate) mod desktop_agent_runtime;
 pub(crate) mod desktop_ask_commands;
 pub(crate) mod desktop_cancel_commands;
 pub(crate) mod desktop_chat_commands;
