@@ -26,8 +26,8 @@ fn saves_a_preview_with_mapping_and_reuses_the_same_source_record() {
     let mut connection = database();
     let mappings = vec![steel::DatasetColumnMapping {
         ordinal: 1,
-        canonical_field: Some("yield_strength".to_string()),
-        unit: Some("MPa".to_string()),
+        canonical_field: Some(" yield_strength ".to_string()),
+        unit: Some(" MPa ".to_string()),
     }];
     let first = steel::save_preview(
         &mut connection,
@@ -45,6 +45,21 @@ fn saves_a_preview_with_mapping_and_reuses_the_same_source_record() {
         Some("yield_strength")
     );
     assert_eq!(first.columns[1].unit.as_deref(), Some("MPa"));
+
+    let invalid = steel::save_preview(
+        &mut connection,
+        "workspace-a",
+        &path.to_string_lossy(),
+        "sha256-invalid",
+        &preview,
+        &[steel::DatasetColumnMapping {
+            ordinal: 1,
+            canonical_field: Some("yield strength".to_string()),
+            unit: Some("MPa".to_string()),
+        }],
+    )
+    .expect_err("canonical field with spaces must be rejected");
+    assert!(invalid.contains("canonical field"));
 
     let second = steel::save_preview(
         &mut connection,

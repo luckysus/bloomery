@@ -6,6 +6,7 @@ const MAX_TOP_VALUES: usize = 5;
 const MAX_OUTLIER_EVIDENCE: usize = 128;
 const MAX_GROUPS: usize = 128;
 const MAX_CORRELATION_COLUMNS: usize = 32;
+const MAX_DISTRIBUTION_BINS: usize = 12;
 
 #[derive(Debug, Clone, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -58,12 +59,21 @@ pub struct DatasetColumnAnalysis {
     pub outlier_count: usize,
     pub outlier_rows: Vec<usize>,
     pub top_values: Vec<DatasetValueFrequency>,
+    pub distribution: Vec<DatasetDistributionBin>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct DatasetValueFrequency {
     pub value: String,
+    pub count: usize,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct DatasetDistributionBin {
+    pub lower_bound: f64,
+    pub upper_bound: f64,
     pub count: usize,
 }
 
@@ -251,6 +261,7 @@ fn analyze_numeric_column(
         outlier_count,
         outlier_rows,
         top_values: Vec::new(),
+        distribution: distribution(&numbers),
     }
 }
 
@@ -474,7 +485,44 @@ fn analyze_text_column(
         outlier_count: 0,
         outlier_rows: Vec::new(),
         top_values,
+        distribution: Vec::new(),
     }
+}
+
+fn distribution(values: &[f64]) -> Vec<DatasetDistributionBin> {
+    let (Some(min), Some(max)) = (
+        values.iter().copied().reduce(f64::min),
+        values.iter().copied().reduce(f64::max),
+    ) else {
+        return Vec::new();
+    };
+    if min == max {
+        return vec![DatasetDistributionBin {
+            lower_bound: min,
+            upper_bound: max,
+            count: values.len(),
+        }];
+    }
+    let bin_count = MAX_DISTRIBUTION_BINS.min(values.len()).max(1);
+    let width = (max - min) / bin_count as f64;
+    let mut counts = vec![0_usize; bin_count];
+    for value in values {
+        let index = ((value - min) / width).floor() as usize;
+        counts[index.min(bin_count - 1)] += 1;
+    }
+    counts
+        .into_iter()
+        .enumerate()
+        .map(|(index, count)| DatasetDistributionBin {
+            lower_bound: min + index as f64 * width,
+            upper_bound: if index + 1 == bin_count {
+                max
+            } else {
+                min + (index + 1) as f64 * width
+            },
+            count,
+        })
+        .collect()
 }
 
 fn moments(values: &[f64]) -> (Option<f64>, Option<f64>) {

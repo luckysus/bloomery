@@ -56,7 +56,7 @@ pub fn save_preview(
     preview: &DatasetPreview,
     mappings: &[DatasetColumnMapping],
 ) -> Result<SteelDatasetRecord, String> {
-    validate_mappings(preview, mappings)?;
+    let mappings = normalize_mappings(preview, mappings)?;
     let preview_json = serde_json::to_string(preview).map_err(|error| error.to_string())?;
     let now = Utc::now().to_rfc3339();
     let transaction = connection
@@ -274,12 +274,13 @@ fn count_value(value: i64, column: usize) -> rusqlite::Result<usize> {
     })
 }
 
-fn validate_mappings(
+fn normalize_mappings(
     preview: &DatasetPreview,
     mappings: &[DatasetColumnMapping],
-) -> Result<(), String> {
+) -> Result<Vec<DatasetColumnMapping>, String> {
     let mut ordinals = HashSet::new();
     let mut canonical_fields = HashSet::new();
+    let mut normalized = Vec::with_capacity(mappings.len());
     for mapping in mappings {
         if mapping.ordinal >= preview.columns.len() {
             return Err(format!(
@@ -293,18 +294,57 @@ fn validate_mappings(
                 mapping.ordinal
             ));
         }
-        if let Some(field) = mapping
+        let canonical_field = mapping
             .canonical_field
             .as_deref()
             .map(str::trim)
             .filter(|field| !field.is_empty())
-        {
-            if !canonical_fields.insert(field.to_string()) {
+            .map(str::to_string);
+        let unit = mapping
+            .unit
+            .as_deref()
+            .map(str::trim)
+            .filter(|unit| !unit.is_empty())
+            .map(str::to_string);
+        if let Some(field) = canonical_field.as_deref() {
+            if !is_canonical_field(field) {
+                return Err(format!("canonical field {field} must use lower snake_case"));
+            }
+            if !canonical_fields.insert(field.to_ascii_lowercase()) {
                 return Err(format!(
                     "dataset canonical field {field} is mapped more than once"
                 ));
             }
         }
+        if unit.is_some() && canonical_field.is_none() {
+            return Err("dataset unit requires a canonical field".to_string());
+        }
+        if let Some(unit) = unit.as_deref() {
+            if unit.chars().count() > 24
+                || unit
+                    .chars()
+                    .any(|character| character.is_control() || character.is_whitespace())
+            {
+                return Err(format!("dataset unit {unit} contains invalid characters"));
+            }
+        }
+        if canonical_field.is_some() || unit.is_some() {
+            normalized.push(DatasetColumnMapping {
+                ordinal: mapping.ordinal,
+                canonical_field,
+                unit,
+            });
+        }
     }
-    Ok(())
+    Ok(normalized)
+}
+
+fn is_canonical_field(field: &str) -> bool {
+    let mut characters = field.chars();
+    matches!(characters.next(), Some(character) if character.is_ascii_lowercase())
+        && characters.all(|character| {
+            character.is_ascii_lowercase() || character.is_ascii_digit() || character == '_'
+        })
+        && !field.ends_with('_')
+        && !field.contains("__")
 }

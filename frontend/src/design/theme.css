@@ -3526,6 +3526,68 @@
   margin: 8px 0 0;
 }
 
+.bloomery-dataset-distributions {
+  border-top: 1px solid var(--bloomery-line);
+  margin-top: 16px;
+  padding-top: 12px;
+}
+
+.bloomery-dataset-distribution {
+  margin-top: 14px;
+}
+
+.bloomery-dataset-distribution-heading {
+  align-items: baseline;
+  display: flex;
+  gap: 8px;
+  justify-content: space-between;
+}
+
+.bloomery-dataset-distribution-heading strong {
+  color: var(--bloomery-text-soft);
+  font-size: 12px;
+}
+
+.bloomery-dataset-distribution-heading span {
+  color: var(--bloomery-text-muted);
+  font-size: 10px;
+}
+
+.bloomery-dataset-distribution-bars {
+  align-items: end;
+  display: grid;
+  gap: 4px;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(20px, 1fr);
+  height: 104px;
+  margin-top: 8px;
+  padding: 0 2px;
+}
+
+.bloomery-dataset-distribution-bin {
+  align-items: center;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  height: 100%;
+  justify-content: end;
+  min-width: 0;
+}
+
+.bloomery-dataset-distribution-bin > span {
+  background: var(--bloomery-amber);
+  border-radius: 2px 2px 0 0;
+  display: block;
+  min-height: 0;
+  width: 100%;
+}
+
+.bloomery-dataset-distribution-bin small {
+  color: var(--bloomery-text-muted);
+  font-size: 9px;
+  font-variant-numeric: tabular-nums;
+}
+
 .bloomery-dataset-group-summary,
 .bloomery-dataset-correlations {
   border-top: 1px solid var(--bloomery-line);

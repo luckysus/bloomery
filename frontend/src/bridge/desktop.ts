@@ -157,6 +157,12 @@ export interface DatasetValueFrequency {
   count: number;
 }
 
+export interface DatasetDistributionBin {
+  lowerBound: number;
+  upperBound: number;
+  count: number;
+}
+
 export interface DatasetColumnAnalysis {
   ordinal: number;
   name: string;
@@ -178,6 +184,7 @@ export interface DatasetColumnAnalysis {
   outlierCount: number;
   outlierRows: number[];
   topValues: DatasetValueFrequency[];
+  distribution: DatasetDistributionBin[];
 }
 
 export interface DatasetGroupColumnSummary {

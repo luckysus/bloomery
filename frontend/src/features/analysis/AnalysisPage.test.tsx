@@ -183,6 +183,10 @@ describe("AnalysisPage", () => {
           outlierCount: 1,
           outlierRows: [6],
           topValues: [],
+          distribution: [
+            { lowerBound: 10, upperBound: 55, count: 4 },
+            { lowerBound: 55, upperBound: 100, count: 1 },
+          ],
         },
       ],
       groups: [
@@ -205,6 +209,7 @@ describe("AnalysisPage", () => {
     expect(screen.getByText("29.2")).toBeInTheDocument();
     expect(screen.getByText("6")).toBeInTheDocument();
     expect(screen.getByText("Q355B")).toBeInTheDocument();
+    expect(screen.getByTestId("dataset-distribution-1")).toBeInTheDocument();
   });
 
   it("persists non-empty canonical field mappings with the dataset", async () => {

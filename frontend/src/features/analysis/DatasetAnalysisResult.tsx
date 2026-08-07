@@ -71,6 +71,27 @@ export default function DatasetAnalysisResult({ analysis }: { analysis: DatasetA
           ))}
         </div>
       )}
+      {analysis.columns.some((column) => column.distribution.length > 0) && (
+        <div className="bloomery-dataset-distributions">
+          <div className="bloomery-dataset-subheading"><strong>{t("analysisDatasetDistribution")}</strong></div>
+          {analysis.columns.filter((column) => column.distribution.length > 0).map((column) => {
+            const peak = Math.max(...column.distribution.map((bin) => bin.count), 1);
+            return (
+              <div className="bloomery-dataset-distribution" data-testid={`dataset-distribution-${column.ordinal}`} key={column.ordinal}>
+                <div className="bloomery-dataset-distribution-heading"><strong>{column.name}</strong><span>{column.unit ?? ""}</span></div>
+                <div className="bloomery-dataset-distribution-bars" role="img" aria-label={`${column.name} ${t("analysisDatasetDistribution")}`}>
+                  {column.distribution.map((bin) => (
+                    <div className="bloomery-dataset-distribution-bin" key={`${bin.lowerBound}-${bin.upperBound}`} title={`${bin.lowerBound} - ${bin.upperBound}: ${bin.count}`}>
+                      <span style={{ height: `${bin.count === 0 ? 0 : Math.max(8, (bin.count / peak) * 100)}%` }} />
+                      <small>{bin.count}</small>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
       {analysis.groups.length > 0 && (
         <div className="bloomery-dataset-group-summary">
           <div className="bloomery-dataset-subheading"><strong>{t("analysisDatasetGroupSummary")}</strong></div>

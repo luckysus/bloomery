@@ -27,6 +27,17 @@ fn summarizes_numeric_distribution_and_iqr_outlier_evidence() {
     assert_eq!(column.median, Some(12.0));
     assert_eq!(column.outlier_count, 1);
     assert_eq!(column.outlier_rows, vec![6]);
+    assert!(column.distribution.len() <= 12);
+    assert_eq!(
+        column
+            .distribution
+            .iter()
+            .map(|bin| bin.count)
+            .sum::<usize>(),
+        5
+    );
+    assert_eq!(column.distribution.first().unwrap().lower_bound, 10.0);
+    assert_eq!(column.distribution.last().unwrap().upper_bound, 100.0);
 }
 
 #[test]

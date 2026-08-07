@@ -5,7 +5,8 @@ mod tool;
 
 pub use analysis::{
     analyze_dataset, DatasetAnalysis, DatasetAnalysisRequest, DatasetColumnAnalysis,
-    DatasetCorrelation, DatasetGroupColumnSummary, DatasetGroupSummary, DatasetValueFrequency,
+    DatasetCorrelation, DatasetDistributionBin, DatasetGroupColumnSummary, DatasetGroupSummary,
+    DatasetValueFrequency,
 };
 pub use calculators::{
     calculate_carbon_equivalent, CarbonEquivalentFormula, CarbonEquivalentResult, CompositionInput,
