@@ -1,9 +1,11 @@
 import { useEffect, useState, type FormEvent } from "react";
+import { open } from "@tauri-apps/plugin-dialog";
 import {
   AlertCircle,
   Check,
   Database,
   FileText,
+  FolderOpen,
   FolderUp,
   LoaderCircle,
   Pencil,
@@ -248,6 +250,23 @@ export default function KnowledgePage() {
     }
   };
 
+  const chooseFile = async () => {
+    setError(null);
+    try {
+      const selected = await open({
+        directory: false,
+        multiple: false,
+        title: t("browseFile"),
+        filters: [{ name: t("importLocalDocument"), extensions: ["pdf", "docx", "xlsx", "csv", "md", "txt", "html"] }],
+      });
+      if (typeof selected === "string") {
+        setFilePath(selected);
+      }
+    } catch (cause) {
+      setError(errorMessage(cause, t("filePickerError")));
+    }
+  };
+
   return (
     <section className="bloomery-knowledge" aria-labelledby="knowledge-heading">
       <header className="bloomery-knowledge-header">
@@ -319,6 +338,7 @@ export default function KnowledgePage() {
                 <label htmlFor="knowledge-file-path">{t("filePath")}</label>
                 <div className="bloomery-knowledge-import-row">
                   <input id="knowledge-file-path" value={filePath} onChange={(event) => setFilePath(event.target.value)} placeholder={t("filePathPlaceholder")} required />
+                  <button type="button" className="bloomery-icon-button" onClick={() => void chooseFile()} disabled={busy} aria-label={t("browseFile")} title={t("browseFile")}><FolderOpen size={17} aria-hidden="true" /></button>
                   <button type="submit" className="bloomery-action-primary" disabled={busy || !filePath.trim()}><FileText size={17} aria-hidden="true" />{t("importDocumentAction")}</button>
                 </div>
                 <p>{t("importDescription")}</p>

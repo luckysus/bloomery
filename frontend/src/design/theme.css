@@ -1328,6 +1328,10 @@
   flex: 0 0 auto;
 }
 
+.bloomery-knowledge-import-row .bloomery-icon-button {
+  flex: 0 0 38px;
+}
+
 .bloomery-knowledge-import > p {
   color: var(--bloomery-text-muted);
   font-size: 11px;

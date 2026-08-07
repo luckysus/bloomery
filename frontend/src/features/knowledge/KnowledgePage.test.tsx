@@ -2,6 +2,9 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import KnowledgePage from "./KnowledgePage";
 import { desktop, type KnowledgeBaseRecord } from "../../bridge/desktop";
+import { open } from "@tauri-apps/plugin-dialog";
+
+vi.mock("@tauri-apps/plugin-dialog", () => ({ open: vi.fn() }));
 
 vi.mock("../../bridge/desktop", () => ({
   desktop: {
@@ -28,6 +31,7 @@ const base: KnowledgeBaseRecord = {
 describe("KnowledgePage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(open).mockResolvedValue(null);
     vi.mocked(desktop.getSetting).mockResolvedValue(JSON.stringify({
       state: "configured",
       embedding_profile_id: "embedding-1",
@@ -130,5 +134,17 @@ describe("KnowledgePage", () => {
       embedding_dimension: 1024,
     }));
     expect(await screen.findByText("导入任务已创建")).toBeInTheDocument();
+  });
+
+  it("uses the native file picker to fill a document path", async () => {
+    vi.mocked(desktop.listKnowledgeBases).mockResolvedValue([base]);
+    vi.mocked(open).mockResolvedValue("F:\\docs\\GB 50632.pdf");
+    render(<KnowledgePage />);
+
+    await screen.findByRole("button", { name: "钢铁标准" });
+    fireEvent.click(screen.getByRole("button", { name: "选择文件" }));
+
+    await waitFor(() => expect(open).toHaveBeenCalled());
+    expect(screen.getByLabelText("文件路径")).toHaveValue("F:\\docs\\GB 50632.pdf");
   });
 });
