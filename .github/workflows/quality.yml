@@ -1,0 +1,54 @@
+name: Bloomery quality
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: quality-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  windows-quality:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+
+      - name: Install frontend dependencies
+        run: npm ci
+        working-directory: frontend
+
+      - name: Validate release script contracts
+        shell: pwsh
+        run: .\scripts\tests\release-scripts.contract.ps1
+
+      - name: Validate workflow contracts
+        shell: pwsh
+        run: .\scripts\tests\workflow.contract.ps1
+
+      - name: Run deterministic test suite
+        shell: pwsh
+        run: .\scripts\test.ps1
+
+      - name: Check whitespace
+        shell: pwsh
+        run: git diff --check

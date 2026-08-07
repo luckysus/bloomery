@@ -14,10 +14,20 @@
 
 **Files:** Create `scripts/check.ps1`, `scripts/test.ps1`, `scripts/release-check.ps1`; modify package/Cargo config and contributor docs.
 
-- [ ] **Step 1: Write a script contract test** that checks exit-code propagation and rejects missing required commands.
-- [ ] **Step 2: Run it** and expect scripts absent.
-- [ ] **Step 3: Implement PowerShell entry points.** `check.ps1` runs fast boundaries/checks; `test.ps1` runs all deterministic tests; `release-check.ps1` adds E2E, performance, security, worker, package, and docs gates.
+- [x] **Step 1: Write a script contract test** that checks exit-code propagation and rejects missing required commands.
+- [x] **Step 2: Run it** and expect scripts absent.
+- [x] **Step 3: Implement PowerShell entry points.** `check.ps1` runs fast boundaries/checks; `test.ps1` runs all deterministic tests; `release-check.ps1` adds E2E, performance, security, worker, package, and docs gates.
 - [ ] **Step 4: Run each script with one injected failure and then cleanly** to prove it fails closed.
+
+**Execution record (2026-08-07):** Added strict PowerShell entry points, release
+script contracts with an injected `npm` failure, unsigned artifact packaging,
+SHA-256 manifests, local/CI release documentation, and Windows quality and
+release-candidate workflows. The deterministic suite passed through the new
+`test.ps1 -Offline` entry point, including 12 frontend files/43 tests, 21
+architecture tests, Rust integration suites, protocol, RAG, MCP, backup,
+provider, migration, permissions, steel, task, and tool tests. The first
+release build compiled the Rust host successfully; NSIS bundling remains an
+external-download verification item when `nsis-3.11.zip` is reachable.
 
 ### Task 2: Enforce architecture and source budgets
 
