@@ -53,4 +53,5 @@ finally {
     Remove-Item Function:\npm -ErrorAction SilentlyContinue
 }
 
+$global:LASTEXITCODE = 0
 Write-Output "Release script contract passed."
