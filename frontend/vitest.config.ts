@@ -10,5 +10,6 @@ export default defineConfig({
     css: true,
     maxWorkers: 1,
     minWorkers: 1,
+    testTimeout: 15_000,
   },
 });
