@@ -1658,6 +1658,22 @@
   white-space: nowrap;
 }
 
+.bloomery-chat-run-status {
+  align-items: center;
+  color: var(--bloomery-amber);
+  display: flex;
+  font-size: 11px;
+  gap: 8px;
+  margin-left: auto;
+  margin-right: 18px;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.bloomery-chat-run-status > span:last-child {
+  color: var(--bloomery-text-muted);
+}
+
 .bloomery-chat-messages {
   flex: 1;
   min-height: 360px;
@@ -1766,6 +1782,17 @@
 .bloomery-chat-answer pre {
   background: #243238;
   border-radius: var(--bloomery-radius-small);
+}
+
+.bloomery-chat-tool-trace {
+  border-left: 2px solid var(--bloomery-line-strong);
+  color: var(--bloomery-text-muted);
+  display: grid;
+  font-family: "Cascadia Code", Consolas, monospace;
+  font-size: 11px;
+  gap: 4px;
+  margin-top: 12px;
+  padding-left: 11px;
 }
 
 .bloomery-chat-citations {
@@ -1953,6 +1980,18 @@
     min-height: calc(100vh - var(--bloomery-topbar-height) - 160px);
     padding-left: 0;
     padding-top: 18px;
+  }
+
+  .bloomery-chat-header {
+    flex-wrap: wrap;
+    row-gap: 8px;
+  }
+
+  .bloomery-chat-run-status {
+    flex: 1 0 100%;
+    margin-left: 0;
+    margin-right: 0;
+    order: 3;
   }
 }
 

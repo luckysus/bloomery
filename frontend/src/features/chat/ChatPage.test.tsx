@@ -2,6 +2,9 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import ChatPage from "./ChatPage";
 import { desktop, type Conversation, type EvidencePack, type Message } from "../../bridge/desktop";
+import type { AgentEventEnvelope } from "../../bridge/generated/protocol";
+
+let publishAgentEvent: ((event: AgentEventEnvelope) => void) | undefined;
 
 vi.mock("../../bridge/desktop", () => ({
   desktop: {
@@ -11,6 +14,8 @@ vi.mock("../../bridge/desktop", () => ({
     getConversationDraft: vi.fn(),
     saveConversationDraft: vi.fn(),
     listenDesktopAgentDeltas: vi.fn(),
+    listenAgentEvents: vi.fn(),
+    replayAgentRun: vi.fn(),
     desktopAgentChat: vi.fn(),
     cancelDesktopRun: vi.fn(),
     listKnowledgeBases: vi.fn(),
@@ -76,11 +81,17 @@ const evidencePack: EvidencePack = {
 describe("ChatPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    publishAgentEvent = undefined;
     vi.mocked(desktop.listConversations).mockResolvedValue([conversation]);
     vi.mocked(desktop.listMessages).mockResolvedValue([]);
     vi.mocked(desktop.getConversationDraft).mockResolvedValue("");
     vi.mocked(desktop.saveConversationDraft).mockResolvedValue(undefined);
     vi.mocked(desktop.listenDesktopAgentDeltas).mockResolvedValue(() => undefined);
+    vi.mocked(desktop.listenAgentEvents).mockImplementation(async (handler) => {
+      publishAgentEvent = handler;
+      return () => undefined;
+    });
+    vi.mocked(desktop.replayAgentRun).mockResolvedValue([]);
     vi.mocked(desktop.listKnowledgeBases).mockResolvedValue([{ id: "kb-steel", name: "Steel standards", created_at: conversation.created_at, updated_at: conversation.updated_at }]);
     vi.mocked(desktop.queryLocalKnowledge).mockResolvedValue({ ...evidencePack, evidence: [] });
     vi.mocked(desktop.resolveKnowledgeCitation).mockResolvedValue(null);
@@ -154,5 +165,68 @@ describe("ChatPage", () => {
     render(<ChatPage />);
 
     expect(await screen.findByRole("button", { name: /引用 1/i })).toBeInTheDocument();
+  });
+
+  it("renders the standard agent run state from protocol events", async () => {
+    vi.mocked(desktop.desktopAgentChat).mockImplementation(async (request) => {
+      publishAgentEvent?.({
+        protocol_version: 1,
+        event_id: "event-ui-1",
+        run_id: request.runId!,
+        conversation_id: conversation.id,
+        sequence: 1,
+        timestamp: "2026-08-07T10:00:00Z",
+        type: "run_state_changed",
+        data: { previous: "created", current: "generating", reason: null },
+      });
+      publishAgentEvent?.({
+        protocol_version: 1,
+        event_id: "event-ui-2",
+        run_id: request.runId!,
+        conversation_id: conversation.id,
+        sequence: 2,
+        timestamp: "2026-08-07T10:00:01Z",
+        type: "message_delta",
+        data: { message_id: "message-2", role: "assistant", delta: "protocol answer" },
+      });
+      return {
+        run_id: request.runId!,
+        session_id: conversation.id,
+        status: "completed",
+        answer: "protocol answer",
+      };
+    });
+    render(<ChatPage />);
+    await screen.findByRole("button", { name: "Q355B 标准" });
+    fireEvent.change(screen.getByLabelText("输入消息"), { target: { value: "What is CE?" } });
+    fireEvent.click(screen.getByRole("button", { name: "发送" }));
+
+    expect(await screen.findByTestId("agent-run-status")).toHaveTextContent(/Generating|正在生成/);
+    expect(desktop.listenAgentEvents).toHaveBeenCalled();
+  });
+
+  it("replays persisted agent events for the latest assistant response", async () => {
+    const runId = "run-history";
+    vi.mocked(desktop.listMessages).mockResolvedValue([{
+      ...userMessage,
+      role: "agent",
+      content: "Persisted answer",
+      response_json: JSON.stringify({ run_id: runId }),
+    }]);
+    vi.mocked(desktop.replayAgentRun).mockResolvedValue([{
+      protocol_version: 1,
+      event_id: "event-history-1",
+      run_id: runId,
+      conversation_id: conversation.id,
+      sequence: 1,
+      timestamp: "2026-08-07T10:00:00Z",
+      type: "run_completed",
+      data: { outcome: "completed", assistant_message_id: "message-2" },
+    }]);
+
+    render(<ChatPage />);
+
+    expect(await screen.findByTestId("agent-run-status")).toHaveTextContent(/本地就绪|Local ready/);
+    expect(desktop.replayAgentRun).toHaveBeenCalledWith(runId);
   });
 });

@@ -17,6 +17,8 @@ import {
   type EvidenceItem,
   type Message,
 } from "../../bridge/desktop";
+import type { AgentRunState } from "../../bridge/generated/protocol";
+import { createAgentRunView, reduceAgentEvent, reduceAgentEvents, type AgentRunView } from "./agentEvents";
 
 function errorMessage(error: unknown, fallback: string) {
   return error instanceof Error ? error.message : fallback;
@@ -29,6 +31,41 @@ function isAssistant(message: Message) {
 function conversationTitle(message: string, fallback: string) {
   const title = message.trim().slice(0, 28);
   return title || fallback;
+}
+
+function agentStateLabel(
+  state: AgentRunState,
+  translate: (key: "contextPreparing" | "generating" | "runtimeReady" | "stopGenerating" | "chatError") => string,
+) {
+  switch (state) {
+    case "created":
+    case "preparing":
+    case "awaiting_permission":
+      return translate("contextPreparing");
+    case "generating":
+    case "executing_tools":
+    case "verifying":
+    case "completing":
+      return translate("generating");
+    case "completed":
+      return translate("runtimeReady");
+    case "cancelled":
+      return translate("stopGenerating");
+    case "failed":
+      return translate("chatError");
+    case "interrupted":
+      return translate("contextPreparing");
+  }
+}
+
+function messageRunId(message: Message) {
+  if (!isAssistant(message) || !message.response_json) return null;
+  try {
+    const response = JSON.parse(message.response_json) as { run_id?: unknown };
+    return typeof response.run_id === "string" && response.run_id.trim() ? response.run_id : null;
+  } catch {
+    return null;
+  }
 }
 
 interface MessageEvidence {
@@ -61,7 +98,7 @@ export default function ChatPage() {
   const [knowledgeBaseIds, setKnowledgeBaseIds] = useState<string[]>([]);
   const [draft, setDraft] = useState("");
   const [pendingQuestion, setPendingQuestion] = useState<string | null>(null);
-  const [streamingAnswer, setStreamingAnswer] = useState("");
+  const [agentRun, setAgentRun] = useState<AgentRunView | null>(null);
   const [activeRunId, setActiveRunId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadingMessages, setLoadingMessages] = useState(false);
@@ -96,6 +133,12 @@ export default function ChatPage() {
       ]);
       setMessages(nextMessages);
       setDraft(nextDraft);
+      setAgentRun(null);
+      const runId = [...nextMessages].reverse().map(messageRunId).find((value): value is string => value !== null);
+      if (runId) {
+        const events = await desktop.replayAgentRun(runId);
+        if (events.length > 0) setAgentRun(reduceAgentEvents(createAgentRunView(runId, conversationId), events));
+      }
     } catch (cause) {
       setError(errorMessage(cause, t("chatError")));
     } finally {
@@ -111,9 +154,36 @@ export default function ChatPage() {
   }, []);
 
   useEffect(() => {
+    let mounted = true;
+    let dispose: (() => void) | undefined;
+    const handleEvent = (event: Parameters<Parameters<typeof desktop.listenAgentEvents>[0]>[0]) => {
+      if (!mounted || (selectedId && event.conversation_id !== selectedId)) return;
+      setAgentRun((current) => {
+        const view = current?.runId === event.run_id && current.conversationId === event.conversation_id
+          ? current
+          : createAgentRunView(event.run_id, event.conversation_id);
+        return reduceAgentEvent(view, event);
+      });
+    };
+    void desktop.listenAgentEvents(handleEvent)
+      .then((unlisten) => {
+        if (mounted) dispose = unlisten;
+        else unlisten();
+      })
+      .catch((cause) => {
+        if (mounted) setError(errorMessage(cause, t("chatError")));
+      });
+    return () => {
+      mounted = false;
+      dispose?.();
+    };
+  }, [selectedId, t]);
+
+  useEffect(() => {
     if (!selectedId) {
       setMessages([]);
       setDraft("");
+      setAgentRun(null);
       return;
     }
     void loadConversation(selectedId);
@@ -135,6 +205,7 @@ export default function ChatPage() {
       setSelectedId(created.id);
       setMessages([]);
       setDraft("");
+      setAgentRun(null);
     } catch (cause) {
       setError(errorMessage(cause, t("chatError")));
     }
@@ -166,7 +237,7 @@ export default function ChatPage() {
 
       const runId = crypto.randomUUID();
       setPendingQuestion(question);
-      setStreamingAnswer("");
+      setAgentRun(createAgentRunView(runId, conversationId));
       setActiveRunId(runId);
       setDraft("");
 
@@ -183,24 +254,17 @@ export default function ChatPage() {
         }
       }
 
-      let receivedDelta = false;
-      const unlisten = await desktop.listenDesktopAgentDeltas((delta) => {
-        if (delta.run_id !== runId) return;
-        receivedDelta = true;
-        setStreamingAnswer((current) => current + delta.delta);
+      const response = await desktop.desktopAgentChat({
+        sessionId: conversationId,
+        message: question,
+        runId,
+        evidencePackId,
       });
-      try {
-        const response = await desktop.desktopAgentChat({
-            sessionId: conversationId,
-            message: question,
-            runId,
-            evidencePackId,
-          });
-        if (!receivedDelta && response.answer) setStreamingAnswer(response.answer);
-        await refreshConversation(conversationId);
-      } finally {
-        unlisten();
-      }
+      setAgentRun((current) => {
+        if (!current || current.runId !== runId || current.assistantText || !response.answer) return current;
+        return { ...current, assistantText: response.answer };
+      });
+      await refreshConversation(conversationId);
     } catch (cause) {
       setError(errorMessage(cause, t("chatError")));
       if (conversationId) {
@@ -208,7 +272,6 @@ export default function ChatPage() {
       }
     } finally {
       setPendingQuestion(null);
-      setStreamingAnswer("");
       setActiveRunId(null);
     }
   };
@@ -257,6 +320,13 @@ export default function ChatPage() {
             <p className="bloomery-eyebrow">{t("steelRuntime")}</p>
             <h2>{selectedConversation?.title ?? t("startSpecificQuestion")}</h2>
           </div>
+          {agentRun && agentRun.conversationId === selectedId && (
+            <div className="bloomery-chat-run-status" data-testid="agent-run-status" aria-live="polite">
+              <span className="bloomery-state-dot" />
+              <span>{agentStateLabel(agentRun.state, t)}</span>
+              {agentRun.toolCalls.length > 0 && <span>{t("agentToolCount", { count: agentRun.toolCalls.length })}</span>}
+            </div>
+          )}
           <span className="bloomery-chat-runtime"><span className="bloomery-state-dot" />{t("localAgent")}</span>
         </header>
 
@@ -298,7 +368,14 @@ export default function ChatPage() {
                   </article>
                   <article className="bloomery-chat-message is-assistant is-streaming">
                     <div className="bloomery-chat-message-meta"><Bot size={15} aria-hidden="true" /><span>Bloomery · {t("generating")}</span></div>
-                    <div className="bloomery-chat-answer ai-markdown-body"><AIAnswerRenderer answer={streamingAnswer || t("contextPreparing")} literatureResults={[]} /></div>
+                    <div className="bloomery-chat-answer ai-markdown-body"><AIAnswerRenderer answer={agentRun?.assistantText || t("contextPreparing")} literatureResults={[]} /></div>
+                    {agentRun && agentRun.toolCalls.length > 0 && (
+                      <div className="bloomery-chat-tool-trace" aria-label="Agent tools">
+                        {agentRun.toolCalls.map((tool) => (
+                          <span key={tool.toolCallId}>{t("agentToolProgress", { name: tool.name, progress: tool.progress })}</span>
+                        ))}
+                      </div>
+                    )}
                   </article>
                 </>
               )}
