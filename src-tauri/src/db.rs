@@ -1,5 +1,6 @@
 use chrono::Utc;
 use rusqlite::{params, Connection};
+use std::time::Duration;
 use std::{collections::HashSet, fs, path::PathBuf, sync::Arc, sync::Mutex};
 use tauri::Manager;
 
@@ -54,6 +55,13 @@ pub(crate) fn database_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
     Ok(directory.join("bloomery.sqlite3"))
 }
 
+fn content_root_for(database: &PathBuf) -> Result<PathBuf, String> {
+    database
+        .parent()
+        .map(std::path::Path::to_path_buf)
+        .ok_or_else(|| "resolve RAG content root failed".to_string())
+}
+
 #[tauri::command]
 pub fn db_init(
     app: tauri::AppHandle,
@@ -73,10 +81,7 @@ pub fn db_init(
     use crate::app::event_sink::TauriEventSink;
     use crate::tasks::scheduler::{Scheduler, SchedulerConfig, SystemClock};
     let sink = Arc::new(TauriEventSink::new(app.clone()));
-    let content_root = path
-        .parent()
-        .map(std::path::Path::to_path_buf)
-        .ok_or_else(|| "resolve RAG content root failed".to_string())?;
+    let content_root = content_root_for(&path)?;
     let scheduler = Scheduler::new(
         path.clone(),
         current_workspace_id().to_string(),
@@ -90,6 +95,59 @@ pub fn db_init(
         .start(scheduler)
         .map_err(|error| error.to_string())?;
     Ok(())
+}
+
+#[tauri::command]
+pub fn create_backup_archive(
+    app: tauri::AppHandle,
+    db: tauri::State<DbState>,
+    archive_path: String,
+) -> Result<crate::storage::backup::BackupSummary, String> {
+    let archive_path = PathBuf::from(archive_path.trim());
+    if archive_path.as_os_str().is_empty() {
+        return Err("backup archive path is required".to_string());
+    }
+    let database = database_path(&app)?;
+    let content_root = content_root_for(&database)?;
+    with_conn(&db, |connection| {
+        crate::storage::backup::create_backup(connection, &database, &content_root, &archive_path)
+    })
+}
+
+#[tauri::command]
+pub fn restore_backup_archive(
+    app: tauri::AppHandle,
+    db: tauri::State<DbState>,
+    scheduler_state: tauri::State<SchedulerState>,
+    archive_path: String,
+) -> Result<crate::storage::backup::BackupSummary, String> {
+    let archive_path = PathBuf::from(archive_path.trim());
+    if archive_path.as_os_str().is_empty() {
+        return Err("backup archive path is required".to_string());
+    }
+    if !scheduler_state.shutdown(Duration::from_secs(10)) {
+        return Err("background scheduler did not stop before restore".to_string());
+    }
+    let connection = {
+        let mut guard = db.conn.lock().map_err(|_| "db state poisoned")?;
+        guard.take().ok_or("database not initialized")?
+    };
+    drop(connection);
+
+    let database = database_path(&app)?;
+    let content_root = content_root_for(&database)?;
+    let result = crate::storage::backup::restore_backup(&archive_path, &database, &content_root);
+    let reinitialized = db_init(app, db, scheduler_state);
+    match (result, reinitialized) {
+        (Ok(summary), Ok(())) => Ok(summary),
+        (Err(error), Ok(())) => Err(error),
+        (Ok(_), Err(error)) => Err(format!(
+            "backup restored but database restart failed: {error}"
+        )),
+        (Err(error), Err(restart_error)) => {
+            Err(format!("{error}; database restart failed: {restart_error}"))
+        }
+    }
 }
 
 fn rag_task_handlers(database: PathBuf, content_root: PathBuf) -> Vec<Arc<dyn TaskHandler>> {

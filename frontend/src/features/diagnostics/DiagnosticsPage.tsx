@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { open, save } from "@tauri-apps/plugin-dialog";
 import {
   AlertCircle,
   Check,
@@ -9,6 +10,7 @@ import {
   RefreshCw,
   RotateCcw,
   SearchCheck,
+  Upload,
 } from "lucide-react";
 import {
   desktop,
@@ -85,6 +87,7 @@ export default function DiagnosticsPage() {
   const [loading, setLoading] = useState(true);
   const [indexError, setIndexError] = useState(false);
   const [busyTask, setBusyTask] = useState<string | null>(null);
+  const [busyBackup, setBusyBackup] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -156,6 +159,49 @@ export default function DiagnosticsPage() {
     }
   };
 
+  const createBackup = async () => {
+    setBusyBackup(true);
+    setError(null);
+    setNotice(null);
+    try {
+      const selected = await save({
+        title: t("diagnosticsBackupExport"),
+        defaultPath: "bloomery.bloomery-backup",
+        filters: [{ name: t("diagnosticsBackupFile"), extensions: ["bloomery-backup"] }],
+      });
+      if (typeof selected !== "string" || !selected.trim()) return;
+      await desktop.createBackup(selected);
+      setNotice(t("diagnosticsBackupCreated"));
+    } catch (cause) {
+      setError(errorMessage(cause, t("diagnosticsBackupExportError")));
+    } finally {
+      setBusyBackup(false);
+    }
+  };
+
+  const restoreBackup = async () => {
+    setBusyBackup(true);
+    setError(null);
+    setNotice(null);
+    try {
+      const selected = await open({
+        directory: false,
+        multiple: false,
+        title: t("diagnosticsBackupRestore"),
+        filters: [{ name: t("diagnosticsBackupFile"), extensions: ["bloomery-backup", "zip"] }],
+      });
+      if (typeof selected !== "string" || !selected.trim()) return;
+      if (!window.confirm(t("diagnosticsBackupRestoreConfirm"))) return;
+      await desktop.restoreBackup(selected);
+      await load();
+      setNotice(t("diagnosticsBackupRestored"));
+    } catch (cause) {
+      setError(errorMessage(cause, t("diagnosticsBackupRestoreError")));
+    } finally {
+      setBusyBackup(false);
+    }
+  };
+
   const failedTasks = snapshot.tasks.filter((task) =>
     Boolean(task.error_code) || task.state === "failed" || task.state === "interrupted",
   );
@@ -175,9 +221,17 @@ export default function DiagnosticsPage() {
           <button type="button" className="bloomery-icon-button" onClick={() => void load()} disabled={loading} aria-label={t("diagnosticsRefresh")} title={t("diagnosticsRefresh")}>
             <RefreshCw size={18} aria-hidden="true" />
           </button>
-          <button type="button" className="bloomery-action-secondary" onClick={() => void exportDiagnostics()} disabled={loading}>
+          <button type="button" className="bloomery-action-secondary" onClick={() => void exportDiagnostics()} disabled={loading || busyBackup}>
             <Download size={16} aria-hidden="true" />
             {t("diagnosticsExport")}
+          </button>
+          <button type="button" className="bloomery-action-secondary" onClick={() => void createBackup()} disabled={loading || busyBackup}>
+            <Download size={16} aria-hidden="true" />
+            {t("diagnosticsBackupExport")}
+          </button>
+          <button type="button" className="bloomery-action-secondary" onClick={() => void restoreBackup()} disabled={loading || busyBackup}>
+            <Upload size={16} aria-hidden="true" />
+            {t("diagnosticsBackupRestore")}
           </button>
         </div>
       </header>

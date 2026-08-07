@@ -3,6 +3,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import DiagnosticsPage from "./DiagnosticsPage";
 import { desktop, type BackgroundTask } from "../../bridge/desktop";
 
+vi.mock("@tauri-apps/plugin-dialog", () => ({
+  open: vi.fn(),
+  save: vi.fn(),
+}));
+
+import { open, save } from "@tauri-apps/plugin-dialog";
+
 vi.mock("../../i18n/locale", () => ({
   useLocale: () => ({
     t: (key: string, params?: Record<string, string | number>) =>
@@ -20,6 +27,8 @@ vi.mock("../../bridge/desktop", () => ({
     cancelBackgroundTask: vi.fn(),
     retryBackgroundTask: vi.fn(),
     exportDiagnostics: vi.fn(),
+    createBackup: vi.fn(),
+    restoreBackup: vi.fn(),
   },
 }));
 
@@ -78,6 +87,22 @@ describe("DiagnosticsPage", () => {
     vi.mocked(desktop.exportDiagnostics).mockResolvedValue({
       privacy: { contains_provider_secret: false, contains_message_content: false },
     });
+    vi.mocked(desktop.createBackup).mockResolvedValue({
+      format_version: 1,
+      archive_path: "C:\\Backups\\steel.bloomery-backup",
+      database_bytes: 1024,
+      content_file_count: 2,
+      content_bytes: 2048,
+    });
+    vi.mocked(desktop.restoreBackup).mockResolvedValue({
+      format_version: 1,
+      archive_path: "C:\\Backups\\steel.bloomery-backup",
+      database_bytes: 1024,
+      content_file_count: 2,
+      content_bytes: 2048,
+    });
+    vi.mocked(save).mockResolvedValue(null);
+    vi.mocked(open).mockResolvedValue(null);
   });
 
   it("shows database, index, and task health from local diagnostics", async () => {
@@ -106,5 +131,27 @@ describe("DiagnosticsPage", () => {
 
     await waitFor(() => expect(desktop.exportDiagnostics).toHaveBeenCalledWith(undefined));
     expect(await screen.findByText("diagnosticsExported")).toBeInTheDocument();
+  });
+
+  it("creates a local backup at the path selected by the user", async () => {
+    vi.mocked(save).mockResolvedValue("C:\\Backups\\steel.bloomery-backup");
+    render(<DiagnosticsPage />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "diagnosticsBackupExport" }));
+
+    await waitFor(() => expect(desktop.createBackup).toHaveBeenCalledWith("C:\\Backups\\steel.bloomery-backup"));
+    expect(await screen.findByText("diagnosticsBackupCreated")).toBeInTheDocument();
+  });
+
+  it("restores a selected backup only after explicit confirmation", async () => {
+    vi.mocked(open).mockResolvedValue("C:\\Backups\\steel.bloomery-backup");
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
+    render(<DiagnosticsPage />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "diagnosticsBackupRestore" }));
+
+    await waitFor(() => expect(desktop.restoreBackup).toHaveBeenCalledWith("C:\\Backups\\steel.bloomery-backup"));
+    expect(confirm).toHaveBeenCalled();
+    expect(await screen.findByText("diagnosticsBackupRestored")).toBeInTheDocument();
   });
 });

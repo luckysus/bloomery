@@ -111,7 +111,9 @@ impl McpHttpConfig {
         if let Some(token) = self.bearer_token {
             config = config.auth_header(token);
         }
-        let transport = StreamableHttpClientTransport::from_config(config);
+        let client =
+            crate::providers::http::build_mcp_client().map_err(McpError::InvalidTransport)?;
+        let transport = StreamableHttpClientTransport::with_client(client, config);
         McpClient::connect(transport, client_config).await
     }
 }

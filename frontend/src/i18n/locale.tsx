@@ -417,6 +417,14 @@ const zhCN = {
   diagnosticsTaskInterrupted: "已中断",
   diagnosticsPrivacyTitle: "诊断信息默认脱敏",
   diagnosticsPrivacyCopy: "诊断结果不包含 Provider 密钥、消息正文、记忆内容或 Provider 地址。",
+  diagnosticsBackupFile: "Bloomery 备份",
+  diagnosticsBackupExport: "导出备份",
+  diagnosticsBackupCreated: "本地备份已创建",
+  diagnosticsBackupExportError: "导出备份失败",
+  diagnosticsBackupRestore: "恢复备份",
+  diagnosticsBackupRestoreConfirm: "恢复备份会替换本地数据库、知识对象和检索索引，是否继续？",
+  diagnosticsBackupRestored: "备份已恢复",
+  diagnosticsBackupRestoreError: "恢复备份失败",
 } as const;
 
 export type MessageKey = keyof typeof zhCN;
@@ -836,6 +844,14 @@ const messages: Record<Locale, Record<MessageKey, string>> = {
     diagnosticsTaskInterrupted: "Interrupted",
     diagnosticsPrivacyTitle: "Diagnostics are redacted by default",
     diagnosticsPrivacyCopy: "Diagnostic results exclude provider keys, message bodies, memory content, and provider URLs.",
+    diagnosticsBackupFile: "Bloomery backup",
+    diagnosticsBackupExport: "Export backup",
+    diagnosticsBackupCreated: "Local backup created",
+    diagnosticsBackupExportError: "Could not export backup",
+    diagnosticsBackupRestore: "Restore backup",
+    diagnosticsBackupRestoreConfirm: "Restoring replaces the local database, knowledge objects, and retrieval indexes. Continue?",
+    diagnosticsBackupRestored: "Backup restored",
+    diagnosticsBackupRestoreError: "Could not restore backup",
   },
 };
 

@@ -31,6 +31,15 @@ pub fn build_no_redirect_client(config: &HttpClientConfig) -> Result<Client, Pro
     build_client_with_redirects(config, false)
 }
 
+pub fn build_mcp_client() -> Result<reqwest_013::Client, String> {
+    reqwest_013::Client::builder()
+        .no_proxy()
+        .pool_max_idle_per_host(0)
+        .redirect(reqwest_013::redirect::Policy::none())
+        .build()
+        .map_err(|error| format!("build MCP HTTP client failed: {error}"))
+}
+
 fn build_client_with_redirects(
     config: &HttpClientConfig,
     follow_redirects: bool,
@@ -39,7 +48,7 @@ fn build_client_with_redirects(
         .connect_timeout(config.connect_timeout)
         .timeout(config.request_timeout)
         .user_agent(USER_AGENT);
-    let mut builder = if follow_redirects {
+    let builder = if follow_redirects {
         builder.redirect(redirect::Policy::custom(|attempt| {
             let previous = attempt.previous();
             if previous.len() >= 5 || is_https_downgrade(previous.last(), attempt.url()) {
@@ -52,7 +61,7 @@ fn build_client_with_redirects(
         builder.redirect(redirect::Policy::none())
     };
 
-    if let Some(proxy_url) = config
+    let builder = if let Some(proxy_url) = config
         .proxy_url
         .as_deref()
         .map(str::trim)
@@ -65,8 +74,10 @@ fn build_client_with_redirects(
                 "invalid HTTP proxy configuration",
             )
         })?;
-        builder = builder.proxy(proxy);
-    }
+        builder.proxy(proxy)
+    } else {
+        builder.no_proxy()
+    };
 
     builder.build().map_err(|_| {
         ProviderError::new(

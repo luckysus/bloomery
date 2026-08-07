@@ -68,6 +68,8 @@ macro_rules! handler {
             crate::diagnostics::get_storage_health,
             crate::diagnostics::get_index_health,
             crate::db::export_diagnostics,
+            crate::db::create_backup_archive,
+            crate::db::restore_backup_archive,
             crate::context::build_context_packet,
             crate::app::agent_commands::replay_agent_run,
             crate::app::agent_commands::cancel_agent_run,

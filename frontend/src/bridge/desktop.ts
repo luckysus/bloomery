@@ -402,6 +402,14 @@ export interface StorageHealth {
   available_disk_bytes: number | null;
 }
 
+export interface BackupSummary {
+  format_version: number;
+  archive_path: string;
+  database_bytes: number;
+  content_file_count: number;
+  content_bytes: number;
+}
+
 export interface DocumentImportRequest {
   source_path: string;
   knowledge_base: { mode: "existing"; id: string } | { mode: "create"; name: string };
@@ -637,4 +645,8 @@ export const desktop = {
   getStorageHealth: () => call<StorageHealth>("get_storage_health"),
   exportDiagnostics: (lastErrorKind?: string) =>
     call<Record<string, unknown>>("export_diagnostics", lastErrorKind ? { lastErrorKind } : undefined),
+  createBackup: (archivePath: string) =>
+    call<BackupSummary>("create_backup_archive", { archivePath }),
+  restoreBackup: (archivePath: string) =>
+    call<BackupSummary>("restore_backup_archive", { archivePath }),
 };
