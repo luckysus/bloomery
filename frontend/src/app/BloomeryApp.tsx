@@ -3,6 +3,7 @@ import { Factory, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { desktop, isDesktopRuntime } from "../bridge/desktop";
 import LanguageSelect from "../components/common/LanguageSelect";
 import ChatPage from "../features/chat/ChatPage";
+import AnalysisPage from "../features/analysis/AnalysisPage";
 import DiagnosticsPage from "../features/diagnostics/DiagnosticsPage";
 import ExtensionsPage from "../features/extensions/ExtensionsPage";
 import KnowledgePage from "../features/knowledge/KnowledgePage";
@@ -121,6 +122,8 @@ function BloomeryAppShell() {
               />
             ) : activeSection === "chat" ? (
               <ChatPage />
+            ) : activeSection === "analysis" ? (
+              <AnalysisPage />
             ) : activeSection === "knowledge" ? (
               <KnowledgePage />
             ) : activeSection === "settings" ? (

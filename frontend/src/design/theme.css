@@ -2872,6 +2872,297 @@
   white-space: nowrap;
 }
 
+.bloomery-analysis {
+  animation: bloomery-enter 220ms ease-out both;
+}
+
+.bloomery-analysis-header {
+  align-items: flex-start;
+  border-bottom: 1px solid var(--bloomery-line);
+  display: flex;
+  justify-content: space-between;
+  padding: 0 0 28px;
+}
+
+.bloomery-analysis-header h1 {
+  font-size: 32px;
+  font-weight: 620;
+  line-height: 1.14;
+  margin: 10px 0 0;
+}
+
+.bloomery-analysis-header p:last-child {
+  color: var(--bloomery-text-soft);
+  line-height: 1.65;
+  margin: 12px 0 0;
+  max-width: 680px;
+}
+
+.bloomery-analysis-mark {
+  align-items: center;
+  background: var(--bloomery-amber-soft);
+  border: 1px solid #d2a254;
+  border-radius: var(--bloomery-radius-small);
+  color: var(--bloomery-amber);
+  display: flex;
+  flex: 0 0 auto;
+  height: 48px;
+  justify-content: center;
+  width: 48px;
+}
+
+.bloomery-analysis-grid {
+  display: grid;
+  gap: 24px;
+  grid-template-columns: minmax(0, 1.3fr) minmax(300px, 0.7fr);
+  padding-top: 24px;
+}
+
+.bloomery-analysis-tool,
+.bloomery-analysis-result {
+  border-top: 2px solid var(--bloomery-steel);
+  min-width: 0;
+  padding-top: 17px;
+}
+
+.bloomery-analysis-copy {
+  color: var(--bloomery-text-muted);
+  line-height: 1.6;
+  margin: 13px 0 20px;
+}
+
+.bloomery-analysis-source {
+  color: var(--bloomery-text-muted);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+}
+
+.bloomery-analysis-fieldset {
+  border: 0;
+  margin: 0 0 17px;
+  padding: 0;
+}
+
+.bloomery-analysis-fieldset legend,
+.bloomery-analysis-select-label {
+  color: var(--bloomery-text-soft);
+  display: block;
+  font-size: 12px;
+  font-weight: 650;
+  margin-bottom: 8px;
+}
+
+.bloomery-segmented-control {
+  display: flex;
+  gap: 6px;
+}
+
+.bloomery-segmented-control button {
+  background: var(--bloomery-bg-soft);
+  border: 1px solid var(--bloomery-line-strong);
+  border-radius: 4px;
+  color: var(--bloomery-text-muted);
+  cursor: pointer;
+  flex: 1;
+  min-height: 38px;
+  padding: 6px 10px;
+  text-align: left;
+}
+
+.bloomery-segmented-control button:hover,
+.bloomery-segmented-control button.is-selected {
+  border-color: var(--bloomery-amber);
+  color: var(--bloomery-text);
+}
+
+.bloomery-segmented-control button.is-selected {
+  background: var(--bloomery-amber-soft);
+  box-shadow: inset 3px 0 var(--bloomery-amber);
+}
+
+.bloomery-analysis-tool select {
+  background: var(--bloomery-bg);
+  border: 1px solid var(--bloomery-line-strong);
+  border-radius: 4px;
+  color: var(--bloomery-text);
+  font: inherit;
+  min-height: 38px;
+  padding: 0 10px;
+  width: 100%;
+}
+
+.bloomery-composition-grid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-top: 18px;
+}
+
+.bloomery-composition-grid label {
+  color: var(--bloomery-text-muted);
+  display: grid;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.bloomery-composition-grid input {
+  background: var(--bloomery-bg);
+  border: 1px solid var(--bloomery-line-strong);
+  border-radius: 4px;
+  color: var(--bloomery-text);
+  font: inherit;
+  min-height: 36px;
+  min-width: 0;
+  padding: 0 9px;
+}
+
+.bloomery-composition-grid input:focus,
+.bloomery-analysis-tool select:focus {
+  border-color: var(--bloomery-amber);
+  outline: 2px solid var(--bloomery-amber-soft);
+  outline-offset: 1px;
+}
+
+.bloomery-analysis-submit {
+  align-items: center;
+  background: var(--bloomery-amber);
+  border: 1px solid var(--bloomery-amber);
+  border-radius: 4px;
+  color: #1c1a15;
+  cursor: pointer;
+  display: inline-flex;
+  font-weight: 700;
+  gap: 8px;
+  margin-top: 20px;
+  min-height: 40px;
+  padding: 0 15px;
+}
+
+.bloomery-analysis-submit:hover:not(:disabled) {
+  background: #efb44b;
+}
+
+.bloomery-analysis-submit:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+.bloomery-analysis-error {
+  align-items: center;
+  color: var(--bloomery-red);
+  display: flex;
+  font-size: 12px;
+  gap: 7px;
+  margin: 14px 0 0;
+}
+
+.bloomery-analysis-success {
+  color: var(--bloomery-green);
+}
+
+.bloomery-result-body {
+  padding-top: 25px;
+}
+
+.bloomery-result-body output {
+  color: var(--bloomery-text);
+  display: block;
+  font-size: 54px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 650;
+  line-height: 1;
+}
+
+.bloomery-result-unit {
+  color: var(--bloomery-text-muted);
+  display: block;
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  margin-top: 8px;
+}
+
+.bloomery-result-body dl {
+  border-top: 1px solid var(--bloomery-line);
+  margin: 27px 0 0;
+}
+
+.bloomery-result-body dl div {
+  border-bottom: 1px solid var(--bloomery-line);
+  display: grid;
+  gap: 14px;
+  grid-template-columns: 105px minmax(0, 1fr);
+  padding: 11px 0;
+}
+
+.bloomery-result-body dt {
+  color: var(--bloomery-text-muted);
+  font-size: 11px;
+}
+
+.bloomery-result-body dd {
+  color: var(--bloomery-text-soft);
+  font-size: 12px;
+  line-height: 1.5;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.bloomery-analysis-note {
+  background: var(--bloomery-bg-soft);
+  border-left: 3px solid var(--bloomery-amber);
+  color: var(--bloomery-text-muted);
+  font-size: 12px;
+  line-height: 1.65;
+  margin: 22px 0 0;
+  padding: 12px 13px;
+}
+
+.bloomery-analysis-note strong {
+  color: var(--bloomery-text-soft);
+  display: block;
+  margin-bottom: 4px;
+}
+
+.bloomery-result-empty {
+  align-items: center;
+  border: 1px dashed var(--bloomery-line-strong);
+  color: var(--bloomery-text-muted);
+  display: flex;
+  gap: 10px;
+  margin-top: 22px;
+  min-height: 150px;
+  padding: 18px;
+}
+
+@media (max-width: 860px) {
+  .bloomery-analysis-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 520px) {
+  .bloomery-analysis-header {
+    gap: 16px;
+  }
+
+  .bloomery-analysis-mark {
+    display: none;
+  }
+
+  .bloomery-analysis-header h1 {
+    font-size: 26px;
+  }
+
+  .bloomery-result-body output {
+    font-size: 44px;
+  }
+
+  .bloomery-composition-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 @media (max-width: 680px) {
   .bloomery-extension-item {
     flex-direction: column;

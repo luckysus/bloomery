@@ -77,6 +77,7 @@ macro_rules! handler {
             crate::app::desktop_chat_commands::desktop_agent_chat,
             crate::app::desktop_ask_commands::desktop_llm_ask,
             crate::app::desktop_summary_commands::desktop_summarize_conversation,
+            crate::app::steel_commands::calculate_steel_carbon_equivalent,
         ]
     };
 }

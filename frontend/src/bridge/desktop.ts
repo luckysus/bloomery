@@ -79,6 +79,18 @@ export interface LocalAgentChatResponse {
   };
 }
 
+export type CarbonEquivalentFormula = "iiw" | "pcm";
+export type CompositionUnit = "percent_mass" | "mass_fraction";
+
+export interface CarbonEquivalentResult {
+  formula_id: string;
+  expression: string;
+  normalized_inputs: Record<string, number>;
+  value: number;
+  unit: CompositionUnit;
+  applicability_note: string;
+}
+
 export function isDesktopRuntime() {
   return "__TAURI_INTERNALS__" in window;
 }
@@ -418,6 +430,11 @@ export const desktop = {
   retryAgentRun: (sourceRunId: string, runId: string, eventId?: string) =>
     call<RunWithEvent>("retry_agent_run", { sourceRunId, runId, eventId }),
   recoverAgentRuns: () => call<RecoveredRun[]>("recover_agent_runs"),
+  calculateSteelCarbonEquivalent: (request: {
+    formula: CarbonEquivalentFormula;
+    unit: CompositionUnit;
+    composition: Record<string, number>;
+  }) => call<CarbonEquivalentResult>("calculate_steel_carbon_equivalent", { request }),
   listProviderProfiles: () => call<ProviderProfileResponse[]>("list_provider_profiles"),
   saveProviderProfile: (profile: ProviderProfileInput) =>
     call<ProviderProfileResponse>("save_provider_profile", { profile }),
