@@ -384,6 +384,12 @@
   min-height: 38px;
 }
 
+.bloomery-section-heading-actions {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+}
+
 .bloomery-section-heading .bloomery-eyebrow {
   margin-bottom: 5px;
 }
@@ -447,6 +453,11 @@
   color: var(--bloomery-text-muted);
 }
 
+.bloomery-status-icon.is-pending {
+  background: var(--bloomery-amber-soft);
+  color: var(--bloomery-amber);
+}
+
 .bloomery-status-label {
   color: var(--bloomery-text-soft);
   flex: 1;
@@ -459,8 +470,92 @@
 }
 
 .bloomery-status-check {
-  color: var(--bloomery-green);
   margin-left: 10px;
+}
+
+.bloomery-status-check.is-good {
+  color: var(--bloomery-green);
+}
+
+.bloomery-status-check.is-pending {
+  color: var(--bloomery-amber);
+}
+
+.bloomery-workbench-alert {
+  align-items: center;
+  background: var(--bloomery-amber-soft);
+  border: 1px solid #d2a254;
+  color: var(--bloomery-text-soft);
+  display: flex;
+  gap: 9px;
+  margin: 0 0 2px;
+  padding: 11px 13px;
+}
+
+.bloomery-workbench-alert svg {
+  color: var(--bloomery-amber);
+  flex: 0 0 auto;
+}
+
+.bloomery-workbench-loading {
+  align-items: center;
+  border: 1px dashed var(--bloomery-line-strong);
+  color: var(--bloomery-text-muted);
+  display: flex;
+  gap: 9px;
+  margin-top: 20px;
+  min-height: 86px;
+  padding: 18px;
+}
+
+.bloomery-recent-list {
+  display: grid;
+  gap: 22px;
+  margin-top: 20px;
+}
+
+.bloomery-recent-group {
+  border-bottom: 1px solid var(--bloomery-line);
+}
+
+.bloomery-recent-group-title {
+  color: var(--bloomery-text-muted);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  margin: 0 0 8px;
+  text-transform: uppercase;
+}
+
+.bloomery-recent-row {
+  align-items: center;
+  border-top: 1px solid var(--bloomery-line);
+  color: var(--bloomery-text-soft);
+  display: flex;
+  gap: 10px;
+  min-height: 48px;
+  padding: 0 4px;
+}
+
+.bloomery-recent-row > svg {
+  color: var(--bloomery-steel);
+  flex: 0 0 auto;
+}
+
+.bloomery-recent-row strong {
+  color: var(--bloomery-text);
+  flex: 1;
+  font-size: 13px;
+  font-weight: 600;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bloomery-recent-row span {
+  color: var(--bloomery-text-muted);
+  font-size: 12px;
+  white-space: nowrap;
 }
 
 .bloomery-empty-state {
@@ -3021,6 +3116,23 @@
   vertical-align: top;
 }
 
+.bloomery-dataset-table input {
+  background: var(--bloomery-bg);
+  border: 1px solid var(--bloomery-line-strong);
+  border-radius: 3px;
+  color: var(--bloomery-text);
+  font: inherit;
+  min-height: 30px;
+  min-width: 110px;
+  padding: 0 7px;
+}
+
+.bloomery-dataset-table input:focus {
+  border-color: var(--bloomery-amber);
+  outline: 2px solid var(--bloomery-amber-soft);
+  outline-offset: 1px;
+}
+
 .bloomery-dataset-table th {
   white-space: nowrap;
 }
@@ -3203,6 +3315,237 @@
   font-size: 12px;
   gap: 7px;
   margin: 14px 0 0;
+}
+
+.bloomery-dataset-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 18px;
+}
+
+.bloomery-dataset-catalog {
+  border-top: 1px solid var(--bloomery-line);
+  margin-top: 28px;
+  padding-top: 20px;
+}
+
+.bloomery-dataset-catalog-heading {
+  align-items: baseline;
+  display: flex;
+  justify-content: space-between;
+}
+
+.bloomery-dataset-catalog-heading strong {
+  color: var(--bloomery-text);
+  font-size: 13px;
+}
+
+.bloomery-dataset-catalog-heading span,
+.bloomery-dataset-catalog-empty,
+.bloomery-dataset-catalog-row span {
+  color: var(--bloomery-text-muted);
+  font-size: 12px;
+}
+
+.bloomery-dataset-catalog-empty {
+  border: 1px dashed var(--bloomery-line-strong);
+  margin: 12px 0 0;
+  padding: 14px;
+}
+
+.bloomery-dataset-catalog-list {
+  border-bottom: 1px solid var(--bloomery-line);
+  margin-top: 12px;
+}
+
+.bloomery-dataset-catalog-row {
+  align-items: center;
+  border-top: 1px solid var(--bloomery-line);
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  min-height: 44px;
+  padding: 0 4px;
+}
+
+.bloomery-dataset-catalog-row > div {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.bloomery-dataset-analysis-controls {
+  align-items: center;
+  display: flex !important;
+  flex: 1 1 auto;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  justify-content: flex-end;
+}
+
+.bloomery-dataset-analysis-controls > label,
+.bloomery-dataset-analysis-controls fieldset {
+  align-items: center;
+  display: flex;
+  gap: 7px;
+  margin: 0;
+}
+
+.bloomery-dataset-analysis-controls > label > span,
+.bloomery-dataset-analysis-controls legend {
+  color: var(--bloomery-text-muted);
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.bloomery-dataset-analysis-controls select {
+  background: var(--bloomery-bg);
+  border: 1px solid var(--bloomery-line-strong);
+  border-radius: 3px;
+  color: var(--bloomery-text-soft);
+  font: inherit;
+  font-size: 11px;
+  min-height: 30px;
+  min-width: 120px;
+  padding: 0 7px;
+}
+
+.bloomery-dataset-analysis-controls fieldset {
+  border: 0;
+  padding: 0;
+}
+
+.bloomery-dataset-correlation-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+}
+
+.bloomery-dataset-correlation-options label {
+  align-items: center;
+  color: var(--bloomery-text-soft);
+  display: inline-flex;
+  font-size: 11px;
+  gap: 4px;
+}
+
+.bloomery-dataset-analyze {
+  align-items: center;
+  background: transparent;
+  border: 1px solid var(--bloomery-line-strong);
+  border-radius: 4px;
+  color: var(--bloomery-text-soft);
+  cursor: pointer;
+  display: inline-flex;
+  flex: 0 0 auto;
+  font: inherit;
+  font-size: 11px;
+  gap: 6px;
+  min-height: 32px;
+  padding: 0 9px;
+}
+
+.bloomery-dataset-analyze:hover:not(:disabled) {
+  border-color: var(--bloomery-amber);
+  color: var(--bloomery-text);
+}
+
+.bloomery-dataset-analyze:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+.bloomery-dataset-analysis {
+  border-top: 1px solid var(--bloomery-line);
+  margin-top: 24px;
+  padding-top: 20px;
+}
+
+.bloomery-dataset-analysis h3 {
+  color: var(--bloomery-text);
+  font-size: 16px;
+  margin: 0;
+}
+
+.bloomery-dataset-analysis-summary {
+  display: flex;
+  gap: 30px;
+  margin: 16px 0 0;
+}
+
+.bloomery-dataset-analysis-summary > div {
+  display: grid;
+  gap: 4px;
+}
+
+.bloomery-dataset-analysis-summary span,
+.bloomery-dataset-top-values > span {
+  color: var(--bloomery-text-muted);
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.bloomery-dataset-analysis-summary strong {
+  color: var(--bloomery-text);
+  font-size: 18px;
+  font-variant-numeric: tabular-nums;
+}
+
+.bloomery-dataset-analysis-table {
+  min-width: 920px;
+}
+
+.bloomery-dataset-analysis-table td {
+  font-variant-numeric: tabular-nums;
+}
+
+.bloomery-dataset-analysis-table td:first-child {
+  font-variant-numeric: normal;
+}
+
+.bloomery-dataset-analysis-table td small {
+  color: var(--bloomery-text-muted);
+  display: block;
+  font-size: 10px;
+  margin-top: 3px;
+}
+
+.bloomery-dataset-top-values {
+  border-top: 1px solid var(--bloomery-line);
+  margin-top: 16px;
+  padding-top: 12px;
+}
+
+.bloomery-dataset-top-values p {
+  color: var(--bloomery-text-soft);
+  font-size: 12px;
+  margin: 8px 0 0;
+}
+
+.bloomery-dataset-group-summary,
+.bloomery-dataset-correlations {
+  border-top: 1px solid var(--bloomery-line);
+  margin-top: 16px;
+  padding-top: 12px;
+}
+
+.bloomery-dataset-subheading {
+  color: var(--bloomery-text-muted);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.bloomery-dataset-catalog-row strong {
+  color: var(--bloomery-text-soft);
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .bloomery-analysis-success {

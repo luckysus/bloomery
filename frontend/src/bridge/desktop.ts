@@ -115,6 +115,105 @@ export interface DatasetPreview {
   warnings: string[];
 }
 
+export interface DatasetColumnMapping {
+  ordinal: number;
+  canonicalField?: string | null;
+  unit?: string | null;
+}
+
+export interface SteelDatasetColumnRecord {
+  ordinal: number;
+  originalName: string;
+  duplicate: boolean;
+  inferredType: "number" | "text" | "date";
+  canonicalField: string | null;
+  unit: string | null;
+  nonEmptyCount: number;
+  missingCount: number;
+  invalidCount: number;
+  min: number | null;
+  max: number | null;
+}
+
+export interface SteelDatasetRecord {
+  id: string;
+  sourceName: string;
+  sourcePath: string;
+  sourceSha256: string;
+  format: string;
+  selectedSheet: string;
+  rowCount: number;
+  columnCount: number;
+  truncated: boolean;
+  mappingState: "draft" | "ready";
+  preview: DatasetPreview;
+  columns: SteelDatasetColumnRecord[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface DatasetValueFrequency {
+  value: string;
+  count: number;
+}
+
+export interface DatasetColumnAnalysis {
+  ordinal: number;
+  name: string;
+  canonicalField: string | null;
+  unit: string | null;
+  inferredType: "number" | "text";
+  sampleCount: number;
+  missingCount: number;
+  invalidCount: number;
+  missingRate: number;
+  distinctCount: number;
+  mean: number | null;
+  standardDeviation: number | null;
+  min: number | null;
+  percentile25: number | null;
+  median: number | null;
+  percentile75: number | null;
+  max: number | null;
+  outlierCount: number;
+  outlierRows: number[];
+  topValues: DatasetValueFrequency[];
+}
+
+export interface DatasetGroupColumnSummary {
+  ordinal: number;
+  sampleCount: number;
+  mean: number | null;
+  min: number | null;
+  max: number | null;
+}
+
+export interface DatasetGroupSummary {
+  key: string;
+  rowCount: number;
+  columns: DatasetGroupColumnSummary[];
+}
+
+export interface DatasetCorrelation {
+  leftOrdinal: number;
+  rightOrdinal: number;
+  sampleCount: number;
+  pearson: number | null;
+}
+
+export interface DatasetAnalysis {
+  datasetId: string | null;
+  sourceSha256: string | null;
+  selectedSheet: string | null;
+  rowCount: number;
+  analyzedRowCount: number;
+  excludedRowCount: number;
+  columns: DatasetColumnAnalysis[];
+  groups: DatasetGroupSummary[];
+  correlations: DatasetCorrelation[];
+  warnings: string[];
+}
+
 export function isDesktopRuntime() {
   return "__TAURI_INTERNALS__" in window;
 }
@@ -461,6 +560,19 @@ export const desktop = {
   }) => call<CarbonEquivalentResult>("calculate_steel_carbon_equivalent", { request }),
   previewSteelDataset: (request: { sourcePath: string; sheet?: string }) =>
     call<DatasetPreview>("preview_steel_dataset", { request }),
+  listSteelDatasets: () => call<SteelDatasetRecord[]>("list_steel_datasets"),
+  saveSteelDataset: (request: {
+    sourcePath: string;
+    sheet?: string;
+    mappings?: DatasetColumnMapping[];
+  }) => call<SteelDatasetRecord>("save_steel_dataset", { request }),
+  analyzeSteelDataset: (request: {
+    datasetId: string;
+    selectedColumns?: number[];
+    outlierIqrMultiplier?: number;
+    groupByColumn?: number;
+    correlationColumns?: number[];
+  }) => call<DatasetAnalysis>("analyze_steel_dataset", { request }),
   listProviderProfiles: () => call<ProviderProfileResponse[]>("list_provider_profiles"),
   saveProviderProfile: (profile: ProviderProfileInput) =>
     call<ProviderProfileResponse>("save_provider_profile", { profile }),

@@ -300,6 +300,8 @@ fn version_twelve_database_receives_summary_source_backfill() {
           (id, workspace_id, conversation_id, summary, covered_message_id,
            source_message_ids_json, created_at, updated_at)
           VALUES ('s-v12', 'local', 'c-v12', 'summary', 'm-v12-1', '[]', 't2', 't2');
+        DROP TABLE steel_dataset_columns;
+        DROP TABLE steel_datasets;
         DELETE FROM schema_migrations WHERE version > 12;
         PRAGMA user_version = 12;
         "#,
@@ -308,7 +310,7 @@ fn version_twelve_database_receives_summary_source_backfill() {
 
     let report = migrate(&mut conn).expect("apply post-v12 migrations");
 
-    assert_eq!(report.applied_versions, vec![13, 14, 15]);
+    assert_eq!(report.applied_versions, vec![13, 14, 15, 16]);
     assert_eq!(
         conn.query_row(
             "SELECT source_message_ids_json FROM conversation_summaries WHERE id = 's-v12'",
@@ -338,7 +340,7 @@ fn file_database_uses_wal_and_ordered_migrations() {
     assert_eq!(version, latest_version());
     assert_eq!(
         report.applied_versions,
-        vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
+        vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]
     );
 }
 #[test]

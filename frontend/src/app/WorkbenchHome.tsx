@@ -1,29 +1,83 @@
 import {
+  AlertCircle,
   ArrowUpRight,
   BookOpen,
+  CircleAlert,
   CircleCheck,
   Clock3,
   Database,
   FileUp,
+  LoaderCircle,
+  MessageSquare,
   MessageSquarePlus,
+  RefreshCw,
   Server,
 } from "lucide-react";
 import { useLocale, type MessageKey } from "../i18n/locale";
+import { desktop, type BackgroundTask, type Conversation } from "../bridge/desktop";
+import { useWorkbenchOverview } from "../features/workbench/useWorkbenchOverview";
 
 interface WorkbenchHomeProps {
   initializationState: "loading" | "ready" | "failed";
   onOpenSection: (section: "chat" | "knowledge" | "analysis") => void;
 }
 
-const statusRows = [
-  { labelKey: "localRuntime", valueKey: "started", icon: Server, tone: "good" },
-  { labelKey: "knowledgeBase", valueKey: "notCreated", icon: BookOpen, tone: "neutral" },
-  { labelKey: "backgroundTasks", valueKey: "noActiveTasks", icon: Clock3, tone: "neutral" },
-] as const;
+function isActiveTask(task: BackgroundTask) {
+  return task.state === "queued" || task.state === "running" || task.state === "waiting_external" || task.state === "paused";
+}
+
+function taskLabel(task: BackgroundTask, t: (key: MessageKey) => string) {
+  if (task.kind === "mineru_parse") return t("taskLiteratureParse");
+  if (task.kind === "rag_index_rebuild") return t("taskIndexRebuild");
+  return t("taskBackground");
+}
+
+function taskStateLabel(task: BackgroundTask, t: (key: MessageKey) => string) {
+  if (task.state === "queued") return t("taskQueued");
+  if (task.state === "running" || task.state === "waiting_external") return t("taskProcessing");
+  if (task.state === "failed") return t("taskFailed");
+  if (task.state === "cancelled") return t("taskCancelled");
+  if (task.state === "interrupted") return t("taskInterrupted");
+  return t("taskPaused");
+}
+
+function recentConversations(items: Conversation[]) {
+  return items
+    .filter((conversation) => !conversation.archived)
+    .sort((left, right) => right.updated_at.localeCompare(left.updated_at))
+    .slice(0, 5);
+}
 
 export default function WorkbenchHome({ initializationState, onOpenSection }: WorkbenchHomeProps) {
   const ready = initializationState === "ready";
   const { t } = useLocale();
+  const overview = useWorkbenchOverview(ready);
+  const conversations = recentConversations(overview.conversations);
+  const activeTasks = overview.backgroundTasks.filter(isActiveTask).slice(0, 5);
+  const health = overview.health;
+  const knowledgeFailed = overview.failedSources.includes("knowledgeBases") || overview.failedSources.includes("knowledgeHealth");
+  const tasksFailed = overview.failedSources.includes("backgroundTasks") || overview.failedSources.includes("knowledgeHealth");
+  const knowledgeStatus = overview.loading
+    ? t("loading")
+    : knowledgeFailed
+      ? t("runtimeCheck")
+      : health && health.knowledge_base_count > 0
+        ? t("workbenchKnowledgeCount", { count: health.knowledge_base_count })
+        : t("notCreated");
+  const activeTaskCount = health?.active_task_count ?? activeTasks.length;
+  const taskStatus = overview.loading
+    ? t("loading")
+    : tasksFailed
+      ? t("runtimeCheck")
+      : activeTaskCount > 0
+        ? t("workbenchActiveTaskCount", { count: activeTaskCount })
+        : t("noActiveTasks");
+
+  const statusRows = [
+    { labelKey: "localRuntime", value: t("started"), icon: Server, tone: "good", testId: undefined },
+    { labelKey: "knowledgeBase", value: knowledgeStatus, icon: BookOpen, tone: knowledgeFailed ? "pending" : health?.knowledge_base_count ? "good" : "neutral", testId: "workbench-knowledge-status" },
+    { labelKey: "backgroundTasks", value: taskStatus, icon: Clock3, tone: tasksFailed ? "pending" : activeTaskCount ? "good" : "neutral", testId: "workbench-task-status" },
+  ] as const;
 
   return (
     <div className="bloomery-workbench" data-testid="workbench-home">
@@ -56,48 +110,86 @@ export default function WorkbenchHome({ initializationState, onOpenSection }: Wo
         </button>
       </section>
 
-      <section className="bloomery-status-section" aria-labelledby="status-heading">
+      {overview.failedSources.length > 0 && (
+        <div className="bloomery-workbench-alert" role="alert">
+          <AlertCircle size={17} aria-hidden="true" />
+          <span>{t("workbenchLoadError")}</span>
+        </div>
+      )}
+
+      <section className="bloomery-status-section" aria-labelledby="status-heading" aria-busy={overview.loading}>
         <div className="bloomery-section-heading">
           <div>
             <p className="bloomery-eyebrow">RUNTIME STATUS</p>
             <h2 id="status-heading">{t("runtimeStatus")}</h2>
           </div>
-          <span className={`bloomery-state-badge ${ready ? "is-good" : "is-pending"}`}>
-            <span className="bloomery-state-dot" aria-hidden="true" />
-            {ready ? t("runtimeReady") : initializationState === "failed" ? t("runtimeCheck") : t("runtimeInitializing")}
-          </span>
+          <div className="bloomery-section-heading-actions">
+            <button type="button" className="bloomery-icon-button" onClick={overview.refresh} disabled={overview.loading || !ready} aria-label={t("refreshWorkbench")} title={t("refreshWorkbench")}>
+              <RefreshCw size={17} aria-hidden="true" className={overview.loading ? "bloomery-spin" : undefined} />
+            </button>
+            <span className={`bloomery-state-badge ${ready && !overview.failedSources.length ? "is-good" : "is-pending"}`}>
+              <span className="bloomery-state-dot" aria-hidden="true" />
+              {ready ? (overview.loading ? t("loading") : overview.failedSources.length ? t("runtimeCheck") : t("runtimeReady")) : initializationState === "failed" ? t("runtimeCheck") : t("runtimeInitializing")}
+            </span>
+          </div>
         </div>
         <div className="bloomery-status-list">
-          {statusRows.map(({ labelKey, valueKey, icon: Icon, tone }) => (
-            <div className="bloomery-status-row" key={labelKey}>
-              <span className={`bloomery-status-icon is-${tone}`} aria-hidden="true">
-                <Icon size={16} />
-              </span>
-              <span className="bloomery-status-label">{t(labelKey as MessageKey)}</span>
-              <span className="bloomery-status-value">{t(valueKey as MessageKey)}</span>
-              <CircleCheck className="bloomery-status-check" size={16} aria-hidden="true" />
-            </div>
-          ))}
+          {statusRows.map(({ labelKey, value, icon: Icon, tone, testId }) => {
+            const StatusIcon = tone === "good" ? CircleCheck : CircleAlert;
+            return (
+              <div className="bloomery-status-row" key={labelKey}>
+                <span className={`bloomery-status-icon is-${tone}`} aria-hidden="true"><Icon size={16} /></span>
+                <span className="bloomery-status-label">{t(labelKey as MessageKey)}</span>
+                <span className="bloomery-status-value" data-testid={testId}>{value}</span>
+                <StatusIcon className={`bloomery-status-check ${tone === "good" ? "is-good" : "is-pending"}`} size={16} aria-hidden="true" />
+              </div>
+            );
+          })}
         </div>
       </section>
 
-      <section className="bloomery-empty-section" aria-labelledby="recent-heading">
+      <section className="bloomery-empty-section" aria-labelledby="recent-heading" aria-busy={overview.loading}>
         <div className="bloomery-section-heading">
           <div>
             <p className="bloomery-eyebrow">RECENT WORK</p>
             <h2 id="recent-heading">{t("recentWork")}</h2>
           </div>
-          <span className="bloomery-muted-label">{t("records", { count: 0 })}</span>
+          <span className="bloomery-muted-label" data-testid="workbench-record-count">{t("records", { count: conversations.length })}</span>
         </div>
-        <div className="bloomery-empty-state">
-          <div className="bloomery-empty-icon" aria-hidden="true">
-            <BookOpen size={22} />
+        {overview.loading ? (
+          <div className="bloomery-workbench-loading" role="status"><LoaderCircle size={18} className="bloomery-spin" />{t("loading")}</div>
+        ) : conversations.length === 0 && activeTasks.length === 0 ? (
+          <div className="bloomery-empty-state">
+            <div className="bloomery-empty-icon" aria-hidden="true"><BookOpen size={22} /></div>
+            <div><strong>{t("noRecords")}</strong><p>{t("workbenchEmptyCopy")}</p></div>
           </div>
-          <div>
-            <strong>{t("noRecords")}</strong>
-            <p>{t("workbenchEmptyCopy")}</p>
+        ) : (
+          <div className="bloomery-recent-list">
+            {conversations.length > 0 && (
+              <div className="bloomery-recent-group">
+                <p className="bloomery-recent-group-title">{t("workbenchRecentConversations")}</p>
+                {conversations.map((conversation) => (
+                  <div className="bloomery-recent-row" key={conversation.id}>
+                    <MessageSquare size={17} aria-hidden="true" />
+                    <strong>{conversation.title || t("newConversation")}</strong>
+                  </div>
+                ))}
+              </div>
+            )}
+            {activeTasks.length > 0 && (
+              <div className="bloomery-recent-group">
+                <p className="bloomery-recent-group-title">{t("workbenchRecentTasks")}</p>
+                {activeTasks.map((task) => (
+                  <div className="bloomery-recent-row" key={task.id}>
+                    <Clock3 size={17} aria-hidden="true" />
+                    <strong>{taskLabel(task, (key) => t(key))}</strong>
+                    <span>{taskStateLabel(task, (key) => t(key))} · {t("workbenchTaskProgress", { progress: task.progress })}</span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
-        </div>
+        )}
       </section>
     </div>
   );

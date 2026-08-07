@@ -79,6 +79,9 @@ macro_rules! handler {
             crate::app::desktop_summary_commands::desktop_summarize_conversation,
             crate::app::steel_commands::calculate_steel_carbon_equivalent,
             crate::app::steel_commands::preview_steel_dataset,
+            crate::app::steel_commands::list_steel_datasets,
+            crate::app::steel_commands::save_steel_dataset,
+            crate::app::steel_commands::analyze_steel_dataset,
         ]
     };
 }

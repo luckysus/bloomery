@@ -74,6 +74,10 @@ const MIGRATIONS: &[Migration] = &[
         version: 15,
         sql: include_str!("migrations/0015_domain_packages.sql"),
     },
+    Migration {
+        version: 16,
+        sql: include_str!("migrations/0016_steel_datasets.sql"),
+    },
 ];
 
 pub fn latest_version() -> u32 {

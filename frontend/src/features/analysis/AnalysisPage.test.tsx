@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import AnalysisPage from "./AnalysisPage";
-import { desktop } from "../../bridge/desktop";
+import { desktop, type DatasetPreview } from "../../bridge/desktop";
 import { open } from "@tauri-apps/plugin-dialog";
 
 vi.mock("@tauri-apps/plugin-dialog", () => ({ open: vi.fn() }));
@@ -10,6 +10,9 @@ vi.mock("../../bridge/desktop", () => ({
   desktop: {
     calculateSteelCarbonEquivalent: vi.fn(),
     previewSteelDataset: vi.fn(),
+    listSteelDatasets: vi.fn(),
+    saveSteelDataset: vi.fn(),
+    analyzeSteelDataset: vi.fn(),
   },
 }));
 
@@ -17,6 +20,7 @@ describe("AnalysisPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(open).mockResolvedValue(null);
+    vi.mocked(desktop.listSteelDatasets).mockResolvedValue([]);
     vi.mocked(desktop.calculateSteelCarbonEquivalent).mockResolvedValue({
       formula_id: "carbon-equivalent.iiw.v1",
       expression: "C + Mn/6 + (Cr + Mo + V)/5 + (Ni + Cu)/15",
@@ -64,5 +68,182 @@ describe("AnalysisPage", () => {
     expect(await screen.findByText("heats.csv")).toBeInTheDocument();
     expect(screen.getByText("yield_strength")).toBeInTheDocument();
     expect(screen.getByText("355 - 355")).toBeInTheDocument();
+  });
+
+  it("saves an explicit dataset selection and keeps it in the local catalog", async () => {
+    vi.mocked(open).mockResolvedValue("F:\\data\\heats.csv");
+    const preview: DatasetPreview = {
+      sourceName: "heats.csv",
+      format: "csv",
+      sheets: ["CSV"],
+      selectedSheet: "CSV",
+      rowCount: 2,
+      columnCount: 2,
+      truncated: false,
+      columns: [
+        { name: "heat_id", duplicate: false, inferredType: "text" as const, nonEmptyCount: 2, missingCount: 0, invalidCount: 0, min: null, max: null },
+        { name: "yield_strength", duplicate: false, inferredType: "number" as const, nonEmptyCount: 2, missingCount: 0, invalidCount: 0, min: 355, max: 360 },
+      ],
+      sampleRows: [["H-01", "355"]],
+      warnings: [],
+    };
+    vi.mocked(desktop.previewSteelDataset).mockResolvedValue(preview);
+    vi.mocked(desktop.saveSteelDataset).mockResolvedValue({
+      id: "dataset-1",
+      sourceName: "heats.csv",
+      sourcePath: "F:\\data\\heats.csv",
+      sourceSha256: "hash",
+      format: "csv",
+      selectedSheet: "CSV",
+      rowCount: 2,
+      columnCount: 2,
+      truncated: false,
+      mappingState: "draft",
+      preview,
+      columns: [],
+      createdAt: "2026-08-07T10:00:00Z",
+      updatedAt: "2026-08-07T10:00:00Z",
+    });
+
+    render(<AnalysisPage />);
+    fireEvent.click(screen.getByRole("button", { name: "选择数据文件" }));
+    await screen.findByText("heats.csv");
+    fireEvent.click(screen.getByRole("button", { name: "保存数据集" }));
+
+    await waitFor(() => expect(desktop.saveSteelDataset).toHaveBeenCalledWith({
+      sourcePath: "F:\\data\\heats.csv",
+      sheet: "CSV",
+      mappings: [],
+    }));
+    expect(await screen.findByText("数据集已保存")).toBeInTheDocument();
+  });
+
+  it("analyzes a saved dataset and shows traceable statistics", async () => {
+    vi.mocked(desktop.listSteelDatasets).mockResolvedValue([
+      {
+        id: "dataset-1",
+        sourceName: "heats.csv",
+        sourcePath: "F:\\data\\heats.csv",
+        sourceSha256: "hash",
+        format: "csv",
+        selectedSheet: "CSV",
+        rowCount: 5,
+        columnCount: 2,
+        truncated: false,
+        mappingState: "draft",
+        preview: {
+          sourceName: "heats.csv",
+          format: "csv",
+          sheets: ["CSV"],
+          selectedSheet: "CSV",
+          rowCount: 5,
+          columnCount: 2,
+          truncated: false,
+          columns: [
+            { name: "heat_id", duplicate: false, inferredType: "text", nonEmptyCount: 5, missingCount: 0, invalidCount: 0, min: null, max: null },
+            { name: "temperature", duplicate: false, inferredType: "number", nonEmptyCount: 5, missingCount: 0, invalidCount: 0, min: 10, max: 100 },
+          ],
+          sampleRows: [],
+          warnings: [],
+        },
+        columns: [
+          { ordinal: 0, originalName: "heat_id", duplicate: false, inferredType: "text", canonicalField: "heat_id", unit: null, nonEmptyCount: 5, missingCount: 0, invalidCount: 0, min: null, max: null },
+          { ordinal: 1, originalName: "temperature", duplicate: false, inferredType: "number", canonicalField: "temperature", unit: "C", nonEmptyCount: 5, missingCount: 0, invalidCount: 0, min: 10, max: 100 },
+        ],
+        createdAt: "2026-08-07T10:00:00Z",
+        updatedAt: "2026-08-07T10:00:00Z",
+      },
+    ]);
+    vi.mocked(desktop.analyzeSteelDataset).mockResolvedValue({
+      datasetId: "dataset-1",
+      sourceSha256: "hash",
+      selectedSheet: "CSV",
+      rowCount: 5,
+      analyzedRowCount: 5,
+      excludedRowCount: 0,
+      columns: [
+        {
+          ordinal: 1,
+          name: "temperature",
+          canonicalField: "temperature",
+          unit: "C",
+          inferredType: "number",
+          sampleCount: 5,
+          missingCount: 0,
+          invalidCount: 0,
+          missingRate: 0,
+          distinctCount: 5,
+          mean: 29.2,
+          standardDeviation: 35.6,
+          min: 10,
+          percentile25: 11,
+          median: 12,
+          percentile75: 13,
+          max: 100,
+          outlierCount: 1,
+          outlierRows: [6],
+          topValues: [],
+        },
+      ],
+      groups: [
+        { key: "Q355B", rowCount: 5, columns: [{ ordinal: 1, sampleCount: 5, mean: 29.2, min: 10, max: 100 }] },
+      ],
+      correlations: [],
+      warnings: [],
+    });
+
+    render(<AnalysisPage />);
+    await screen.findByText("heats.csv");
+    fireEvent.change(screen.getByTestId("dataset-group-by-dataset-1"), { target: { value: "0" } });
+    fireEvent.click(screen.getByTestId("analyze-dataset-dataset-1"));
+
+    await waitFor(() => expect(desktop.analyzeSteelDataset).toHaveBeenCalledWith({
+      datasetId: "dataset-1",
+      groupByColumn: 0,
+    }));
+    expect(await screen.findByTestId("dataset-analysis-result")).toBeInTheDocument();
+    expect(screen.getByText("29.2")).toBeInTheDocument();
+    expect(screen.getByText("6")).toBeInTheDocument();
+    expect(screen.getByText("Q355B")).toBeInTheDocument();
+  });
+
+  it("persists non-empty canonical field mappings with the dataset", async () => {
+    vi.mocked(open).mockResolvedValue("F:\\data\\heats.csv");
+    const preview: DatasetPreview = {
+      sourceName: "heats.csv",
+      format: "csv",
+      sheets: ["CSV"],
+      selectedSheet: "CSV",
+      rowCount: 1,
+      columnCount: 2,
+      truncated: false,
+      columns: [
+        { name: "heat_id", duplicate: false, inferredType: "text", nonEmptyCount: 1, missingCount: 0, invalidCount: 0, min: null, max: null },
+        { name: "yield_strength", duplicate: false, inferredType: "number", nonEmptyCount: 1, missingCount: 0, invalidCount: 0, min: 355, max: 355 },
+      ],
+      sampleRows: [["H-01", "355"]],
+      warnings: [],
+    };
+    vi.mocked(desktop.previewSteelDataset).mockResolvedValue(preview);
+    vi.mocked(desktop.saveSteelDataset).mockResolvedValue({
+      id: "dataset-1",
+      sourceName: preview.sourceName,
+      selectedSheet: preview.selectedSheet,
+      rowCount: preview.rowCount,
+      preview,
+    } as never);
+
+    render(<AnalysisPage />);
+    fireEvent.click(screen.getByRole("button", { name: "选择数据文件" }));
+    await screen.findByText("heats.csv");
+    fireEvent.change(screen.getByTestId("dataset-mapping-1-canonical"), { target: { value: "yield_strength" } });
+    fireEvent.change(screen.getByTestId("dataset-mapping-1-unit"), { target: { value: "MPa" } });
+    fireEvent.click(screen.getByTestId("save-dataset"));
+
+    await waitFor(() => expect(desktop.saveSteelDataset).toHaveBeenCalledWith({
+      sourcePath: "F:\\data\\heats.csv",
+      sheet: "CSV",
+      mappings: [{ ordinal: 1, canonicalField: "yield_strength", unit: "MPa" }],
+    }));
   });
 });

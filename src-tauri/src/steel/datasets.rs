@@ -2,7 +2,10 @@ use crate::rag::ingest::SourceFormat;
 use crate::rag::model::SourceLocation;
 use crate::rag::parse::{parse_document, DocumentBlock, ParseLimits};
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use std::collections::HashMap;
+use std::fs::File;
+use std::io::{BufReader, Read};
 use std::path::Path;
 
 const MAX_PREVIEW_ROWS: usize = 100_000;
@@ -17,7 +20,7 @@ pub struct DatasetPreviewRequest {
     pub sheet: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct DatasetPreview {
     pub source_name: String,
@@ -32,7 +35,7 @@ pub struct DatasetPreview {
     pub warnings: Vec<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct DatasetColumnPreview {
     pub name: String,
@@ -45,7 +48,18 @@ pub struct DatasetColumnPreview {
     pub max: Option<f64>,
 }
 
-pub fn preview_dataset(request: &DatasetPreviewRequest) -> Result<DatasetPreview, String> {
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DatasetTable {
+    pub source_name: String,
+    pub format: String,
+    pub sheets: Vec<String>,
+    pub selected_sheet: String,
+    pub headers: Vec<String>,
+    pub rows: Vec<Vec<String>>,
+    pub warnings: Vec<String>,
+}
+
+pub fn read_dataset_table(request: &DatasetPreviewRequest) -> Result<DatasetTable, String> {
     let source_path = request.source_path.trim();
     if source_path.is_empty() {
         return Err("dataset source path is required".to_string());
@@ -81,36 +95,85 @@ pub fn preview_dataset(request: &DatasetPreviewRequest) -> Result<DatasetPreview
         None => 0,
     };
     let selected_sheet = sheets[selected_index].clone();
-    let rows = tables[selected_index].1;
-    let width = rows.iter().map(Vec::len).max().unwrap_or(0);
-    if width == 0 || rows.is_empty() {
-        return Ok(empty_preview(
-            path,
-            format,
-            sheets,
-            selected_sheet,
-            parsed.warnings,
-        ));
-    }
+    let source_rows = tables[selected_index].1;
+    let width = source_rows.iter().map(Vec::len).max().unwrap_or(0);
     if width > MAX_PREVIEW_COLUMNS {
         return Err(format!(
             "dataset has more than {MAX_PREVIEW_COLUMNS} columns"
         ));
     }
+    let headers = if source_rows.is_empty() || width == 0 {
+        Vec::new()
+    } else {
+        (0..width)
+            .map(|index| {
+                source_rows[0]
+                    .get(index)
+                    .map(String::as_str)
+                    .unwrap_or("")
+                    .trim()
+                    .to_string()
+            })
+            .enumerate()
+            .map(|(index, value)| {
+                if value.is_empty() {
+                    format!("column_{}", index + 1)
+                } else {
+                    value
+                }
+            })
+            .collect()
+    };
+    let rows = if source_rows.len() <= 1 {
+        Vec::new()
+    } else {
+        source_rows[1..]
+            .iter()
+            .map(|row| {
+                (0..width)
+                    .map(|index| row.get(index).cloned().unwrap_or_default())
+                    .collect()
+            })
+            .collect()
+    };
 
-    let headers = rows[0]
-        .iter()
-        .take(width)
-        .enumerate()
-        .map(|(index, value)| {
-            let value = value.trim();
-            if value.is_empty() {
-                format!("column_{}", index + 1)
-            } else {
-                value.to_string()
-            }
-        })
-        .collect::<Vec<_>>();
+    Ok(DatasetTable {
+        source_name: path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .unwrap_or("dataset")
+            .to_string(),
+        format: format.as_str().to_string(),
+        sheets,
+        selected_sheet,
+        headers,
+        rows,
+        warnings: parsed
+            .warnings
+            .into_iter()
+            .map(|warning| warning.message)
+            .collect(),
+    })
+}
+
+pub fn preview_dataset(request: &DatasetPreviewRequest) -> Result<DatasetPreview, String> {
+    let table = read_dataset_table(request)?;
+    let width = table.headers.len();
+    if width == 0 {
+        return Ok(DatasetPreview {
+            source_name: table.source_name,
+            format: table.format,
+            sheets: table.sheets,
+            selected_sheet: table.selected_sheet,
+            row_count: 0,
+            column_count: 0,
+            truncated: false,
+            columns: Vec::new(),
+            sample_rows: Vec::new(),
+            warnings: table.warnings,
+        });
+    }
+    let headers = table.headers;
     let mut names = HashMap::<String, usize>::new();
     let duplicate_flags = headers
         .iter()
@@ -120,7 +183,7 @@ pub fn preview_dataset(request: &DatasetPreviewRequest) -> Result<DatasetPreview
             *count > 1
         })
         .collect::<Vec<_>>();
-    let data_rows = &rows[1..];
+    let data_rows = &table.rows;
     let mut columns = Vec::with_capacity(width);
     for column_index in 0..width {
         let values = data_rows
@@ -181,24 +244,16 @@ pub fn preview_dataset(request: &DatasetPreviewRequest) -> Result<DatasetPreview
                 .collect()
         })
         .collect::<Vec<Vec<String>>>();
-    let mut warnings = parsed
-        .warnings
-        .into_iter()
-        .map(|warning| warning.message)
-        .collect::<Vec<_>>();
+    let mut warnings = table.warnings;
     if duplicate_flags.iter().any(|duplicate| *duplicate) {
         warnings.push("duplicate column names require explicit mapping".to_string());
     }
 
     Ok(DatasetPreview {
-        source_name: path
-            .file_name()
-            .and_then(|name| name.to_str())
-            .unwrap_or("dataset")
-            .to_string(),
-        format: format.as_str().to_string(),
-        sheets,
-        selected_sheet,
+        source_name: table.source_name,
+        format: table.format,
+        sheets: table.sheets,
+        selected_sheet: table.selected_sheet,
         row_count: data_rows.len(),
         column_count: width,
         truncated: data_rows.len() > MAX_PREVIEW_ROWS,
@@ -208,32 +263,23 @@ pub fn preview_dataset(request: &DatasetPreviewRequest) -> Result<DatasetPreview
     })
 }
 
-fn empty_preview(
-    path: &Path,
-    format: SourceFormat,
-    sheets: Vec<String>,
-    selected_sheet: String,
-    warnings: Vec<crate::rag::parse::ParseWarning>,
-) -> DatasetPreview {
-    DatasetPreview {
-        source_name: path
-            .file_name()
-            .and_then(|name| name.to_str())
-            .unwrap_or("dataset")
-            .to_string(),
-        format: format.as_str().to_string(),
-        sheets,
-        selected_sheet,
-        row_count: 0,
-        column_count: 0,
-        truncated: false,
-        columns: Vec::new(),
-        sample_rows: Vec::new(),
-        warnings: warnings
-            .into_iter()
-            .map(|warning| warning.message)
-            .collect(),
+pub fn hash_dataset_source(source_path: &str) -> Result<String, String> {
+    let path = Path::new(source_path.trim());
+    let file =
+        File::open(path).map_err(|error| format!("could not read dataset source: {error}"))?;
+    let mut reader = BufReader::new(file);
+    let mut hasher = Sha256::new();
+    let mut buffer = [0_u8; 64 * 1024];
+    loop {
+        let read = reader
+            .read(&mut buffer)
+            .map_err(|error| format!("could not hash dataset source: {error}"))?;
+        if read == 0 {
+            break;
+        }
+        hasher.update(&buffer[..read]);
     }
+    Ok(format!("{:x}", hasher.finalize()))
 }
 
 fn format_for_path(path: &Path) -> Result<SourceFormat, String> {
