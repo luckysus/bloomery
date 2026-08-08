@@ -51,7 +51,10 @@ fn build_client_with_redirects(
     let builder = if follow_redirects {
         builder.redirect(redirect::Policy::custom(|attempt| {
             let previous = attempt.previous();
-            if previous.len() >= 5 || is_https_downgrade(previous.last(), attempt.url()) {
+            if previous.len() >= 5
+                || is_https_downgrade(previous.last(), attempt.url())
+                || is_cross_origin_redirect(previous.last(), attempt.url())
+            {
                 attempt.stop()
             } else {
                 attempt.follow()
@@ -90,6 +93,14 @@ fn build_client_with_redirects(
 
 fn is_https_downgrade(previous: Option<&reqwest::Url>, next: &reqwest::Url) -> bool {
     previous.is_some_and(|url| url.scheme() == "https") && next.scheme() == "http"
+}
+
+fn is_cross_origin_redirect(previous: Option<&reqwest::Url>, next: &reqwest::Url) -> bool {
+    previous.is_some_and(|url| {
+        url.scheme() != next.scheme()
+            || url.host_str() != next.host_str()
+            || url.port_or_known_default() != next.port_or_known_default()
+    })
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -205,5 +216,17 @@ mod tests {
 
         assert!(is_https_downgrade(Some(&https), &http));
         assert!(!is_https_downgrade(Some(&https), &https_next));
+    }
+
+    #[test]
+    fn identifies_cross_origin_redirects() {
+        let origin = reqwest::Url::parse("https://provider.example/start").unwrap();
+        let same_origin = reqwest::Url::parse("https://provider.example/next").unwrap();
+        let different_host = reqwest::Url::parse("https://other.example/next").unwrap();
+        let different_port = reqwest::Url::parse("https://provider.example:8443/next").unwrap();
+
+        assert!(!is_cross_origin_redirect(Some(&origin), &same_origin));
+        assert!(is_cross_origin_redirect(Some(&origin), &different_host));
+        assert!(is_cross_origin_redirect(Some(&origin), &different_port));
     }
 }

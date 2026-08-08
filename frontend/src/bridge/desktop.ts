@@ -1,5 +1,11 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import {
+  open as openNativeDialog,
+  save as saveNativeDialog,
+  type OpenDialogOptions,
+  type SaveDialogOptions,
+} from "@tauri-apps/plugin-dialog";
 import type { AgentEventEnvelope, AgentRunState } from "./generated/protocol";
 
 export interface Conversation {
@@ -522,6 +528,9 @@ export interface DomainPackageImpact {
   asset_count: number;
 }
 
+export type FileDialogOptions = OpenDialogOptions;
+export type SaveFileDialogOptions = SaveDialogOptions;
+
 function call<T>(command: string, args?: Record<string, unknown>) {
   if (!isDesktopRuntime()) return Promise.reject(new Error("Desktop runtime is unavailable"));
   return invoke<T>(command, args);
@@ -533,6 +542,8 @@ export const desktop = {
     await invoke<void>("db_init");
   },
   getSetting: (key: string) => call<string | null>("get_setting", { key }),
+  openFileDialog: (options?: FileDialogOptions) => openNativeDialog(options),
+  saveFileDialog: (options?: SaveFileDialogOptions) => saveNativeDialog(options),
   setSetting: (key: string, valueJson: string) =>
     call<void>("set_setting", { key, valueJson }),
   listConversations: () => call<Conversation[]>("list_conversations"),

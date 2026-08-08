@@ -8,6 +8,7 @@ $repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 $requiredScripts = @(
     @{ Path = "scripts/check.ps1"; RequiresOffline = $true; RequiresExitCode = $true },
     @{ Path = "scripts/test.ps1"; RequiresOffline = $true; RequiresExitCode = $true },
+    @{ Path = "scripts/security-check.ps1"; RequiresOffline = $true; RequiresExitCode = $true },
     @{ Path = "scripts/release-check.ps1"; RequiresOffline = $true; RequiresExitCode = $true },
     @{ Path = "scripts/build-release.ps1"; RequiresOffline = $true; RequiresExitCode = $true },
     @{ Path = "scripts/generate-checksums.ps1"; RequiresOffline = $false; RequiresExitCode = $false }

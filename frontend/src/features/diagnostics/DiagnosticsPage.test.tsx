@@ -3,13 +3,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import DiagnosticsPage from "./DiagnosticsPage";
 import { desktop, type BackgroundTask } from "../../bridge/desktop";
 
-vi.mock("@tauri-apps/plugin-dialog", () => ({
-  open: vi.fn(),
-  save: vi.fn(),
-}));
-
-import { open, save } from "@tauri-apps/plugin-dialog";
-
 vi.mock("../../i18n/locale", () => ({
   useLocale: () => ({
     t: (key: string, params?: Record<string, string | number>) =>
@@ -27,6 +20,8 @@ vi.mock("../../bridge/desktop", () => ({
     cancelBackgroundTask: vi.fn(),
     retryBackgroundTask: vi.fn(),
     exportDiagnostics: vi.fn(),
+    openFileDialog: vi.fn(),
+    saveFileDialog: vi.fn(),
     createBackup: vi.fn(),
     restoreBackup: vi.fn(),
   },
@@ -101,8 +96,8 @@ describe("DiagnosticsPage", () => {
       content_file_count: 2,
       content_bytes: 2048,
     });
-    vi.mocked(save).mockResolvedValue(null);
-    vi.mocked(open).mockResolvedValue(null);
+    vi.mocked(desktop.saveFileDialog).mockResolvedValue(null);
+    vi.mocked(desktop.openFileDialog).mockResolvedValue(null);
   });
 
   it("shows database, index, and task health from local diagnostics", async () => {
@@ -134,7 +129,7 @@ describe("DiagnosticsPage", () => {
   });
 
   it("creates a local backup at the path selected by the user", async () => {
-    vi.mocked(save).mockResolvedValue("C:\\Backups\\steel.bloomery-backup");
+    vi.mocked(desktop.saveFileDialog).mockResolvedValue("C:\\Backups\\steel.bloomery-backup");
     render(<DiagnosticsPage />);
 
     fireEvent.click(await screen.findByRole("button", { name: "diagnosticsBackupExport" }));
@@ -144,7 +139,7 @@ describe("DiagnosticsPage", () => {
   });
 
   it("restores a selected backup only after explicit confirmation", async () => {
-    vi.mocked(open).mockResolvedValue("C:\\Backups\\steel.bloomery-backup");
+    vi.mocked(desktop.openFileDialog).mockResolvedValue("C:\\Backups\\steel.bloomery-backup");
     const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
     render(<DiagnosticsPage />);
 

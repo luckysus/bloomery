@@ -102,6 +102,13 @@ if ($Offline) {
 $testScript = Join-Path $PSScriptRoot "test.ps1"
 Invoke-Checked "Deterministic release test suite" "powershell" (@("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $testScript) + $scriptArguments) $repoRoot
 
+$securityScript = Join-Path $PSScriptRoot "security-check.ps1"
+$securityArguments = @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $securityScript)
+if ($Offline) {
+    $securityArguments += "-Offline"
+}
+Invoke-Checked "Application security checks" "powershell" $securityArguments $repoRoot
+
 $lifecycleScript = Join-Path $PSScriptRoot "lifecycle-check.ps1"
 $lifecycleArguments = @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $lifecycleScript)
 if ($Package) {

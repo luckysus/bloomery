@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { open, save } from "@tauri-apps/plugin-dialog";
 import {
   AlertCircle,
   Check,
@@ -164,7 +163,7 @@ export default function DiagnosticsPage() {
     setError(null);
     setNotice(null);
     try {
-      const selected = await save({
+      const selected = await desktop.saveFileDialog({
         title: t("diagnosticsBackupExport"),
         defaultPath: "bloomery.bloomery-backup",
         filters: [{ name: t("diagnosticsBackupFile"), extensions: ["bloomery-backup"] }],
@@ -184,7 +183,7 @@ export default function DiagnosticsPage() {
     setError(null);
     setNotice(null);
     try {
-      const selected = await open({
+      const selected = await desktop.openFileDialog({
         directory: false,
         multiple: false,
         title: t("diagnosticsBackupRestore"),

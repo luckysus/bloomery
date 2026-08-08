@@ -10,6 +10,11 @@ const appPath = join(sourceRoot, "app", "BloomeryApp.tsx");
 const bridgePath = join(sourceRoot, "bridge", "desktop.ts");
 const failures = [];
 
+const packageJson = JSON.parse(readFileSync(join(frontendRoot, "package.json"), "utf8"));
+if (packageJson.dependencies?.xlsx || packageJson.devDependencies?.xlsx) {
+  failures.push("SheetJS xlsx is not allowed in the desktop frontend; XLSX parsing stays in Rust");
+}
+
 for (const [path, label] of [[appPath, "Bloomery app root"], [bridgePath, "desktop bridge"]]) {
   if (!existsSync(path)) failures.push(`missing ${label}: ${relative(frontendRoot, path)}`);
 }
@@ -95,9 +100,27 @@ for (const path of collectSourceFiles(join(sourceRoot, "features")).filter(
   }
 }
 
+for (const directoryName of ["hooks", "stores"]) {
+  const directory = join(sourceRoot, directoryName);
+  if (!existsSync(directory)) continue;
+  for (const path of collectSourceFiles(directory).filter(
+    (candidate) => !/\.test\.[^.]+$/.test(candidate),
+  )) {
+    const lines = readFileSync(path, "utf8").split(/\r?\n/).length;
+    if (lines > 250) {
+      failures.push(
+        `${relative(frontendRoot, path).replaceAll("\\", "/")} has ${lines} lines; hooks/stores budget is 250`,
+      );
+    }
+  }
+}
+
 for (const path of collectSourceFiles(sourceRoot)) {
   const source = readFileSync(path, "utf8");
   const label = relative(frontendRoot, path).replaceAll("\\", "/");
+  if (!/\.test\.[^.]+$/.test(label) && source.includes("@tauri-apps/") && label !== "src/bridge/desktop.ts") {
+    failures.push(`${label} imports a Tauri package outside src/bridge/desktop.ts`);
+  }
   for (const [pattern, name] of sourceWidePatterns) {
     if (pattern.test(source)) failures.push(`${label} contains ${name}`);
   }

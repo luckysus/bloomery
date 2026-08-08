@@ -2,13 +2,11 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import AnalysisPage from "./AnalysisPage";
 import { desktop, type DatasetPreview } from "../../bridge/desktop";
-import { open } from "@tauri-apps/plugin-dialog";
-
-vi.mock("@tauri-apps/plugin-dialog", () => ({ open: vi.fn() }));
 
 vi.mock("../../bridge/desktop", () => ({
   desktop: {
     calculateSteelCarbonEquivalent: vi.fn(),
+    openFileDialog: vi.fn(),
     previewSteelDataset: vi.fn(),
     listSteelDatasets: vi.fn(),
     saveSteelDataset: vi.fn(),
@@ -19,7 +17,7 @@ vi.mock("../../bridge/desktop", () => ({
 describe("AnalysisPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(open).mockResolvedValue(null);
+    vi.mocked(desktop.openFileDialog).mockResolvedValue(null);
     vi.mocked(desktop.listSteelDatasets).mockResolvedValue([]);
     vi.mocked(desktop.calculateSteelCarbonEquivalent).mockResolvedValue({
       formula_id: "carbon-equivalent.iiw.v1",
@@ -43,7 +41,7 @@ describe("AnalysisPage", () => {
   });
 
   it("previews a production dataset through the native file picker", async () => {
-    vi.mocked(open).mockResolvedValue("F:\\data\\heats.csv");
+    vi.mocked(desktop.openFileDialog).mockResolvedValue("F:\\data\\heats.csv");
     vi.mocked(desktop.previewSteelDataset).mockResolvedValue({
       sourceName: "heats.csv",
       format: "csv",
@@ -63,7 +61,7 @@ describe("AnalysisPage", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "选择数据文件" }));
 
-    await waitFor(() => expect(open).toHaveBeenCalled());
+    await waitFor(() => expect(desktop.openFileDialog).toHaveBeenCalled());
     await waitFor(() => expect(desktop.previewSteelDataset).toHaveBeenCalledWith({ sourcePath: "F:\\data\\heats.csv" }));
     expect(await screen.findByText("heats.csv")).toBeInTheDocument();
     expect(screen.getByText("yield_strength")).toBeInTheDocument();
@@ -71,7 +69,7 @@ describe("AnalysisPage", () => {
   });
 
   it("saves an explicit dataset selection and keeps it in the local catalog", async () => {
-    vi.mocked(open).mockResolvedValue("F:\\data\\heats.csv");
+    vi.mocked(desktop.openFileDialog).mockResolvedValue("F:\\data\\heats.csv");
     const preview: DatasetPreview = {
       sourceName: "heats.csv",
       format: "csv",
@@ -213,7 +211,7 @@ describe("AnalysisPage", () => {
   });
 
   it("persists non-empty canonical field mappings with the dataset", async () => {
-    vi.mocked(open).mockResolvedValue("F:\\data\\heats.csv");
+    vi.mocked(desktop.openFileDialog).mockResolvedValue("F:\\data\\heats.csv");
     const preview: DatasetPreview = {
       sourceName: "heats.csv",
       format: "csv",

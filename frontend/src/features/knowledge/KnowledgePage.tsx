@@ -1,5 +1,4 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { open } from "@tauri-apps/plugin-dialog";
 import { useLocale } from "../../i18n/locale";
 import {
   desktop,
@@ -197,7 +196,7 @@ export default function KnowledgePage() {
   const chooseFile = async () => {
     setError(null);
     try {
-      const selected = await open({ directory: false, multiple: false, title: t("browseFile"), filters: [{ name: t("importLocalDocument"), extensions: ["pdf", "docx", "xlsx", "csv", "md", "txt", "html"] }] });
+      const selected = await desktop.openFileDialog({ directory: false, multiple: false, title: t("browseFile"), filters: [{ name: t("importLocalDocument"), extensions: ["pdf", "docx", "xlsx", "csv", "md", "txt", "html"] }] });
       if (typeof selected === "string") setFilePath(selected);
     } catch (cause) {
       setError(errorMessage(cause, t("filePickerError")));

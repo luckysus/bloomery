@@ -42,17 +42,25 @@ lifecycle checks.
 
 **Files:** Expand Rust/Node architecture tests and add dependency rule fixtures.
 
-- [ ] **Step 1: Add failing assertions** for Tauri imports outside bridge/app, Rust reverse dependencies, direct provider calls, `/api/`, private hosts, secrets in SQLite types, executable domain packages, and file budgets.
-- [ ] **Step 2: Run architecture tests** and capture offenders.
-- [ ] **Step 3: Resolve every offender or add a narrow documented exception with expiry version.** Stable budgets: runtime files 500 lines, repositories 400, Tauri commands 150, React pages 300, hooks/stores 250.
-- [ ] **Step 4: Run source-wide boundary checks** and expect no unapproved exceptions.
+- [x] **Step 1: Add failing assertions** for Tauri imports outside bridge/app, Rust reverse dependencies, direct provider calls, `/api/`, private hosts, secrets in SQLite types, executable domain packages, and file budgets.
+- [x] **Step 2: Run architecture tests** and capture offenders.
+- [x] **Step 3: Resolve every offender or add a narrow documented exception with expiry version.** Stable budgets: runtime files 500 lines, repositories 400, Tauri commands 150, React pages 300, hooks/stores 250.
+- [x] **Step 4: Run source-wide boundary checks** and expect no unapproved exceptions.
 
 **Execution record (2026-08-08):** Added the frontend page budget gate and
 split Chat, Knowledge, Onboarding, and Settings state orchestration from their
 rendering components. The affected pages are now 230, 237, 155, and 228 lines;
 the runtime boundary suite checks 29 files. The full deterministic suite passed
 43 frontend tests, the production build, Rust formatting, and all Rust tests.
-The remaining source-wide dependency assertions in this task are still open.
+
+**Execution record (2026-08-08):** Added source-wide Rust boundary assertions
+for reverse dependencies, concrete provider construction, Web/private-cloud
+paths, persisted credential values, and recursive budgets. Moved native file
+dialogs behind the single frontend desktop bridge and moved SiliconFlow
+embedding/rerank construction behind the provider capability wrappers. The
+architecture suite passed 26 tests, frontend boundaries passed 29 files and
+43 tests, and the targeted provider/RAG suites passed. Hooks/stores budgets are
+now enforced at 250 lines when those directories are present.
 
 ### Task 3: Complete application security testing
 
@@ -62,6 +70,15 @@ The remaining source-wide dependency assertions in this task are still open.
 - [ ] **Step 2: Run the suite** and preserve failures.
 - [ ] **Step 3: Fix root causes** at parser, path, HTTP, permission, renderer, repository, and restore boundaries; do not add UI-only guards.
 - [ ] **Step 4: Run security tests plus secret scan** using synthetic known keys; SQLite, logs, crash errors, exports, diagnostics, and process arguments must contain none.
+
+**Execution record (2026-08-08):** Added `scripts/security-check.ps1` and
+`docs/security-model.md`. The gate scans production source for private
+endpoints and high-confidence credential material, runs the frontend bridge
+boundary check, and runs the security-sensitive Rust binaries serially to
+avoid Windows cross-binary scheduler timing interference. The gate passed
+source scanning, 26 architecture tests, backup/restore, domain package,
+redaction, MCP, path, permission, provider, MinerU, and tool suites. The
+broader release scenarios and clean-profile evidence remain open.
 
 ### Task 4: Lock dependencies, licenses, and SBOM
 

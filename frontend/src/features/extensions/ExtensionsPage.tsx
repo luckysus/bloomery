@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { open } from "@tauri-apps/plugin-dialog";
 import {
   AlertCircle,
   Check,
@@ -72,7 +71,7 @@ export default function ExtensionsPage() {
     setError(null);
     setNotice(null);
     try {
-      const selected = await open(
+      const selected = await desktop.openFileDialog(
         mode === "directory"
           ? { directory: true, multiple: false, title: t("extensionsDomainBrowseDirectoryTitle") }
           : {

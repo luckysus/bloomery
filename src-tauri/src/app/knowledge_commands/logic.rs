@@ -2,7 +2,10 @@
 use crate::db::{current_workspace_id, database_path, with_conn, with_conn_mut, DbState};
 use crate::providers::capabilities::{EmbeddingProvider, RerankProvider};
 use crate::providers::profiles::{ProviderCapability, ProviderKind, ProviderProfileRecord};
-use crate::providers::siliconflow::{SiliconFlowPlan, SiliconFlowProvider};
+use crate::providers::{
+    configured_embedding_provider, configured_rerank_provider, ConfiguredEmbeddingProvider,
+    ConfiguredRerankProvider, SiliconFlowPlan,
+};
 use crate::rag::citation::{
     persist_evidence_pack, resolve_citation, EvidencePack, ResolvedCitation,
     RetrievalConfigSnapshot,
@@ -77,7 +80,7 @@ impl LocalKnowledgeQueryRequest {
 struct PreparedReranker {
     profile_id: Option<String>,
     model_id: Option<String>,
-    provider: Option<Arc<SiliconFlowProvider>>,
+    provider: Option<Arc<ConfiguredRerankProvider>>,
     unavailable: Option<RerankDegradationReason>,
 }
 
@@ -331,7 +334,7 @@ pub(crate) async fn query_local_knowledge(
 fn prepare_embedding_provider(
     record: &ProviderProfileRecord,
     secrets: &dyn SecretStore,
-) -> Result<SiliconFlowProvider, String> {
+) -> Result<ConfiguredEmbeddingProvider, String> {
     if record.profile.kind != ProviderKind::SiliconFlow {
         return Err("configured embedding provider is not supported".to_string());
     }
@@ -340,12 +343,11 @@ fn prepare_embedding_provider(
         .model_id
         .clone()
         .ok_or_else(|| "embedding model is not configured".to_string())?;
-    SiliconFlowProvider::with_models(
+    configured_embedding_provider(
         record.profile.clone(),
         Some(read_credential(record, secrets)?),
         SiliconFlowPlan::Free,
         Some(model),
-        None,
     )
     .map_err(|error| error.to_string())
 }
@@ -382,11 +384,10 @@ fn prepare_reranker(
             };
         }
     };
-    match SiliconFlowProvider::with_models(
+    match configured_rerank_provider(
         record.profile.clone(),
         Some(credential),
         SiliconFlowPlan::Free,
-        None,
         record.profile.model_id.clone(),
     ) {
         Ok(provider) => PreparedReranker {

@@ -1,5 +1,4 @@
 import { BarChart3, FolderOpen, LoaderCircle, Save, Table2, TriangleAlert } from "lucide-react";
-import { open } from "@tauri-apps/plugin-dialog";
 import { useEffect, useState } from "react";
 import { desktop, type DatasetAnalysis, type DatasetColumnMapping, type DatasetPreview, type SteelDatasetRecord } from "../../bridge/desktop";
 import { useLocale } from "../../i18n/locale";
@@ -47,7 +46,7 @@ export default function DatasetPanel() {
   const chooseDataset = async () => {
     setDatasetError(null);
     try {
-      const selected = await open({
+      const selected = await desktop.openFileDialog({
         directory: false,
         multiple: false,
         title: t("analysisChooseDataset"),

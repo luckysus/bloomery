@@ -671,3 +671,154 @@ fn desktop_agent_routes_chat_through_provider_capabilities() {
         "local agent must not branch on provider brands at execution time"
     );
 }
+
+fn rust_source_files(root: impl AsRef<Path>) -> Vec<PathBuf> {
+    let mut files = Vec::new();
+    let mut pending = vec![root.as_ref().to_path_buf()];
+    while let Some(path) = pending.pop() {
+        let metadata = fs::metadata(&path)
+            .unwrap_or_else(|error| panic!("failed to inspect {}: {error}", path.display()));
+        if metadata.is_dir() {
+            for entry in fs::read_dir(&path)
+                .unwrap_or_else(|error| panic!("failed to read {}: {error}", path.display()))
+            {
+                pending.push(entry.expect("Rust source directory entry").path());
+            }
+        } else if path.extension().and_then(|value| value.to_str()) == Some("rs") {
+            files.push(path);
+        }
+    }
+    files
+}
+
+fn source_label(path: &Path) -> String {
+    path.strip_prefix(manifest_dir().join("src"))
+        .unwrap_or(path)
+        .display()
+        .to_string()
+}
+
+#[test]
+fn lower_rust_layers_cannot_reverse_depend_on_application_or_provider_adapters() {
+    let source_root = manifest_dir().join("src");
+    let boundaries = [
+        (
+            "domains",
+            &[
+                "tauri::",
+                "#[tauri::command]",
+                "crate::app",
+                "crate::providers",
+                "crate::storage",
+            ][..],
+        ),
+        (
+            "steel",
+            &[
+                "tauri::",
+                "#[tauri::command]",
+                "crate::app",
+                "crate::providers",
+            ][..],
+        ),
+        (
+            "tools",
+            &[
+                "tauri::",
+                "#[tauri::command]",
+                "crate::app",
+                "crate::providers",
+                "crate::storage",
+            ][..],
+        ),
+    ];
+
+    for (directory, forbidden_values) in boundaries {
+        for path in rust_source_files(source_root.join(directory)) {
+            let module = source(&path);
+            for forbidden in forbidden_values {
+                assert!(
+                    !module.contains(forbidden),
+                    "{} reversely depends on {forbidden}",
+                    source_label(&path)
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn concrete_provider_construction_is_confined_to_provider_adapters() {
+    let source_root = manifest_dir().join("src");
+    let provider_root = source_root.join("providers");
+    let task_provider_adapter = source_root.join("rag/tasks/providers.rs");
+    let forbidden = [
+        "crate::providers::openai::",
+        "crate::providers::ollama::",
+        "crate::providers::siliconflow::",
+        "crate::providers::mineru::",
+        "OpenAiProvider::new(",
+        "OllamaProvider::new(",
+        "SiliconFlowProvider::new(",
+        "MinerUProvider::new(",
+    ];
+
+    for path in rust_source_files(&source_root) {
+        if path.starts_with(&provider_root) || path == task_provider_adapter {
+            continue;
+        }
+        let module = source(&path);
+        for value in forbidden {
+            assert!(
+                !module.contains(value),
+                "{} constructs a concrete provider outside the provider adapter boundary: {value}",
+                source_label(&path)
+            );
+        }
+    }
+}
+
+#[test]
+fn desktop_rust_source_has_no_web_api_or_private_cloud_boundary() {
+    let source_root = manifest_dir().join("src");
+    let provider_root = source_root.join("providers");
+    let forbidden = [
+        "47.93.203.36",
+        "43.155.210.216",
+        "127.0.0.1:8000",
+        "localhost:8000",
+        "\"/api/",
+    ];
+
+    for path in rust_source_files(&source_root) {
+        if path.starts_with(&provider_root) {
+            continue;
+        }
+        let module = source(&path);
+        for value in forbidden {
+            assert!(
+                !module.contains(value),
+                "{} contains a Web/private-cloud endpoint marker: {value}",
+                source_label(&path)
+            );
+        }
+    }
+}
+
+#[test]
+fn persisted_sqlite_types_store_credential_references_only() {
+    let source_root = manifest_dir().join("src");
+    let mut paths = vec![source_root.join("models.rs")];
+    paths.extend(rust_source_files(source_root.join("storage/repositories")));
+
+    for path in paths {
+        let module = source(&path);
+        for forbidden in ["SecretValue", "secret_value", "api_key", "password"] {
+            assert!(
+                !module.contains(forbidden),
+                "{} embeds a credential value in a persisted model/repository boundary: {forbidden}",
+                source_label(&path)
+            );
+        }
+    }
+}
