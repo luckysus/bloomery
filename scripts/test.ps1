@@ -33,8 +33,10 @@ function Invoke-Checked {
 $frontendRoot = Join-Path $repoRoot "frontend"
 $rustRoot = Join-Path $repoRoot "src-tauri"
 $scriptContract = Join-Path $repoRoot "scripts\tests\release-scripts.contract.ps1"
+$lifecycleContract = Join-Path $repoRoot "scripts\tests\lifecycle.contract.ps1"
 
 Invoke-Checked "Release script contracts" "powershell" @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $scriptContract) $repoRoot
+Invoke-Checked "Lifecycle script contracts" "powershell" @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $lifecycleContract) $repoRoot
 
 Invoke-Checked "Frontend unit and integration tests" "npm" @("run", "test") $frontendRoot
 Invoke-Checked "Frontend runtime boundaries" "npm" @("run", "test:boundaries") $frontendRoot

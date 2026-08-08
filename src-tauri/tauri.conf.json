@@ -3,6 +3,7 @@
   "productName": "Bloomery",
   "version": "0.1.0",
   "identifier": "com.bloomery.desktop",
+  "mainBinaryName": "bloomery",
   "build": {
     "beforeDevCommand": "npm --prefix frontend run dev -- --host 127.0.0.1",
     "devUrl": "http://127.0.0.1:5173",

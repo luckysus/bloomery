@@ -1,0 +1,32 @@
+[CmdletBinding()]
+param()
+
+Set-StrictMode -Version Latest
+$ErrorActionPreference = "Stop"
+
+$repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
+$scriptPath = Join-Path $repoRoot "scripts\lifecycle-check.ps1"
+$configPath = Join-Path $repoRoot "src-tauri\tauri.conf.json"
+if (-not (Test-Path -LiteralPath $scriptPath -PathType Leaf)) {
+    throw "Lifecycle check script is missing"
+}
+
+$content = Get-Content -LiteralPath $scriptPath -Raw
+foreach ($requiredText in @(
+    "Set-StrictMode -Version Latest",
+    "ErrorActionPreference",
+    "migrations",
+    "InstallerPath",
+    "Get-FileHash"
+)) {
+    if ($content -notmatch [regex]::Escape($requiredText)) {
+        throw "Lifecycle check is missing required behavior: $requiredText"
+    }
+}
+
+$config = Get-Content -LiteralPath $configPath -Raw | ConvertFrom-Json
+if ([string]$config.mainBinaryName -ne "bloomery") {
+    throw "Tauri must bundle bloomery as the main binary"
+}
+
+Write-Output "Lifecycle contract passed."

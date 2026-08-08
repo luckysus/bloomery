@@ -31,6 +31,90 @@ fn index_names(conn: &Connection, table: &str) -> Vec<String> {
         .expect("collect index names")
 }
 
+fn seed_database_at_version(connection: &mut Connection, version: u32) {
+    let migrations = [
+        (
+            1,
+            include_str!("../src/storage/migrations/0001_initial.sql"),
+        ),
+        (
+            2,
+            include_str!("../src/storage/migrations/0002_local_workspace.sql"),
+        ),
+        (
+            3,
+            include_str!("../src/storage/migrations/0003_provider_profiles.sql"),
+        ),
+        (
+            4,
+            include_str!("../src/storage/migrations/0004_background_tasks.sql"),
+        ),
+        (
+            5,
+            include_str!("../src/storage/migrations/0005_knowledge.sql"),
+        ),
+        (
+            6,
+            include_str!("../src/storage/migrations/0006_embedding_vectors.sql"),
+        ),
+        (
+            7,
+            include_str!("../src/storage/migrations/0007_pending_document_manifest.sql"),
+        ),
+        (
+            8,
+            include_str!("../src/storage/migrations/0008_provider_profile_revisions.sql"),
+        ),
+        (
+            9,
+            include_str!("../src/storage/migrations/0009_knowledge_fts.sql"),
+        ),
+        (
+            10,
+            include_str!("../src/storage/migrations/0010_retrieval_audits.sql"),
+        ),
+        (
+            11,
+            include_str!("../src/storage/migrations/0011_agent_runs.sql"),
+        ),
+        (
+            12,
+            include_str!("../src/storage/migrations/0012_agent_memory.sql"),
+        ),
+        (
+            13,
+            include_str!("../src/storage/migrations/0013_backfill_summary_source.sql"),
+        ),
+        (
+            14,
+            include_str!("../src/storage/migrations/0014_permission_rules.sql"),
+        ),
+        (
+            15,
+            include_str!("../src/storage/migrations/0015_domain_packages.sql"),
+        ),
+        (
+            16,
+            include_str!("../src/storage/migrations/0016_steel_datasets.sql"),
+        ),
+    ];
+
+    for (migration_version, sql) in migrations.into_iter().take(version as usize) {
+        connection
+            .execute_batch(sql)
+            .expect("seed migration fixture");
+        connection
+            .execute(
+                "INSERT INTO schema_migrations (version, applied_at) VALUES (?1, 'fixture')",
+                params![migration_version],
+            )
+            .expect("record migration fixture");
+        connection
+            .pragma_update(None, "user_version", migration_version)
+            .expect("set migration fixture version");
+    }
+}
+
 fn foreign_key_columns(conn: &Connection, table: &str) -> usize {
     let mut statement = conn
         .prepare(&format!("PRAGMA foreign_key_list({table})"))
@@ -99,6 +183,28 @@ fn migrates_empty_database_to_latest_schema() {
     assert!(columns(&conn, "permission_rules").contains(&"revoked_at".to_string()));
     assert!(columns(&conn, "domain_packages").contains(&"package_sha256".to_string()));
     assert!(columns(&conn, "domain_packages").contains(&"active".to_string()));
+}
+
+#[test]
+fn every_supported_database_version_upgrades_to_latest() {
+    for version in 0..=latest_version() {
+        let mut conn = Connection::open_in_memory().expect("open migration fixture");
+        seed_database_at_version(&mut conn, version);
+
+        let report = migrate(&mut conn).expect("upgrade migration fixture");
+
+        assert_eq!(user_version(&conn), latest_version());
+        assert_eq!(
+            report.applied_versions,
+            ((version + 1)..=latest_version()).collect::<Vec<_>>()
+        );
+        assert_eq!(
+            conn.query_row("SELECT COUNT(*) FROM schema_migrations", [], |row| row
+                .get::<_, i64>(0))
+                .expect("count upgraded migrations"),
+            i64::from(latest_version())
+        );
+    }
 }
 
 #[test]

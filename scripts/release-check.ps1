@@ -102,6 +102,19 @@ if ($Offline) {
 $testScript = Join-Path $PSScriptRoot "test.ps1"
 Invoke-Checked "Deterministic release test suite" "powershell" (@("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $testScript) + $scriptArguments) $repoRoot
 
+$lifecycleScript = Join-Path $PSScriptRoot "lifecycle-check.ps1"
+$lifecycleArguments = @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $lifecycleScript)
+if ($Package) {
+    $candidateInstaller = Get-ChildItem -LiteralPath (Join-Path $repoRoot "artifacts") -Recurse -Filter "*-setup.exe" -File -ErrorAction SilentlyContinue |
+        Sort-Object LastWriteTime |
+        Select-Object -Last 1
+    if ($null -eq $candidateInstaller) {
+        throw "Packaged release does not contain an NSIS installer"
+    }
+    $lifecycleArguments += @("-InstallerPath", $candidateInstaller.FullName, "-AllowUnsigned")
+}
+Invoke-Checked "Windows data lifecycle checks" "powershell" $lifecycleArguments $repoRoot
+
 if ($WithE2E) {
     Invoke-Checked "Frontend end-to-end tests" "npm" @("run", "test:e2e") $frontendRoot
 }
