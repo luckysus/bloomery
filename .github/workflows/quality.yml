@@ -45,9 +45,17 @@ jobs:
         shell: pwsh
         run: .\scripts\tests\workflow.contract.ps1
 
-      - name: Run deterministic test suite
+      - name: Run deterministic contracts
         shell: pwsh
-        run: .\scripts\test.ps1
+        run: .\scripts\test.ps1 -Stage contracts
+
+      - name: Run deterministic frontend suite
+        shell: pwsh
+        run: .\scripts\test.ps1 -Stage frontend
+
+      - name: Run deterministic Rust suite
+        shell: pwsh
+        run: .\scripts\test.ps1 -Stage rust
 
       - name: Check whitespace
         shell: pwsh

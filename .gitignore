@@ -188,6 +188,9 @@ data/**/*.xls
 *.onnx
 *.safetensors
 runs/
+# The Rust repository named `runs` contains source modules, not generated run data.
+!src-tauri/src/storage/repositories/runs/
+!src-tauri/src/storage/repositories/runs/*.rs
 checkpoints/
 wandb/
 mlruns/

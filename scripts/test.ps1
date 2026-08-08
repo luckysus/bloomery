@@ -1,6 +1,8 @@
 [CmdletBinding()]
 param(
-    [switch]$Offline
+    [switch]$Offline,
+    [ValidateSet("all", "contracts", "frontend", "rust")]
+    [string]$Stage = "all"
 )
 
 Set-StrictMode -Version Latest
@@ -34,19 +36,29 @@ $frontendRoot = Join-Path $repoRoot "frontend"
 $rustRoot = Join-Path $repoRoot "src-tauri"
 $scriptContract = Join-Path $repoRoot "scripts\tests\release-scripts.contract.ps1"
 $lifecycleContract = Join-Path $repoRoot "scripts\tests\lifecycle.contract.ps1"
+$runContracts = $Stage -eq "all" -or $Stage -eq "contracts"
+$runFrontend = $Stage -eq "all" -or $Stage -eq "frontend"
+$runRust = $Stage -eq "all" -or $Stage -eq "rust"
 
-Invoke-Checked "Release script contracts" "powershell" @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $scriptContract) $repoRoot
-Invoke-Checked "Lifecycle script contracts" "powershell" @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $lifecycleContract) $repoRoot
-
-Invoke-Checked "Frontend unit and integration tests" "npm" @("run", "test") $frontendRoot
-Invoke-Checked "Frontend runtime boundaries" "npm" @("run", "test:boundaries") $frontendRoot
-Invoke-Checked "Frontend production build" "npm" @("run", "build") $frontendRoot
-Invoke-Checked "Rust formatting" "cargo" @("fmt", "--all", "--", "--check") $rustRoot
-
-$cargoTestArguments = @("test")
-if ($Offline) {
-    $cargoTestArguments += "--offline"
+if ($runContracts) {
+    Invoke-Checked "Release script contracts" "powershell" @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $scriptContract) $repoRoot
+    Invoke-Checked "Lifecycle script contracts" "powershell" @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $lifecycleContract) $repoRoot
 }
-Invoke-Checked "Rust test suite" "cargo" $cargoTestArguments $rustRoot
 
-Write-Host "Deterministic test suite passed."
+if ($runFrontend) {
+    Invoke-Checked "Frontend unit and integration tests" "npm" @("run", "test") $frontendRoot
+    Invoke-Checked "Frontend runtime boundaries" "npm" @("run", "test:boundaries") $frontendRoot
+    Invoke-Checked "Frontend production build" "npm" @("run", "build") $frontendRoot
+}
+
+if ($runRust) {
+    Invoke-Checked "Rust formatting" "cargo" @("fmt", "--all", "--", "--check") $rustRoot
+
+    $cargoTestArguments = @("test")
+    if ($Offline) {
+        $cargoTestArguments += "--offline"
+    }
+    Invoke-Checked "Rust test suite" "cargo" $cargoTestArguments $rustRoot
+}
+
+Write-Host ("Deterministic test suite passed (stage: " + $Stage + ").")
