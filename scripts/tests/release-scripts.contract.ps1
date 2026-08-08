@@ -53,5 +53,48 @@ finally {
     Remove-Item Function:\npm -ErrorAction SilentlyContinue
 }
 
+function Assert-InjectedFailure {
+    param(
+        [Parameter(Mandatory = $true)][string]$Name,
+        [Parameter(Mandatory = $true)][scriptblock]$Invocation,
+        [Parameter(Mandatory = $true)][string]$ExpectedMessage
+    )
+
+    try {
+        & $Invocation
+        throw "$Name did not propagate the injected child-process failure"
+    }
+    catch {
+        if ($_.Exception.Message -notmatch [regex]::Escape($ExpectedMessage)) {
+            throw "$Name returned an unexpected error: $($_.Exception.Message)"
+        }
+    }
+    finally {
+        $global:LASTEXITCODE = 0
+    }
+}
+
+$testScript = Join-Path $repoRoot "scripts\test.ps1"
+function npm {
+    $global:LASTEXITCODE = 37
+}
+Assert-InjectedFailure -Name "test.ps1" -Invocation { & $testScript -Stage frontend } -ExpectedMessage "Frontend unit and integration tests failed with exit code 37"
+Remove-Item Function:\npm -ErrorAction SilentlyContinue
+
+$releaseCheckScript = Join-Path $repoRoot "scripts\release-check.ps1"
+function powershell {
+    $global:LASTEXITCODE = 37
+}
+Assert-InjectedFailure -Name "release-check.ps1" -Invocation { & $releaseCheckScript -AllowDirty } -ExpectedMessage "Deterministic release test suite failed with exit code 37"
+Remove-Item Function:\powershell -ErrorAction SilentlyContinue
+
+$buildScript = Join-Path $repoRoot "scripts\build-release.ps1"
+function cargo {
+    $global:LASTEXITCODE = 37
+}
+$contractOutput = Join-Path $env:TEMP ("bloomery-release-contract-" + [Guid]::NewGuid().ToString())
+Assert-InjectedFailure -Name "build-release.ps1" -Invocation { & $buildScript -SkipTests -Bundles nsis -OutputDirectory $contractOutput } -ExpectedMessage "Unsigned Windows package build failed with exit code 37"
+Remove-Item Function:\cargo -ErrorAction SilentlyContinue
+
 $global:LASTEXITCODE = 0
 Write-Output "Release script contract passed."

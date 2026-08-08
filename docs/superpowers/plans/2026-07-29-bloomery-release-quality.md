@@ -17,7 +17,7 @@
 - [x] **Step 1: Write a script contract test** that checks exit-code propagation and rejects missing required commands.
 - [x] **Step 2: Run it** and expect scripts absent.
 - [x] **Step 3: Implement PowerShell entry points.** `check.ps1` runs fast boundaries/checks; `test.ps1` runs all deterministic tests; `release-check.ps1` adds E2E, performance, security, worker, package, and docs gates.
-- [ ] **Step 4: Run each script with one injected failure and then cleanly** to prove it fails closed.
+- [x] **Step 4: Run each script with one injected failure and then cleanly** to prove it fails closed.
 
 **Execution record (2026-08-07):** Added strict PowerShell entry points, release
 script contracts with an injected `npm` failure, unsigned artifact packaging,
@@ -28,6 +28,15 @@ architecture tests, Rust integration suites, protocol, RAG, MCP, backup,
 provider, migration, permissions, steel, task, and tool tests. The first
 release build compiled the Rust host successfully; NSIS bundling remains an
 external-download verification item when `nsis-3.11.zip` is reachable.
+
+**Execution record (2026-08-08):** Extended the release script contract to
+inject exit code `37` into `test.ps1`, `release-check.ps1`, and
+`build-release.ps1` in addition to `check.ps1`. Each entry point fails with
+the named stage and does not continue. Clean verification passed with
+`check.ps1 -SkipFrontendBuild -Offline`, `test.ps1 -Stage contracts`, and
+`release-check.ps1 -Offline -AllowDirty`; the latter passed 43 frontend tests,
+runtime boundaries, the complete Rust suite, migrations, backup/restore, and
+lifecycle checks.
 
 ### Task 2: Enforce architecture and source budgets
 
