@@ -1,4 +1,4 @@
-* text=auto
+* text=auto eol=lf
 
 # Protocol artifacts are byte-compared against the Rust exporter on Windows.
 docs/protocol.schema.json text eol=lf
