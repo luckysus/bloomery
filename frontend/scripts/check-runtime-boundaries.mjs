@@ -83,6 +83,18 @@ function collectSourceFiles(directory) {
   });
 }
 
+const pageBudget = 300;
+for (const path of collectSourceFiles(join(sourceRoot, "features")).filter(
+  (candidate) => /Page\.tsx$/.test(candidate) && !/\.test\.tsx$/.test(candidate),
+)) {
+  const lines = readFileSync(path, "utf8").split(/\r?\n/).length;
+  if (lines > pageBudget) {
+    failures.push(
+      `${relative(frontendRoot, path).replaceAll("\\", "/")} has ${lines} lines; page budget is ${pageBudget}`,
+    );
+  }
+}
+
 for (const path of collectSourceFiles(sourceRoot)) {
   const source = readFileSync(path, "utf8");
   const label = relative(frontendRoot, path).replaceAll("\\", "/");

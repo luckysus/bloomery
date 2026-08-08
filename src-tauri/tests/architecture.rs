@@ -114,6 +114,29 @@ fn task_11_removes_legacy_runtime_and_enforces_module_budgets() {
 }
 
 #[test]
+fn runtime_module_budget_is_enforced_recursively() {
+    let runtime_root = manifest_dir().join("src/agent/runtime");
+    let mut pending = vec![runtime_root];
+    while let Some(directory) = pending.pop() {
+        for entry in fs::read_dir(&directory).expect("read recursive runtime modules") {
+            let path = entry.expect("runtime module entry").path();
+            if path.is_dir() {
+                pending.push(path);
+                continue;
+            }
+            if path.extension().and_then(|value| value.to_str()) != Some("rs") {
+                continue;
+            }
+            assert!(
+                line_count(&path) <= 500,
+                "{} exceeds the 500-line runtime module budget",
+                path.display()
+            );
+        }
+    }
+}
+
+#[test]
 fn local_storage_and_context_do_not_require_auth_state() {
     for name in ["db.rs", "context.rs"] {
         let module = source(manifest_dir().join("src").join(name));

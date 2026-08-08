@@ -47,6 +47,13 @@ lifecycle checks.
 - [ ] **Step 3: Resolve every offender or add a narrow documented exception with expiry version.** Stable budgets: runtime files 500 lines, repositories 400, Tauri commands 150, React pages 300, hooks/stores 250.
 - [ ] **Step 4: Run source-wide boundary checks** and expect no unapproved exceptions.
 
+**Execution record (2026-08-08):** Added the frontend page budget gate and
+split Chat, Knowledge, Onboarding, and Settings state orchestration from their
+rendering components. The affected pages are now 230, 237, 155, and 228 lines;
+the runtime boundary suite checks 29 files. The full deterministic suite passed
+43 frontend tests, the production build, Rust formatting, and all Rust tests.
+The remaining source-wide dependency assertions in this task are still open.
+
 ### Task 3: Complete application security testing
 
 **Files:** Create security integration/fuzz tests and `docs/security-model.md`.

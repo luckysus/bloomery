@@ -5,166 +5,25 @@ import {
   CircleHelp,
   KeyRound,
   LoaderCircle,
-  PlugZap,
-  Save,
   Settings2,
-  Trash2,
 } from "lucide-react";
-import {
-  desktop,
-  type ProviderKind,
-  type ProviderProfileInput,
-  type ProviderProfileResponse,
-} from "../../bridge/desktop";
+import { desktop, type ProviderProfileInput } from "../../bridge/desktop";
 import { useLocale } from "../../i18n/locale";
-
-type ProviderSlot = "chat" | "embedding" | "reranker" | "mineru";
-type RetrievalPlan = "free" | "pro";
-
-interface RetrievalIds {
-  embedding: string | null;
-  reranker: string | null;
-  mineru: string | null;
-}
-
-interface SettingsEditor {
-  slot: ProviderSlot;
-  id: string | null;
-  kind: ProviderKind;
-  displayName: string;
-  baseUrl: string;
-  modelId: string;
-  apiKey: string;
-  enabled: boolean;
-  secretConfigured: boolean;
-}
-
-const defaultRetrievalIds: RetrievalIds = {
-  embedding: null,
-  reranker: null,
-  mineru: null,
-};
-
-const defaults: Record<ProviderSlot, Omit<SettingsEditor, "slot" | "id" | "apiKey" | "secretConfigured">> = {
-  chat: {
-    kind: "open_ai_compatible",
-    displayName: "OpenAI Compatible",
-    baseUrl: "https://api.openai.com/v1",
-    modelId: "gpt-4o-mini",
-    enabled: true,
-  },
-  embedding: {
-    kind: "siliconflow",
-    displayName: "SiliconFlow Embedding",
-    baseUrl: "https://api.siliconflow.cn/v1",
-    modelId: "BAAI/bge-m3",
-    enabled: true,
-  },
-  reranker: {
-    kind: "siliconflow",
-    displayName: "SiliconFlow Reranker",
-    baseUrl: "https://api.siliconflow.cn/v1",
-    modelId: "BAAI/bge-reranker-v2-m3",
-    enabled: true,
-  },
-  mineru: {
-    kind: "mineru",
-    displayName: "MinerU",
-    baseUrl: "https://mineru.net/api/v4",
-    modelId: "",
-    enabled: true,
-  },
-};
-
-const slotTitles: Record<ProviderSlot, "settingsChatProvider" | "settingsEmbeddingProvider" | "settingsRerankerProvider" | "settingsMineruProvider"> = {
-  chat: "settingsChatProvider",
-  embedding: "settingsEmbeddingProvider",
-  reranker: "settingsRerankerProvider",
-  mineru: "settingsMineruProvider",
-};
-
-const slotDescriptions: Record<ProviderSlot, "settingsChatDescription" | "settingsEmbeddingDescription" | "settingsRerankerDescription" | "settingsMineruDescription"> = {
-  chat: "settingsChatDescription",
-  embedding: "settingsEmbeddingDescription",
-  reranker: "settingsRerankerDescription",
-  mineru: "settingsMineruDescription",
-};
-
-function parseObject(value: string | null) {
-  if (!value) return {} as Record<string, unknown>;
-  try {
-    const parsed = JSON.parse(value);
-    return parsed && typeof parsed === "object" ? parsed as Record<string, unknown> : {};
-  } catch {
-    return {} as Record<string, unknown>;
-  }
-}
-
-function parseId(value: unknown) {
-  return typeof value === "string" && value.trim() ? value : null;
-}
-
-function profileForSlot(
-  slot: ProviderSlot,
-  profiles: ProviderProfileResponse[],
-  completed: Record<string, unknown>,
-  retrieval: Record<string, unknown>,
-) {
-  const configuredId = slot === "chat"
-    ? parseId(completed.llm_profile_id)
-    : parseId(retrieval[`${slot}_profile_id`]);
-  const byId = configuredId ? profiles.find((profile) => profile.id === configuredId) : undefined;
-  if (byId) return byId;
-
-  return profiles.find((profile) => {
-    if (slot === "chat") return profile.kind === "open_ai_compatible" || profile.kind === "ollama";
-    if (slot === "mineru") return profile.kind === "mineru";
-    if (profile.kind !== "siliconflow") return false;
-    return slot === "embedding"
-      ? profile.model_id?.toLowerCase().includes("bge-m3") && !profile.model_id.toLowerCase().includes("reranker")
-      : profile.model_id?.toLowerCase().includes("rerank");
-  });
-}
-
-function editorFor(
-  slot: ProviderSlot,
-  profile: ProviderProfileResponse | undefined,
-): SettingsEditor {
-  const fallback = defaults[slot];
-  return {
-    slot,
-    id: profile?.id ?? null,
-    kind: profile?.kind ?? fallback.kind,
-    displayName: profile?.display_name ?? fallback.displayName,
-    baseUrl: profile?.base_url ?? fallback.baseUrl,
-    modelId: profile?.model_id ?? fallback.modelId,
-    apiKey: "",
-    enabled: profile?.enabled ?? fallback.enabled,
-    secretConfigured: profile?.secret_configured ?? false,
-  };
-}
-
-function providerErrorMessage(
-  code: string | null | undefined,
-  translate: (key: "credentialAuthentication" | "providerQuota" | "providerTimeout" | "providerNetwork" | "providerInvalidResponse") => string,
-) {
-  switch (code) {
-    case "authentication":
-      return translate("credentialAuthentication");
-    case "quota":
-      return translate("providerQuota");
-    case "timeout":
-      return translate("providerTimeout");
-    case "network":
-      return translate("providerNetwork");
-    default:
-      return translate("providerInvalidResponse");
-  }
-}
-
-function errorMessage(error: unknown, fallback: string) {
-  return error instanceof Error ? error.message : fallback;
-}
+import SettingsProviderCard from "./SettingsProviderCard";
+import {
+  defaultRetrievalIds,
+  defaults,
+  editorFor,
+  errorMessage,
+  parseId,
+  parseObject,
+  profileForSlot,
+  providerErrorMessage,
+  type ProviderSlot,
+  type RetrievalIds,
+  type RetrievalPlan,
+  type SettingsEditor,
+} from "./settingsModel";
 
 export default function SettingsPage() {
   const { t } = useLocale();
@@ -220,8 +79,8 @@ export default function SettingsPage() {
     }));
   };
 
-  const updateEditor = <K extends keyof SettingsEditor>(slot: ProviderSlot, key: K, value: SettingsEditor[K]) => {
-    setEditors((current) => current.map((editor) => editor.slot === slot ? { ...editor, [key]: value } : editor));
+  const updateEditor = (next: SettingsEditor) => {
+    setEditors((current) => current.map((editor) => editor.slot === next.slot ? next : editor));
   };
 
   const changePlan = async (nextPlan: RetrievalPlan) => {
@@ -260,8 +119,8 @@ export default function SettingsPage() {
         : { ...retrievalIds, [editor.slot]: saved.id } as RetrievalIds;
       setRetrievalIds(nextIds);
       await persistRetrieval(plan, nextIds);
-      setEditors((current) => current.map((item) => item.slot === editor.slot ? {
-        ...item,
+      updateEditor({
+        ...editor,
         id: saved.id,
         kind: saved.kind,
         displayName: saved.display_name,
@@ -270,7 +129,7 @@ export default function SettingsPage() {
         apiKey: "",
         enabled: saved.enabled,
         secretConfigured: saved.secret_configured || Boolean(editor.apiKey.trim()),
-      } : item));
+      });
       setNotice(t("settingsSaved"));
     } catch (cause) {
       setError(errorMessage(cause, t("settingsSaveError")));
@@ -304,7 +163,7 @@ export default function SettingsPage() {
     setError(null);
     try {
       await desktop.deleteProviderProfile(editor.id);
-      setEditors((current) => current.map((item) => item.slot === editor.slot ? editorFor(editor.slot, undefined) : item));
+      updateEditor(editorFor(editor.slot, undefined));
       const nextIds = editor.slot === "chat" ? retrievalIds : { ...retrievalIds, [editor.slot]: null } as RetrievalIds;
       setRetrievalIds(nextIds);
       if (editor.slot !== "chat") await persistRetrieval(plan, nextIds);
@@ -349,25 +208,16 @@ export default function SettingsPage() {
       {loading ? <div className="bloomery-settings-loading"><LoaderCircle size={18} className="bloomery-spin" />{t("loading")}</div> : (
         <div className="bloomery-settings-grid">
           {editors.map((editor) => (
-            <form className="bloomery-settings-card" key={editor.slot} onSubmit={(event) => void saveEditor(event, editor)}>
-              <div className="bloomery-settings-card-heading"><div><span className="bloomery-settings-card-icon"><PlugZap size={17} aria-hidden="true" /></span><div><p className="bloomery-eyebrow">{editor.kind.toUpperCase()}</p><h2>{t(slotTitles[editor.slot])}</h2></div></div><span className={`bloomery-settings-status ${editor.secretConfigured ? "is-configured" : "is-missing"}`}>{editor.secretConfigured ? t("settingsSecretConfigured") : t("settingsSecretMissing")}</span></div>
-              <p className="bloomery-settings-description">{t(slotDescriptions[editor.slot])}</p>
-              <div className="bloomery-settings-fields">
-                <label htmlFor={`settings-${editor.slot}-name`}>{t("settingsDisplayName")}</label>
-                <input id={`settings-${editor.slot}-name`} value={editor.displayName} onChange={(event) => updateEditor(editor.slot, "displayName", event.target.value)} required />
-                <label htmlFor={`settings-${editor.slot}-url`}>{t("settingsBaseUrl")}</label>
-                <input id={`settings-${editor.slot}-url`} value={editor.baseUrl} onChange={(event) => updateEditor(editor.slot, "baseUrl", event.target.value)} required />
-                {editor.kind !== "mineru" && <><label htmlFor={`settings-${editor.slot}-model`}>{t("settingsModelId")}</label><input id={`settings-${editor.slot}-model`} value={editor.modelId} onChange={(event) => updateEditor(editor.slot, "modelId", event.target.value)} required /></>}
-                <label htmlFor={`settings-${editor.slot}-key`}>{t("settingsApiKey")}</label>
-                <input id={`settings-${editor.slot}-key`} aria-label={`provider.${editor.slot}.apiKey`} type="password" autoComplete="new-password" value={editor.apiKey} onChange={(event) => updateEditor(editor.slot, "apiKey", event.target.value)} placeholder={t("settingsApiKeyPlaceholder")} />
-              </div>
-              <label className="bloomery-settings-enabled"><input type="checkbox" checked={editor.enabled} onChange={(event) => updateEditor(editor.slot, "enabled", event.target.checked)} />{t("settingsEnabled")}</label>
-              <div className="bloomery-settings-card-actions">
-                <button type="submit" className="bloomery-action-primary" disabled={busySlot === editor.slot}><Save size={16} aria-hidden="true" />{busySlot === editor.slot ? t("saving") : t("settingsSave")}</button>
-                <button type="button" className="bloomery-action-secondary" onClick={() => void testEditor(editor)} disabled={testingSlot === editor.slot || busySlot === editor.slot}><PlugZap size={16} aria-hidden="true" />{testingSlot === editor.slot ? t("testing") : t("settingsTest")}</button>
-                {editor.id && <button type="button" className="bloomery-icon-button bloomery-settings-delete" onClick={() => void deleteEditor(editor)} disabled={busySlot === editor.slot} aria-label={`${t("settingsDelete")} ${editor.displayName}`} title={t("settingsDelete")}><Trash2 size={16} aria-hidden="true" /></button>}
-              </div>
-            </form>
+            <SettingsProviderCard
+              key={editor.slot}
+              editor={editor}
+              busy={busySlot === editor.slot}
+              testing={testingSlot === editor.slot}
+              onChange={updateEditor}
+              onSubmit={saveEditor}
+              onTest={testEditor}
+              onDelete={deleteEditor}
+            />
           ))}
         </div>
       )}
