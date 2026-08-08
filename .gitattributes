@@ -1,0 +1,5 @@
+* text=auto
+
+# Protocol artifacts are byte-compared against the Rust exporter on Windows.
+docs/protocol.schema.json text eol=lf
+frontend/src/bridge/generated/protocol.ts text eol=lf
