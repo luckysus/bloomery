@@ -97,6 +97,7 @@ impl SiliconFlowProvider {
         body: &T,
     ) -> Result<Value, ProviderError> {
         let redactor = Redactor::new().with_secret(&self.credential);
+        crate::diagnostics::observability::register_secret(&self.credential);
         for attempt in 1..=MAX_ATTEMPTS {
             let response = match self
                 .client

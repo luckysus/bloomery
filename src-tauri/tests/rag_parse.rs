@@ -365,3 +365,108 @@ fn office_archives_reject_duplicate_and_symlink_entries() {
         "archive_symlink"
     );
 }
+
+#[test]
+fn markdown_ignores_non_http_image_schemes_at_the_parse_boundary() {
+    let markdown = GeneratedFixture::file(
+        "schemes.md",
+        br#"# Scheme boundary
+
+![xss](javascript:alert(1))
+
+![inline](data:text/plain;base64,SGVsbG8=)
+
+![local](file:///etc/passwd)
+"#,
+    );
+
+    let parsed = parse_document(
+        markdown.path(),
+        SourceFormat::Markdown,
+        ParseLimits::default(),
+    )
+    .expect("parse Markdown");
+
+    // 没有任何资产被加载/内嵌。
+    assert!(parsed.assets.is_empty());
+    let images: Vec<_> = parsed
+        .blocks
+        .iter()
+        .filter(|block| matches!(block, DocumentBlock::Image { .. }))
+        .collect();
+    assert_eq!(images.len(), 3);
+    for block in &images {
+        assert!(
+            matches!(
+                block,
+                DocumentBlock::Image {
+                    asset_index: None,
+                    ..
+                }
+            ),
+            "non-http image must never be embedded"
+        );
+    }
+    // 三个非 http/https scheme 均被标记为未内嵌（忽略于解析边界），而非 remote_asset_ignored。
+    let scheme_warnings = parsed
+        .warnings
+        .iter()
+        .filter(|warning| warning.code == "external_asset_not_embedded")
+        .count();
+    assert_eq!(scheme_warnings, 3);
+    assert!(parsed
+        .warnings
+        .iter()
+        .all(|warning| warning.code != "remote_asset_ignored"));
+    // 危险 scheme 的 URL 不得残留在解析产物中。
+    let serialized = serde_json::to_string(&parsed.blocks).expect("serialize blocks");
+    assert!(!serialized.contains("javascript:"));
+    assert!(!serialized.contains("data:"));
+    assert!(!serialized.contains("file://"));
+}
+
+#[test]
+fn html_ignores_non_http_image_schemes_at_the_parse_boundary() {
+    let html = GeneratedFixture::file(
+        "schemes.html",
+        br#"<html><body>
+<h1>Scheme boundary</h1>
+<img alt="xss" src="javascript:alert(1)">
+<img alt="inline" src="data:text/plain;base64,SGVsbG8=">
+<img alt="local" src="file:///etc/passwd">
+</body></html>"#,
+    );
+
+    let parsed = parse_document(html.path(), SourceFormat::Html, ParseLimits::default())
+        .expect("parse HTML");
+
+    assert!(parsed.assets.is_empty());
+    let images: Vec<_> = parsed
+        .blocks
+        .iter()
+        .filter(|block| matches!(block, DocumentBlock::Image { .. }))
+        .collect();
+    assert_eq!(images.len(), 3);
+    for block in &images {
+        assert!(matches!(
+            block,
+            DocumentBlock::Image {
+                asset_index: None,
+                ..
+            }
+        ));
+    }
+    let scheme_warnings = parsed
+        .warnings
+        .iter()
+        .filter(|warning| warning.code == "external_asset_not_embedded")
+        .count();
+    assert_eq!(scheme_warnings, 3);
+    assert!(parsed
+        .warnings
+        .iter()
+        .all(|warning| warning.code != "remote_asset_ignored"));
+    let serialized = serde_json::to_string(&parsed.blocks).expect("serialize blocks");
+    assert!(!serialized.contains("javascript:"));
+    assert!(!serialized.contains("file://"));
+}

@@ -70,6 +70,10 @@ if ($matches.Count -gt 0) {
 
 Invoke-Checked "Frontend security boundary scan" "npm" @("run", "test:boundaries") $frontendRoot
 
+# 前端渲染安全回归（Vitest）：确保 AnswerRenderer 对 javascript:/data:/HTML 注入
+# 与 proxyImg scheme 白名单的防护失效时，安全门禁以非零退出码失败。
+Invoke-Checked "Frontend security tests" "npm" @("run", "test", "--", "src/components/answer/__tests__/AnswerRenderer.security.test.tsx") $frontendRoot
+
 $securityTests = @(
     "architecture",
     "backup",
@@ -81,7 +85,10 @@ $securityTests = @(
     "permission_repository",
     "permissions",
     "providers",
+    "rag_fts",
     "rag_mineru",
+    "rag_parse",
+    "secret_scan",
     "tools"
 )
 foreach ($testName in $securityTests) {

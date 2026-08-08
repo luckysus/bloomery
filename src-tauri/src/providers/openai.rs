@@ -150,6 +150,7 @@ impl ChatProvider for OpenAiProvider {
         let mut redactor = Redactor::new();
         let mut outbound = self.client.post(&self.chat_url).json(&body);
         if let Some(credential) = &self.credential {
+            crate::diagnostics::observability::register_secret(credential);
             redactor = redactor.with_secret(credential);
             outbound = outbound.bearer_auth(credential.expose());
         }

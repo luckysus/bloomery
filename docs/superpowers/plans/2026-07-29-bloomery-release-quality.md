@@ -80,6 +80,45 @@ source scanning, 26 architecture tests, backup/restore, domain package,
 redaction, MCP, path, permission, provider, MinerU, and tool suites. The
 broader release scenarios and clean-profile evidence remain open.
 
+**Security evidence matrix (2026-08-08):** The tables below map every Step 1
+attack scenario and every Step 4 output surface to its authoritative test
+file/script and the boundary hardened per Step 3 (parser / path / HTTP /
+permission / renderer / repository / restore). Documentation only; acceptance
+checkboxes are unchanged.
+
+_Step 1 attack scenarios → test file/script → hardened boundary:_
+
+| 安全场景 (Step 1) | 测试文件 / 脚本 | 加固边界 |
+| --- | --- | --- |
+| Path / junction / device escape | `src-tauri/tests/permission_paths.rs`, `src-tauri/tests/rag_import.rs` | path |
+| Archive bombs / traversal (backup import) | `src-tauri/tests/backup.rs` | restore, path |
+| Malicious HTML / Markdown rendering | `frontend/src/components/answer/__tests__/AnswerRenderer.security.test.tsx` (via `scripts/security-check.ps1`) | renderer |
+| Remote resource loading (`proxyImg` scheme allow-list) | `frontend/src/components/answer/__tests__/AnswerRenderer.security.test.tsx` | renderer |
+| Redirect downgrade (HTTPS→HTTP) | `src-tauri/tests/mineru_redirect.rs`, `src-tauri/tests/http_redaction.rs` | HTTP |
+| Key / credential leakage | `src-tauri/tests/secret_scan.rs`, `src-tauri/tests/http_redaction.rs` | HTTP, repository, restore |
+| MCP environment / transport leakage | `src-tauri/tests/mcp_transports.rs`, `src-tauri/tests/mcp.rs` | permission, HTTP |
+| Permission bypass (commands / repository) | `src-tauri/tests/permissions.rs`, `src-tauri/tests/permission_repository.rs`, `src-tauri/tests/domain_commands.rs` | permission, repository |
+| SQL / FTS injection | `src-tauri/tests/rag_fts.rs`, `src-tauri/tests/rag_repository.rs` | repository, parser |
+| Oversized / malformed tool / provider output | `src-tauri/tests/tools.rs`, `src-tauri/tests/providers.rs`, `src-tauri/tests/rag_parse.rs` | parser, HTTP |
+| Corrupt backups / restore | `src-tauri/tests/backup.rs` | restore |
+
+_Step 4 output surfaces (synthetic key must be absent everywhere) → evidence:_
+
+| 输出面 (Step 4) | 测试断言 | 加固边界 |
+| --- | --- | --- |
+| SQLite database file | `secret_scan.rs::synthetic_secret_absent_from_sqlite_and_backup_export` | repository |
+| Logs (redacted log lines) | `secret_scan.rs::synthetic_secret_absent_from_provider_failure_and_logs` | HTTP, repository |
+| Crash / panic messages (incl. backtrace branch) | `secret_scan.rs::synthetic_secret_never_appears_in_panic_messages`, `secret_scan.rs::synthetic_secret_absent_from_panic_backtrace_branch` | renderer (diagnostics redaction) |
+| Backup export archive | `secret_scan.rs::synthetic_secret_absent_from_sqlite_and_backup_export` | restore |
+| Diagnostics health / error JSON | `secret_scan.rs::synthetic_secret_absent_from_diagnostics_json` | HTTP |
+| Process arguments / environment | `secret_scan.rs::synthetic_secret_absent_from_process_arguments` | permission |
+
+The panic diagnostics path keeps redaction mandatory: `format_panic` always
+redacts the panic message, and the optional `std::backtrace::Backtrace` frames
+(enabled only under `cfg!(debug_assertions)` or `BLOOMERY_PANIC_BACKTRACE`) are
+also passed through the global `Redactor`, verified by the backtrace-branch
+assertion above.
+
 ### Task 4: Lock dependencies, licenses, and SBOM
 
 **Files:** Create `deny.toml`, dependency policy, notice generator, SBOM scripts; modify licenses/notices.

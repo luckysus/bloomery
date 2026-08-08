@@ -195,6 +195,7 @@ impl MinerUProvider {
 
     async fn get_json(&self, url: &str) -> Result<Value, ProviderError> {
         let redactor = Redactor::new().with_secret(&self.credential);
+        crate::diagnostics::observability::register_secret(&self.credential);
         for attempt in 1..=MAX_ATTEMPTS {
             let response = self
                 .client
@@ -234,6 +235,7 @@ impl MinerUProvider {
         body: &T,
     ) -> Result<Value, ProviderError> {
         let redactor = Redactor::new().with_secret(&self.credential);
+        crate::diagnostics::observability::register_secret(&self.credential);
         let response = self
             .client
             .post(url)

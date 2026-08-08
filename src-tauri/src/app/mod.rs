@@ -22,6 +22,9 @@ use std::time::Duration;
 use tauri::{Manager, RunEvent};
 
 pub fn run() {
+    // 先安装脱敏 panic hook，确保任何崩溃报告在写入 stderr 前都经过 Redactor。
+    crate::diagnostics::observability::install_panic_hook();
+
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())

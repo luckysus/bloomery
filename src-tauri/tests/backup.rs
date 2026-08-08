@@ -159,3 +159,196 @@ fn restore_rejects_archive_path_traversal_before_writing_files() {
     assert!(!root.join("escaped").exists());
     fs::remove_dir_all(root).expect("remove fixture");
 }
+
+fn manifest_bytes(format_version: u32, content_file_count: usize) -> Vec<u8> {
+    serde_json::to_vec(&json!({
+        "formatVersion": format_version,
+        "createdAt": "2026-08-08T00:00:00Z",
+        "databaseEntry": "bloomery.sqlite3",
+        "contentPrefix": "content/",
+        "contentFileCount": content_file_count
+    }))
+    .expect("encode manifest")
+}
+
+fn build_archive(
+    path: &std::path::Path,
+    manifest: &[u8],
+    database: &[u8],
+    content: &[(&str, &[u8])],
+) {
+    let file = fs::File::create(path).expect("create archive");
+    let mut writer = zip::ZipWriter::new(file);
+    let options = SimpleFileOptions::default();
+    writer
+        .start_file("manifest.json", options)
+        .expect("start manifest");
+    writer.write_all(manifest).expect("write manifest");
+    writer
+        .start_file("bloomery.sqlite3", options)
+        .expect("start database");
+    writer.write_all(database).expect("write database");
+    for (name, bytes) in content {
+        writer.start_file(*name, options).expect("start content");
+        writer.write_all(bytes).expect("write content");
+    }
+    writer.finish().expect("finish archive");
+}
+
+fn seed_target(database: &std::path::Path, content: &std::path::Path) {
+    let mut connection = Connection::open(database).expect("open target database");
+    migrate(&mut connection).expect("migrate target database");
+    connection
+        .execute(
+            "INSERT INTO settings (workspace_id, key, value_json, updated_at)
+             VALUES ('local', 'sentinel', '{\"keep\":true}', 'now')",
+            [],
+        )
+        .expect("seed sentinel row");
+    drop(connection);
+    fs::create_dir_all(content.join("objects")).expect("create target content");
+    fs::write(content.join("objects/keep"), "keep").expect("write keep file");
+}
+
+fn assert_target_intact(database: &std::path::Path, content: &std::path::Path) {
+    let connection = Connection::open(database).expect("reopen target database");
+    let value: String = connection
+        .query_row(
+            "SELECT value_json FROM settings WHERE workspace_id = 'local' AND key = 'sentinel'",
+            [],
+            |row| row.get(0),
+        )
+        .expect("sentinel row must survive a rejected restore");
+    assert_eq!(value, "{\"keep\":true}");
+    assert_eq!(
+        fs::read_to_string(content.join("objects/keep")).expect("keep file must survive"),
+        "keep"
+    );
+}
+
+fn assert_no_staging_leftovers(root: &std::path::Path) {
+    for entry in fs::read_dir(root).expect("read fixture root").flatten() {
+        let name = entry.file_name().to_string_lossy().to_string();
+        assert!(
+            !name.starts_with(".bloomery-restore-")
+                && !name.starts_with(".bloomery-content-restore-")
+                && !name.starts_with(".bloomery-rollback-"),
+            "restore left staging/rollback artifact behind: {name}"
+        );
+    }
+}
+
+#[test]
+fn restore_rejects_truncated_archive_without_touching_target() {
+    let root = fixture_root("truncated");
+    fs::create_dir_all(&root).expect("create root");
+    let source_database = root.join("source.sqlite3");
+    let mut source = Connection::open(&source_database).expect("open source database");
+    migrate(&mut source).expect("migrate source database");
+    source
+        .execute(
+            "INSERT INTO settings (workspace_id, key, value_json, updated_at)
+             VALUES ('local', 'origin', '{\"v\":1}', 'now')",
+            [],
+        )
+        .expect("seed source row");
+    let full = root.join("full.bloomery-backup");
+    create_backup(
+        &source,
+        &source_database,
+        &root.join("source-content"),
+        &full,
+    )
+    .expect("create backup");
+    drop(source);
+
+    // 头部完整、内容截断：仅保留前半段字节，破坏 ZIP 中央目录。
+    let bytes = fs::read(&full).expect("read full backup");
+    let archive = root.join("truncated.bloomery-backup");
+    fs::write(&archive, &bytes[..bytes.len() / 2]).expect("write truncated backup");
+
+    let target_database = root.join("target.sqlite3");
+    let target_content = root.join("target-content");
+    seed_target(&target_database, &target_content);
+
+    let error = restore_backup(&archive, &target_database, &target_content)
+        .expect_err("truncated archive must be rejected");
+    assert!(!error.is_empty());
+    assert_target_intact(&target_database, &target_content);
+    assert_no_staging_leftovers(&root);
+    fs::remove_dir_all(root).expect("remove fixture");
+}
+
+#[test]
+fn restore_rejects_content_count_mismatch_without_touching_target() {
+    let root = fixture_root("count-mismatch");
+    fs::create_dir_all(&root).expect("create root");
+    let archive = root.join("mismatch.bloomery-backup");
+    // manifest 声明 3 个内容文件，归档内实际为 0 个 —— 条目一致性校验必须拒绝。
+    build_archive(
+        &archive,
+        &manifest_bytes(1, 3),
+        b"unused database bytes",
+        &[],
+    );
+
+    let target_database = root.join("target.sqlite3");
+    let target_content = root.join("target-content");
+    seed_target(&target_database, &target_content);
+
+    let error = restore_backup(&archive, &target_database, &target_content)
+        .expect_err("content count mismatch must be rejected");
+    assert!(error.contains("content count does not match"));
+    assert_target_intact(&target_database, &target_content);
+    assert_no_staging_leftovers(&root);
+    fs::remove_dir_all(root).expect("remove fixture");
+}
+
+#[test]
+fn restore_rejects_incompatible_manifest_version_without_touching_target() {
+    let root = fixture_root("bad-version");
+    fs::create_dir_all(&root).expect("create root");
+    let archive = root.join("version.bloomery-backup");
+    build_archive(
+        &archive,
+        &manifest_bytes(999, 0),
+        b"unused database bytes",
+        &[],
+    );
+
+    let target_database = root.join("target.sqlite3");
+    let target_content = root.join("target-content");
+    seed_target(&target_database, &target_content);
+
+    let error = restore_backup(&archive, &target_database, &target_content)
+        .expect_err("incompatible manifest version must be rejected");
+    assert!(error.contains("unsupported backup format"));
+    assert_target_intact(&target_database, &target_content);
+    assert_no_staging_leftovers(&root);
+    fs::remove_dir_all(root).expect("remove fixture");
+}
+
+#[test]
+fn restore_rejects_corrupt_database_header_without_touching_target() {
+    let root = fixture_root("bad-db");
+    fs::create_dir_all(&root).expect("create root");
+    let archive = root.join("corrupt.bloomery-backup");
+    // manifest 合法、0 个内容文件，但数据库条目不是合法 SQLite 文件。
+    build_archive(
+        &archive,
+        &manifest_bytes(1, 0),
+        b"this is definitely not a valid sqlite database header",
+        &[],
+    );
+
+    let target_database = root.join("target.sqlite3");
+    let target_content = root.join("target-content");
+    seed_target(&target_database, &target_content);
+
+    let error = restore_backup(&archive, &target_database, &target_content)
+        .expect_err("corrupt database must be rejected");
+    assert!(error.contains("database"), "unexpected error: {error}");
+    assert_target_intact(&target_database, &target_content);
+    assert_no_staging_leftovers(&root);
+    fs::remove_dir_all(root).expect("remove fixture");
+}

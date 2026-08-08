@@ -138,6 +138,57 @@ fn latest_migration_exposes_rich_fts_columns() {
     }
 }
 
+#[test]
+fn fts_neutralizes_sql_and_fts5_operator_payloads() {
+    let mut fixture = Fixture::new();
+    let base = fixture.base("Injection");
+    let alpha = fixture.document(base, "alpha.pdf");
+    fixture.version(
+        alpha,
+        'a',
+        true,
+        &[(
+            "alpha",
+            "alpha steel content",
+            SourceLocation::Heading {
+                path: vec!["Alpha".to_string()],
+            },
+        )],
+    );
+    let beta = fixture.document(base, "beta.pdf");
+    fixture.version(
+        beta,
+        'b',
+        true,
+        &[(
+            "beta",
+            "beta iron content",
+            SourceLocation::Heading {
+                path: vec!["secret".to_string()],
+            },
+        )],
+    );
+
+    // 基线：两篇文档均可被各自正文词命中，"secret" 作为普通词经 title_path 列可检索。
+    assert_eq!(fixture.search("steel", &[base]).len(), 1);
+    assert_eq!(fixture.search("iron", &[base]).len(), 1);
+    let secret_hits = fixture.search("secret", &[base]);
+    assert_eq!(secret_hits.len(), 1);
+    assert_eq!(secret_hits[0].source_name, "beta.pdf");
+
+    // 经典 SQL 注入 payload 不得返回全量结果（被中和为字面短语，命中为空）。
+    assert!(fixture.search("'\"OR 1=1--'", &[base]).is_empty());
+    // FTS5 列过滤语法 title_path:secret 不得被解释为列过滤（否则会命中 beta.pdf）。
+    assert!(fixture.search("title_path:secret", &[base]).is_empty());
+    // 裸通配符 * 不得触发全量扫描。
+    assert!(fixture.search("*", &[base]).is_empty());
+    // FTS5 布尔/邻近运算符被双引号包裹为字面 token，不产生布尔展开。
+    assert!(fixture.search("steel OR iron", &[base]).is_empty());
+    assert!(fixture.search("steel NOT beta", &[base]).is_empty());
+    assert!(fixture.search("steel AND iron", &[base]).is_empty());
+    assert!(fixture.search("steel NEAR iron", &[base]).is_empty());
+}
+
 struct Fixture {
     connection: Connection,
 }

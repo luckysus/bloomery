@@ -4,7 +4,7 @@ import { FileText, Globe, ImageIcon } from "lucide-react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { PluggableList } from "unified";
-import { proxyImg } from "../../utils/searchRender";
+import { proxyImg, sanitizeUrl } from "../../utils/searchRender";
 import { useLocale } from "../../i18n/locale";
 
 export interface AnswerReferenceResult {
@@ -403,5 +403,18 @@ export default function AIAnswerRenderer({
 
   const processedAnswer = preprocessAnswer(answer);
 
-  return <ReactMarkdown remarkPlugins={remarkGfmNoSingleTilde} components={components}>{processedAnswer}</ReactMarkdown>;
+  // Rendering safety: `skipHtml` drops any raw HTML (e.g. <script>/<iframe>)
+  // instead of trusting it, and `urlTransform` strips dangerous link/image
+  // schemes (javascript:, data:, vbscript:, ...). rehype-raw is intentionally
+  // never enabled here so untrusted HTML is never revived into live nodes.
+  return (
+    <ReactMarkdown
+      remarkPlugins={remarkGfmNoSingleTilde}
+      skipHtml
+      urlTransform={sanitizeUrl}
+      components={components}
+    >
+      {processedAnswer}
+    </ReactMarkdown>
+  );
 }

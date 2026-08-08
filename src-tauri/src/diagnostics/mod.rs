@@ -1,3 +1,4 @@
+pub mod observability;
 pub mod redaction;
 
 use crate::db::{current_workspace_id, database_path, with_conn, DbState};
