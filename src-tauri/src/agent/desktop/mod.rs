@@ -6,7 +6,7 @@ mod routing;
 mod service;
 mod session;
 
-pub use cancellation::LocalAgentState;
+pub use cancellation::{permission_key_for, LocalAgentState};
 pub use model::{
     DesktopIntentKind, DesktopRoute, LocalAgentChatRequest, LocalAgentDelta, LocalAskRequest,
     LocalLlmConfig, StreamedLlmAnswer, SummarizeConversationRequest, SummarizeConversationResponse,

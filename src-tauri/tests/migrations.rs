@@ -97,6 +97,14 @@ fn seed_database_at_version(connection: &mut Connection, version: u32) {
             16,
             include_str!("../src/storage/migrations/0016_steel_datasets.sql"),
         ),
+        (
+            17,
+            include_str!("../src/storage/migrations/0017_mcp_servers.sql"),
+        ),
+        (
+            18,
+            include_str!("../src/storage/migrations/0018_mcp_legacy_sse.sql"),
+        ),
     ];
 
     for (migration_version, sql) in migrations.into_iter().take(version as usize) {
@@ -183,6 +191,7 @@ fn migrates_empty_database_to_latest_schema() {
     assert!(columns(&conn, "permission_rules").contains(&"revoked_at".to_string()));
     assert!(columns(&conn, "domain_packages").contains(&"package_sha256".to_string()));
     assert!(columns(&conn, "domain_packages").contains(&"active".to_string()));
+    assert!(mcp_transport_accepts_legacy_sse(&conn));
 }
 
 #[test]
@@ -408,6 +417,7 @@ fn version_twelve_database_receives_summary_source_backfill() {
           VALUES ('s-v12', 'local', 'c-v12', 'summary', 'm-v12-1', '[]', 't2', 't2');
         DROP TABLE steel_dataset_columns;
         DROP TABLE steel_datasets;
+        DROP TABLE mcp_servers;
         DELETE FROM schema_migrations WHERE version > 12;
         PRAGMA user_version = 12;
         "#,
@@ -416,7 +426,7 @@ fn version_twelve_database_receives_summary_source_backfill() {
 
     let report = migrate(&mut conn).expect("apply post-v12 migrations");
 
-    assert_eq!(report.applied_versions, vec![13, 14, 15, 16]);
+    assert_eq!(report.applied_versions, vec![13, 14, 15, 16, 17, 18]);
     assert_eq!(
         conn.query_row(
             "SELECT source_message_ids_json FROM conversation_summaries WHERE id = 's-v12'",
@@ -446,8 +456,20 @@ fn file_database_uses_wal_and_ordered_migrations() {
     assert_eq!(version, latest_version());
     assert_eq!(
         report.applied_versions,
-        vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]
+        vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18]
     );
+}
+
+fn mcp_transport_accepts_legacy_sse(conn: &Connection) -> bool {
+    conn.execute(
+        "INSERT INTO mcp_servers
+         (id, workspace_id, display_name, server_id, transport, url, args_json,
+          inherited_env_json, env_names_json, timeout_ms, enabled, created_at, updated_at)
+         VALUES ('mcp-sse-fixture', 'local', 'SSE fixture', 'sse-fixture', 'sse',
+                 'http://127.0.0.1:1/sse', '[]', '[]', '[]', 1000, 1, 't', 't')",
+        [],
+    )
+    .is_ok()
 }
 #[test]
 fn rejects_database_from_newer_bloomery() {

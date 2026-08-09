@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { useLocale } from "../../i18n/locale";
-import { desktop, type Conversation, type Message } from "../../bridge/desktop";
+import { desktop, type Conversation, type ConversationExportFormat, type Message } from "../../bridge/desktop";
+import type { PermissionDecision } from "../../bridge/generated/protocol";
 import { createAgentRunView, reduceAgentEvent, reduceAgentEvents, type AgentRunView } from "./agentEvents";
 import ChatView from "./ChatView";
 
@@ -23,6 +24,15 @@ function messageRunId(message: Message) {
   }
 }
 
+function exportFileName(title: string, extension: string) {
+  const safeTitle = title
+    .trim()
+    .replace(/[<>:"/\\|?*\u0000-\u001f]/g, "-")
+    .slice(0, 80)
+    .trim();
+  return `${safeTitle || "bloomery-conversation"}.${extension}`;
+}
+
 export default function ChatPage() {
   const { t } = useLocale();
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -36,6 +46,7 @@ export default function ChatPage() {
   const [loading, setLoading] = useState(true);
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
   const selectedConversation = useMemo(
     () => conversations.find((conversation) => conversation.id === selectedId) ?? null,
@@ -132,6 +143,7 @@ export default function ChatPage() {
 
   const createConversation = async () => {
     setError(null);
+    setNotice(null);
     try {
       const created = await desktop.createConversation(t("newConversation"));
       setConversations((current) => [created, ...current]);
@@ -141,6 +153,28 @@ export default function ChatPage() {
       setAgentRun(null);
     } catch (cause) {
       setError(errorMessage(cause, t("chatError")));
+    }
+  };
+
+  const exportSelectedConversation = async (format: ConversationExportFormat) => {
+    if (!selectedConversation) return;
+    setError(null);
+    setNotice(null);
+    const extension = format === "json" ? "json" : "md";
+    try {
+      const selected = await desktop.saveFileDialog({
+        title: t(format === "json" ? "chatExportJson" : "chatExportMarkdown"),
+        defaultPath: exportFileName(selectedConversation.title, extension),
+        filters: [{
+          name: t(format === "json" ? "chatExportJsonFile" : "chatExportMarkdownFile"),
+          extensions: [extension],
+        }],
+      });
+      if (typeof selected !== "string" || !selected.trim()) return;
+      await desktop.exportConversation(selectedConversation.id, selected, format);
+      setNotice(t("chatExported"));
+    } catch (cause) {
+      setError(errorMessage(cause, t("chatExportError")));
     }
   };
 
@@ -208,6 +242,14 @@ export default function ChatPage() {
     }
   };
 
+  const resolvePermission = async (permissionId: string, decision: PermissionDecision) => {
+    try {
+      await desktop.resolveAgentPermission(permissionId, decision);
+    } catch (cause) {
+      setError(errorMessage(cause, t("chatError")));
+    }
+  };
+
   return (
     <ChatView
       conversations={conversations}
@@ -220,11 +262,14 @@ export default function ChatPage() {
       pendingQuestion={pendingQuestion}
       agentRun={agentRun}
       error={error}
+      notice={notice}
       onNewConversation={() => void createConversation()}
       onSelectConversation={(id) => setSelectedId(id)}
       onDraftChange={setDraft}
       onSubmit={submitMessage}
       onCancel={() => void cancelRun()}
+      onResolvePermission={(permissionId, decision) => void resolvePermission(permissionId, decision)}
+      onExportConversation={(format) => void exportSelectedConversation(format)}
     />
   );
 }

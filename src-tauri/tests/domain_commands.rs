@@ -8,7 +8,8 @@
 
 use bloomery::app::domain_commands::DomainInstallResult;
 use bloomery::domains::{
-    install_package, resolve_resource_path, DomainTrust, DomainTrustStore, InstalledDomainPackage,
+    install_package, load_package, resolve_resource_path, DomainTrust, DomainTrustStore,
+    InstalledDomainPackage,
 };
 use bloomery::storage::migrations::migrate;
 use bloomery::storage::repositories::domains::{
@@ -121,6 +122,28 @@ fn all_domain_commands_remain_registered_in_the_single_handler_module() {
             "domain command {command} must be registered in commands.rs"
         );
     }
+    assert!(commands.contains("bundled_domain_commands::install_bundled_steel_package"));
+}
+
+#[test]
+fn bundled_steel_resource_is_valid_and_has_declared_asset_integrity() {
+    let source = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("resources")
+        .join("domain-packs")
+        .join("steel");
+    let package = load_package(&source, "0.1.0").expect("load bundled steel package");
+
+    assert_eq!(package.manifest.id, "steel");
+    assert_eq!(package.manifest.version, "1.0.0");
+    assert_eq!(
+        package.manifest.builtin_tool_allowlist,
+        vec!["steel.carbon_equivalent".to_string()]
+    );
+    assert_eq!(package.assets.len(), 1);
+    assert_eq!(
+        package.assets[0].relative_path,
+        PathBuf::from("assets/steel-terminology.json")
+    );
 }
 
 #[test]

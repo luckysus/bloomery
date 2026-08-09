@@ -86,8 +86,8 @@ Evidence (2026-08-03): content-addressed PDF/Markdown/TXT/HTML/DOCX/CSV/XLSX ing
 ### Gate E: controlled extension ecosystem
 
 - [ ] Built-in and MCP tools share typed schemas and permission enforcement.
-- [ ] stdio, Streamable HTTP, and legacy SSE MCP transports pass contract tests.
-- [ ] Claude-compatible Skills load from user, workspace, and domain scopes.
+- [x] stdio, Streamable HTTP, and legacy SSE MCP transports pass contract tests.
+- [x] Claude-compatible Skills load from user, workspace, and domain scopes.
 - [ ] Signed official and clearly marked unsigned third-party domain packages install safely.
 
 ### Gate F: complete steel workbench

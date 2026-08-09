@@ -37,6 +37,14 @@ pub struct BackupSummary {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct ArchiveStats {
+    database_bytes: u64,
+    content_file_count: usize,
+    content_bytes: u64,
+    total_bytes: u64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum EntryKind {
     Manifest,
     Database,
@@ -136,6 +144,31 @@ fn create_backup_archive(
     })
 }
 
+pub fn preview_backup(archive_path: &Path) -> Result<BackupSummary, String> {
+    if !archive_path.is_file() {
+        return Err("backup archive does not exist".to_string());
+    }
+    let archive_file =
+        File::open(archive_path).map_err(|error| format!("open backup archive failed: {error}"))?;
+    let mut archive = ZipArchive::new(archive_file)
+        .map_err(|error| format!("read backup archive failed: {error}"))?;
+    let manifest = read_manifest(&mut archive)?;
+    let stats = validate_archive(&mut archive, &manifest)?;
+    if stats.total_bytes > MAX_UNCOMPRESSED_BYTES {
+        return Err("backup exceeds the uncompressed size limit".to_string());
+    }
+    if stats.database_bytes == 0 {
+        return Err("backup database is empty".to_string());
+    }
+    Ok(BackupSummary {
+        format_version: manifest.format_version,
+        archive_path: archive_path.to_string_lossy().into_owned(),
+        database_bytes: stats.database_bytes,
+        content_file_count: stats.content_file_count,
+        content_bytes: stats.content_bytes,
+    })
+}
+
 pub fn restore_backup(
     archive_path: &Path,
     database_path: &Path,
@@ -156,8 +189,8 @@ pub fn restore_backup(
     let mut archive = ZipArchive::new(archive_file)
         .map_err(|error| format!("read backup archive failed: {error}"))?;
     let manifest = read_manifest(&mut archive)?;
-    let (content_file_count, total_bytes) = validate_archive(&mut archive, &manifest)?;
-    if total_bytes > MAX_UNCOMPRESSED_BYTES {
+    let stats = validate_archive(&mut archive, &manifest)?;
+    if stats.total_bytes > MAX_UNCOMPRESSED_BYTES {
         return Err("backup exceeds the uncompressed size limit".to_string());
     }
 
@@ -192,7 +225,7 @@ pub fn restore_backup(
         format_version: manifest.format_version,
         archive_path: archive_path.to_string_lossy().into_owned(),
         database_bytes,
-        content_file_count,
+        content_file_count: stats.content_file_count,
         content_bytes,
     })
 }
@@ -200,9 +233,11 @@ pub fn restore_backup(
 fn validate_archive(
     archive: &mut ZipArchive<File>,
     manifest: &BackupManifest,
-) -> Result<(usize, u64), String> {
+) -> Result<ArchiveStats, String> {
     let mut total_bytes = 0_u64;
     let mut content_file_count = 0_usize;
+    let mut content_bytes = 0_u64;
+    let mut database_bytes = 0_u64;
     let mut names = HashSet::new();
     let mut database_count = 0_usize;
     for index in 0..archive.len() {
@@ -219,11 +254,15 @@ fn validate_archive(
         }
         if kind == EntryKind::Database {
             database_count += 1;
+            database_bytes = entry.size();
         } else if kind == EntryKind::Content {
             content_file_count += 1;
             if content_file_count > MAX_FILES {
                 return Err("backup contains too many content files".to_string());
             }
+            content_bytes = content_bytes
+                .checked_add(entry.size())
+                .ok_or_else(|| "backup is too large".to_string())?;
         }
         total_bytes = total_bytes
             .checked_add(entry.size())
@@ -235,7 +274,12 @@ fn validate_archive(
     if content_file_count != manifest.content_file_count {
         return Err("backup content count does not match its manifest".to_string());
     }
-    Ok((content_file_count, total_bytes))
+    Ok(ArchiveStats {
+        database_bytes,
+        content_file_count,
+        content_bytes,
+        total_bytes,
+    })
 }
 
 fn extract_backup(

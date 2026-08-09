@@ -149,6 +149,84 @@ pub fn save_preview(
         .ok_or_else(|| "saved dataset disappeared".to_string())
 }
 
+pub fn activate(
+    connection: &mut Connection,
+    workspace_id: &str,
+    dataset_id: &str,
+) -> Result<Option<SteelDatasetRecord>, String> {
+    let transaction = connection
+        .transaction_with_behavior(TransactionBehavior::Immediate)
+        .map_err(|error| error.to_string())?;
+    let exists = transaction
+        .query_row(
+            "SELECT 1 FROM steel_datasets WHERE workspace_id = ?1 AND id = ?2",
+            params![workspace_id, dataset_id],
+            |_| Ok(()),
+        )
+        .optional()
+        .map_err(|error| error.to_string())?
+        .is_some();
+    if !exists {
+        return Ok(None);
+    }
+
+    let has_canonical_field = {
+        let mut statement = transaction
+            .prepare(
+                "SELECT duplicate, canonical_field, unit
+                 FROM steel_dataset_columns
+                 WHERE workspace_id = ?1 AND dataset_id = ?2
+                 ORDER BY ordinal",
+            )
+            .map_err(|error| error.to_string())?;
+        let rows = statement
+            .query_map(params![workspace_id, dataset_id], |row| {
+                Ok((
+                    row.get::<_, i64>(0)? != 0,
+                    row.get::<_, Option<String>>(1)?,
+                    row.get::<_, Option<String>>(2)?,
+                ))
+            })
+            .map_err(|error| error.to_string())?;
+        let mut has_canonical_field = false;
+        for row in rows {
+            let (duplicate, canonical_field, unit) = row.map_err(|error| error.to_string())?;
+            if duplicate {
+                return Err(
+                    "dataset activation requires duplicate columns to be resolved".to_string(),
+                );
+            }
+            if canonical_field
+                .as_deref()
+                .is_some_and(|field| !field.trim().is_empty())
+            {
+                has_canonical_field = true;
+            } else if unit
+                .as_deref()
+                .is_some_and(|value| !value.trim().is_empty())
+            {
+                return Err(
+                    "dataset activation requires every unit to have a canonical field".to_string(),
+                );
+            }
+        }
+        has_canonical_field
+    };
+    if !has_canonical_field {
+        return Err("dataset activation requires at least one canonical field".to_string());
+    }
+
+    transaction
+        .execute(
+            "UPDATE steel_datasets SET mapping_state = 'ready', updated_at = ?3
+             WHERE workspace_id = ?1 AND id = ?2",
+            params![workspace_id, dataset_id, Utc::now().to_rfc3339()],
+        )
+        .map_err(|error| error.to_string())?;
+    transaction.commit().map_err(|error| error.to_string())?;
+    get(connection, workspace_id, dataset_id)
+}
+
 pub fn list(
     connection: &Connection,
     workspace_id: &str,

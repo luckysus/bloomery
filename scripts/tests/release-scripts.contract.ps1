@@ -5,12 +5,28 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
 $repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
+$rustRoot = Join-Path $repoRoot "src-tauri"
+$tauriConfigPath = Join-Path $rustRoot "tauri.conf.json"
+$tauriConfig = Get-Content -LiteralPath $tauriConfigPath -Raw | ConvertFrom-Json
+$iconProperty = $tauriConfig.bundle.PSObject.Properties["icon"]
+if ($null -eq $iconProperty) {
+    throw "tauri.conf.json must declare bundle.icon for Windows packaging"
+}
+$windowsIcon = @($iconProperty.Value) | Where-Object { [string]$_ -match '\.ico$' } | Select-Object -First 1
+if ([string]::IsNullOrWhiteSpace([string]$windowsIcon)) {
+    throw "tauri.conf.json must declare a Windows .ico bundle icon"
+}
+if (-not (Test-Path -LiteralPath (Join-Path $rustRoot ([string]$windowsIcon)) -PathType Leaf)) {
+    throw "Configured Windows bundle icon is missing: $windowsIcon"
+}
+
 $requiredScripts = @(
     @{ Path = "scripts/check.ps1"; RequiresOffline = $true; RequiresExitCode = $true },
     @{ Path = "scripts/test.ps1"; RequiresOffline = $true; RequiresExitCode = $true },
     @{ Path = "scripts/security-check.ps1"; RequiresOffline = $true; RequiresExitCode = $true },
     @{ Path = "scripts/release-check.ps1"; RequiresOffline = $true; RequiresExitCode = $true },
     @{ Path = "scripts/build-release.ps1"; RequiresOffline = $true; RequiresExitCode = $true },
+    @{ Path = "scripts/generate-sbom.ps1"; RequiresOffline = $true; RequiresExitCode = $true },
     @{ Path = "scripts/generate-checksums.ps1"; RequiresOffline = $false; RequiresExitCode = $false }
 )
 
@@ -33,6 +49,9 @@ foreach ($scriptDefinition in $requiredScripts) {
     }
     if ($scriptDefinition.RequiresOffline -and $content -notmatch '\[switch\]\$Offline') {
         throw "$relativePath must support offline verification"
+    }
+    if ($relativePath -eq "scripts/test.ps1" -and $content -notmatch '--test-threads=1') {
+        throw "$relativePath must serialize Rust tests that mutate process-wide diagnostics state"
     }
 }
 
@@ -83,6 +102,18 @@ Assert-InjectedFailure -Name "test.ps1" -Invocation { & $testScript -Stage front
 Remove-Item Function:\npm -ErrorAction SilentlyContinue
 
 $releaseCheckScript = Join-Path $repoRoot "scripts\release-check.ps1"
+$releaseCheckContent = Get-Content -LiteralPath $releaseCheckScript -Raw
+$lifecycleInvocation = $releaseCheckContent.IndexOf('Invoke-Checked "Windows data lifecycle checks"', [StringComparison]::Ordinal)
+$packageInvocation = $releaseCheckContent.IndexOf('Invoke-Checked "Windows release package"', [StringComparison]::Ordinal)
+if ($lifecycleInvocation -lt 0 -or $packageInvocation -lt 0 -or $packageInvocation -gt $lifecycleInvocation) {
+    throw "release-check.ps1 must build the package before validating the packaged lifecycle"
+}
+if ($releaseCheckContent -notmatch '\[switch\]\$Performance' -or $releaseCheckContent -notmatch 'benchmark-retrieval\.ps1') {
+    throw "release-check.ps1 must expose the deterministic performance gate"
+}
+if ($releaseCheckContent -notmatch '\[switch\]\$InstallerSmoke' -or $releaseCheckContent -notmatch '-RunInstallerSmoke') {
+    throw "release-check.ps1 must expose the Windows installer smoke gate"
+}
 function powershell {
     $global:LASTEXITCODE = 37
 }

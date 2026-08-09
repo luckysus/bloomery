@@ -1,0 +1,7 @@
+{
+  "domain": "steel",
+  "composition_units": ["percent_mass", "mass_fraction"],
+  "common_grades": ["Q235", "Q355", "Q355B", "S235", "S355"],
+  "common_process_terms": ["continuous casting", "hot rolling", "normalizing", "quenching", "tempering", "weldability"],
+  "evidence_rule": "Use the source document, standard edition, experiment record, or dataset row that supports each material claim."
+}

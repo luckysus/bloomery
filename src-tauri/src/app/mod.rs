@@ -1,4 +1,6 @@
 pub(crate) mod agent_commands;
+pub(crate) mod bundled_domain;
+pub(crate) mod bundled_domain_commands;
 pub(crate) mod commands;
 pub(crate) mod desktop_agent_runtime;
 pub(crate) mod desktop_ask_commands;
@@ -9,7 +11,11 @@ pub(crate) mod desktop_summary_commands;
 pub mod domain_commands;
 pub(crate) mod event_sink;
 pub(crate) mod identity;
+pub(crate) mod mcp_commands;
+pub(crate) mod mcp_agent_runtime;
+pub(crate) mod mcp_runtime;
 pub(crate) mod knowledge_commands;
+pub(crate) mod permission_commands;
 pub(crate) mod provider_commands;
 pub(crate) mod secret_commands;
 pub(crate) mod skills_commands;
@@ -28,6 +34,8 @@ pub fn run() {
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
             if let Some(window) = app.get_webview_window("main") {
                 let _ = window.unminimize();
@@ -36,6 +44,7 @@ pub fn run() {
         }))
         .manage(identity::LocalIdentity)
         .manage(db::DbState::default())
+        .manage(mcp_runtime::McpRuntimeState::default())
         .manage(crate::agent::desktop::LocalAgentState::default())
         .manage(crate::storage::secrets::SecretState::default())
         .manage(SchedulerState::default())
@@ -52,7 +61,12 @@ pub fn run() {
                 api.prevent_exit();
             }
         }
-        RunEvent::Exit => app_handle.state::<SchedulerState>().request_shutdown(),
+        RunEvent::Exit => {
+            let _ = tauri::async_runtime::block_on(
+                app_handle.state::<mcp_runtime::McpRuntimeState>().shutdown_all(),
+            );
+            app_handle.state::<SchedulerState>().request_shutdown();
+        }
         _ => {}
     });
 }

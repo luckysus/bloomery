@@ -1,19 +1,24 @@
 import type { FormEvent } from "react";
 import {
   Bot,
+  Check,
+  Download,
+  FileJson,
   LoaderCircle,
   MessageSquarePlus,
   PanelLeft,
+  ShieldAlert,
   Send,
   Sparkles,
   Square,
+  X,
 } from "lucide-react";
 import AIAnswerRenderer from "../../components/answer/AnswerRenderer";
 import { useLocale } from "../../i18n/locale";
-import { type Conversation, type EvidenceItem, type Message } from "../../bridge/desktop";
-import type { AgentRunState } from "../../bridge/generated/protocol";
+import { type Conversation, type ConversationExportFormat, type EvidenceItem, type Message } from "../../bridge/desktop";
+import type { AgentRunState, PermissionDecision } from "../../bridge/generated/protocol";
 import CitationPanel from "./CitationPanel";
-import type { AgentRunView } from "./agentEvents";
+import type { AgentPermissionView, AgentRunView } from "./agentEvents";
 
 interface ChatViewProps {
   conversations: Conversation[];
@@ -26,11 +31,14 @@ interface ChatViewProps {
   pendingQuestion: string | null;
   agentRun: AgentRunView | null;
   error: string | null;
+  notice: string | null;
   onNewConversation: () => void;
   onSelectConversation: (id: string) => void;
   onDraftChange: (value: string) => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
   onCancel: () => void;
+  onResolvePermission: (permissionId: string, decision: PermissionDecision) => void;
+  onExportConversation: (format: ConversationExportFormat) => void;
 }
 
 function isAssistant(message: Message) {
@@ -73,6 +81,56 @@ function messageEvidence(message: Message) {
   }
 }
 
+function PermissionPanel({
+  permissions,
+  onResolvePermission,
+}: {
+  permissions: AgentPermissionView[];
+  onResolvePermission: (permissionId: string, decision: PermissionDecision) => void;
+}) {
+  const { t } = useLocale();
+  const pendingPermissions = permissions.filter((permission) => permission.decision === null);
+  if (pendingPermissions.length === 0) return null;
+
+  const actions: Array<{ decision: PermissionDecision; label: string; ariaLabel: string; icon: typeof Check }> = [
+    { decision: "allow_once", label: t("allowOnce"), ariaLabel: "Allow once", icon: Check },
+    { decision: "allow_session", label: t("allowSession"), ariaLabel: "Allow for session", icon: Check },
+    { decision: "allow_always", label: t("allowAlways"), ariaLabel: "Always allow", icon: Check },
+    { decision: "deny", label: t("deny"), ariaLabel: "Deny", icon: X },
+  ];
+
+  return (
+    <div className="bloomery-chat-permission-list" aria-label={t("permissionRequired")}>
+      {pendingPermissions.map((permission) => (
+        <section className="bloomery-chat-permission" key={permission.permissionId} role="alert">
+          <div className="bloomery-chat-permission-heading">
+            <ShieldAlert size={18} aria-hidden="true" />
+            <div>
+              <strong>{permission.summary}</strong>
+              <span>{t("permissionRequired")}</span>
+            </div>
+          </div>
+          <p>{permission.reason}</p>
+          <div className="bloomery-chat-permission-actions">
+            {actions.map(({ decision, label, ariaLabel, icon: Icon }) => (
+              <button
+                className={decision === "deny" ? "bloomery-action-secondary is-danger" : "bloomery-action-secondary"}
+                aria-label={`${ariaLabel} / ${label}`}
+                key={decision}
+                type="button"
+                onClick={() => onResolvePermission(permission.permissionId, decision)}
+              >
+                <Icon size={14} aria-hidden="true" />
+                {label}
+              </button>
+            ))}
+          </div>
+        </section>
+      ))}
+    </div>
+  );
+}
+
 export default function ChatView({
   conversations,
   selectedId,
@@ -84,11 +142,14 @@ export default function ChatView({
   pendingQuestion,
   agentRun,
   error,
+  notice,
   onNewConversation,
   onSelectConversation,
   onDraftChange,
   onSubmit,
   onCancel,
+  onResolvePermission,
+  onExportConversation,
 }: ChatViewProps) {
   const { t } = useLocale();
 
@@ -112,6 +173,30 @@ export default function ChatView({
       <div className="bloomery-chat-main">
         <header className="bloomery-chat-header">
           <div><p className="bloomery-eyebrow">{t("steelRuntime")}</p><h2>{selectedConversation?.title ?? t("startSpecificQuestion")}</h2></div>
+          {selectedConversation && (
+            <div className="bloomery-chat-header-actions" aria-label={t("chatExportActions")}>
+              <button
+                type="button"
+                className="bloomery-icon-button"
+                data-testid="export-conversation-markdown"
+                onClick={() => onExportConversation("markdown")}
+                aria-label={t("chatExportMarkdown")}
+                title={t("chatExportMarkdown")}
+              >
+                <Download size={17} aria-hidden="true" />
+              </button>
+              <button
+                type="button"
+                className="bloomery-icon-button"
+                data-testid="export-conversation-json"
+                onClick={() => onExportConversation("json")}
+                aria-label={t("chatExportJson")}
+                title={t("chatExportJson")}
+              >
+                <FileJson size={17} aria-hidden="true" />
+              </button>
+            </div>
+          )}
           {agentRun && agentRun.conversationId === selectedId && (
             <div className="bloomery-chat-run-status" data-testid="agent-run-status" aria-live="polite"><span className="bloomery-state-dot" /><span>{agentStateLabel(agentRun.state, t)}</span>{agentRun.toolCalls.length > 0 && <span>{t("agentToolCount", { count: agentRun.toolCalls.length })}</span>}</div>
           )}
@@ -119,6 +204,7 @@ export default function ChatView({
         </header>
 
         {error && <div className="bloomery-knowledge-alert" role="alert">{error}</div>}
+        {notice && <div className="bloomery-chat-export-notice" role="status">{notice}</div>}
         <div className="bloomery-chat-messages" aria-live="polite">
           {loadingMessages ? (
             <div className="bloomery-chat-empty"><LoaderCircle size={20} className="bloomery-spin" /><span>{t("loading")}</span></div>
@@ -134,7 +220,7 @@ export default function ChatView({
               ))}
               {pendingQuestion && <>
                 <article className="bloomery-chat-message is-user is-pending"><div className="bloomery-chat-message-meta"><span>{t("me")}</span><span>{t("question")}</span></div><p>{pendingQuestion}</p></article>
-                <article className="bloomery-chat-message is-assistant is-streaming"><div className="bloomery-chat-message-meta"><Bot size={15} aria-hidden="true" /><span>Bloomery 路 {t("generating")}</span></div><div className="bloomery-chat-answer ai-markdown-body"><AIAnswerRenderer answer={agentRun?.assistantText || t("contextPreparing")} literatureResults={[]} /></div>{agentRun && agentRun.toolCalls.length > 0 && <div className="bloomery-chat-tool-trace" aria-label="Agent tools">{agentRun.toolCalls.map((tool) => <span key={tool.toolCallId}>{t("agentToolProgress", { name: tool.name, progress: tool.progress })}</span>)}</div>}</article>
+                <article className="bloomery-chat-message is-assistant is-streaming"><div className="bloomery-chat-message-meta"><Bot size={15} aria-hidden="true" /><span>Bloomery 路 {t("generating")}</span></div><div className="bloomery-chat-answer ai-markdown-body"><AIAnswerRenderer answer={agentRun?.assistantText || t("contextPreparing")} literatureResults={[]} /></div>{agentRun && agentRun.toolCalls.length > 0 && <div className="bloomery-chat-tool-trace" aria-label="Agent tools">{agentRun.toolCalls.map((tool) => <span key={tool.toolCallId}>{t("agentToolProgress", { name: tool.name, progress: tool.progress })}</span>)}</div>}{agentRun && <PermissionPanel permissions={agentRun.permissions} onResolvePermission={onResolvePermission} />}</article>
               </>}
             </>
           )}

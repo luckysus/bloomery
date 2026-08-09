@@ -1,10 +1,11 @@
 use crate::diagnostics::redaction::Redactor;
 use reqwest::{redirect, Client, StatusCode};
 use serde::Serialize;
-use std::fmt;
 use std::time::Duration;
+use std::{fmt, sync::Once};
 
 const USER_AGENT: &str = concat!("Bloomery/", env!("CARGO_PKG_VERSION"), " (desktop)");
+static RUSTLS_PROVIDER_INIT: Once = Once::new();
 
 #[derive(Debug, Clone)]
 pub struct HttpClientConfig {
@@ -32,6 +33,9 @@ pub fn build_no_redirect_client(config: &HttpClientConfig) -> Result<Client, Pro
 }
 
 pub fn build_mcp_client() -> Result<reqwest_013::Client, String> {
+    RUSTLS_PROVIDER_INIT.call_once(|| {
+        let _ = rustls::crypto::ring::default_provider().install_default();
+    });
     reqwest_013::Client::builder()
         .no_proxy()
         .pool_max_idle_per_host(0)
@@ -228,5 +232,12 @@ mod tests {
         assert!(!is_cross_origin_redirect(Some(&origin), &same_origin));
         assert!(is_cross_origin_redirect(Some(&origin), &different_host));
         assert!(is_cross_origin_redirect(Some(&origin), &different_port));
+    }
+
+    #[test]
+    fn builds_mcp_client_without_panicking_when_rustls_has_no_default_provider() {
+        let result = std::panic::catch_unwind(build_mcp_client);
+        assert!(result.is_ok(), "MCP client construction must not panic");
+        assert!(result.unwrap().is_ok());
     }
 }

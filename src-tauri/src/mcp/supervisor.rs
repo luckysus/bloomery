@@ -1,5 +1,6 @@
 use super::{
     http::McpHttpConfig,
+    sse::McpLegacySseConfig,
     stdio::{self, McpStderrCapture, McpStderrSnapshot, McpStdioConfig},
     McpClient, McpClientConfig, McpError,
 };
@@ -8,6 +9,7 @@ use super::{
 pub enum McpTransportConfig {
     Stdio(McpStdioConfig),
     Http(McpHttpConfig),
+    LegacySse(McpLegacySseConfig),
 }
 
 pub struct McpSupervisor {
@@ -54,7 +56,7 @@ impl McpSupervisor {
         Ok(())
     }
 
-    pub async fn shutdown(mut self) -> Result<(), McpError> {
+    pub async fn shutdown(&mut self) -> Result<(), McpError> {
         if let Some(client) = self.client.take() {
             client.shutdown().await?;
         }
@@ -75,6 +77,10 @@ async fn connect_transport(
         }
         McpTransportConfig::Http(config) => {
             let client = super::http::McpHttpConfig::connect(config, client_config).await?;
+            Ok((client, None))
+        }
+        McpTransportConfig::LegacySse(config) => {
+            let client = config.connect(client_config).await?;
             Ok((client, None))
         }
     }

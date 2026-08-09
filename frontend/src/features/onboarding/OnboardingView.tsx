@@ -30,6 +30,7 @@ export interface OnboardingViewProps {
   retrieval: RetrievalForm;
   retrievalState: "configured" | "skipped";
   mineruConfigured: boolean;
+  steelPackageState: "pending" | "installing" | "installed" | "error";
   busy: boolean;
   error: string | null;
   onStartSetup: () => void;
@@ -54,6 +55,7 @@ export default function OnboardingView({
   retrieval,
   retrievalState,
   mineruConfigured,
+  steelPackageState,
   busy,
   error,
   onStartSetup,
@@ -85,7 +87,7 @@ export default function OnboardingView({
 
           <section className="bloomery-setup-panel">
             {error && <div className="bloomery-setup-error" role="alert"><CircleAlert size={17} aria-hidden="true" /><span>{error}</span></div>}
-            {step === "workspace" && <section className="bloomery-setup-step" aria-labelledby="workspace-step-heading"><span className="bloomery-setup-icon" aria-hidden="true"><Database size={21} /></span><p className="bloomery-eyebrow">{t("storageStep")}</p><h2 id="workspace-step-heading">{t("localWorkspaceTitle")}</h2><p className="bloomery-setup-copy">{t("localWorkspaceCopy")}</p><div className="bloomery-setup-fact"><span>{t("dataDirectory")}</span><strong>{t("systemAppData")}</strong></div><button type="button" className="bloomery-setup-primary" onClick={onStartSetup}>{t("startSetup")}<ArrowRight size={17} aria-hidden="true" /></button></section>}
+            {step === "workspace" && <section className="bloomery-setup-step" aria-labelledby="workspace-step-heading"><span className="bloomery-setup-icon" aria-hidden="true"><Database size={21} /></span><p className="bloomery-eyebrow">{t("storageStep")}</p><h2 id="workspace-step-heading">{t("localWorkspaceTitle")}</h2><p className="bloomery-setup-copy">{t("localWorkspaceCopy")}</p><div className="bloomery-setup-fact"><span>{t("dataDirectory")}</span><strong>{t("systemAppData")}</strong></div><button type="button" className="bloomery-setup-primary" onClick={onStartSetup} disabled={busy}>{t("startSetup")}<ArrowRight size={17} aria-hidden="true" /></button></section>}
             {step === "llm" && <section className="bloomery-setup-step" aria-labelledby="llm-step-heading"><span className="bloomery-setup-icon" aria-hidden="true"><KeyRound size={21} /></span><p className="bloomery-eyebrow">{t("chatProviderStep")}</p><h2 id="llm-step-heading">{t("connectLlm")}</h2><p className="bloomery-setup-copy">{t("connectLlmCopy")}</p><form className="bloomery-setup-form" onSubmit={onLlmSubmit}>
               <label>{t("llmProvider")}<select value={llm.kind} onChange={(event) => onLlmChange("kind", event.target.value as LlmForm["kind"])}><option value="open_ai_compatible">OpenAI Compatible</option><option value="ollama">{t("ollamaLocal")}</option></select></label>
               <label>{t("displayName")}<input value={llm.displayName} onChange={(event) => onLlmChange("displayName", event.target.value)} required /></label>
@@ -100,7 +102,7 @@ export default function OnboardingView({
               <label>{t("mineruOptional")}<input type="password" autoComplete="new-password" value={retrieval.mineruKey} onChange={(event) => onRetrievalChange("mineruKey", event.target.value)} /></label>
               <div className="bloomery-setup-form-actions"><button type="button" className="bloomery-setup-secondary" disabled={busy} onClick={onSkipRetrieval}>{t("skipForNow")}</button><button type="submit" className="bloomery-setup-primary" disabled={busy}>{busy ? t("testing") : t("saveContinue")}<ArrowRight size={17} aria-hidden="true" /></button></div>
             </form></section>}
-            {step === "finish" && <section className="bloomery-setup-step" aria-labelledby="finish-step-heading"><span className="bloomery-setup-icon is-success" aria-hidden="true"><Check size={21} /></span><p className="bloomery-eyebrow">{t("readyStep")}</p><h2 id="finish-step-heading">{t("finishSetup")}</h2><p className="bloomery-setup-copy">{t("finishCopy")}</p><div className="bloomery-setup-summary"><div><span>{t("llm")}</span><strong>{t("connected")}</strong></div><div><span>SiliconFlow</span><strong>{retrievalState === "configured" ? t("configured") : t("configureLater")}</strong></div><div><span>MinerU</span><strong>{mineruConfigured ? t("configured") : t("optional")}</strong></div></div><button type="button" className="bloomery-setup-primary" disabled={busy} onClick={onComplete}>{busy ? t("saving") : t("enterWorkbench")}{!busy && <ArrowRight size={17} aria-hidden="true" />}</button></section>}
+            {step === "finish" && <section className="bloomery-setup-step" aria-labelledby="finish-step-heading"><span className="bloomery-setup-icon is-success" aria-hidden="true"><Check size={21} /></span><p className="bloomery-eyebrow">{t("readyStep")}</p><h2 id="finish-step-heading">{t("finishSetup")}</h2><p className="bloomery-setup-copy">{t("finishCopy")}</p><div className="bloomery-setup-summary"><div><span>{t("llm")}</span><strong>{t("connected")}</strong></div><div><span>SiliconFlow</span><strong>{retrievalState === "configured" ? t("configured") : t("configureLater")}</strong></div><div><span>MinerU</span><strong>{mineruConfigured ? t("configured") : t("optional")}</strong></div><div><span>{t("steelPackage")}</span><strong>{steelPackageState === "installing" ? t("steelPackageInstalling") : steelPackageState === "installed" ? t("steelPackageInstalled") : steelPackageState === "error" ? t("steelPackageInstallFailed") : t("steelPackagePending")}</strong></div></div><button type="button" className="bloomery-setup-primary" disabled={busy} onClick={onComplete}>{busy ? t("steelPackageInstalling") : t("enterWorkbench")}{!busy && <ArrowRight size={17} aria-hidden="true" />}</button></section>}
           </section>
         </div>
       </div>

@@ -7,9 +7,11 @@ import {
   LoaderCircle,
   Settings2,
 } from "lucide-react";
-import { desktop, type ProviderProfileInput } from "../../bridge/desktop";
+import { desktop, type PermissionRuleRecord, type ProviderProfileInput } from "../../bridge/desktop";
 import { useLocale } from "../../i18n/locale";
 import SettingsProviderCard from "./SettingsProviderCard";
+import PermissionRulesPanel from "./PermissionRulesPanel";
+import UpdatePanel from "./UpdatePanel";
 import {
   defaultRetrievalIds,
   defaults,
@@ -30,9 +32,11 @@ export default function SettingsPage() {
   const [editors, setEditors] = useState<SettingsEditor[]>([]);
   const [plan, setPlan] = useState<RetrievalPlan>("free");
   const [retrievalIds, setRetrievalIds] = useState<RetrievalIds>(defaultRetrievalIds);
+  const [permissionRules, setPermissionRules] = useState<PermissionRuleRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [busySlot, setBusySlot] = useState<ProviderSlot | null>(null);
   const [testingSlot, setTestingSlot] = useState<ProviderSlot | null>(null);
+  const [permissionBusyId, setPermissionBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -40,10 +44,11 @@ export default function SettingsPage() {
     setLoading(true);
     setError(null);
     try {
-      const [profiles, completedValue, retrievalValue] = await Promise.all([
+      const [profiles, completedValue, retrievalValue, permissions] = await Promise.all([
         desktop.listProviderProfiles(),
         desktop.getSetting("onboarding.completed"),
         desktop.getSetting("onboarding.retrieval"),
+        desktop.listPermissionRules(),
       ]);
       const completed = parseObject(completedValue);
       const retrieval = parseObject(retrievalValue);
@@ -53,6 +58,7 @@ export default function SettingsPage() {
         mineru: parseId(retrieval.mineru_profile_id),
       };
       setRetrievalIds(nextIds);
+      setPermissionRules(permissions);
       setPlan(retrieval.plan === "pro" ? "pro" : "free");
       setEditors((Object.keys(defaults) as ProviderSlot[]).map((slot) =>
         editorFor(slot, profileForSlot(slot, profiles, completed, retrieval)),
@@ -175,6 +181,21 @@ export default function SettingsPage() {
     }
   };
 
+  const revokePermission = async (rule: PermissionRuleRecord) => {
+    setPermissionBusyId(rule.id);
+    setError(null);
+    setNotice(null);
+    try {
+      await desktop.revokePermissionRule(rule.id);
+      setPermissionRules((current) => current.filter((candidate) => candidate.id !== rule.id));
+      setNotice(t("settingsDeleted"));
+    } catch (cause) {
+      setError(errorMessage(cause, t("settingsSaveError")));
+    } finally {
+      setPermissionBusyId(null);
+    }
+  };
+
   return (
     <section className="bloomery-settings" aria-labelledby="settings-heading">
       <header className="bloomery-settings-header">
@@ -195,6 +216,14 @@ export default function SettingsPage() {
         <KeyRound size={18} aria-hidden="true" />
         <div><strong>{t("settingsSecretTitle")}</strong><span>{t("settingsSecretCopy")}</span></div>
       </div>
+
+      <UpdatePanel />
+
+      <PermissionRulesPanel
+        rules={permissionRules}
+        busyId={permissionBusyId}
+        onRevoke={(rule) => void revokePermission(rule)}
+      />
 
       <section className="bloomery-settings-plan" aria-labelledby="settings-plan-heading">
         <div><p className="bloomery-eyebrow">RAG / SILICONFLOW</p><h2 id="settings-plan-heading">{t("settingsPlanTitle")}</h2><p>{t("settingsPlanCopy")}</p></div>

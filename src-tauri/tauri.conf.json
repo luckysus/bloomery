@@ -23,6 +23,20 @@
   },
   "bundle": {
     "active": true,
-    "targets": "all"
+    "targets": "all",
+    "icon": [
+      "icons/icon.ico"
+    ],
+    "resources": {
+      "resources/domain-packs/steel": "domain-packs/steel"
+    }
+  },
+  "plugins": {
+    "updater": {
+      "endpoints": [
+        "https://github.com/luckysus/bloomery/releases/latest/download/latest.json"
+      ],
+      "pubkey": ""
+    }
   }
 }

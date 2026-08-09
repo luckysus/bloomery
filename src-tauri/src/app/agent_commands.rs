@@ -1,5 +1,9 @@
+use crate::agent::desktop::LocalAgentState;
+use crate::agent::protocol::PermissionDecision;
 use crate::agent::runtime::{AgentRecoveryService, RecoveredRun, RunCommandResult};
 use crate::db::{current_workspace_id, with_conn_mut, DbState};
+use crate::permissions::{ParameterScope, PermissionAction, PermissionRule, RuleEffect};
+use crate::tools::{ToolId, ToolSource, ToolVersion};
 use chrono::Utc;
 use serde::Deserialize;
 use std::collections::HashSet;
@@ -67,6 +71,36 @@ pub fn recover_agent_runs(db: tauri::State<DbState>) -> Result<Vec<RecoveredRun>
         let mut service = AgentRecoveryService::new(connection, current_workspace_id())?;
         service.recover_active(&HashSet::new(), Utc::now())
     })
+}
+
+#[tauri::command]
+pub fn resolve_agent_permission(
+    db: tauri::State<DbState>,
+    state: tauri::State<LocalAgentState>,
+    permission_id: String,
+    decision: PermissionDecision,
+) -> Result<(), String> {
+    let permission_id = parse_uuid(&permission_id, "permission_id")?;
+    let request = state.pending_permission(permission_id)?;
+    if decision == PermissionDecision::AllowAlways {
+        let rule = PermissionRule {
+            id: Uuid::new_v4(),
+            tool_id: ToolId::new(request.tool_id.clone()).map_err(|error| error.to_string())?,
+            tool_version: ToolVersion::parse("1.0.0").map_err(|error| error.to_string())?,
+            source: ToolSource::Builtin,
+            action: PermissionAction::Execute,
+            scope: ParameterScope::Exact(request.arguments.clone()),
+            effect: RuleEffect::Allow,
+        };
+        with_conn_mut(&db, |connection| {
+            crate::storage::repositories::permissions::insert(
+                connection,
+                current_workspace_id(),
+                &rule,
+            )
+        })?;
+    }
+    state.resolve_permission(permission_id, decision).map(|_| ())
 }
 
 fn parse_uuid(value: &str, field: &str) -> Result<Uuid, String> {

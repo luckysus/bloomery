@@ -103,19 +103,37 @@ Persist permanent rules by stable tool ID, version range, source identity, actio
 
 **Files:** Create `mcp/stdio.rs`, `http.rs`, `sse.rs`, `supervisor.rs`; extend `tests/mcp.rs`.
 
-- [ ] **Step 1: Write transport tests** using disposable local fixtures: process startup/exit, bounded stderr, environment allowlist, reconnect, HTTP auth injection, SSE resume, malformed frames, and shutdown.
-- [ ] **Step 2: Run `cargo test --test mcp transports`** and expect failure.
-- [ ] **Step 3: Implement transports.** Stdio receives only explicitly configured environment variables. HTTP/SSE credentials resolve inside Rust. Supervisor applies bounded restart backoff and requires manual action after repeated permanent failures.
-- [ ] **Step 4: Run all MCP tests** and expect pass.
+- [x] **Step 1: Write transport tests** using disposable local fixtures: process startup/exit, bounded stderr, environment allowlist, reconnect, HTTP auth injection, SSE resume, malformed frames, and shutdown.
+- [x] **Step 2: Run `cargo test --test mcp transports`** and expect failure.
+- [x] **Step 3: Implement transports.** Stdio receives only explicitly configured environment variables. HTTP/SSE credentials resolve inside Rust. Supervisor applies bounded restart backoff and requires manual action after repeated permanent failures.
+- [x] **Step 4: Run all MCP tests** and expect pass.
+
+**Execution record (2026-08-09):** Added the legacy SSE transport as a separate
+`McpTransportConfig::LegacySse` branch. The adapter discovers and validates the
+same-origin message endpoint, keeps bearer authentication inside Rust, bounds
+event size, parses UTF-8 frames, reconnects with `Last-Event-ID`, honors bounded
+retry intervals, and stops on malformed or permanently unauthorized streams.
+Migration 0018 expands the persisted transport constraint without rewriting
+the already-published migration 0017. Local integration fixtures covered
+initialization, tool discovery, authentication, resume, and shutdown; the
+transport suite passed 10 tests and the dedicated SSE suite passed 2 tests.
 
 ### Task 7: Load Claude-compatible Skills
 
 **Files:** Create skill modules and `tests/skills.rs`.
 
-- [ ] **Step 1: Write tests** for `.claude/skills/<name>/SKILL.md`, frontmatter, UTF-8, malformed files, user/workspace/domain precedence, duplicate names, compatibility, and deterministic merge.
-- [ ] **Step 2: Run `cargo test --test skills`** and expect missing loader.
-- [ ] **Step 3: Implement read-only Skill records.** Skills add instructions and metadata; they never grant file, Shell, network, MCP, or secret access. Record the exact enabled Skill versions in each run.
-- [ ] **Step 4: Run Skills and context tests** and expect pass.
+- [x] **Step 1: Write tests** for `.claude/skills/<name>/SKILL.md`, frontmatter, UTF-8, malformed files, user/workspace/domain precedence, duplicate names, compatibility, and deterministic merge.
+- [x] **Step 2: Run `cargo test --test skills`** and expect missing loader.
+- [x] **Step 3: Implement read-only Skill records.** Skills add instructions and metadata; they never grant file, Shell, network, MCP, or secret access. Record the exact enabled Skill versions in each run.
+- [x] **Step 4: Run Skills and context tests** and expect pass.
+
+**Execution record (2026-08-09):** Claude-compatible Skill discovery, strict
+frontmatter parsing, UTF-8 and size bounds, user/workspace/domain precedence,
+compatibility filtering, deterministic merge, bounded prompt rendering, and
+content-fingerprint summaries are implemented. Skill bodies remain outside the
+frontend contract and never grant capabilities. The focused Skills suite passed
+7 tests, and the runtime prompt/context regressions passed in the existing
+Agent suite. Added the bilingual public guide at `docs/extensions/skills.md`.
 
 ### Task 8: Define the domain package manifest
 

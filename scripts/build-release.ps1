@@ -2,6 +2,7 @@
 param(
     [switch]$Offline,
     [switch]$SkipTests,
+    [switch]$Signed,
     [ValidateSet("msi", "nsis", "all")][string]$Bundles = "all",
     [string]$OutputDirectory
 )
@@ -63,16 +64,55 @@ if (-not $SkipTests) {
 }
 
 $bundleValue = if ($Bundles -eq "all") { "msi,nsis" } else { $Bundles }
-$buildArguments = @("tauri", "build", "--ci", "--no-sign", "--bundles", $bundleValue)
+$buildArguments = @("tauri", "build", "--ci", "--bundles", $bundleValue)
+$updaterConfigPath = $null
+if ($Signed) {
+    if ([string]::IsNullOrWhiteSpace($env:TAURI_SIGNING_PRIVATE_KEY)) {
+        throw "TAURI_SIGNING_PRIVATE_KEY is required for a signed release"
+    }
+    if ([string]::IsNullOrWhiteSpace($env:BLOOMERY_UPDATER_PUBLIC_KEY)) {
+        throw "BLOOMERY_UPDATER_PUBLIC_KEY is required for a signed release"
+    }
+    if ([string]::IsNullOrWhiteSpace($env:BLOOMERY_UPDATER_ENDPOINT)) {
+        throw "BLOOMERY_UPDATER_ENDPOINT is required for a signed release"
+    }
+    if ([string]::IsNullOrWhiteSpace($env:BLOOMERY_RELEASE_ASSET_BASE_URL)) {
+        throw "BLOOMERY_RELEASE_ASSET_BASE_URL is required for a signed release"
+    }
+    $updaterConfigPath = Join-Path $env:TEMP ("bloomery-updater-" + [Guid]::NewGuid().ToString("N") + ".json")
+    $configScript = Join-Path $PSScriptRoot "write-updater-config.ps1"
+    Invoke-Checked "Signed updater configuration" "powershell" @(
+        "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $configScript,
+        "-OutputPath", $updaterConfigPath
+    ) $repoRoot
+    $buildArguments += @("--config", $updaterConfigPath)
+} else {
+    $buildArguments += "--no-sign"
+}
 if ($Offline) {
     $buildArguments = @("--offline") + $buildArguments
 }
-Invoke-Checked "Unsigned Windows package build" "cargo" $buildArguments $rustRoot
+try {
+    $buildName = if ($Signed) { "Signed Windows package build" } else { "Unsigned Windows package build" }
+    Invoke-Checked $buildName "cargo" $buildArguments $rustRoot
+} finally {
+    if ($updaterConfigPath -and (Test-Path -LiteralPath $updaterConfigPath)) {
+        Remove-Item -LiteralPath $updaterConfigPath -Force
+    }
+}
 
 $bundleRoot = Join-Path $rustRoot "target\\release\\bundle"
-$releaseArtifacts = Get-ChildItem -LiteralPath $bundleRoot -Recurse -File | Where-Object {
-    $_.Extension -in @(".exe", ".msi")
-} | Sort-Object Name
+$bundleDirectories = if ($Bundles -eq "all") { @("msi", "nsis") } else { @($Bundles) }
+$releaseArtifacts = @(
+    foreach ($bundleDirectory in $bundleDirectories) {
+        $bundlePath = Join-Path $bundleRoot $bundleDirectory
+        if (Test-Path -LiteralPath $bundlePath -PathType Container) {
+            Get-ChildItem -LiteralPath $bundlePath -Recurse -File | Where-Object {
+                $_.Extension -in @(".exe", ".msi", ".zip", ".sig")
+            }
+        }
+    }
+) | Sort-Object Name
 if ($releaseArtifacts.Count -eq 0) {
     throw "Tauri completed without producing an MSI or NSIS artifact"
 }
@@ -81,6 +121,30 @@ New-Item -ItemType Directory -Path $outputPath -Force | Out-Null
 foreach ($artifact in $releaseArtifacts) {
     Copy-Item -LiteralPath $artifact.FullName -Destination (Join-Path $outputPath $artifact.Name) -ErrorAction Stop
 }
+foreach ($metadataFile in @("LICENSE", "NOTICE")) {
+    Copy-Item -LiteralPath (Join-Path $repoRoot $metadataFile) -Destination (Join-Path $outputPath $metadataFile) -ErrorAction Stop
+}
+if ($Signed) {
+    $updaterManifestScript = Join-Path $PSScriptRoot "generate-updater-manifest.ps1"
+    Invoke-Checked "Updater metadata" "powershell" @(
+        "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $updaterManifestScript,
+        "-ArtifactDirectory", $outputPath,
+        "-Version", $version,
+        "-ReleaseBaseUrl", $env:BLOOMERY_RELEASE_ASSET_BASE_URL
+    ) $repoRoot
+}
+
+$sbomScript = Join-Path $PSScriptRoot "generate-sbom.ps1"
+$sbomArguments = @(
+    "-NoProfile",
+    "-ExecutionPolicy", "Bypass",
+    "-File", $sbomScript,
+    "-OutputDirectory", $outputPath
+)
+if ($Offline) {
+    $sbomArguments += "-Offline"
+}
+Invoke-Checked "SBOM and third-party notices" "powershell" $sbomArguments $repoRoot
 
 $commit = git -C $repoRoot rev-parse HEAD
 if ($LASTEXITCODE -ne 0) {
@@ -99,7 +163,7 @@ $manifest = [ordered]@{
     version = $version
     commit = $commit.Trim()
     generated_at_utc = [DateTime]::UtcNow.ToString("o")
-    signing = "unsigned"
+    signing = if ($Signed) { "signed" } else { "unsigned" }
     artifacts = @($manifestArtifacts)
 }
 $manifestPath = Join-Path $outputPath "release-manifest.json"
@@ -108,4 +172,5 @@ $manifestPath = Join-Path $outputPath "release-manifest.json"
 $checksumScript = Join-Path $PSScriptRoot "generate-checksums.ps1"
 Invoke-Checked "Artifact checksum generation" "powershell" @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $checksumScript, "-InputPath", $outputPath) $repoRoot
 
-Write-Host ("Unsigned release artifacts written to " + $outputPath)
+$releaseLabel = if ($Signed) { "Signed" } else { "Unsigned" }
+Write-Host ($releaseLabel + " release artifacts written to " + $outputPath)

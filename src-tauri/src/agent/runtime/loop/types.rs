@@ -18,6 +18,8 @@ pub(super) const MAX_TOOL_OUTPUT_BYTES: usize = 32 * 1024;
 
 pub type ToolFuture =
     Pin<Box<dyn Future<Output = Result<Value, ToolExecutionError>> + Send + 'static>>;
+pub type PermissionFuture =
+    Pin<Box<dyn Future<Output = PermissionDecision> + Send + 'static>>;
 
 #[derive(Clone)]
 pub struct CancellationToken(Arc<dyn Fn() -> bool + Send + Sync>);
@@ -141,13 +143,18 @@ pub struct AgentLoopResult {
 }
 
 pub trait PermissionResolver: Send + Sync {
-    fn decide(&self, request: &PermissionRequest) -> PermissionDecision;
+    fn decide(
+        &self,
+        request: PermissionRequest,
+        cancellation: CancellationToken,
+    ) -> PermissionFuture;
 }
 
 #[derive(Debug, Clone)]
 pub struct PermissionRequest {
     pub permission_id: Uuid,
     pub tool_call_id: Uuid,
+    pub tool_id: String,
     pub tool_name: String,
     pub risk: PermissionRisk,
     pub arguments: Value,
@@ -156,8 +163,12 @@ pub struct PermissionRequest {
 pub struct DenyPermissions;
 
 impl PermissionResolver for DenyPermissions {
-    fn decide(&self, _request: &PermissionRequest) -> PermissionDecision {
-        PermissionDecision::Deny
+    fn decide(
+        &self,
+        _request: PermissionRequest,
+        _cancellation: CancellationToken,
+    ) -> PermissionFuture {
+        Box::pin(async { PermissionDecision::Deny })
     }
 }
 

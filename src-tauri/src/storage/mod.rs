@@ -1,4 +1,5 @@
 pub mod backup;
+pub mod conversation_export;
 pub mod database;
 pub mod migrations;
 pub mod repositories;

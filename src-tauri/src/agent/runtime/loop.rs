@@ -6,7 +6,7 @@ mod types;
 pub use types::{
     AgentEventSink, AgentLoop, AgentLoopError, AgentLoopRequest, AgentLoopResult,
     CancellationToken, ContextEntry, DenyPermissions, EvidenceAttachment, NoopToolExecutor,
-    PermissionRequest, PermissionResolver, ToolExecutionError, ToolExecutor, ToolFuture,
+    PermissionFuture, PermissionRequest, PermissionResolver, ToolExecutionError, ToolExecutor, ToolFuture,
     ToolHandler, ToolInvocation, ToolRegistration,
 };
 

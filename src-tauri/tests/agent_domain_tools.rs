@@ -78,12 +78,14 @@ fn domain_executor_exposes_only_allowlisted_tools() {
         registrations: vec![
             tool("knowledge.query", "knowledge_query"),
             tool("file.write", "file_write"),
+            tool("mcp.steel.lookup", "lookup"),
         ],
     };
     let scoped = DomainToolExecutor::new(&inner, Some(&steel_manifest()));
 
-    assert_eq!(scoped.registrations().len(), 1);
+    assert_eq!(scoped.registrations().len(), 2);
     assert_eq!(scoped.registrations()[0].spec.id, "knowledge.query");
+    assert_eq!(scoped.registrations()[1].spec.id, "mcp.steel.lookup");
 }
 
 #[tokio::test]

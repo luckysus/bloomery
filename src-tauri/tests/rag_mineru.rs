@@ -845,7 +845,7 @@ fn drive_until(
             "MinerU scheduler timed out during {label}: {}",
             diagnostic()
         );
-        thread::yield_now();
+        thread::sleep(Duration::from_millis(1));
     }
 }
 

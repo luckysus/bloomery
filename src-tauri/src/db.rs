@@ -1,7 +1,7 @@
 use chrono::Utc;
 use rusqlite::{params, Connection};
 use std::time::Duration;
-use std::{collections::HashSet, fs, path::PathBuf, sync::Arc, sync::Mutex};
+use std::{collections::HashSet, fs, path::{Path, PathBuf}, sync::Arc, sync::Mutex};
 use tauri::Manager;
 
 use crate::tasks::scheduler::SchedulerState;
@@ -115,6 +115,17 @@ pub fn create_backup_archive(
 }
 
 #[tauri::command]
+pub fn preview_backup_archive(
+    archive_path: String,
+) -> Result<crate::storage::backup::BackupSummary, String> {
+    let archive_path = PathBuf::from(archive_path.trim());
+    if archive_path.as_os_str().is_empty() {
+        return Err("backup archive path is required".to_string());
+    }
+    crate::storage::backup::preview_backup(&archive_path)
+}
+
+#[tauri::command]
 pub fn restore_backup_archive(
     app: tauri::AppHandle,
     db: tauri::State<DbState>,
@@ -215,6 +226,47 @@ pub fn export_diagnostics(
     }))
 }
 
+fn write_json_atomically(path: &Path, value: &serde_json::Value) -> Result<(), String> {
+    let parent = path.parent().unwrap_or_else(|| Path::new("."));
+    let name = path
+        .file_name()
+        .and_then(|value| value.to_str())
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| "diagnostics output path is invalid".to_string())?;
+    let temporary = parent.join(format!(".{name}.{}.tmp", uuid::Uuid::new_v4()));
+    let result = (|| {
+        let bytes = serde_json::to_vec_pretty(value)
+            .map_err(|error| format!("serialize diagnostics failed: {error}"))?;
+        fs::write(&temporary, bytes)
+            .map_err(|error| format!("write diagnostics temporary file failed: {error}"))?;
+        if path.exists() {
+            fs::remove_file(path)
+                .map_err(|error| format!("replace diagnostics file failed: {error}"))?;
+        }
+        fs::rename(&temporary, path)
+            .map_err(|error| format!("finalize diagnostics file failed: {error}"))
+    })();
+    if result.is_err() {
+        let _ = fs::remove_file(&temporary);
+    }
+    result
+}
+
+#[tauri::command]
+pub fn write_diagnostics_export(
+    app: tauri::AppHandle,
+    db: tauri::State<DbState>,
+    output_path: String,
+    last_error_kind: Option<String>,
+) -> Result<(), String> {
+    let output_path = PathBuf::from(output_path.trim());
+    if output_path.as_os_str().is_empty() {
+        return Err("diagnostics output path is required".to_string());
+    }
+    let diagnostics = export_diagnostics(app, db, last_error_kind)?;
+    write_json_atomically(&output_path, &diagnostics)
+}
+
 fn diagnostic_table_counts(
     conn: &Connection,
     workspace_id: &str,
@@ -289,6 +341,24 @@ mod tests {
         assert_eq!(counts["conversations_active"], 1);
         assert_eq!(counts["messages"], 1);
         assert!(!counts.to_string().contains("secret"));
+    }
+
+    #[test]
+    fn diagnostic_export_is_written_as_json_without_partial_target() {
+        let root = std::env::temp_dir().join(format!("bloomery-diagnostics-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&root).expect("create diagnostics root");
+        let output = root.join("diagnostics.json");
+        let value = serde_json::json!({
+            "privacy": { "contains_provider_secret": false },
+            "counts": { "messages": 2 }
+        });
+
+        write_json_atomically(&output, &value).expect("write diagnostics JSON");
+
+        let written = std::fs::read_to_string(&output).expect("read diagnostics JSON");
+        assert_eq!(serde_json::from_str::<serde_json::Value>(&written).unwrap(), value);
+        assert!(!root.join(".diagnostics.json.tmp").exists());
+        std::fs::remove_dir_all(root).expect("remove diagnostics root");
     }
 
     #[test]

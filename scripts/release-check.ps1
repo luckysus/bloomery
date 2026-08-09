@@ -3,6 +3,8 @@ param(
     [switch]$Offline,
     [switch]$WithE2E,
     [switch]$Package,
+    [switch]$Performance,
+    [switch]$InstallerSmoke,
     [switch]$AllowDirty
 )
 
@@ -43,13 +45,29 @@ if (-not $AllowDirty) {
     }
 }
 
+if ($InstallerSmoke -and -not $Package) {
+    throw "-InstallerSmoke requires -Package so the smoke test uses the current build"
+}
+
 $frontendRoot = Join-Path $repoRoot "frontend"
 $rustRoot = Join-Path $repoRoot "src-tauri"
 $tauriConfigPath = Join-Path $rustRoot "tauri.conf.json"
 $packagePath = Join-Path $frontendRoot "package.json"
 $cargoPath = Join-Path $rustRoot "Cargo.toml"
 
-foreach ($requiredPath in @($tauriConfigPath, $packagePath, $cargoPath, (Join-Path $repoRoot "README.md"), (Join-Path $repoRoot "LICENSE"), (Join-Path $repoRoot "docs\PROTOCOL.md"))) {
+foreach ($requiredPath in @(
+    $tauriConfigPath,
+    $packagePath,
+    $cargoPath,
+    (Join-Path $repoRoot "README.md"),
+    (Join-Path $repoRoot "LICENSE"),
+    (Join-Path $repoRoot "NOTICE"),
+    (Join-Path $repoRoot "docs\PROTOCOL.md"),
+    (Join-Path $repoRoot "src-tauri\deny.toml"),
+    (Join-Path $repoRoot "src-tauri\about.toml"),
+    (Join-Path $repoRoot "src-tauri\THIRD_PARTY_NOTICES.hbs"),
+    (Join-Path $repoRoot "scripts\generate-sbom.ps1")
+)) {
     if (-not (Test-Path -LiteralPath $requiredPath -PathType Leaf)) {
         throw "Required release file is missing: $requiredPath"
     }
@@ -109,6 +127,25 @@ if ($Offline) {
 }
 Invoke-Checked "Application security checks" "powershell" $securityArguments $repoRoot
 
+if ($Performance) {
+    $benchmarkScript = Join-Path $PSScriptRoot "benchmark-retrieval.ps1"
+    if (-not (Test-Path -LiteralPath $benchmarkScript -PathType Leaf)) {
+        throw "Retrieval benchmark script is missing"
+    }
+    Invoke-Checked "Local retrieval performance gate" "powershell" @(
+        "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $benchmarkScript
+    ) $repoRoot
+}
+
+if ($Package) {
+    $buildScript = Join-Path $PSScriptRoot "build-release.ps1"
+    $packageArguments = @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $buildScript, "-SkipTests")
+    if ($Offline) {
+        $packageArguments += "-Offline"
+    }
+    Invoke-Checked "Windows release package" "powershell" $packageArguments $repoRoot
+}
+
 $lifecycleScript = Join-Path $PSScriptRoot "lifecycle-check.ps1"
 $lifecycleArguments = @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $lifecycleScript)
 if ($Package) {
@@ -120,19 +157,13 @@ if ($Package) {
     }
     $lifecycleArguments += @("-InstallerPath", $candidateInstaller.FullName, "-AllowUnsigned")
 }
+if ($InstallerSmoke) {
+    $lifecycleArguments += "-RunInstallerSmoke"
+}
 Invoke-Checked "Windows data lifecycle checks" "powershell" $lifecycleArguments $repoRoot
 
 if ($WithE2E) {
     Invoke-Checked "Frontend end-to-end tests" "npm" @("run", "test:e2e") $frontendRoot
-}
-
-if ($Package) {
-    $buildScript = Join-Path $PSScriptRoot "build-release.ps1"
-    $packageArguments = @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $buildScript, "-SkipTests")
-    if ($Offline) {
-        $packageArguments += "-Offline"
-    }
-    Invoke-Checked "Windows release package" "powershell" $packageArguments $repoRoot
 }
 
 Write-Host ("Release checks passed for Bloomery " + $tauriVersion + ".")

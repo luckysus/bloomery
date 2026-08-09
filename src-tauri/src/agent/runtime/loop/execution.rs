@@ -238,13 +238,20 @@ where
                     summary: format!("Run {}", call.tool_name),
                 }))
                 .map_err(AgentLoopError::EventSink)?;
-                let decision = self.permissions.decide(&PermissionRequest {
-                    permission_id,
-                    tool_call_id: call.tool_call_id,
-                    tool_name: call.tool_name.clone(),
-                    risk: call.risk,
-                    arguments: call.arguments.clone(),
-                });
+                let decision = self
+                    .permissions
+                    .decide(
+                        PermissionRequest {
+                        permission_id,
+                        tool_call_id: call.tool_call_id,
+                        tool_id: call.tool_id.clone(),
+                        tool_name: call.tool_name.clone(),
+                        risk: call.risk,
+                        arguments: call.arguments.clone(),
+                        },
+                        cancellation.clone(),
+                    )
+                    .await;
                 sink.record(AgentEventData::PermissionResolved(PermissionResolved {
                     permission_id,
                     decision,

@@ -2,6 +2,7 @@ pub mod conversations;
 pub mod domains;
 pub mod events;
 pub mod knowledge;
+pub mod mcp;
 pub mod memories;
 pub mod permissions;
 pub mod provider_profiles;

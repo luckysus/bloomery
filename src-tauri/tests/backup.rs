@@ -1,4 +1,4 @@
-use bloomery::storage::backup::{create_backup, restore_backup};
+use bloomery::storage::backup::{create_backup, preview_backup, restore_backup};
 use bloomery::storage::migrations::migrate;
 use rusqlite::Connection;
 use serde_json::json;
@@ -69,6 +69,27 @@ fn backup_round_trip_restores_database_and_content_without_staging_files() {
     assert!(!target_root.join(".staging/partial").exists());
 
     drop(restored);
+    drop(connection);
+    fs::remove_dir_all(root).expect("remove fixture");
+}
+
+#[test]
+fn backup_preview_validates_archive_without_mutating_restore_targets() {
+    let root = fixture_root("preview");
+    fs::create_dir_all(&root).expect("create root");
+    let database = root.join("source.sqlite3");
+    let mut connection = Connection::open(&database).expect("open database");
+    migrate(&mut connection).expect("migrate database");
+    let archive = root.join("preview.bloomery-backup");
+    create_backup(&connection, &database, &root.join("content"), &archive).expect("create backup");
+
+    let preview = preview_backup(&archive).expect("preview backup");
+    assert_eq!(preview.archive_path, archive.to_string_lossy());
+    assert!(preview.database_bytes > 0);
+    assert_eq!(preview.content_file_count, 0);
+    assert_eq!(preview.content_bytes, 0);
+    assert!(!root.join("target.sqlite3").exists());
+    assert!(!root.join("target-content").exists());
     drop(connection);
     fs::remove_dir_all(root).expect("remove fixture");
 }

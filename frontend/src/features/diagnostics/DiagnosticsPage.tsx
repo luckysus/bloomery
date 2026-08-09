@@ -3,13 +3,10 @@ import {
   AlertCircle,
   Check,
   Database,
-  Download,
   HardDrive,
   LoaderCircle,
-  RefreshCw,
   RotateCcw,
   SearchCheck,
-  Upload,
 } from "lucide-react";
 import {
   desktop,
@@ -19,6 +16,7 @@ import {
   type ProviderProfileResponse,
 } from "../../bridge/desktop";
 import { useLocale, type MessageKey } from "../../i18n/locale";
+import DiagnosticsHeader from "./DiagnosticsHeader";
 
 interface DiagnosticsSnapshot {
   storage: StorageHealth | null;
@@ -148,13 +146,22 @@ export default function DiagnosticsPage() {
   };
 
   const exportDiagnostics = async () => {
+    setBusyBackup(true);
     setError(null);
     setNotice(null);
     try {
-      await desktop.exportDiagnostics(undefined);
+      const selected = await desktop.saveFileDialog({
+        title: t("diagnosticsExport"),
+        defaultPath: "bloomery-diagnostics.json",
+        filters: [{ name: t("diagnosticsExportFile"), extensions: ["json"] }],
+      });
+      if (typeof selected !== "string" || !selected.trim()) return;
+      await desktop.writeDiagnosticsExport(selected);
       setNotice(t("diagnosticsExported"));
     } catch (cause) {
       setError(errorMessage(cause, t("diagnosticsExportError")));
+    } finally {
+      setBusyBackup(false);
     }
   };
 
@@ -190,7 +197,13 @@ export default function DiagnosticsPage() {
         filters: [{ name: t("diagnosticsBackupFile"), extensions: ["bloomery-backup", "zip"] }],
       });
       if (typeof selected !== "string" || !selected.trim()) return;
-      if (!window.confirm(t("diagnosticsBackupRestoreConfirm"))) return;
+      const preview = await desktop.previewBackup(selected);
+      const previewMessage = t("diagnosticsBackupRestorePreview", {
+        databaseBytes: formatBytes(preview.database_bytes),
+        contentFileCount: preview.content_file_count,
+        contentBytes: formatBytes(preview.content_bytes),
+      });
+      if (!window.confirm(`${previewMessage}\n\n${t("diagnosticsBackupRestoreConfirm")}`)) return;
       await desktop.restoreBackup(selected);
       await load();
       setNotice(t("diagnosticsBackupRestored"));
@@ -210,30 +223,14 @@ export default function DiagnosticsPage() {
 
   return (
     <section className="bloomery-diagnostics" aria-labelledby="diagnostics-heading" aria-busy={loading}>
-      <header className="bloomery-diagnostics-header">
-        <div>
-          <p className="bloomery-eyebrow">LOCAL RUNTIME / HEALTH</p>
-          <h1 id="diagnostics-heading">{t("diagnosticsTitle")}</h1>
-          <p className="bloomery-lede">{t("diagnosticsLede")}</p>
-        </div>
-        <div className="bloomery-diagnostics-actions">
-          <button type="button" className="bloomery-icon-button" onClick={() => void load()} disabled={loading} aria-label={t("diagnosticsRefresh")} title={t("diagnosticsRefresh")}>
-            <RefreshCw size={18} aria-hidden="true" />
-          </button>
-          <button type="button" className="bloomery-action-secondary" onClick={() => void exportDiagnostics()} disabled={loading || busyBackup}>
-            <Download size={16} aria-hidden="true" />
-            {t("diagnosticsExport")}
-          </button>
-          <button type="button" className="bloomery-action-secondary" onClick={() => void createBackup()} disabled={loading || busyBackup}>
-            <Download size={16} aria-hidden="true" />
-            {t("diagnosticsBackupExport")}
-          </button>
-          <button type="button" className="bloomery-action-secondary" onClick={() => void restoreBackup()} disabled={loading || busyBackup}>
-            <Upload size={16} aria-hidden="true" />
-            {t("diagnosticsBackupRestore")}
-          </button>
-        </div>
-      </header>
+      <DiagnosticsHeader
+        loading={loading}
+        busy={busyBackup}
+        onRefresh={() => void load()}
+        onExport={() => void exportDiagnostics()}
+        onCreateBackup={() => void createBackup()}
+        onRestoreBackup={() => void restoreBackup()}
+      />
 
       {error && <div className="bloomery-diagnostics-alert" role="alert"><AlertCircle size={17} aria-hidden="true" /><span>{error}</span></div>}
       {notice && <div className="bloomery-diagnostics-notice" role="status"><Check size={17} aria-hidden="true" /><span>{notice}</span></div>}

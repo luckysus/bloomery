@@ -128,6 +128,20 @@ assertion above.
 - [ ] **Step 3: Migrate Bloomery original code from current MIT to approved Apache-2.0** only after verifying sole-owner authority; preserve MIT/Apache third-party notices and existing contributor rights.
 - [ ] **Step 4: Generate CycloneDX/SPDX SBOMs and THIRD_PARTY_NOTICES** from locked manifests; verify release artifacts contain them.
 
+**Execution record (2026-08-09):** Rust baseline scans passed with
+`cargo deny check` (`advisories ok, bans ok, licenses ok, sources ok`) and
+`cargo audit` (`vulnerabilities = 0`; 17 unmaintained and 2 informational
+unsound warnings are documented). The npm baseline initially found one low
+severity transitive `@babel/core` advisory; `npm audit fix
+--package-lock-only` updated the lockfile and `npm audit` now reports zero
+vulnerabilities. `src-tauri/deny.toml`, `about.toml`,
+`THIRD_PARTY_NOTICES.hbs`, `NOTICE`, and `scripts/generate-sbom.ps1` now make
+the policy and generation steps reproducible. The generator validated Rust
+CycloneDX, frontend CycloneDX, frontend SPDX, and non-empty plain-text
+`THIRD_PARTY_NOTICES.txt` outputs. Actual signed/unsigned installer contents
+remain open until Task 7 can build a Windows release candidate; Python worker
+coverage and sole-owner relicensing authority also remain open.
+
 ### Task 5: Enforce performance and resource gates
 
 **Files:** Create startup/memory/import/agent benchmarks and `docs/benchmarks/` reports.

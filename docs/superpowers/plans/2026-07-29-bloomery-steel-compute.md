@@ -85,6 +85,16 @@ docs/steel/{data-model,models,optimization,evaluation}.md
 - [ ] **Step 3: Implement supported pipelines.** Include linear/ElasticNet, Random Forest, HistGradientBoosting, and an explicitly installed XGBoost capability. Persist environment lock hash, data version/hash, field mapping, split policy, parameters, metrics, feature schema, and applicability range.
 - [ ] **Step 4: Run Python tests and Rust end-to-end worker training test** and expect pass.
 
+**Progress evidence (2026-08-10):** Added the first executable training slice
+with a standard-library linear-regression pipeline and framed Worker operations
+for training and prediction. It validates bounded numeric matrices, deterministic
+random/group/time splits, training-only imputation and standardization, ridge
+stabilization, regression metrics, feature importance, applicability ranges,
+field mappings, deterministic artifact IDs, and artifact-backed prediction.
+The Python Worker suite passes 12 tests. The Task remains open until the
+remaining supported model families, cancellation, persistent artifact storage,
+and Rust end-to-end task integration are complete.
+
 ### Task 8: Implement ONNX export/import and local inference
 
 **Files:** Create worker inference/export modules, Rust model repository/tool adapter, and tests.

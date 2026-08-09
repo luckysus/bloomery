@@ -83,3 +83,48 @@ fn saves_a_preview_with_mapping_and_reuses_the_same_source_record() {
 
     let _ = fs::remove_file(path);
 }
+
+#[test]
+fn activates_only_a_dataset_with_a_canonical_mapping() {
+    let path = std::env::temp_dir().join(format!("bloomery-steel-{}.csv", uuid::Uuid::new_v4()));
+    fs::write(&path, "heat_id,yield_strength\nH-01,355\n").expect("write fixture");
+    let preview = preview_dataset(&DatasetPreviewRequest {
+        source_path: path.to_string_lossy().into_owned(),
+        sheet: None,
+    })
+    .expect("preview dataset");
+    let mut connection = database();
+
+    let draft = steel::save_preview(
+        &mut connection,
+        "workspace-a",
+        &path.to_string_lossy(),
+        "sha256-ready",
+        &preview,
+        &[steel::DatasetColumnMapping {
+            ordinal: 1,
+            canonical_field: Some("yield_strength".to_string()),
+            unit: Some("MPa".to_string()),
+        }],
+    )
+    .expect("save mapped dataset");
+    let ready = steel::activate(&mut connection, "workspace-a", &draft.id)
+        .expect("activate mapped dataset")
+        .expect("activated dataset");
+    assert_eq!(ready.mapping_state, "ready");
+
+    let unmapped = steel::save_preview(
+        &mut connection,
+        "workspace-a",
+        &path.to_string_lossy(),
+        "sha256-draft",
+        &preview,
+        &[],
+    )
+    .expect("save unmapped dataset");
+    let error = steel::activate(&mut connection, "workspace-a", &unmapped.id)
+        .expect_err("unmapped dataset must not activate");
+    assert!(error.contains("canonical field"));
+
+    let _ = fs::remove_file(path);
+}

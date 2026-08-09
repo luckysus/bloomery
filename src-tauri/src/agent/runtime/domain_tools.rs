@@ -18,10 +18,11 @@ impl<'a, T: ToolExecutor + ?Sized> DomainToolExecutor<'a, T> {
             .iter()
             .filter(|registration| {
                 domain.map_or(true, |manifest| {
-                    manifest
-                        .builtin_tool_allowlist
-                        .iter()
-                        .any(|id| id == &registration.spec.id)
+                    registration.spec.id.starts_with("mcp.")
+                        || manifest
+                            .builtin_tool_allowlist
+                            .iter()
+                            .any(|id| id == &registration.spec.id)
                 })
             })
             .cloned()

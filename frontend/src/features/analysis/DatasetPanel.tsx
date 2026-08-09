@@ -1,4 +1,4 @@
-import { BarChart3, FolderOpen, LoaderCircle, Save, Table2, TriangleAlert } from "lucide-react";
+import { BarChart3, CircleCheck, FolderOpen, LoaderCircle, Power, Save, Table2, TriangleAlert } from "lucide-react";
 import { useEffect, useState } from "react";
 import { desktop, type DatasetAnalysis, type DatasetColumnMapping, type DatasetPreview, type SteelDatasetRecord } from "../../bridge/desktop";
 import { useLocale } from "../../i18n/locale";
@@ -22,9 +22,11 @@ export default function DatasetPanel() {
   const [datasetSaved, setDatasetSaved] = useState(false);
   const [savedDatasets, setSavedDatasets] = useState<SteelDatasetRecord[]>([]);
   const [catalogLoading, setCatalogLoading] = useState(true);
+  const [datasetActivateBusyId, setDatasetActivateBusyId] = useState<string | null>(null);
   const [datasetAnalysis, setDatasetAnalysis] = useState<DatasetAnalysis | null>(null);
   const [datasetAnalysisBusyId, setDatasetAnalysisBusyId] = useState<string | null>(null);
   const [datasetAnalysisError, setDatasetAnalysisError] = useState<string | null>(null);
+  const [datasetActivateError, setDatasetActivateError] = useState<string | null>(null);
   const [datasetMappings, setDatasetMappings] = useState<Record<number, MappingDraft>>({});
   const [groupByColumns, setGroupByColumns] = useState<Record<string, number | null>>({});
   const [correlationColumns, setCorrelationColumns] = useState<Record<string, number[]>>({});
@@ -110,6 +112,20 @@ export default function DatasetPanel() {
     }));
   };
 
+  const activateDataset = async (datasetId: string) => {
+    if (datasetActivateBusyId) return;
+    setDatasetActivateBusyId(datasetId);
+    setDatasetActivateError(null);
+    try {
+      const activated = await desktop.activateSteelDataset(datasetId);
+      setSavedDatasets((current) => current.map((item) => item.id === activated.id ? activated : item));
+    } catch (cause) {
+      setDatasetActivateError(cause instanceof Error ? cause.message : t("analysisDatasetActivateError"));
+    } finally {
+      setDatasetActivateBusyId(null);
+    }
+  };
+
   const runDatasetAnalysis = async (datasetId: string) => {
     if (datasetAnalysisBusyId) return;
     setDatasetAnalysisBusyId(datasetId);
@@ -164,6 +180,7 @@ export default function DatasetPanel() {
       {datasetError && <p className="bloomery-analysis-error" role="alert"><TriangleAlert size={16} aria-hidden="true" />{datasetError}</p>}
       {datasetSaveError && <p className="bloomery-analysis-error" role="alert"><TriangleAlert size={16} aria-hidden="true" />{datasetSaveError}</p>}
       {datasetAnalysisError && <p className="bloomery-analysis-error" role="alert"><TriangleAlert size={16} aria-hidden="true" />{datasetAnalysisError}</p>}
+      {datasetActivateError && <p className="bloomery-analysis-error" role="alert"><TriangleAlert size={16} aria-hidden="true" />{datasetActivateError}</p>}
       {dataset && (
         <div className="bloomery-dataset-preview" aria-live="polite">
           <div className="bloomery-dataset-summary">
@@ -196,6 +213,10 @@ export default function DatasetPanel() {
             {savedDatasets.map((item) => (
               <div className="bloomery-dataset-catalog-row" key={item.id}>
                 <div><strong>{item.sourceName}</strong><span>{item.selectedSheet} · {item.rowCount} {t("analysisDatasetRows").toLowerCase()}</span></div>
+                <span className={`bloomery-dataset-status ${item.mappingState === "ready" ? "is-ready" : "is-draft"}`} data-testid={`dataset-status-${item.id}`}>
+                  {item.mappingState === "ready" ? <CircleCheck size={14} aria-hidden="true" /> : null}
+                  {item.mappingState === "ready" ? t("analysisDatasetStatusReady") : t("analysisDatasetStatusDraft")}
+                </span>
                 <DatasetAnalysisControls
                   dataset={item}
                   groupByColumn={groupByColumns[item.id] ?? null}
@@ -203,6 +224,10 @@ export default function DatasetPanel() {
                   onGroupByColumnChange={(ordinal) => updateGroupByColumn(item.id, ordinal)}
                   onCorrelationColumnToggle={(ordinal) => toggleCorrelationColumn(item.id, ordinal)}
                 />
+                {item.mappingState === "draft" && <button type="button" className="bloomery-dataset-activate" data-testid={`activate-dataset-${item.id}`} onClick={() => void activateDataset(item.id)} disabled={datasetActivateBusyId !== null} title={t("analysisDatasetActivate")}>
+                  {datasetActivateBusyId === item.id ? <LoaderCircle size={15} className="bloomery-spin" aria-hidden="true" /> : <Power size={15} aria-hidden="true" />}
+                  <span>{datasetActivateBusyId === item.id ? t("analysisDatasetActivating") : t("analysisDatasetActivate")}</span>
+                </button>}
                 <button type="button" className="bloomery-dataset-analyze" data-testid={`analyze-dataset-${item.id}`} onClick={() => void runDatasetAnalysis(item.id)} disabled={datasetAnalysisBusyId !== null} title={t("analysisDatasetAnalyze")}>
                   {datasetAnalysisBusyId === item.id ? <LoaderCircle size={15} className="bloomery-spin" aria-hidden="true" /> : <BarChart3 size={15} aria-hidden="true" />}
                   <span>{datasetAnalysisBusyId === item.id ? t("analysisDatasetAnalyzing") : t("analysisDatasetAnalyze")}</span>

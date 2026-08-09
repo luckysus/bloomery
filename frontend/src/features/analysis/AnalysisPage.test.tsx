@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import AnalysisPage from "./AnalysisPage";
-import { desktop, type DatasetPreview } from "../../bridge/desktop";
+import { desktop, type DatasetPreview, type SteelDatasetRecord } from "../../bridge/desktop";
 
 vi.mock("../../bridge/desktop", () => ({
   desktop: {
@@ -10,6 +10,7 @@ vi.mock("../../bridge/desktop", () => ({
     previewSteelDataset: vi.fn(),
     listSteelDatasets: vi.fn(),
     saveSteelDataset: vi.fn(),
+    activateSteelDataset: vi.fn(),
     analyzeSteelDataset: vi.fn(),
   },
 }));
@@ -248,5 +249,46 @@ describe("AnalysisPage", () => {
       sheet: "CSV",
       mappings: [{ ordinal: 1, canonicalField: "yield_strength", unit: "MPa" }],
     }));
+  });
+
+  it("activates a mapped draft dataset and updates its status", async () => {
+    const preview: DatasetPreview = {
+      sourceName: "heats.csv",
+      format: "csv",
+      sheets: ["CSV"],
+      selectedSheet: "CSV",
+      rowCount: 1,
+      columnCount: 1,
+      truncated: false,
+      columns: [{ name: "yield_strength", duplicate: false, inferredType: "number", nonEmptyCount: 1, missingCount: 0, invalidCount: 0, min: 355, max: 355 }],
+      sampleRows: [["355"]],
+      warnings: [],
+    };
+    const draft = {
+      id: "dataset-1",
+      sourceName: "heats.csv",
+      sourcePath: "F:\\data\\heats.csv",
+      sourceSha256: "hash",
+      format: "csv",
+      selectedSheet: "CSV",
+      rowCount: 1,
+      columnCount: 1,
+      truncated: false,
+      mappingState: "draft",
+      preview,
+      columns: [{ ordinal: 0, originalName: "yield_strength", duplicate: false, inferredType: "number", canonicalField: "yield_strength", unit: "MPa", nonEmptyCount: 1, missingCount: 0, invalidCount: 0, min: 355, max: 355 }],
+      createdAt: "2026-08-07T10:00:00Z",
+      updatedAt: "2026-08-07T10:00:00Z",
+    } satisfies SteelDatasetRecord;
+    vi.mocked(desktop.listSteelDatasets).mockResolvedValue([draft]);
+    vi.mocked(desktop.activateSteelDataset).mockResolvedValue({ ...draft, mappingState: "ready" });
+
+    render(<AnalysisPage />);
+    await screen.findByText("heats.csv");
+    expect(screen.getByTestId("dataset-status-dataset-1")).toHaveTextContent("待激活");
+    fireEvent.click(screen.getByTestId("activate-dataset-dataset-1"));
+
+    await waitFor(() => expect(desktop.activateSteelDataset).toHaveBeenCalledWith("dataset-1"));
+    expect(await screen.findByTestId("dataset-status-dataset-1")).toHaveTextContent("已激活");
   });
 });

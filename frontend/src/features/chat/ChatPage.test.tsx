@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import ChatPage from "./ChatPage";
 import { desktop, type Conversation, type EvidencePack, type Message } from "../../bridge/desktop";
-import type { AgentEventEnvelope } from "../../bridge/generated/protocol";
+import type { AgentEventEnvelope, PermissionDecision } from "../../bridge/generated/protocol";
 
 let publishAgentEvent: ((event: AgentEventEnvelope) => void) | undefined;
 
@@ -17,10 +17,13 @@ vi.mock("../../bridge/desktop", () => ({
     listenAgentEvents: vi.fn(),
     replayAgentRun: vi.fn(),
     desktopAgentChat: vi.fn(),
+    resolveAgentPermission: vi.fn(),
     cancelDesktopRun: vi.fn(),
     listKnowledgeBases: vi.fn(),
     queryLocalKnowledge: vi.fn(),
     resolveKnowledgeCitation: vi.fn(),
+    saveFileDialog: vi.fn(),
+    exportConversation: vi.fn(),
   },
 }));
 
@@ -78,6 +81,10 @@ const evidencePack: EvidencePack = {
   created_at: "2026-08-05T10:00:00Z",
 };
 
+const exportDesktop = desktop as typeof desktop & {
+  exportConversation: (conversationId: string, outputPath: string, format: "markdown" | "json") => Promise<unknown>;
+};
+
 describe("ChatPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -95,6 +102,7 @@ describe("ChatPage", () => {
     vi.mocked(desktop.listKnowledgeBases).mockResolvedValue([{ id: "kb-steel", name: "Steel standards", created_at: conversation.created_at, updated_at: conversation.updated_at }]);
     vi.mocked(desktop.queryLocalKnowledge).mockResolvedValue({ ...evidencePack, evidence: [] });
     vi.mocked(desktop.resolveKnowledgeCitation).mockResolvedValue(null);
+    vi.mocked(desktop.resolveAgentPermission).mockResolvedValue(undefined);
     vi.mocked(desktop.desktopAgentChat).mockResolvedValue({
       run_id: "run-1",
       session_id: conversation.id,
@@ -109,6 +117,26 @@ describe("ChatPage", () => {
 
     expect(await screen.findByRole("button", { name: "Q355B 标准" })).toBeInTheDocument();
     expect(await screen.findByText("Q355B 的屈服强度是多少？")).toBeInTheDocument();
+  });
+
+  it("exports the selected conversation as Markdown to the chosen path", async () => {
+    vi.mocked(desktop.saveFileDialog).mockResolvedValue("C:\\Exports\\q355b.md");
+    vi.mocked(exportDesktop.exportConversation).mockResolvedValue({
+      format: "markdown",
+      output_path: "C:\\Exports\\q355b.md",
+      message_count: 1,
+      bytes: 128,
+    });
+    render(<ChatPage />);
+
+    await screen.findByText(/Q355B/);
+    fireEvent.click(screen.getByTestId("export-conversation-markdown"));
+
+    await waitFor(() => expect(exportDesktop.exportConversation).toHaveBeenCalledWith(
+      conversation.id,
+      "C:\\Exports\\q355b.md",
+      "markdown",
+    ));
   });
 
   it("sends a message through the local agent command", async () => {
@@ -228,5 +256,43 @@ describe("ChatPage", () => {
 
     expect(await screen.findByTestId("agent-run-status")).toHaveTextContent(/本地就绪|Local ready/);
     expect(desktop.replayAgentRun).toHaveBeenCalledWith(runId);
+  });
+
+  it("shows permission actions and resolves the selected decision through the desktop bridge", async () => {
+    let finish: ((response: { run_id: string; session_id: string; status: string; answer: string }) => void) | undefined;
+    vi.mocked(desktop.desktopAgentChat).mockImplementation(async (request) => {
+      publishAgentEvent?.({
+        protocol_version: 1,
+        event_id: "event-permission-1",
+        run_id: request.runId!,
+        conversation_id: conversation.id,
+        sequence: 1,
+        timestamp: "2026-08-07T10:00:00Z",
+        type: "permission_requested",
+        data: {
+          permission_id: "permission-1",
+          tool_call_id: "tool-call-1",
+          risk: "confirmation_required",
+          reason: "The tool may modify a local file.",
+          summary: "Run write_file",
+        },
+      });
+      return new Promise((resolve) => {
+        finish = resolve;
+      });
+    });
+
+    render(<ChatPage />);
+    await screen.findByRole("button", { name: /Q355B/ });
+    fireEvent.change(screen.getByLabelText(/输入消息|message/i), { target: { value: "Write a draft" } });
+    fireEvent.click(screen.getByRole("button", { name: /发送|Send/i }));
+
+    expect(await screen.findByText("Run write_file")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Allow once|鍏佽涓€娆?/i }));
+    await waitFor(() => expect(desktop.resolveAgentPermission).toHaveBeenCalledWith(
+      "permission-1",
+      "allow_once" satisfies PermissionDecision,
+    ));
+    finish?.({ run_id: "run-1", session_id: conversation.id, status: "completed", answer: "done" });
   });
 });

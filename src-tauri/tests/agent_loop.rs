@@ -21,6 +21,8 @@ use std::sync::{
     Arc,
 };
 use std::time::Duration;
+use std::future::Future;
+use std::pin::Pin;
 use uuid::Uuid;
 
 struct ScriptedModel {
@@ -91,9 +93,10 @@ struct AllowPermissions;
 impl PermissionResolver for AllowPermissions {
     fn decide(
         &self,
-        _request: &PermissionRequest,
-    ) -> bloomery::agent::protocol::PermissionDecision {
-        bloomery::agent::protocol::PermissionDecision::AllowOnce
+        _request: PermissionRequest,
+        _cancellation: CancellationToken,
+    ) -> Pin<Box<dyn Future<Output = bloomery::agent::protocol::PermissionDecision> + Send>> {
+        Box::pin(async { bloomery::agent::protocol::PermissionDecision::AllowOnce })
     }
 }
 

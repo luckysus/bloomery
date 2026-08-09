@@ -17,6 +17,14 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/test.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts/release-check.ps1 -WithE2E
 ```
 
+Add `-Performance` when the 100k-chunk local retrieval gate should run as part
+of the release check. The benchmark is intentionally opt-in because its first
+build and corpus setup are expensive:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/release-check.ps1 -Performance
+```
+
 When Cargo dependencies are already cached, `-Offline` avoids the machine's
 network configuration while preserving the same checks:
 
@@ -26,6 +34,11 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/test.ps1 -Offline
 
 `-Offline` only affects Cargo. Tauri may still need to download its platform
 bundler, such as NSIS, on the first package build.
+
+For a local engineering validation that also installs, launches, uninstalls,
+and checks data retention for the newly built NSIS installer, add
+`-Package -InstallerSmoke -AllowDirty` to `release-check.ps1`. The smoke gate
+uses a temporary directory and does not represent a signed public release.
 
 `-Offline` 只影响 Cargo。第一次打包时，Tauri 仍可能需要下载 NSIS 等平台
 打包工具；这一步需要可用网络，但不要求修改系统代理配置。
@@ -47,6 +60,10 @@ directory, and writes:
   SHA-256 values;
 - `SHA256SUMS.txt`, containing standard checksum lines.
 
+`release-check.ps1 -Package` builds the candidate before running the packaged
+Windows lifecycle verification, so a clean CI runner does not depend on a
+previous artifact directory.
+
 The current local script passes `--no-sign` deliberately. These artifacts are
 for engineering validation only and must not be presented as the signed public
 release. Authenticode and Tauri updater signing keys belong in a protected
@@ -67,6 +84,15 @@ or bypass signing and release audit requirements.
 `quality.yml` 会在 Windows 上对 Pull Request 和 `main` 推送执行确定性测试。
 `release.yml` 会在手动触发或 `v*` 标签上执行 E2E 和未签名候选打包，并上传
 候选文件；它不会自动创建公开发行版，也不会绕过签名和发布审计要求。
+
+## Signed updater builds / 签名更新构建
+
+The in-app updater is wired through the official Tauri updater and process
+plugins. Local engineering builds stay unsigned by default. Use the protected
+release environment and `scripts/build-release.ps1 -Signed` only after the
+public key, updater metadata, and signing key have been provisioned. See
+`docs/releases/updater.md`; private signing material must never enter the
+repository or an artifact.
 
 ## Troubleshooting / 故障排查
 

@@ -231,3 +231,57 @@ Unknown protocol versions or event types should be surfaced as a recoverable
 projection error and followed by a full replay when possible. Never execute a
 tool, write a file, or change permission state merely because an event was
 received by the renderer.
+
+## Local Compute Worker Protocol
+
+The optional steel compute worker is a separate local process. It communicates
+with the Rust host over stdin/stdout using UTF-8 JSON frames. It does not open a
+network listener, own the Bloomery database, or receive provider credentials.
+
+Each frame uses a byte-accurate `Content-Length` header followed by a blank line
+and exactly that many UTF-8 JSON bytes:
+
+```text
+Content-Length: 146\r\n
+\r\n
+{"jsonrpc":"2.0","protocol_version":"1.0",...}
+```
+
+The current Worker protocol version is `1.0`. Requests contain a non-empty
+string `id`, a method, and an object `params` value. Responses contain the same
+`id` and exactly one of `result` or `error`; progress is an id-less
+notification:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "protocol_version": "1.0",
+  "method": "progress",
+  "params": {
+    "task_id": "job-1",
+    "progress": 42,
+    "stage": "training"
+  }
+}
+```
+
+The bootstrap methods are:
+
+| Method | Purpose |
+| --- | --- |
+| `hello` | Negotiate protocol and list supported operations. |
+| `submit` | Submit a validated local task. |
+| `cancel` | Request cancellation for a task ID. |
+| `shutdown` | Stop the worker and close the stdio session. |
+
+Unknown methods, unsupported operations, malformed parameters, protocol version
+mismatches, oversized frames, and truncated input are errors. The host must
+validate paths and task limits before sending them. Worker output is treated as
+untrusted: artifact paths, hashes, model metadata, and results require schema
+and integrity validation before persistence or activation.
+
+The Rust implementation lives in `src-tauri/src/compute/`; the reference
+Python package lives in `compute-worker/`. The protocol layer currently exposes
+only an `echo` operation for contract testing. Scientific training, ONNX
+inference, and constrained optimization are separate release tasks and must not
+be inferred from the bootstrap capability list.

@@ -1,9 +1,12 @@
 use crate::agent::desktop::{LocalAgentState, StreamedLlmAnswer};
 use crate::agent::protocol::{AgentEventData, RunOutcome};
 use crate::agent::runtime::{
-    AgentLoop, DenyPermissions, DomainToolExecutor, ProviderModelAdapter, SqliteAgentEventSink,
+    AgentLoop, CompositeToolExecutor, DomainToolExecutor, ProviderModelAdapter,
+    SqliteAgentEventSink,
 };
+use crate::app::mcp_agent_runtime::load_enabled_tools;
 use crate::db::database_path;
+use crate::permissions::{ParameterScope, RuleEffect};
 use crate::providers::capabilities::ChatProvider;
 use crate::providers::configured_chat_provider;
 use crate::steel::SteelToolExecutor;
@@ -19,6 +22,25 @@ pub(crate) async fn run_standard_agent(
     let database = database_path(app)?;
     let (mut connection, _) = crate::storage::database::open(&database)
         .map_err(|error| format!("open agent runtime database failed: {error}"))?;
+    let persistent_permission_keys = crate::storage::repositories::permissions::list(
+        &connection,
+        workspace_id,
+    )
+    .map_err(|error| format!("load permission rules failed: {error}"))?
+    .into_iter()
+    .filter_map(|rule| {
+        if rule.effect != RuleEffect::Allow {
+            return None;
+        }
+        match rule.scope {
+            ParameterScope::Exact(arguments) => Some(crate::agent::desktop::permission_key_for(
+                rule.tool_id.as_str(),
+                &arguments,
+            )),
+            ParameterScope::Any | ParameterScope::Fields(_) => None,
+        }
+    });
+    agent_state.load_always_permission_keys(persistent_permission_keys);
     let (profile, credential) =
         crate::agent::desktop::provider_profile_from_config(&preparation.config)?;
     let provider = configured_chat_provider(profile, credential)
@@ -26,8 +48,13 @@ pub(crate) async fn run_standard_agent(
     let tool_calls_enabled = provider.capabilities().tool_calls;
     let model = ProviderModelAdapter::new(provider);
     let steel_tools = SteelToolExecutor::new(tool_calls_enabled);
-    let domain_tools = DomainToolExecutor::new(&steel_tools, preparation.active_domain.as_ref());
-    let permissions = DenyPermissions;
+    let mcp_configs = crate::storage::repositories::mcp::list(&connection, workspace_id)
+        .map_err(|error| format!("load MCP configurations failed: {error}"))?;
+    let mcp_tools = load_enabled_tools(app, mcp_configs).await?;
+    let combined_tools = CompositeToolExecutor::try_new(vec![&steel_tools, &mcp_tools])
+        .map_err(|error| format!("combine Agent tools failed: {error}"))?;
+    let domain_tools = DomainToolExecutor::new(&combined_tools, preparation.active_domain.as_ref());
+    let permissions = agent_state.permission_resolver();
     let assistant_message_id = Uuid::new_v4();
     let request = crate::agent::desktop::build_agent_loop_request(
         assistant_message_id,

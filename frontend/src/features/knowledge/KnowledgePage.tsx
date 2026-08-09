@@ -3,54 +3,35 @@ import { useLocale } from "../../i18n/locale";
 import {
   desktop,
   type BackgroundTask,
+  type DocumentVersionRecord,
   type KnowledgeBaseDeleteImpact,
   type KnowledgeBaseRecord,
   type KnowledgeHealth,
+  type IndexHealthReport,
+  type IndexRebuildRequest,
   type SourceDocumentRecord,
 } from "../../bridge/desktop";
 import KnowledgeView from "./KnowledgeView";
-
-const emptyHealth: KnowledgeHealth = {
-  knowledge_base_count: 0,
-  document_count: 0,
-  active_document_count: 0,
-  version_count: 0,
-  chunk_count: 0,
-  indexed_chunk_count: 0,
-  active_task_count: 0,
-};
-
-interface RetrievalSetup {
-  embeddingProfileId: string | null;
-  mineruProfileId: string | null;
-}
-
-const emptyRetrieval: RetrievalSetup = { embeddingProfileId: null, mineruProfileId: null };
-
-function errorMessage(error: unknown, fallback: string) {
-  return error instanceof Error ? error.message : fallback;
-}
-
-function parseRetrievalSetup(value: string | null): RetrievalSetup {
-  if (!value) return emptyRetrieval;
-  try {
-    const parsed = JSON.parse(value) as Record<string, unknown>;
-    return {
-      embeddingProfileId: typeof parsed.embedding_profile_id === "string" ? parsed.embedding_profile_id : null,
-      mineruProfileId: typeof parsed.mineru_profile_id === "string" ? parsed.mineru_profile_id : null,
-    };
-  } catch {
-    return emptyRetrieval;
-  }
-}
+import {
+  createIndexRequest,
+  emptyHealth,
+  emptyRetrieval,
+  errorMessage,
+  parseRetrievalSetup,
+  type RetrievalSetup,
+} from "./knowledgeModel";
 
 export default function KnowledgePage() {
   const { t } = useLocale();
   const [bases, setBases] = useState<KnowledgeBaseRecord[]>([]);
   const [selectedBaseId, setSelectedBaseId] = useState<string | null>(null);
   const [documents, setDocuments] = useState<SourceDocumentRecord[]>([]);
+  const [selectedDocumentId, setSelectedDocumentId] = useState<string | null>(null);
+  const [versions, setVersions] = useState<DocumentVersionRecord[]>([]);
   const [tasks, setTasks] = useState<BackgroundTask[]>([]);
   const [health, setHealth] = useState<KnowledgeHealth>(emptyHealth);
+  const [indexHealth, setIndexHealth] = useState<IndexHealthReport | null>(null);
+  const [indexRequest, setIndexRequest] = useState<IndexRebuildRequest | null>(null);
   const [retrieval, setRetrieval] = useState<RetrievalSetup>(emptyRetrieval);
   const [newName, setNewName] = useState("");
   const [filePath, setFilePath] = useState("");
@@ -59,6 +40,7 @@ export default function KnowledgePage() {
   const [deleteImpact, setDeleteImpact] = useState<KnowledgeBaseDeleteImpact | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [taskBusyId, setTaskBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -66,16 +48,22 @@ export default function KnowledgePage() {
     setLoading(true);
     setError(null);
     try {
-      const [nextBases, nextHealth, nextTasks, setting] = await Promise.all([
+      const [nextBases, nextHealth, nextTasks, setting, profiles] = await Promise.all([
         desktop.listKnowledgeBases(),
         desktop.getKnowledgeHealth(),
         desktop.listBackgroundTasks(),
         desktop.getSetting("onboarding.retrieval"),
+        desktop.listProviderProfiles(),
       ]);
       setBases(nextBases);
       setHealth(nextHealth);
       setTasks(nextTasks);
-      setRetrieval(parseRetrievalSetup(setting));
+      const nextRetrieval = parseRetrievalSetup(setting);
+      setRetrieval(nextRetrieval);
+      const embeddingProfile = profiles.find((profile) => profile.id === nextRetrieval.embeddingProfileId);
+      const nextIndexRequest = embeddingProfile ? createIndexRequest(embeddingProfile) : null;
+      setIndexRequest(nextIndexRequest);
+      setIndexHealth(nextIndexRequest ? await desktop.getIndexHealth(nextIndexRequest) : null);
       setSelectedBaseId((current) => current && nextBases.some((base) => base.id === current) ? current : nextBases[0]?.id ?? null);
     } catch (cause) {
       setError(errorMessage(cause, t("knowledgeError")));
@@ -93,12 +81,29 @@ export default function KnowledgePage() {
     }
     let mounted = true;
     desktop.listKnowledgeDocuments(selectedBaseId).then((items) => {
-      if (mounted) setDocuments(items);
+      if (mounted) {
+        setDocuments(items);
+        setSelectedDocumentId((current) => current && items.some((item) => item.id === current) ? current : items[0]?.id ?? null);
+      }
     }).catch((cause) => {
       if (mounted) setError(errorMessage(cause, t("knowledgeError")));
     });
     return () => { mounted = false; };
   }, [selectedBaseId]);
+
+  useEffect(() => {
+    if (!selectedDocumentId) {
+      setVersions([]);
+      return;
+    }
+    let mounted = true;
+    desktop.listDocumentVersions(selectedDocumentId).then((items) => {
+      if (mounted) setVersions(items);
+    }).catch((cause) => {
+      if (mounted) setError(errorMessage(cause, t("knowledgeError")));
+    });
+    return () => { mounted = false; };
+  }, [selectedDocumentId]);
 
   const createBase = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -162,6 +167,7 @@ export default function KnowledgePage() {
       const remaining = bases.filter((base) => base.id !== deleteImpact.knowledge_base_id);
       setBases(remaining);
       setSelectedBaseId(remaining[0]?.id ?? null);
+      setSelectedDocumentId(null);
       setDeleteImpact(null);
       setHealth((current) => ({ ...current, knowledge_base_count: Math.max(0, current.knowledge_base_count - 1) }));
     } catch (cause) {
@@ -193,6 +199,42 @@ export default function KnowledgePage() {
     }
   };
 
+  const updateTask = async (task: BackgroundTask, action: "cancel" | "retry") => {
+    setTaskBusyId(task.id);
+    setError(null);
+    try {
+      const updated = action === "cancel"
+        ? await desktop.cancelBackgroundTask(task.id)
+        : await desktop.retryBackgroundTask(task.id);
+      setTasks((current) => current.map((item) => item.id === updated.id ? updated : item));
+      const nextHealth = await desktop.getKnowledgeHealth();
+      setHealth(nextHealth);
+    } catch (cause) {
+      setError(errorMessage(cause, t("knowledgeError")));
+    } finally {
+      setTaskBusyId(null);
+    }
+  };
+
+  const rebuildIndex = async () => {
+    if (!indexRequest) {
+      setError(t("setupRetrievalFirst"));
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    setNotice(null);
+    try {
+      await desktop.rebuildKnowledgeIndex(indexRequest);
+      setNotice(t("rebuildQueued"));
+      await loadOverview();
+    } catch (cause) {
+      setError(errorMessage(cause, t("knowledgeError")));
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const chooseFile = async () => {
     setError(null);
     try {
@@ -207,8 +249,11 @@ export default function KnowledgePage() {
     bases={bases}
     selectedBaseId={selectedBaseId}
     documents={documents}
+    selectedDocumentId={selectedDocumentId}
+    versions={versions}
     tasks={tasks}
     health={health}
+    indexHealth={indexHealth}
     newName={newName}
     filePath={filePath}
     renameId={renameId}
@@ -216,12 +261,14 @@ export default function KnowledgePage() {
     deleteImpact={deleteImpact}
     loading={loading}
     busy={busy}
+    taskBusyId={taskBusyId}
     error={error}
     notice={notice}
     onRefresh={() => void loadOverview()}
     onCreateBase={createBase}
     onNewNameChange={setNewName}
     onSelectBase={setSelectedBaseId}
+    onSelectDocument={setSelectedDocumentId}
     onStartRename={startRename}
     onRenameNameChange={setRenameName}
     onSaveRename={() => void saveRename()}
@@ -232,5 +279,8 @@ export default function KnowledgePage() {
     onImportDocument={importDocument}
     onFilePathChange={setFilePath}
     onChooseFile={() => void chooseFile()}
+    onCancelTask={(task) => void updateTask(task, "cancel")}
+    onRetryTask={(task) => void updateTask(task, "retry")}
+    onRebuildIndex={() => void rebuildIndex()}
   />;
 }

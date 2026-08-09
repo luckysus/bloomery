@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import SettingsPage from "./SettingsPage";
-import { desktop, type ProviderProfileResponse } from "../../bridge/desktop";
+import { desktop, type PermissionRuleRecord, type ProviderProfileResponse } from "../../bridge/desktop";
 
 vi.mock("../../i18n/locale", () => ({
   useLocale: () => ({
@@ -20,6 +20,8 @@ vi.mock("../../bridge/desktop", () => ({
     deleteProviderSecret: vi.fn(),
     deleteProviderProfile: vi.fn(),
     testProviderProfile: vi.fn(),
+    listPermissionRules: vi.fn(),
+    revokePermissionRule: vi.fn(),
   },
 }));
 
@@ -47,6 +49,16 @@ const embeddingProfile: ProviderProfileResponse = {
   secret_configured: true,
 };
 
+const permissionRule: PermissionRuleRecord = {
+  id: "rule-1",
+  tool_id: "builtin.write_file",
+  tool_version: { major: 1, minor: 0, patch: 0 },
+  source: { kind: "builtin" },
+  action: "execute",
+  scope: { kind: "exact", value: { path: "draft.txt" } },
+  effect: "allow",
+};
+
 describe("SettingsPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -67,6 +79,8 @@ describe("SettingsPage", () => {
       error_code: null,
       elapsed_ms: 12,
     });
+    vi.mocked(desktop.listPermissionRules).mockResolvedValue([permissionRule]);
+    vi.mocked(desktop.revokePermissionRule).mockResolvedValue(undefined);
     vi.mocked(desktop.saveProviderProfile).mockImplementation(async (input) => ({
       ...chatProfile,
       id: input.id ?? "new-profile",
@@ -129,5 +143,15 @@ describe("SettingsPage", () => {
         expect.stringContaining('"plan":"pro"'),
       ),
     );
+  });
+
+  it("lists persistent permission rules and revokes the selected rule", async () => {
+    render(<SettingsPage />);
+
+    expect(await screen.findByText("builtin.write_file")).toBeInTheDocument();
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    fireEvent.click(screen.getByRole("button", { name: /revoke permission|permissionRevoke/i }));
+
+    await waitFor(() => expect(desktop.revokePermissionRule).toHaveBeenCalledWith("rule-1"));
   });
 });

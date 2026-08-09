@@ -21,6 +21,7 @@ import {
   type SkillSummary,
 } from "../../bridge/desktop";
 import { useLocale, type MessageKey } from "../../i18n/locale";
+import McpServersPanel from "./McpServersPanel";
 
 const emptyCatalog: SkillCatalog = { skills: [], errors: [] };
 const emptyPackages: DomainPackageRecord[] = [];
@@ -187,6 +188,8 @@ export default function ExtensionsPage() {
 
       {error && <div className="bloomery-extensions-alert" role="alert"><AlertCircle size={17} aria-hidden="true" /><span>{error}</span></div>}
       {notice && <div className="bloomery-extensions-notice" role="status"><Check size={17} aria-hidden="true" /><span>{notice}</span></div>}
+
+      <McpServersPanel />
 
       <section className="bloomery-extensions-section" aria-labelledby="domains-heading">
         <div className="bloomery-extensions-section-heading">

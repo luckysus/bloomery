@@ -1,0 +1,23 @@
+Bloomery third-party license notices
+====================================
+
+This file is generated from src-tauri/Cargo.lock by cargo-about.
+It must be distributed with Bloomery release artifacts.
+
+License summary
+---------------
+{{#each overview}}
+- {{{name}}}: {{count}} package(s)
+{{/each}}
+
+License texts
+-------------
+{{#each licenses}}
+{{{name}}}
+{{#each used_by}}
+- {{{crate.name}}} {{crate.version}}{{#if crate.repository}} ({{{crate.repository}}}){{/if}}
+{{/each}}
+
+{{{text}}}
+
+{{/each}}

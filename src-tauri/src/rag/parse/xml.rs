@@ -1,6 +1,7 @@
 use super::ParseError;
 use quick_xml::events::{BytesStart, BytesText};
 use quick_xml::Reader;
+use quick_xml::XmlVersion;
 
 pub(super) fn attribute(
     reader: &Reader<&[u8]>,
@@ -12,7 +13,7 @@ pub(super) fn attribute(
             attribute.map_err(|error| ParseError::new("invalid_xml", error.to_string()))?;
         if attribute.key.local_name().as_ref() == name {
             return attribute
-                .decode_and_unescape_value(reader.decoder())
+                .decoded_and_normalized_value(XmlVersion::Implicit1_0, reader.decoder())
                 .map(|value| Some(value.into_owned()))
                 .map_err(|error| ParseError::new("invalid_xml", error.to_string()));
         }

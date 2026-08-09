@@ -92,6 +92,27 @@ pub fn save_steel_dataset(
 }
 
 #[tauri::command]
+pub fn activate_steel_dataset(
+    db: tauri::State<DbState>,
+    dataset_id: String,
+) -> Result<SteelDatasetRecord, String> {
+    with_conn_mut(&db, |connection| {
+        let workspace_id = current_workspace_id();
+        let dataset = repository::get(connection, workspace_id, &dataset_id)?
+            .ok_or_else(|| "steel dataset was not found in the local workspace".to_string())?;
+        let current_hash = hash_dataset_source(&dataset.source_path)?;
+        if current_hash != dataset.source_sha256 {
+            return Err(
+                "steel dataset source changed since it was saved; preview and save it again"
+                    .to_string(),
+            );
+        }
+        repository::activate(connection, workspace_id, &dataset_id)?
+            .ok_or_else(|| "steel dataset was removed before activation".to_string())
+    })
+}
+
+#[tauri::command]
 pub fn analyze_steel_dataset(
     db: tauri::State<DbState>,
     request: AnalyzeSteelDatasetRequest,

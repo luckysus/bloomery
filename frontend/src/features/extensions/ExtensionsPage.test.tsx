@@ -19,6 +19,12 @@ vi.mock("../../bridge/desktop", () => ({
     activateDomainPackage: vi.fn(),
     previewRemoveDomainPackage: vi.fn(),
     removeDomainPackage: vi.fn(),
+    listMcpServers: vi.fn(),
+    saveMcpServer: vi.fn(),
+    checkMcpServer: vi.fn(),
+    restartMcpServer: vi.fn(),
+    listMcpTools: vi.fn(),
+    deleteMcpServer: vi.fn(),
   },
 }));
 
@@ -26,6 +32,7 @@ describe("ExtensionsPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(desktop.listDomainPackages).mockResolvedValue([]);
+    vi.mocked(desktop.listMcpServers).mockResolvedValue([]);
     vi.mocked(desktop.listSkills).mockResolvedValue({
       skills: [{
         name: "steel-review",
@@ -106,5 +113,46 @@ describe("ExtensionsPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "extensionsDomainActivate" }));
 
     await waitFor(() => expect(desktop.activateDomainPackage).toHaveBeenCalledWith("steel", "1.0.0"));
+  });
+
+  it("checks an MCP server and exposes its discovered tools", async () => {
+    vi.mocked(desktop.listMcpServers).mockResolvedValue([{
+      id: "mcp-1",
+      display_name: "Steel MCP",
+      server_id: "steel-mcp",
+      transport: "stdio",
+      url: null,
+      executable: "powershell.exe",
+      args: ["-NoProfile"],
+      working_directory: null,
+      env_names: ["STEEL_API_KEY"],
+      timeout_ms: 30000,
+      enabled: true,
+      secret_configured: true,
+      status: "unknown",
+      last_error: null,
+      last_checked_at: null,
+      tool_count: 0,
+    }]);
+    vi.mocked(desktop.checkMcpServer).mockResolvedValue({
+      status: "healthy",
+      server_name: "steel-mcp",
+      server_version: "1.0.0",
+      tool_count: 1,
+      resource_count: 0,
+      prompt_count: 0,
+      tools: [{ id: "mcp.steel-mcp.lookup", name: "lookup", description: "Look up steel" }],
+      error: null,
+      checked_at: "2026-08-09T00:00:00Z",
+    });
+
+    render(<ExtensionsPage />);
+
+    expect(await screen.findByRole("heading", { name: "extensionsMcpTitle" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "extensionsMcpCheck" }));
+
+    await waitFor(() => expect(desktop.checkMcpServer).toHaveBeenCalledWith("mcp-1"));
+    expect(await screen.findByText("lookup")).toBeInTheDocument();
+    expect(screen.getByText("extensionsMcpHealthy")).toBeInTheDocument();
   });
 });

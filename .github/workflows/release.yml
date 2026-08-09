@@ -2,6 +2,12 @@ name: Bloomery release candidate
 
 on:
   workflow_dispatch:
+    inputs:
+      signed:
+        description: "Build a signed updater candidate using protected secrets"
+        required: true
+        default: false
+        type: boolean
   push:
     tags:
       - "v*"
@@ -52,5 +58,51 @@ jobs:
         with:
           name: bloomery-release-candidate-${{ github.sha }}
           path: artifacts/Bloomery-*/
+          if-no-files-found: error
+          retention-days: 14
+
+  signed-windows-release:
+    if: github.event_name == 'workflow_dispatch' && inputs.signed == true
+    runs-on: windows-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+
+      - name: Install frontend dependencies
+        run: npm ci
+        working-directory: frontend
+
+      - name: Build signed updater artifact
+        shell: pwsh
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          BLOOMERY_UPDATER_PUBLIC_KEY: ${{ vars.BLOOMERY_UPDATER_PUBLIC_KEY }}
+          BLOOMERY_UPDATER_ENDPOINT: https://github.com/luckysus/bloomery/releases/latest/download/latest.json
+          BLOOMERY_RELEASE_ASSET_BASE_URL: https://github.com/luckysus/bloomery/releases/download/${{ github.ref_name }}
+        run: .\scripts\build-release.ps1 -Signed -Bundles nsis -OutputDirectory artifacts/Bloomery-signed-${{ github.sha }}
+
+      - name: Upload signed candidate artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: bloomery-signed-candidate-${{ github.sha }}
+          path: artifacts/Bloomery-signed-${{ github.sha }}/
           if-no-files-found: error
           retention-days: 14

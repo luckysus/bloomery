@@ -6,7 +6,17 @@ import {
   type OpenDialogOptions,
   type SaveDialogOptions,
 } from "@tauri-apps/plugin-dialog";
-import type { AgentEventEnvelope, AgentRunState } from "./generated/protocol";
+import { relaunch } from "@tauri-apps/plugin-process";
+import { check } from "@tauri-apps/plugin-updater";
+import type { AgentEventEnvelope, AgentRunState, PermissionDecision } from "./generated/protocol";
+
+export interface UpdateInfo {
+  version: string;
+  date: string | null;
+  body: string | null;
+}
+
+let pendingUpdate: Awaited<ReturnType<typeof check>> = null;
 
 export interface Conversation {
   id: string;
@@ -65,6 +75,29 @@ export interface RecoveredRun {
   run: AgentRunRecord;
   action: RecoveryAction;
   events: AgentEventEnvelope[];
+}
+
+export interface PermissionRuleRecord {
+  id: string;
+  tool_id: string;
+  tool_version: { major: number; minor: number; patch: number };
+  source: {
+    kind: "builtin";
+    } | {
+    kind: "mcp";
+    server_id: string;
+    server_version: { major: number; minor: number; patch: number };
+  } | {
+    kind: "domain";
+    package_id: string;
+    package_version: { major: number; minor: number; patch: number };
+  };
+  action: "execute";
+  scope:
+    | { kind: "any" }
+    | { kind: "exact"; value: unknown }
+    | { kind: "fields"; value: Record<string, unknown> };
+  effect: "allow" | "deny";
 }
 
 export interface RunWithEvent {
@@ -416,6 +449,15 @@ export interface BackupSummary {
   content_bytes: number;
 }
 
+export type ConversationExportFormat = "markdown" | "json";
+
+export interface ConversationExportSummary {
+  format: ConversationExportFormat;
+  output_path: string;
+  message_count: number;
+  bytes: number;
+}
+
 export interface DocumentImportRequest {
   source_path: string;
   knowledge_base: { mode: "existing"; id: string } | { mode: "create"; name: string };
@@ -519,6 +561,11 @@ export interface DomainPackageRecord {
   active: boolean;
 }
 
+export interface DomainInstallResult {
+  package: DomainPackageRecord;
+  replaced_active_version: string | null;
+}
+
 export interface DomainPackageImpact {
   package_id: string;
   version: string;
@@ -526,6 +573,62 @@ export interface DomainPackageImpact {
   tool_count: number;
   mcp_recommendation_count: number;
   asset_count: number;
+}
+
+export type McpTransportKind = "stdio" | "streamable_http" | "sse";
+
+export interface McpServerSummary {
+  id: string;
+  display_name: string;
+  server_id: string;
+  transport: McpTransportKind;
+  url: string | null;
+  executable: string | null;
+  args: string[];
+  working_directory: string | null;
+  env_names: string[];
+  timeout_ms: number;
+  enabled: boolean;
+  secret_configured: boolean;
+  status: string;
+  last_error: string | null;
+  last_checked_at: string | null;
+  tool_count: number;
+}
+
+export interface McpServerInput {
+  id?: string | null;
+  display_name: string;
+  server_id: string;
+  transport: McpTransportKind;
+  url: string | null;
+  executable: string | null;
+  args: string[];
+  working_directory: string | null;
+  inherited_env: string[];
+  env_values: Record<string, string>;
+  bearer_token?: string;
+  clear_bearer_token?: boolean;
+  timeout_ms: number;
+  enabled: boolean;
+}
+
+export interface McpToolSummary {
+  id: string;
+  name: string;
+  description: string;
+}
+
+export interface McpHealth {
+  status: "healthy" | "failed";
+  server_name: string | null;
+  server_version: string | null;
+  tool_count: number;
+  resource_count: number;
+  prompt_count: number;
+  tools: McpToolSummary[];
+  error: string | null;
+  checked_at: string;
 }
 
 export type FileDialogOptions = OpenDialogOptions;
@@ -541,6 +644,22 @@ export const desktop = {
     if (!isDesktopRuntime()) return;
     await invoke<void>("db_init");
   },
+  checkForUpdate: async (): Promise<UpdateInfo | null> => {
+    if (!isDesktopRuntime()) return null;
+    pendingUpdate = await check();
+    if (!pendingUpdate) return null;
+    return {
+      version: pendingUpdate.version,
+      date: pendingUpdate.date ?? null,
+      body: pendingUpdate.body ?? null,
+    };
+  },
+  installUpdate: async () => {
+    if (!isDesktopRuntime()) return;
+    if (!pendingUpdate) throw new Error("No update is ready to install");
+    await pendingUpdate.downloadAndInstall();
+    await relaunch();
+  },
   getSetting: (key: string) => call<string | null>("get_setting", { key }),
   openFileDialog: (options?: FileDialogOptions) => openNativeDialog(options),
   saveFileDialog: (options?: SaveFileDialogOptions) => saveNativeDialog(options),
@@ -551,12 +670,19 @@ export const desktop = {
     call<Conversation>("create_conversation", { title }),
   listMessages: (conversationId: string) =>
     call<Message[]>("list_messages", { conversationId }),
+  exportConversation: (conversationId: string, outputPath: string, format: ConversationExportFormat) =>
+    call<ConversationExportSummary>("export_conversation", { conversationId, outputPath, format }),
   getConversationDraft: (conversationId: string) =>
     call<string>("get_conversation_draft", { conversationId }),
   saveConversationDraft: (conversationId: string, content: string) =>
     call<void>("save_conversation_draft", { conversationId, content }),
   desktopAgentChat: (request: LocalAgentChatRequest) =>
     call<LocalAgentChatResponse>("desktop_agent_chat", { request }),
+  resolveAgentPermission: (permissionId: string, decision: PermissionDecision) =>
+    call<void>("resolve_agent_permission", { permissionId, decision }),
+  listPermissionRules: () => call<PermissionRuleRecord[]>("list_permission_rules"),
+  revokePermissionRule: (ruleId: string) =>
+    call<void>("revoke_permission_rule", { ruleId }),
   cancelDesktopRun: (runId: string) =>
     call<void>("desktop_cancel_llm_run", { runId }),
   listenDesktopAgentDeltas: (handler: (delta: LocalAgentDelta) => void) => {
@@ -592,6 +718,8 @@ export const desktop = {
     sheet?: string;
     mappings?: DatasetColumnMapping[];
   }) => call<SteelDatasetRecord>("save_steel_dataset", { request }),
+  activateSteelDataset: (datasetId: string) =>
+    call<SteelDatasetRecord>("activate_steel_dataset", { datasetId }),
   analyzeSteelDataset: (request: {
     datasetId: string;
     selectedColumns?: number[];
@@ -614,16 +742,22 @@ export const desktop = {
     call<SkillCatalog>("set_skill_enabled", { name, enabled }),
   listDomainPackages: () => call<DomainPackageRecord[]>("list_domain_packages"),
   installDomainPackage: (sourcePath: string) =>
-    call<{ package: DomainPackageRecord; replaced_active_version: string | null }>(
-      "install_domain_package",
-      { sourcePath },
-    ),
+    call<DomainInstallResult>("install_domain_package", { sourcePath }),
+  installBundledSteelPackage: () =>
+    call<DomainInstallResult>("install_bundled_steel_package"),
   activateDomainPackage: (packageId: string, version: string) =>
     call<DomainPackageRecord>("activate_domain_package", { packageId, version }),
   previewRemoveDomainPackage: (packageId: string, version: string) =>
     call<DomainPackageImpact>("preview_remove_domain_package", { packageId, version }),
   removeDomainPackage: (packageId: string, version: string) =>
     call<void>("remove_domain_package", { packageId, version }),
+  listMcpServers: () => call<McpServerSummary[]>("list_mcp_servers"),
+  saveMcpServer: (server: McpServerInput) =>
+    call<McpServerSummary>("save_mcp_server", { input: server }),
+  checkMcpServer: (id: string) => call<McpHealth>("check_mcp_server", { id }),
+  restartMcpServer: (id: string) => call<McpHealth>("restart_mcp_server", { id }),
+  listMcpTools: (id: string) => call<McpToolSummary[]>("list_mcp_tools", { id }),
+  deleteMcpServer: (id: string) => call<void>("delete_mcp_server", { id }),
   listKnowledgeBases: () => call<KnowledgeBaseRecord[]>("list_knowledge_bases"),
   createKnowledgeBase: (name: string) =>
     call<KnowledgeBaseRecord>("create_knowledge_base", { name }),
@@ -656,8 +790,12 @@ export const desktop = {
   getStorageHealth: () => call<StorageHealth>("get_storage_health"),
   exportDiagnostics: (lastErrorKind?: string) =>
     call<Record<string, unknown>>("export_diagnostics", lastErrorKind ? { lastErrorKind } : undefined),
+  writeDiagnosticsExport: (outputPath: string, lastErrorKind?: string) =>
+    call<void>("write_diagnostics_export", { outputPath, lastErrorKind }),
   createBackup: (archivePath: string) =>
     call<BackupSummary>("create_backup_archive", { archivePath }),
+  previewBackup: (archivePath: string) =>
+    call<BackupSummary>("preview_backup_archive", { archivePath }),
   restoreBackup: (archivePath: string) =>
     call<BackupSummary>("restore_backup_archive", { archivePath }),
 };

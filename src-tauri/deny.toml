@@ -1,0 +1,105 @@
+# cargo-deny 配置 —— Bloomery 发布质量依赖治理（Task 4）
+# 适配 cargo-deny 0.20.x（配置 schema version = 2）。
+# 项目自身许可证为 Apache-2.0；下方 allow-list 依据实际 `cargo deny list` 扫描结果确定。
+
+[graph]
+# 默认对所有目标平台求值，覆盖 Windows / macOS / Linux 传递依赖的许可证与重复项。
+all-features = false
+
+# --------------------------------------------------------------------------
+# 许可证策略
+# --------------------------------------------------------------------------
+[licenses]
+version = 2
+# 置信度阈值：0.8 为 cargo-deny 默认，保持默认以避免误判。
+confidence-threshold = 0.8
+# 允许的 SPDX 许可证清单。均为宽松型或文件级 copyleft（MPL-2.0），
+# 与 Apache-2.0 发布产物兼容。清单依据实际扫描结果编制。
+allow = [
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception", # target-lexicon 单一许可为该表达式
+    "MIT",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Zlib",
+    "MPL-2.0",            # cssparser/selectors 等：文件级 copyleft，不修改即兼容
+    "Unicode-3.0",        # icu_* 系列 Unicode 数据许可证
+    "CDLA-Permissive-2.0", # webpki-roots：宽松型，需显式 allow 否则判 unknown
+    "BSL-1.0",            # ryu
+    "CC0-1.0",            # dunce（多重许可其一）
+    "Unlicense",          # aho-corasick 等（多重许可其一）
+    "0BSD",               # adler2（多重许可其一）
+]
+
+# 对多重许可证（OR 表达式）crate 的显式选择说明：
+#   - r-efi = "MIT OR Apache-2.0 OR LGPL-2.1-or-later"：命中 MIT/Apache-2.0，
+#     自动排除 LGPL 选项，无需 exception。
+#   - fiat-crypto、rustix 等含 "WITH LLVM-exception" / BSD-1-Clause 的表达式：
+#     均含 MIT/Apache-2.0 选项，自动命中允许项。
+# 因此无需在此登记 license exceptions。
+exceptions = []
+
+# --------------------------------------------------------------------------
+# 安全公告（RUSTSEC）策略
+# --------------------------------------------------------------------------
+[advisories]
+version = 2
+# 漏洞（vulnerability）在 schema v2 中始终视为错误（deny），无 ignore 则阻断。
+#   本项目已通过 `cargo update -p plist`（plist 1.9.0 -> 1.10.0）移除易受攻击的
+#   quick-xml 0.39.4，直接依赖 quick-xml 亦已升至 0.41.0，故 vulnerabilities 已清零，
+#   不在此登记任何漏洞类 ignore。
+# yanked crate 仅告警，避免因上游撤回导致的构建阻断。
+yanked = "warn"
+# unmaintained：检查全部依赖（含传递依赖）。注意 schema v2 中该键仅控制“扫描范围”，
+#   命中即按错误处理；无“warn”档位。为保持 unmaintained 不阻断构建（等价于告警/非阻断），
+#   将其对应 RUSTSEC ID 登记到下方 ignore，cargo-deny 会以“已忽略”提示列出且 exit 0。
+unmaintained = "all"
+# 已评估并接受的 unmaintained 公告（逐条说明见 docs/dependency-exceptions.md）。
+# 均为经 tauri/gtk3/rust-unic 生态引入的传递依赖，无安全升级路径，owner=luckysus，
+# review date=2026-11-08。
+ignore = [
+    # gtk-rs GTK3 绑定整体归档、不再维护（经 tauri -> wry/tao/muda 引入，Linux GUI 栈）。
+    "RUSTSEC-2024-0411", # gdkwayland-sys 0.18.2
+    "RUSTSEC-2024-0412", # gdk 0.18.2
+    "RUSTSEC-2024-0413", # atk 0.18.2
+    "RUSTSEC-2024-0414", # gdkx11-sys 0.18.2
+    "RUSTSEC-2024-0415", # gtk 0.18.2
+    "RUSTSEC-2024-0416", # atk-sys 0.18.2
+    "RUSTSEC-2024-0417", # gdkx11 0.18.2
+    "RUSTSEC-2024-0418", # gdk-sys 0.18.2
+    "RUSTSEC-2024-0419", # gtk3-macros 0.18.2
+    "RUSTSEC-2024-0420", # gtk-sys 0.18.2
+    # proc-macro-error 1.0.4：维护者失联（经 glib-macros -> gtk3 栈引入）。
+    "RUSTSEC-2024-0370",
+    # bincode 1.3.3：团队宣布永久停止维护（经 hnsw_rs 0.3.4 引入，向量检索）。
+    "RUSTSEC-2025-0141",
+    # rust-unic 系列整体不再维护（经 tauri-utils -> urlpattern -> unic-ucd-ident 引入）。
+    "RUSTSEC-2025-0075", # unic-char-range 0.9.0
+    "RUSTSEC-2025-0080", # unic-common 0.9.0
+    "RUSTSEC-2025-0081", # unic-char-property 0.9.0
+    "RUSTSEC-2025-0098", # unic-ucd-version 0.9.0
+    "RUSTSEC-2025-0100", # unic-ucd-ident 0.9.0
+]
+
+# --------------------------------------------------------------------------
+# 依赖版本 / 来源限制
+# --------------------------------------------------------------------------
+[bans]
+# 多版本重复以告警呈现（部分为设计性双版本，部分为生态传递依赖）。
+multiple-versions = "warn"
+wildcards = "allow"
+# 显式登记已知的设计性重复版本，说明其合理性。
+skip = [
+    # reqwest 双版本为显式设计：0.12（rustls-tls 栈）+ 0.13（rmcp 传输依赖）。
+    { crate = "reqwest@0.12.28" },
+    { crate = "reqwest@0.13.4" },
+]
+
+# --------------------------------------------------------------------------
+# 依赖来源
+# --------------------------------------------------------------------------
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]

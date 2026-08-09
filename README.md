@@ -143,7 +143,7 @@ bloomery/
 |-- docs/                     协议、设计规格、基准和发布计划
 |-- scripts/                  开发辅助脚本
 |-- start-desktop.bat         Windows 开发启动入口
-|-- LICENSE                   MIT License
+|-- LICENSE                   Apache License 2.0
 +-- README.md
 ~~~
 
@@ -195,7 +195,7 @@ cargo test
 
 ### License
 
-Bloomery 使用 MIT License。完整条款见 `LICENSE`。
+Bloomery 使用 Apache License 2.0。完整条款见 `LICENSE`，相关声明见 `NOTICE`。既往以 MIT 许可发布版本所授予的权利予以保留。
 
 ---
 
@@ -272,7 +272,7 @@ bloomery/
 |-- docs/                     Protocol, design, benchmarks, and release plans
 |-- scripts/                  Development helpers
 |-- start-desktop.bat         Windows development entry point
-|-- LICENSE                   MIT License
+|-- LICENSE                   Apache License 2.0
 +-- README.md
 ~~~
 
@@ -311,4 +311,4 @@ Contributions to code, tests, documentation, and domain evaluation are welcome. 
 
 Do not publish credentials or production data in issues or pull requests. Report security vulnerabilities through the repository maintainer's security channel with minimum reproducible information.
 
-Bloomery is released under the MIT License. See `LICENSE` for the complete text.
+Bloomery is released under the Apache License 2.0. See `LICENSE` for the complete text and `NOTICE` for attribution. Rights granted under the earlier MIT-licensed releases are preserved.

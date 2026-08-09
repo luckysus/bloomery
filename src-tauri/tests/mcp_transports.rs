@@ -1,6 +1,6 @@
 use bloomery::mcp::{
-    McpClientConfig, McpError, McpHttpConfig, McpSseConfig, McpStdioConfig, McpStdioEnv,
-    McpSupervisor, McpTransportConfig, StdioTransport,
+    McpClientConfig, McpError, McpHttpConfig, McpLegacySseConfig, McpSseConfig, McpStdioConfig,
+    McpStdioEnv, McpSupervisor, McpTransportConfig, StdioTransport,
 };
 use serde_json::{json, Value};
 use std::{
@@ -99,6 +99,24 @@ fn transport_config_keeps_stdio_and_http_disjoint() {
     assert!(matches!(http, McpTransportConfig::Http(_)));
 }
 
+#[test]
+fn legacy_sse_config_has_a_separate_transport_and_bounded_events() {
+    let config = McpLegacySseConfig::new("https://example.com/sse")
+        .with_bearer_token("secret-token")
+        .with_max_event_bytes(4096);
+    assert!(config.validate().is_ok());
+    assert!(McpLegacySseConfig::new("file:///tmp/sse")
+        .validate()
+        .is_err());
+    assert!(McpLegacySseConfig::new("https://example.com/sse")
+        .with_max_event_bytes(0)
+        .validate()
+        .is_err());
+
+    let transport = McpTransportConfig::LegacySse(config);
+    assert!(matches!(transport, McpTransportConfig::LegacySse(_)));
+}
+
 #[tokio::test]
 async fn http_transport_injects_auth_and_custom_headers() {
     let (url, state, server) = spawn_http_fixture(FixtureMode::Json).await;
@@ -106,7 +124,7 @@ async fn http_transport_injects_auth_and_custom_headers() {
         .with_bearer_token("secret-token")
         .with_header("x-bloomery-test", "fixture")
         .with_sse(McpSseConfig::new(Some(1), Duration::from_millis(10)));
-    let supervisor =
+    let mut supervisor =
         McpSupervisor::connect(McpTransportConfig::Http(config), fixture_client_config())
             .await
             .expect("HTTP MCP fixture should initialize");
@@ -132,7 +150,7 @@ async fn http_sse_reconnect_resumes_with_last_event_id() {
     let (url, state, server) = spawn_http_fixture(FixtureMode::Resume).await;
     let config =
         McpHttpConfig::new(url).with_sse(McpSseConfig::new(Some(2), Duration::from_millis(10)));
-    let supervisor =
+    let mut supervisor =
         McpSupervisor::connect(McpTransportConfig::Http(config), fixture_client_config())
             .await
             .expect("HTTP MCP fixture should initialize");
@@ -157,7 +175,7 @@ async fn malformed_sse_frame_returns_a_bounded_error() {
     let (url, _state, server) = spawn_http_fixture(FixtureMode::Malformed).await;
     let config =
         McpHttpConfig::new(url).with_sse(McpSseConfig::new(Some(0), Duration::from_millis(10)));
-    let supervisor =
+    let mut supervisor =
         McpSupervisor::connect(McpTransportConfig::Http(config), fixture_client_config())
             .await
             .expect("HTTP MCP fixture should initialize");

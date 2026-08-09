@@ -20,9 +20,11 @@ vi.mock("../../bridge/desktop", () => ({
     cancelBackgroundTask: vi.fn(),
     retryBackgroundTask: vi.fn(),
     exportDiagnostics: vi.fn(),
+    writeDiagnosticsExport: vi.fn(),
     openFileDialog: vi.fn(),
     saveFileDialog: vi.fn(),
     createBackup: vi.fn(),
+    previewBackup: vi.fn(),
     restoreBackup: vi.fn(),
   },
 }));
@@ -82,7 +84,15 @@ describe("DiagnosticsPage", () => {
     vi.mocked(desktop.exportDiagnostics).mockResolvedValue({
       privacy: { contains_provider_secret: false, contains_message_content: false },
     });
+    vi.mocked(desktop.writeDiagnosticsExport).mockResolvedValue(undefined);
     vi.mocked(desktop.createBackup).mockResolvedValue({
+      format_version: 1,
+      archive_path: "C:\\Backups\\steel.bloomery-backup",
+      database_bytes: 1024,
+      content_file_count: 2,
+      content_bytes: 2048,
+    });
+    vi.mocked(desktop.previewBackup).mockResolvedValue({
       format_version: 1,
       archive_path: "C:\\Backups\\steel.bloomery-backup",
       database_bytes: 1024,
@@ -120,11 +130,13 @@ describe("DiagnosticsPage", () => {
   });
 
   it("exports diagnostic metadata without including provider secrets", async () => {
+    vi.mocked(desktop.saveFileDialog).mockResolvedValue("C:\\Exports\\bloomery-diagnostics.json");
     render(<DiagnosticsPage />);
 
     fireEvent.click(await screen.findByRole("button", { name: "diagnosticsExport" }));
 
-    await waitFor(() => expect(desktop.exportDiagnostics).toHaveBeenCalledWith(undefined));
+    await waitFor(() => expect(desktop.writeDiagnosticsExport).toHaveBeenCalledWith("C:\\Exports\\bloomery-diagnostics.json"));
+    expect(desktop.exportDiagnostics).not.toHaveBeenCalled();
     expect(await screen.findByText("diagnosticsExported")).toBeInTheDocument();
   });
 
@@ -146,7 +158,19 @@ describe("DiagnosticsPage", () => {
     fireEvent.click(await screen.findByRole("button", { name: "diagnosticsBackupRestore" }));
 
     await waitFor(() => expect(desktop.restoreBackup).toHaveBeenCalledWith("C:\\Backups\\steel.bloomery-backup"));
+    expect(desktop.previewBackup).toHaveBeenCalledWith("C:\\Backups\\steel.bloomery-backup");
     expect(confirm).toHaveBeenCalled();
     expect(await screen.findByText("diagnosticsBackupRestored")).toBeInTheDocument();
+  });
+
+  it("does not restore when the user rejects the validated backup preview", async () => {
+    vi.mocked(desktop.openFileDialog).mockResolvedValue("C:\\Backups\\steel.bloomery-backup");
+    vi.spyOn(window, "confirm").mockReturnValue(false);
+    render(<DiagnosticsPage />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "diagnosticsBackupRestore" }));
+
+    await waitFor(() => expect(desktop.previewBackup).toHaveBeenCalledWith("C:\\Backups\\steel.bloomery-backup"));
+    expect(desktop.restoreBackup).not.toHaveBeenCalled();
   });
 });
