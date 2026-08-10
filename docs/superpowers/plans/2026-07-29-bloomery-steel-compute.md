@@ -141,6 +141,18 @@ The Python Worker suite passes 24 tests and the frontend suite passes 76.
 Export, numeric parity with source models, the Agent tool adapter, and full
 cooperative cancellation remain open.
 
+**Progress evidence (2026-08-10, export/parity):** The export half of Task 8
+is closed. `onnx_export.py` converts a trained linear artifact into an ONNX
+graph (MatMul + Add over normalized inputs, opset 13, ir_version 10) using
+only whitelisted operators, and returns the model bytes, SHA-256, and a
+manifest whose preprocessing keeps export/import numerically consistent.
+Rust registers `compute_export_onnx` with a result contract, exposes
+`export_linear_model_onnx` / `get_compute_export_result`, and the scheduler
+e2e test exports a model, re-imports it through `predict_onnx`, and asserts
+parity with the source artifact within 1e-4. The Worker suite passes 53
+tests and the Rust offline suite passes. A persistent model repository with
+versioned records remains open.
+
 ### Task 9: Implement constrained process optimization
 
 **Files:** Create worker optimization modules, Rust task/tool adapters, and tests.

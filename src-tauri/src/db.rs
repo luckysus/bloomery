@@ -196,7 +196,12 @@ fn rag_task_handlers_with_compute(
             ),
         ),
         Arc::new(
-            crate::compute::handler::ComputeOptimizationTaskHandler::from_optional(compute_worker),
+            crate::compute::handler::ComputeOptimizationTaskHandler::from_optional(
+                compute_worker.clone(),
+            ),
+        ),
+        Arc::new(
+            crate::compute::handler::ComputeExportOnnxTaskHandler::from_optional(compute_worker),
         ),
         Arc::new(MinerUTaskHandler::new(
             content_root.clone(),
@@ -251,7 +256,7 @@ mod tests {
         let handlers =
             rag_task_handlers_with_compute(root.join("bloomery.sqlite3"), root.clone(), None);
 
-        assert_eq!(handlers.len(), 6);
+        assert_eq!(handlers.len(), 7);
         assert!(handlers.iter().any(|handler| {
             handler.kind() == crate::compute::handler::COMPUTE_TRAIN_LINEAR_REGRESSION_KIND
         }));
@@ -264,6 +269,9 @@ mod tests {
         assert!(handlers.iter().any(|handler| {
             handler.kind() == crate::compute::handler::COMPUTE_OPTIMIZE_CONSTRAINED_KIND
         }));
+        assert!(handlers
+            .iter()
+            .any(|handler| handler.kind() == crate::compute::handler::COMPUTE_EXPORT_ONNX_KIND));
         assert!(handlers
             .iter()
             .any(|handler| handler.kind() == crate::rag::tasks::MINERU_TASK_KIND));

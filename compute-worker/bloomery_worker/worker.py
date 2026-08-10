@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Any, BinaryIO
 
+from .onnx_export import export_linear_onnx
 from .onnx_inference import OnnxInferenceError, predict_onnx
 from .optimization import OptimizationError, optimize_constrained
 from .protocol import PROTOCOL_VERSION, FrameError, encode_frame, parse_request, read_frame
@@ -61,6 +62,7 @@ def _dispatch(request: dict[str, Any], output: BinaryIO) -> bool:
                         "predict_linear_regression",
                         "predict_onnx",
                         "optimize_constrained",
+                        "export_linear_onnx",
                     ],
                 },
             ),
@@ -96,6 +98,7 @@ def _dispatch(request: dict[str, Any], output: BinaryIO) -> bool:
             "predict_linear_regression",
             "predict_onnx",
             "optimize_constrained",
+            "export_linear_onnx",
         }:
             _write(
                 output,
@@ -214,13 +217,32 @@ def _dispatch(request: dict[str, Any], output: BinaryIO) -> bool:
                         result={"task_id": task_id, "state": "completed", **result},
                     ),
                 )
+        elif operation == "export_linear_onnx":
+            payload = params.get("payload", {})
+            if not isinstance(payload, dict):
+                _write(output, _error(request_id, "invalid_params", "payload must be an object"))
+                return False
+            _write(output, _progress(task_id, 20, "exporting"))
+            try:
+                exported = export_linear_onnx(payload)
+            except OnnxInferenceError as error:
+                _write(output, _error(request_id, error.code, str(error)))
+            else:
+                _write(output, _progress(task_id, 100, "completed"))
+                _write(
+                    output,
+                    _response(
+                        request_id,
+                        result={"task_id": task_id, "state": "completed", **exported},
+                    ),
+                )
         else:
             _write(
                 output,
                 _error(
                     request_id,
                     "unsupported_operation",
-                    "supported operations are echo, train_linear_regression, predict_linear_regression, predict_onnx, and optimize_constrained",
+                    "supported operations are echo, train_linear_regression, predict_linear_regression, predict_onnx, optimize_constrained, and export_linear_onnx",
                 ),
             )
         return False

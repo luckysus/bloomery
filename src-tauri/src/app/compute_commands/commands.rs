@@ -1,6 +1,6 @@
 use super::logic::{
-    self, OptimizeSteelProcessRequest, PredictOnnxModelRequest, PredictSteelModelRequest,
-    TrainSteelDatasetRequest,
+    self, ExportLinearOnnxRequest, OptimizeSteelProcessRequest, PredictOnnxModelRequest,
+    PredictSteelModelRequest, TrainSteelDatasetRequest,
 };
 use crate::app::task_commands::tasks::BackgroundTaskResponse;
 use crate::db::DbState;
@@ -36,6 +36,22 @@ pub fn get_compute_prediction_result(
     id: String,
 ) -> Result<Option<Value>, String> {
     logic::get_compute_prediction_result(db, id)
+}
+
+#[tauri::command]
+pub fn export_linear_model_onnx(
+    db: tauri::State<DbState>,
+    request: ExportLinearOnnxRequest,
+) -> Result<BackgroundTaskResponse, String> {
+    logic::export_linear_model_onnx(db, request)
+}
+
+#[tauri::command]
+pub fn get_compute_export_result(
+    db: tauri::State<DbState>,
+    id: String,
+) -> Result<Option<Value>, String> {
+    logic::get_compute_export_result(db, id)
 }
 
 #[tauri::command]

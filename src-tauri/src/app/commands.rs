@@ -107,6 +107,8 @@ macro_rules! handler {
             crate::app::compute_commands::commands::get_compute_onnx_prediction_result,
             crate::app::compute_commands::commands::optimize_steel_process,
             crate::app::compute_commands::commands::get_compute_optimization_result,
+            crate::app::compute_commands::commands::export_linear_model_onnx,
+            crate::app::compute_commands::commands::get_compute_export_result,
         ]
     };
 }

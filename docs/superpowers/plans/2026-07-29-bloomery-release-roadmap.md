@@ -135,6 +135,13 @@ suite passes, and the frontend suite passes 81 tests. Steel terminology,
 evaluations, the Agent optimization tool adapter, and packaged-worker
 release evidence remain open.
 
+Evidence (2026-08-10): ONNX export now closes the model loop: the Worker
+exports trained linear artifacts as whitelisted ONNX graphs (opset 13,
+ir_version 10) with SHA-256 and a consistency manifest; Rust registers
+`compute_export_onnx`, enforces the export result contract, and the
+e2e test proves export→import numeric parity within 1e-4 through the real
+scheduler pipeline. Worker suite passes 53 tests; Rust offline suite passes.
+
 Evidence (2026-08-10): the steel terminology source now ships versioned
 and license-audited: 32 authored terms covering grades, composition
 elements, properties, defects, standards, and all five main process stages,

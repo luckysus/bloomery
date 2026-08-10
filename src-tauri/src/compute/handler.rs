@@ -10,6 +10,7 @@ pub const COMPUTE_TRAIN_LINEAR_REGRESSION_KIND: &str = "compute_train_linear_reg
 pub const COMPUTE_PREDICT_LINEAR_REGRESSION_KIND: &str = "compute_predict_linear_regression";
 pub const COMPUTE_PREDICT_ONNX_KIND: &str = "compute_predict_onnx";
 pub const COMPUTE_OPTIMIZE_CONSTRAINED_KIND: &str = "compute_optimize_constrained";
+pub const COMPUTE_EXPORT_ONNX_KIND: &str = "compute_export_onnx";
 
 #[derive(Debug, Clone)]
 pub struct ComputeTaskHandler {
@@ -125,6 +126,32 @@ impl TaskHandler for ComputeOptimizationTaskHandler {
     }
 }
 
+#[derive(Debug, Clone)]
+pub struct ComputeExportOnnxTaskHandler {
+    worker: Option<WorkerConfig>,
+}
+
+impl ComputeExportOnnxTaskHandler {
+    pub fn from_optional(worker: Option<WorkerConfig>) -> Self {
+        Self { worker }
+    }
+}
+
+impl TaskHandler for ComputeExportOnnxTaskHandler {
+    fn kind(&self) -> &str {
+        COMPUTE_EXPORT_ONNX_KIND
+    }
+
+    fn resumable(&self) -> bool {
+        true
+    }
+
+    fn run(&self, task: TaskRecord, context: HandlerContext) -> HandlerFuture {
+        let worker = self.worker.clone();
+        Box::pin(async move { run_task(task, context, worker, "export_linear_onnx") })
+    }
+}
+
 #[derive(Debug, Deserialize)]
 struct ComputeTaskPayload {
     operation: String,
@@ -227,6 +254,8 @@ fn run_task(
         result["state"] == "completed" && result.get("predictions").is_some()
     } else if expected_operation == "optimize_constrained" {
         result["state"] == "completed" && result.get("recommendations").is_some()
+    } else if expected_operation == "export_linear_onnx" {
+        result["state"] == "completed" && result.get("model_base64").is_some()
     } else {
         result["state"] == "completed" && result.get("artifact").is_some()
     };
@@ -255,6 +284,8 @@ fn run_task(
         }
     } else if expected_operation == "optimize_constrained" {
         validate_optimization_result(&result)?;
+    } else if expected_operation == "export_linear_onnx" {
+        validate_export_result(&result)?;
     }
     let checkpoint = json!({"stage": "completed", "result": result});
     let checkpoint_json = serde_json::to_string(&checkpoint)
@@ -353,6 +384,45 @@ fn validate_optimization_result(result: &Value) -> Result<(), HandlerError> {
         {
             return Err(HandlerError::permanent("compute_worker_invalid_result"));
         }
+    }
+    Ok(())
+}
+
+fn validate_export_result(result: &Value) -> Result<(), HandlerError> {
+    let model = result
+        .get("model_base64")
+        .and_then(Value::as_str)
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| HandlerError::permanent("compute_worker_invalid_result"))?;
+    if !model.len().is_multiple_of(4)
+        || !model
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'+' | b'/' | b'='))
+    {
+        return Err(HandlerError::permanent("compute_worker_invalid_result"));
+    }
+    if result
+        .get("model_sha256")
+        .and_then(Value::as_str)
+        .map(str::len)
+        != Some(64)
+    {
+        return Err(HandlerError::permanent("compute_worker_invalid_result"));
+    }
+    if !result
+        .get("manifest")
+        .map(Value::is_object)
+        .unwrap_or(false)
+        || !result
+            .get("operators")
+            .map(Value::is_array)
+            .unwrap_or(false)
+        || result
+            .get("opset_version")
+            .and_then(Value::as_u64)
+            .is_none()
+    {
+        return Err(HandlerError::permanent("compute_worker_invalid_result"));
     }
     Ok(())
 }

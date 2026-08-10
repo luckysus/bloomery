@@ -1,6 +1,7 @@
 use bloomery::compute::handler::{
-    ComputeOnnxPredictionTaskHandler, ComputeOptimizationTaskHandler, ComputePredictionTaskHandler,
-    ComputeTaskHandler, COMPUTE_OPTIMIZE_CONSTRAINED_KIND, COMPUTE_PREDICT_LINEAR_REGRESSION_KIND,
+    ComputeExportOnnxTaskHandler, ComputeOnnxPredictionTaskHandler, ComputeOptimizationTaskHandler,
+    ComputePredictionTaskHandler, ComputeTaskHandler, COMPUTE_EXPORT_ONNX_KIND,
+    COMPUTE_OPTIMIZE_CONSTRAINED_KIND, COMPUTE_PREDICT_LINEAR_REGRESSION_KIND,
     COMPUTE_PREDICT_ONNX_KIND, COMPUTE_TRAIN_LINEAR_REGRESSION_KIND,
 };
 use bloomery::compute::worker::{WorkerClient, WorkerConfig};
@@ -263,6 +264,215 @@ fn scheduler_runs_prediction_and_records_applicability_metadata() {
     }
 
     drop(scheduler);
+    let _ = std::fs::remove_file(path);
+}
+
+fn decode_base64(input: &str) -> Vec<u8> {
+    fn val(c: u8) -> u32 {
+        match c {
+            b'A'..=b'Z' => (c - b'A') as u32,
+            b'a'..=b'z' => (c - b'a') as u32 + 26,
+            b'0'..=b'9' => (c - b'0') as u32 + 52,
+            b'+' => 62,
+            b'/' => 63,
+            _ => panic!("invalid base64 byte"),
+        }
+    }
+    let bytes = input.as_bytes();
+    let mut out = Vec::with_capacity(bytes.len() / 4 * 3);
+    for chunk in bytes.chunks(4) {
+        let pad = chunk.iter().filter(|c| **c == b'=').count();
+        let vals: Vec<u32> = chunk
+            .iter()
+            .map(|c| if *c == b'=' { 0 } else { val(*c) })
+            .collect();
+        let triple = (vals[0] << 18) | (vals[1] << 12) | (vals[2] << 6) | vals[3];
+        out.push((triple >> 16) as u8);
+        if pad < 2 {
+            out.push((triple >> 8) as u8);
+        }
+        if pad < 1 {
+            out.push(triple as u8);
+        }
+    }
+    out
+}
+
+#[test]
+fn scheduler_exports_onnx_and_imported_model_matches_source_predictions() {
+    let path = std::env::temp_dir().join(format!(
+        "bloomery-export-task-{}.sqlite3",
+        uuid::Uuid::new_v4()
+    ));
+    let mut connection = Connection::open(&path).expect("open task database");
+    migrate(&mut connection).expect("migrate task database");
+    let artifact = json!({
+        "artifact_version": "linear-regression.v1",
+        "model_id": "model-export",
+        "model_type": "linear_regression",
+        "feature_names": ["temperature"],
+        "preprocessing": {"means": [25.0], "scales": [10.0]},
+        "coefficients": [2.0],
+        "intercept": 5.0,
+        "applicability_range": [{"min": 0.0, "max": 100.0}]
+    });
+    let task = repository::create(
+        &mut connection,
+        NewTask {
+            workspace_id: "local".to_string(),
+            kind: COMPUTE_EXPORT_ONNX_KIND.to_string(),
+            payload_json: serde_json::to_string(&json!({
+                "operation": "export_linear_onnx",
+                "payload": {
+                    "dataset_id": "dataset-1",
+                    "training_task_id": "training-1",
+                    "artifact": artifact,
+                    "model_version": "1.0.0"
+                }
+            }))
+            .expect("encode export payload"),
+            checkpoint_json: Some(json!({"stage": "queued"}).to_string()),
+            next_run_at: None,
+            progress: 0,
+        },
+    )
+    .expect("create export task");
+    drop(connection);
+
+    let sink = Arc::new(RecordingSink::default());
+    let mut scheduler = Scheduler::new(
+        path.clone(),
+        "local".to_string(),
+        SchedulerConfig {
+            max_workers: 1,
+            max_attempts: 1,
+            retry_base: Duration::from_millis(1),
+            retry_max: Duration::from_millis(1),
+            poll_interval: Duration::from_millis(1),
+        },
+        Arc::new(SystemClock),
+        vec![Arc::new(ComputeExportOnnxTaskHandler::from_optional(Some(
+            python_worker_config(),
+        )))],
+        sink.clone(),
+    )
+    .expect("create export scheduler");
+
+    let exported = {
+        let deadline = Instant::now() + Duration::from_secs(30);
+        loop {
+            scheduler.tick().expect("run export scheduler tick");
+            let connection = Connection::open(&path).expect("open task database");
+            let current = repository::get(&connection, "local", task.id)
+                .expect("read task")
+                .expect("task exists");
+            if matches!(current.state, TaskState::Completed | TaskState::Failed) {
+                assert_eq!(
+                    current.state,
+                    TaskState::Completed,
+                    "export task failed: {current:?}"
+                );
+                let checkpoint: serde_json::Value =
+                    serde_json::from_str(current.checkpoint_json.as_deref().expect("checkpoint"))
+                        .expect("decode checkpoint");
+                break checkpoint["result"].clone();
+            }
+            assert!(Instant::now() < deadline, "export task timed out");
+            thread::yield_now();
+        }
+    };
+    drop(scheduler);
+
+    assert_eq!(exported["manifest"]["model_id"], "model-export");
+    let model_base64 = exported["model_base64"].as_str().expect("model base64");
+    let model_bytes = decode_base64(model_base64);
+    let mut digest = Sha256::new();
+    digest.update(&model_bytes);
+    assert_eq!(
+        format!("{:x}", digest.finalize()),
+        exported["model_sha256"].as_str().expect("model sha256")
+    );
+    let model_path =
+        std::env::temp_dir().join(format!("bloomery-exported-{}.onnx", uuid::Uuid::new_v4()));
+    std::fs::write(&model_path, &model_bytes).expect("write exported model");
+
+    // Import the exported model through the ONNX prediction pipeline and
+    // require numeric parity with the source linear artifact.
+    let mut connection = Connection::open(&path).expect("reopen task database");
+    let predict_task = repository::create(
+        &mut connection,
+        NewTask {
+            workspace_id: "local".to_string(),
+            kind: COMPUTE_PREDICT_ONNX_KIND.to_string(),
+            payload_json: serde_json::to_string(&json!({
+                "operation": "predict_onnx",
+                "payload": {
+                    "model_path": model_path.to_string_lossy(),
+                    "model_sha256": exported["model_sha256"],
+                    "manifest": exported["manifest"],
+                    "features": [[125.0]]
+                }
+            }))
+            .expect("encode parity payload"),
+            checkpoint_json: Some(json!({"stage": "queued"}).to_string()),
+            next_run_at: None,
+            progress: 0,
+        },
+    )
+    .expect("create parity task");
+    drop(connection);
+
+    let sink = Arc::new(RecordingSink::default());
+    let mut scheduler = Scheduler::new(
+        path.clone(),
+        "local".to_string(),
+        SchedulerConfig {
+            max_workers: 1,
+            max_attempts: 1,
+            retry_base: Duration::from_millis(1),
+            retry_max: Duration::from_millis(1),
+            poll_interval: Duration::from_millis(1),
+        },
+        Arc::new(SystemClock),
+        vec![Arc::new(ComputeOnnxPredictionTaskHandler::from_optional(
+            Some(python_worker_config()),
+        ))],
+        sink.clone(),
+    )
+    .expect("create parity scheduler");
+
+    let deadline = Instant::now() + Duration::from_secs(30);
+    loop {
+        scheduler.tick().expect("run parity scheduler tick");
+        let connection = Connection::open(&path).expect("open task database");
+        let current = repository::get(&connection, "local", predict_task.id)
+            .expect("read task")
+            .expect("task exists");
+        if matches!(current.state, TaskState::Completed | TaskState::Failed) {
+            assert_eq!(
+                current.state,
+                TaskState::Completed,
+                "parity task failed: {current:?}"
+            );
+            let checkpoint: serde_json::Value =
+                serde_json::from_str(current.checkpoint_json.as_deref().expect("checkpoint"))
+                    .expect("decode checkpoint");
+            // Source artifact predicts (125-25)/10*2+5 = 25.
+            let prediction = checkpoint["result"]["predictions"][0][0]
+                .as_f64()
+                .expect("parity prediction");
+            assert!(
+                (prediction - 25.0).abs() <= 1e-4,
+                "exported model diverges from source: {prediction}"
+            );
+            break;
+        }
+        assert!(Instant::now() < deadline, "parity task timed out");
+        thread::yield_now();
+    }
+
+    drop(scheduler);
+    let _ = std::fs::remove_file(model_path);
     let _ = std::fs::remove_file(path);
 }
 

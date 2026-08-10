@@ -54,6 +54,15 @@ pub struct OptimizeSteelProcessRequest {
 
 pub const MAX_OPTIMIZATION_TRIALS: u32 = 500;
 
+#[derive(Debug, Clone, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExportLinearOnnxRequest {
+    pub dataset_id: String,
+    pub training_task_id: String,
+    #[serde(default)]
+    pub model_version: Option<String>,
+}
+
 pub fn build_linear_regression_payload(
     table: &DatasetTable,
     columns: &[SteelDatasetColumnRecord],
@@ -655,6 +664,115 @@ pub(crate) fn get_compute_prediction_result(
                 .ok_or_else(|| "completed prediction task has no result".to_string())?,
         )
         .map_err(|error| format!("invalid prediction checkpoint: {error}"))?;
+        Ok(checkpoint.get("result").cloned())
+    })
+}
+
+pub fn build_export_payload(
+    dataset_id: &str,
+    training_task_id: &str,
+    artifact: &Value,
+    model_version: Option<&str>,
+) -> Result<Value, String> {
+    if dataset_id.trim().is_empty() {
+        return Err("dataset ID is required".to_string());
+    }
+    if training_task_id.trim().is_empty() {
+        return Err("training task ID is required".to_string());
+    }
+    if artifact["artifact_version"] != "linear-regression.v1"
+        || artifact["model_type"] != "linear_regression"
+    {
+        return Err("unsupported training model artifact".to_string());
+    }
+    Ok(json!({
+        "operation": "export_linear_onnx",
+        "payload": {
+            "dataset_id": dataset_id,
+            "training_task_id": training_task_id,
+            "artifact": artifact,
+            "model_version": model_version.unwrap_or("1.0.0"),
+        }
+    }))
+}
+
+pub(crate) fn export_linear_model_onnx(
+    db: tauri::State<DbState>,
+    request: ExportLinearOnnxRequest,
+) -> Result<BackgroundTaskResponse, String> {
+    let training_task_id = uuid::Uuid::parse_str(&request.training_task_id)
+        .map_err(|error| format!("invalid training task ID: {error}"))?;
+    with_conn_mut(&db, |connection| {
+        let workspace_id = current_workspace_id();
+        let training_task = task_repository::get(connection, workspace_id, training_task_id)
+            .map_err(|error| error.to_string())?
+            .ok_or_else(|| "training task was not found in the local workspace".to_string())?;
+        if training_task.kind != crate::compute::handler::COMPUTE_TRAIN_LINEAR_REGRESSION_KIND {
+            return Err("task is not a linear regression training task".to_string());
+        }
+        if training_task.state != crate::tasks::TaskState::Completed {
+            return Err("training task must be completed before export".to_string());
+        }
+        let training_payload: Value = serde_json::from_str(&training_task.payload_json)
+            .map_err(|error| format!("invalid training task payload: {error}"))?;
+        let source_dataset_id = training_payload["payload"]["dataset_id"]
+            .as_str()
+            .ok_or_else(|| "training task has no dataset identity".to_string())?;
+        if source_dataset_id != request.dataset_id {
+            return Err("export dataset does not match the training task".to_string());
+        }
+        let checkpoint: Value = serde_json::from_str(
+            training_task
+                .checkpoint_json
+                .as_deref()
+                .ok_or_else(|| "completed training task has no result".to_string())?,
+        )
+        .map_err(|error| format!("invalid training checkpoint: {error}"))?;
+        let artifact = checkpoint["result"]["artifact"].clone();
+        let payload = build_export_payload(
+            &request.dataset_id,
+            &request.training_task_id,
+            &artifact,
+            request.model_version.as_deref(),
+        )?;
+        let task_payload = serde_json::to_string(&payload).map_err(|error| error.to_string())?;
+        task_repository::create(
+            connection,
+            NewTask {
+                workspace_id: workspace_id.to_string(),
+                kind: crate::compute::handler::COMPUTE_EXPORT_ONNX_KIND.to_string(),
+                payload_json: task_payload,
+                checkpoint_json: Some(json!({"stage": "queued"}).to_string()),
+                next_run_at: None,
+                progress: 0,
+            },
+        )
+        .map(background_task_response)
+        .map_err(|error| error.to_string())
+    })
+}
+
+pub(crate) fn get_compute_export_result(
+    db: tauri::State<DbState>,
+    id: String,
+) -> Result<Option<Value>, String> {
+    let id = uuid::Uuid::parse_str(&id).map_err(|error| format!("invalid task ID: {error}"))?;
+    with_conn(&db, |connection| {
+        let task = task_repository::get(connection, current_workspace_id(), id)
+            .map_err(|error| error.to_string())?
+            .ok_or_else(|| "task_not_found: task not found".to_string())?;
+        if task.kind != crate::compute::handler::COMPUTE_EXPORT_ONNX_KIND {
+            return Err("task is not an ONNX export task".to_string());
+        }
+        if task.state != crate::tasks::TaskState::Completed {
+            return Ok(None);
+        }
+        let checkpoint: Value = serde_json::from_str(
+            task.checkpoint_json
+                .as_deref()
+                .ok_or_else(|| "completed export task has no result".to_string())?,
+        )
+        .map_err(|error| format!("invalid export checkpoint: {error}"))?;
         Ok(checkpoint.get("result").cloned())
     })
 }
