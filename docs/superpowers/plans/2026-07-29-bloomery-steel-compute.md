@@ -153,6 +153,17 @@ parity with the source artifact within 1e-4. The Worker suite passes 53
 tests and the Rust offline suite passes. A persistent model repository with
 versioned records remains open.
 
+**Progress evidence (2026-08-10, model repository):** The persistent model
+repository is now closed. Migration 0019 creates `steel_models` with
+per-lineage integer versions, SHA-256 pins, manifest JSON, and CHECK
+constraints separating inline linear artifacts from ONNX blobs.
+`steel_models.rs` repository plus `register_steel_model`,
+`list_steel_models`, `set_active_steel_model`, and `delete_steel_model`
+commands implement registration from completed training/export tasks and
+enforce that active versions cannot be deleted. Tests cover version
+incrementing, lineage isolation, activation switching, deletion rules, and
+blob/artifact constraints.
+
 ### Task 9: Implement constrained process optimization
 
 **Files:** Create worker optimization modules, Rust task/tool adapters, and tests.

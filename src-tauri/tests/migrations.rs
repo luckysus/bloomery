@@ -105,6 +105,10 @@ fn seed_database_at_version(connection: &mut Connection, version: u32) {
             18,
             include_str!("../src/storage/migrations/0018_mcp_legacy_sse.sql"),
         ),
+        (
+            19,
+            include_str!("../src/storage/migrations/0019_steel_models.sql"),
+        ),
     ];
 
     for (migration_version, sql) in migrations.into_iter().take(version as usize) {
@@ -417,6 +421,7 @@ fn version_twelve_database_receives_summary_source_backfill() {
           VALUES ('s-v12', 'local', 'c-v12', 'summary', 'm-v12-1', '[]', 't2', 't2');
         DROP TABLE steel_dataset_columns;
         DROP TABLE steel_datasets;
+        DROP TABLE steel_models;
         DROP TABLE mcp_servers;
         DELETE FROM schema_migrations WHERE version > 12;
         PRAGMA user_version = 12;
@@ -426,7 +431,7 @@ fn version_twelve_database_receives_summary_source_backfill() {
 
     let report = migrate(&mut conn).expect("apply post-v12 migrations");
 
-    assert_eq!(report.applied_versions, vec![13, 14, 15, 16, 17, 18]);
+    assert_eq!(report.applied_versions, vec![13, 14, 15, 16, 17, 18, 19]);
     assert_eq!(
         conn.query_row(
             "SELECT source_message_ids_json FROM conversation_summaries WHERE id = 's-v12'",
@@ -456,7 +461,7 @@ fn file_database_uses_wal_and_ordered_migrations() {
     assert_eq!(version, latest_version());
     assert_eq!(
         report.applied_versions,
-        vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18]
+        vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]
     );
 }
 

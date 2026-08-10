@@ -1,9 +1,10 @@
 use super::logic::{
     self, ExportLinearOnnxRequest, OptimizeSteelProcessRequest, PredictOnnxModelRequest,
-    PredictSteelModelRequest, TrainSteelDatasetRequest,
+    PredictSteelModelRequest, RegisterSteelModelRequest, TrainSteelDatasetRequest,
 };
 use crate::app::task_commands::tasks::BackgroundTaskResponse;
 use crate::db::DbState;
+use crate::storage::repositories::steel_models::SteelModelRecord;
 use serde_json::Value;
 
 #[tauri::command]
@@ -52,6 +53,35 @@ pub fn get_compute_export_result(
     id: String,
 ) -> Result<Option<Value>, String> {
     logic::get_compute_export_result(db, id)
+}
+
+#[tauri::command]
+pub fn register_steel_model(
+    db: tauri::State<DbState>,
+    request: RegisterSteelModelRequest,
+) -> Result<SteelModelRecord, String> {
+    logic::register_steel_model(db, request)
+}
+
+#[tauri::command]
+pub fn list_steel_models(
+    db: tauri::State<DbState>,
+    lineage_id: String,
+) -> Result<Vec<SteelModelRecord>, String> {
+    logic::list_steel_models(db, lineage_id)
+}
+
+#[tauri::command]
+pub fn set_active_steel_model(
+    db: tauri::State<DbState>,
+    id: String,
+) -> Result<SteelModelRecord, String> {
+    logic::set_active_steel_model(db, id)
+}
+
+#[tauri::command]
+pub fn delete_steel_model(db: tauri::State<DbState>, id: String) -> Result<(), String> {
+    logic::delete_steel_model(db, id)
 }
 
 #[tauri::command]

@@ -142,6 +142,15 @@ ir_version 10) with SHA-256 and a consistency manifest; Rust registers
 e2e test proves export→import numeric parity within 1e-4 through the real
 scheduler pipeline. Worker suite passes 53 tests; Rust offline suite passes.
 
+Evidence (2026-08-10): model repository and version persistence now ship:
+migration 0019 adds `steel_models` with per-lineage versioning, SHA-256
+pins, manifest storage, and kind-checked artifact/blob columns; the
+repository enforces the release rule that active model versions cannot be
+deleted, and commands register linear artifacts or exported ONNX models from
+completed tasks, list versions, and switch the active version. Five new
+repository tests plus the upgraded migration suite pass in the full offline
+Rust run.
+
 Evidence (2026-08-10): the steel terminology source now ships versioned
 and license-audited: 32 authored terms covering grades, composition
 elements, properties, defects, standards, and all five main process stages,

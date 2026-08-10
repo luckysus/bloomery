@@ -9,3 +9,4 @@ pub mod provider_profiles;
 pub mod runs;
 pub mod settings;
 pub mod steel;
+pub mod steel_models;

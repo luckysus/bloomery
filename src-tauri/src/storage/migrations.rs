@@ -86,6 +86,10 @@ const MIGRATIONS: &[Migration] = &[
         version: 18,
         sql: include_str!("migrations/0018_mcp_legacy_sse.sql"),
     },
+    Migration {
+        version: 19,
+        sql: include_str!("migrations/0019_steel_models.sql"),
+    },
 ];
 
 pub fn latest_version() -> u32 {

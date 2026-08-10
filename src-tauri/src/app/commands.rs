@@ -109,6 +109,10 @@ macro_rules! handler {
             crate::app::compute_commands::commands::get_compute_optimization_result,
             crate::app::compute_commands::commands::export_linear_model_onnx,
             crate::app::compute_commands::commands::get_compute_export_result,
+            crate::app::compute_commands::commands::register_steel_model,
+            crate::app::compute_commands::commands::list_steel_models,
+            crate::app::compute_commands::commands::set_active_steel_model,
+            crate::app::compute_commands::commands::delete_steel_model,
         ]
     };
 }
