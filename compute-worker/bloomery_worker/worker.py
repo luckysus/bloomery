@@ -3,10 +3,11 @@ from __future__ import annotations
 from typing import Any, BinaryIO
 
 from .onnx_inference import OnnxInferenceError, predict_onnx
+from .optimization import OptimizationError, optimize_constrained
 from .protocol import PROTOCOL_VERSION, FrameError, encode_frame, parse_request, read_frame
 from .training import predict_linear_regression, train_linear_regression
 
-WORKER_VERSION = "0.3.0"
+WORKER_VERSION = "0.4.0"
 
 
 def _response(request_id: str, *, result: dict[str, Any] | None = None, error: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -53,12 +54,13 @@ def _dispatch(request: dict[str, Any], output: BinaryIO) -> bool:
                 result={
                     "protocol_version": PROTOCOL_VERSION,
                     "worker_version": WORKER_VERSION,
-                    "capabilities": ["hello", "submit", "cancel", "shutdown", "training", "inference"],
+                    "capabilities": ["hello", "submit", "cancel", "shutdown", "training", "inference", "optimization"],
                     "operations": [
                         "echo",
                         "train_linear_regression",
                         "predict_linear_regression",
                         "predict_onnx",
+                        "optimize_constrained",
                     ],
                 },
             ),
@@ -93,6 +95,7 @@ def _dispatch(request: dict[str, Any], output: BinaryIO) -> bool:
             "train_linear_regression",
             "predict_linear_regression",
             "predict_onnx",
+            "optimize_constrained",
         }:
             _write(
                 output,
@@ -178,13 +181,46 @@ def _dispatch(request: dict[str, Any], output: BinaryIO) -> bool:
                         result={"task_id": task_id, "state": "completed", **prediction},
                     ),
                 )
+        elif operation == "optimize_constrained":
+            payload = params.get("payload", {})
+            if not isinstance(payload, dict):
+                _write(output, _error(request_id, "invalid_params", "payload must be an object"))
+                return False
+            _write(output, _progress(task_id, 5, "validated"))
+            try:
+                result = optimize_constrained(
+                    payload,
+                    report=lambda stage, progress: _write(
+                        output, _progress(task_id, progress, stage)
+                    ),
+                )
+            except OptimizationError as error:
+                if error.code == "optimization_cancelled":
+                    _write(
+                        output,
+                        _response(
+                            request_id,
+                            result={"task_id": task_id, "state": "cancelled"},
+                        ),
+                    )
+                else:
+                    _write(output, _error(request_id, error.code, str(error)))
+            else:
+                _write(output, _progress(task_id, 100, "completed"))
+                _write(
+                    output,
+                    _response(
+                        request_id,
+                        result={"task_id": task_id, "state": "completed", **result},
+                    ),
+                )
         else:
             _write(
                 output,
                 _error(
                     request_id,
                     "unsupported_operation",
-                    "supported operations are echo, train_linear_regression, predict_linear_regression, and predict_onnx",
+                    "supported operations are echo, train_linear_regression, predict_linear_regression, predict_onnx, and optimize_constrained",
                 ),
             )
         return False

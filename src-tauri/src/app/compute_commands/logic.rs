@@ -35,6 +35,25 @@ pub struct PredictOnnxModelRequest {
     pub features: Vec<Vec<f64>>,
 }
 
+#[derive(Debug, Clone, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OptimizeSteelProcessRequest {
+    pub dataset_id: String,
+    pub training_task_id: String,
+    pub direction: String,
+    pub objective_columns: Vec<usize>,
+    pub bounds: Vec<Value>,
+    #[serde(default)]
+    pub fixed_values: Vec<Option<f64>>,
+    #[serde(default)]
+    pub constraints: Vec<Value>,
+    pub trials: u32,
+    #[serde(default)]
+    pub seed: i64,
+}
+
+pub const MAX_OPTIMIZATION_TRIALS: u32 = 500;
+
 pub fn build_linear_regression_payload(
     table: &DatasetTable,
     columns: &[SteelDatasetColumnRecord],
@@ -311,6 +330,158 @@ fn validate_onnx_features(features: &[Vec<f64>]) -> Result<(), String> {
     Ok(())
 }
 
+pub fn build_optimization_payload(
+    dataset_id: &str,
+    training_task_id: &str,
+    artifact: &Value,
+    request: &OptimizeSteelProcessRequest,
+) -> Result<Value, String> {
+    if dataset_id.trim().is_empty() {
+        return Err("dataset ID is required".to_string());
+    }
+    if training_task_id.trim().is_empty() {
+        return Err("training task ID is required".to_string());
+    }
+    if artifact["artifact_version"] != "linear-regression.v1"
+        || artifact["model_type"] != "linear_regression"
+    {
+        return Err("unsupported training model artifact".to_string());
+    }
+    if request.direction != "minimize" && request.direction != "maximize" {
+        return Err("direction must be minimize or maximize".to_string());
+    }
+    let feature_names = artifact["feature_names"]
+        .as_array()
+        .ok_or_else(|| "training model artifact has no feature names".to_string())?;
+    let feature_count = feature_names.len();
+    if feature_count == 0 {
+        return Err("training model artifact has no features".to_string());
+    }
+    if request.objective_columns.is_empty() || request.objective_columns.len() > 4 {
+        return Err("optimization requires between 1 and 4 objectives".to_string());
+    }
+    let mut objective_names = Vec::new();
+    for ordinal in &request.objective_columns {
+        if *ordinal >= feature_count {
+            return Err(format!("objective column {ordinal} is out of range"));
+        }
+        let name = feature_names[*ordinal]
+            .as_str()
+            .ok_or_else(|| "feature name is invalid".to_string())?;
+        if objective_names.iter().any(|existing: &String| existing == name) {
+            return Err(format!("objective {name} is duplicated"));
+        }
+        objective_names.push(name.to_string());
+    }
+    if request.bounds.len() != feature_count {
+        return Err("bounds must cover every model feature".to_string());
+    }
+    let mut bounds = Vec::new();
+    for (index, entry) in request.bounds.iter().enumerate() {
+        let minimum = entry
+            .get("min")
+            .and_then(Value::as_f64)
+            .filter(|value| value.is_finite())
+            .ok_or_else(|| format!("bounds[{index}].min must be a finite number"))?;
+        let maximum = entry
+            .get("max")
+            .and_then(Value::as_f64)
+            .filter(|value| value.is_finite())
+            .ok_or_else(|| format!("bounds[{index}].max must be a finite number"))?;
+        if minimum > maximum {
+            return Err(format!("bounds[{index}] is inverted"));
+        }
+        bounds.push(json!({"min": minimum, "max": maximum}));
+    }
+    if request.fixed_values.len() != feature_count {
+        return Err("fixed_values must cover every model feature".to_string());
+    }
+    let mut fixed_values = serde_json::Map::new();
+    for (index, value) in request.fixed_values.iter().enumerate() {
+        let Some(value) = value else { continue };
+        if !value.is_finite() {
+            return Err(format!("fixed_values[{index}] must be finite"));
+        }
+        let name = feature_names[index]
+            .as_str()
+            .ok_or_else(|| "feature name is invalid".to_string())?;
+        fixed_values.insert(name.to_string(), json!(value));
+    }
+    let mut constraints = Vec::new();
+    for (index, entry) in request.constraints.iter().enumerate() {
+        let kind = entry
+            .get("kind")
+            .and_then(Value::as_str)
+            .ok_or_else(|| format!("constraints[{index}].kind is required"))?;
+        if kind != "equality" && kind != "inequality" {
+            return Err(format!("constraints[{index}].kind must be equality or inequality"));
+        }
+        let coefficients = entry
+            .get("coefficients")
+            .and_then(Value::as_array)
+            .ok_or_else(|| format!("constraints[{index}].coefficients must be an array"))?;
+        if coefficients.len() != feature_count {
+            return Err(format!(
+                "constraints[{index}].coefficients must cover every model feature"
+            ));
+        }
+        let mut named = serde_json::Map::new();
+        let mut non_zero = false;
+        for (column, coefficient) in coefficients.iter().enumerate() {
+            let value = coefficient
+                .as_f64()
+                .filter(|value| value.is_finite())
+                .ok_or_else(|| format!("constraints[{index}].coefficients[{column}] must be finite"))?;
+            if value != 0.0 {
+                non_zero = true;
+            }
+            let name = feature_names[column]
+                .as_str()
+                .ok_or_else(|| "feature name is invalid".to_string())?;
+            named.insert(name.to_string(), json!(value));
+        }
+        if !non_zero {
+            return Err(format!("constraints[{index}] has no coefficients"));
+        }
+        let target = entry
+            .get("value")
+            .and_then(Value::as_f64)
+            .filter(|value| value.is_finite())
+            .ok_or_else(|| format!("constraints[{index}].value must be a finite number"))?;
+        let mut constraint = json!({
+            "kind": kind,
+            "coefficients": named,
+            "value": target,
+        });
+        if let Some(tolerance) = entry.get("tolerance") {
+            let tolerance = tolerance
+                .as_f64()
+                .filter(|value| value.is_finite() && *value >= 0.0)
+                .ok_or_else(|| format!("constraints[{index}].tolerance must be non-negative"))?;
+            constraint["tolerance"] = json!(tolerance);
+        }
+        constraints.push(constraint);
+    }
+    if request.trials < 1 || request.trials > MAX_OPTIMIZATION_TRIALS {
+        return Err(format!("trials must be between 1 and {MAX_OPTIMIZATION_TRIALS}"));
+    }
+    Ok(json!({
+        "operation": "optimize_constrained",
+        "payload": {
+            "dataset_id": dataset_id,
+            "training_task_id": training_task_id,
+            "artifact": artifact,
+            "direction": request.direction,
+            "objectives": objective_names,
+            "bounds": bounds,
+            "fixed_values": fixed_values,
+            "constraints": constraints,
+            "trials": request.trials,
+            "seed": request.seed,
+        }
+    }))
+}
+
 pub fn train_steel_dataset(
     db: tauri::State<DbState>,
     request: TrainSteelDatasetRequest,
@@ -474,6 +645,87 @@ pub fn get_compute_prediction_result(
     })
 }
 
+pub fn optimize_steel_process(
+    db: tauri::State<DbState>,
+    request: OptimizeSteelProcessRequest,
+) -> Result<BackgroundTaskResponse, String> {
+    let training_task_id = uuid::Uuid::parse_str(&request.training_task_id)
+        .map_err(|error| format!("invalid training task ID: {error}"))?;
+    with_conn_mut(&db, |connection| {
+        let workspace_id = current_workspace_id();
+        let training_task = task_repository::get(connection, workspace_id, training_task_id)
+            .map_err(|error| error.to_string())?
+            .ok_or_else(|| "training task was not found in the local workspace".to_string())?;
+        if training_task.kind != crate::compute::handler::COMPUTE_TRAIN_LINEAR_REGRESSION_KIND {
+            return Err("task is not a linear regression training task".to_string());
+        }
+        if training_task.state != crate::tasks::TaskState::Completed {
+            return Err("training task must be completed before optimization".to_string());
+        }
+        let training_payload: Value = serde_json::from_str(&training_task.payload_json)
+            .map_err(|error| format!("invalid training task payload: {error}"))?;
+        let source_dataset_id = training_payload["payload"]["dataset_id"]
+            .as_str()
+            .ok_or_else(|| "training task has no dataset identity".to_string())?;
+        if source_dataset_id != request.dataset_id {
+            return Err("optimization dataset does not match the training task".to_string());
+        }
+        let checkpoint: Value = serde_json::from_str(
+            training_task
+                .checkpoint_json
+                .as_deref()
+                .ok_or_else(|| "completed training task has no result".to_string())?,
+        )
+        .map_err(|error| format!("invalid training checkpoint: {error}"))?;
+        let artifact = checkpoint["result"]["artifact"].clone();
+        let payload = build_optimization_payload(
+            &request.dataset_id,
+            &request.training_task_id,
+            &artifact,
+            &request,
+        )?;
+        let task_payload = serde_json::to_string(&payload).map_err(|error| error.to_string())?;
+        task_repository::create(
+            connection,
+            NewTask {
+                workspace_id: workspace_id.to_string(),
+                kind: crate::compute::handler::COMPUTE_OPTIMIZE_CONSTRAINED_KIND.to_string(),
+                payload_json: task_payload,
+                checkpoint_json: Some(json!({"stage": "queued"}).to_string()),
+                next_run_at: None,
+                progress: 0,
+            },
+        )
+        .map(background_task_response)
+        .map_err(|error| error.to_string())
+    })
+}
+
+pub fn get_compute_optimization_result(
+    db: tauri::State<DbState>,
+    id: String,
+) -> Result<Option<Value>, String> {
+    let id = uuid::Uuid::parse_str(&id).map_err(|error| format!("invalid task ID: {error}"))?;
+    with_conn(&db, |connection| {
+        let task = task_repository::get(connection, current_workspace_id(), id)
+            .map_err(|error| error.to_string())?
+            .ok_or_else(|| "task_not_found: task not found".to_string())?;
+        if task.kind != crate::compute::handler::COMPUTE_OPTIMIZE_CONSTRAINED_KIND {
+            return Err("task is not a constrained optimization task".to_string());
+        }
+        if task.state != crate::tasks::TaskState::Completed {
+            return Ok(None);
+        }
+        let checkpoint: Value = serde_json::from_str(
+            task.checkpoint_json
+                .as_deref()
+                .ok_or_else(|| "completed optimization task has no result".to_string())?,
+        )
+        .map_err(|error| format!("invalid optimization checkpoint: {error}"))?;
+        Ok(checkpoint.get("result").cloned())
+    })
+}
+
 pub fn predict_onnx_model(
     db: tauri::State<DbState>,
     request: PredictOnnxModelRequest,
@@ -608,6 +860,93 @@ mod tests {
         assert_eq!(payload["targets"], serde_json::json!([355.0, 360.0, 365.0]));
         assert_eq!(payload["feature_names"], serde_json::json!(["temperature"]));
         assert_eq!(payload["field_mapping"]["temperature"], "temperature");
+    }
+
+    #[test]
+    fn builds_optimization_payload_with_named_constraints_and_fixed_values() {
+        let artifact = json!({
+            "artifact_version": "linear-regression.v1",
+            "model_id": "model-1",
+            "model_type": "linear_regression",
+            "feature_names": ["temperature", "carbon"],
+            "feature_schema": {"count": 2},
+        });
+        let request = OptimizeSteelProcessRequest {
+            dataset_id: "dataset-1".to_string(),
+            training_task_id: "task-1".to_string(),
+            direction: "minimize".to_string(),
+            objective_columns: vec![0],
+            bounds: vec![json!({"min": 0.0, "max": 10.0}), json!({"min": 0.0, "max": 5.0})],
+            fixed_values: vec![None, Some(2.0)],
+            constraints: vec![json!({
+                "kind": "inequality",
+                "coefficients": [1.0, 0.0],
+                "value": 4.0,
+                "tolerance": 0.01,
+            })],
+            trials: 24,
+            seed: 7,
+        };
+
+        let payload =
+            build_optimization_payload("dataset-1", "task-1", &artifact, &request)
+                .expect("build optimization payload");
+
+        assert_eq!(payload["operation"], "optimize_constrained");
+        assert_eq!(payload["payload"]["objectives"], json!(["temperature"]));
+        assert_eq!(payload["payload"]["fixed_values"], json!({"carbon": 2.0}));
+        assert_eq!(
+            payload["payload"]["constraints"][0]["coefficients"],
+            json!({"temperature": 1.0, "carbon": 0.0})
+        );
+        assert_eq!(payload["payload"]["constraints"][0]["tolerance"], json!(0.01));
+        assert_eq!(payload["payload"]["trials"], json!(24));
+        assert_eq!(payload["payload"]["seed"], json!(7));
+    }
+
+    #[test]
+    fn rejects_optimization_requests_with_invalid_bounds_or_trials() {
+        let artifact = json!({
+            "artifact_version": "linear-regression.v1",
+            "model_id": "model-1",
+            "model_type": "linear_regression",
+            "feature_names": ["temperature"],
+            "feature_schema": {"count": 1},
+        });
+        let base = OptimizeSteelProcessRequest {
+            dataset_id: "dataset-1".to_string(),
+            training_task_id: "task-1".to_string(),
+            direction: "minimize".to_string(),
+            objective_columns: vec![0],
+            bounds: vec![json!({"min": 5.0, "max": 1.0})],
+            fixed_values: vec![None],
+            constraints: Vec::new(),
+            trials: 24,
+            seed: 0,
+        };
+
+        let error = build_optimization_payload("dataset-1", "task-1", &artifact, &base)
+            .expect_err("inverted bounds must be rejected");
+        assert_eq!(error, "bounds[0] is inverted");
+
+        let oversized = OptimizeSteelProcessRequest {
+            bounds: vec![json!({"min": 0.0, "max": 10.0})],
+            trials: 10_000,
+            ..base.clone()
+        };
+        let error = build_optimization_payload("dataset-1", "task-1", &artifact, &oversized)
+            .expect_err("oversized trial counts must be rejected");
+        assert_eq!(error, "trials must be between 1 and 500");
+
+        let bad_objective = OptimizeSteelProcessRequest {
+            objective_columns: vec![3],
+            bounds: vec![json!({"min": 0.0, "max": 10.0})],
+            trials: 24,
+            ..base
+        };
+        let error = build_optimization_payload("dataset-1", "task-1", &artifact, &bad_objective)
+            .expect_err("out-of-range objectives must be rejected");
+        assert_eq!(error, "objective column 3 is out of range");
     }
 
     #[test]

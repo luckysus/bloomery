@@ -102,7 +102,7 @@ passed on the current `main` worktree.
 - [ ] Official steel terminology, standards, retrieval presets, calculations, and evaluations ship.
 - [x] CSV/XLSX production datasets support mapping, validation, profiling, and analysis.
 - [x] ONNX inference records model, inputs, ranges, constraints, and confidence metadata.
-- [ ] The supervised local compute worker performs training and constrained optimization without private cloud access.
+- [x] The supervised local compute worker performs training and constrained optimization without private cloud access.
 
 Evidence (2026-08-10): the current Rust suite covers CSV/XLSX preview and
 mapping, activation, profiling, correlations, outlier evidence, and
@@ -120,6 +120,20 @@ hash through `hash_onnx_model_file`, and enforces the result contract; the
 analysis workbench adds model selection, manifest editing, task lifecycle,
 and result display. Constrained optimization and packaged-worker release
 evidence remain open.
+
+Evidence (2026-08-10): constrained process optimization is closed end to
+end. The Worker runs constraint-aware TPE (single-objective) and NSGA-II
+(multi-objective) with deterministic seeds, cooperative cancellation, fixed
+values, deterministic equality projection, and re-evaluation of every
+recommendation through the active model and hard constraints; infeasible
+problems are rejected with violation details. Rust registers
+`compute_optimize_constrained`, enforces the recommendation contract, and
+passes the end-to-end scheduler test. The analysis workbench exposes
+direction, objectives, bounds, fixed values, linear constraints, and
+recommendation display. Worker suite passes 45 tests, the Rust offline
+suite passes, and the frontend suite passes 81 tests. Steel terminology,
+evaluations, the Agent optimization tool adapter, and packaged-worker
+release evidence remain open.
 
 ### Gate G: finished desktop product
 

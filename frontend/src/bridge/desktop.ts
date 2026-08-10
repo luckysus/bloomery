@@ -304,6 +304,45 @@ export interface ComputePredictionResult {
   constraints: unknown[];
 }
 
+export interface ComputeOptimizationRequest {
+  datasetId: string;
+  trainingTaskId: string;
+  direction: "minimize" | "maximize";
+  objectiveColumns: number[];
+  bounds: Array<{ min: number; max: number }>;
+  fixedValues: Array<number | null>;
+  constraints: Array<{
+    kind: "equality" | "inequality";
+    coefficients: number[];
+    value: number;
+    tolerance?: number;
+  }>;
+  trials: number;
+  seed: number;
+}
+
+export interface ComputeOptimizationRecommendation {
+  values: Record<string, number>;
+  objectives: number[];
+  prediction: number;
+  feasible: boolean;
+  constraint_residuals: Record<string, number>;
+}
+
+export interface ComputeOptimizationResult {
+  task_id: string;
+  state: "completed";
+  method: string;
+  direction: "minimize" | "maximize";
+  objectives: string[];
+  feature_names: string[];
+  model_id: string;
+  model_type: string;
+  trials_completed: number;
+  deterministic_seed: number;
+  recommendations: ComputeOptimizationRecommendation[];
+}
+
 export interface ComputeOnnxPredictionResult {
   task_id: string;
   state: "completed";
@@ -812,6 +851,10 @@ export const desktop = {
     call<ComputePredictionResult | null>("get_compute_prediction_result", { id }),
   hashOnnxModelFile: (path: string) =>
     call<string>("hash_onnx_model_file", { path }),
+optimizeSteelProcess: (request: ComputeOptimizationRequest) =>
+    call<BackgroundTask>("optimize_steel_process", { request }),
+getComputeOptimizationResult: (id: string) =>
+    call<ComputeOptimizationResult | null>("get_compute_optimization_result", { id }),
   predictOnnxModel: (request: {
     modelPath: string;
     modelSha256: string;

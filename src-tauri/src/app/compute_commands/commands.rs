@@ -1,5 +1,6 @@
 use super::logic::{
-    self, PredictOnnxModelRequest, PredictSteelModelRequest, TrainSteelDatasetRequest,
+    self, OptimizeSteelProcessRequest, PredictOnnxModelRequest, PredictSteelModelRequest,
+    TrainSteelDatasetRequest,
 };
 use crate::app::task_commands::tasks::BackgroundTaskResponse;
 use crate::db::DbState;
@@ -35,6 +36,22 @@ pub fn get_compute_prediction_result(
     id: String,
 ) -> Result<Option<Value>, String> {
     logic::get_compute_prediction_result(db, id)
+}
+
+#[tauri::command]
+pub fn optimize_steel_process(
+    db: tauri::State<DbState>,
+    request: OptimizeSteelProcessRequest,
+) -> Result<BackgroundTaskResponse, String> {
+    logic::optimize_steel_process(db, request)
+}
+
+#[tauri::command]
+pub fn get_compute_optimization_result(
+    db: tauri::State<DbState>,
+    id: String,
+) -> Result<Option<Value>, String> {
+    logic::get_compute_optimization_result(db, id)
 }
 
 #[tauri::command]

@@ -17,6 +17,8 @@ vi.mock("../../bridge/desktop", () => ({
     hashOnnxModelFile: vi.fn(),
     predictOnnxModel: vi.fn(),
     getComputeOnnxPredictionResult: vi.fn(),
+    optimizeSteelProcess: vi.fn(),
+    getComputeOptimizationResult: vi.fn(),
     cancelBackgroundTask: vi.fn(),
     retryBackgroundTask: vi.fn(),
   },

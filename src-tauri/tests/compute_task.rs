@@ -1,5 +1,6 @@
 use bloomery::compute::handler::{
-    ComputeOnnxPredictionTaskHandler, ComputePredictionTaskHandler, ComputeTaskHandler,
+    ComputeOnnxPredictionTaskHandler, ComputeOptimizationTaskHandler,
+    ComputePredictionTaskHandler, ComputeTaskHandler, COMPUTE_OPTIMIZE_CONSTRAINED_KIND,
     COMPUTE_PREDICT_LINEAR_REGRESSION_KIND, COMPUTE_PREDICT_ONNX_KIND,
     COMPUTE_TRAIN_LINEAR_REGRESSION_KIND,
 };
@@ -256,6 +257,125 @@ fn scheduler_runs_prediction_and_records_applicability_metadata() {
 
     let events = sink.events.lock().expect("event lock");
     assert!(!events.is_empty(), "prediction must emit progress");
+    for event in events.iter() {
+        let encoded = serde_json::to_string(event).expect("encode progress event");
+        assert!(!encoded.contains("payload_json"));
+        assert!(!encoded.contains("coefficients"));
+    }
+
+    drop(scheduler);
+    let _ = std::fs::remove_file(path);
+}
+
+#[test]
+fn scheduler_runs_optimization_and_enforces_constraints() {
+    let path = std::env::temp_dir().join(format!(
+        "bloomery-optimize-task-{}.sqlite3",
+        uuid::Uuid::new_v4()
+    ));
+    let mut connection = Connection::open(&path).expect("open task database");
+    migrate(&mut connection).expect("migrate task database");
+    let task = repository::create(
+        &mut connection,
+        NewTask {
+            workspace_id: "local".to_string(),
+            kind: COMPUTE_OPTIMIZE_CONSTRAINED_KIND.to_string(),
+            payload_json: serde_json::to_string(&json!({
+                "operation": "optimize_constrained",
+                "payload": {
+                    "dataset_id": "dataset-1",
+                    "training_task_id": "training-1",
+                    "artifact": {
+                        "artifact_version": "linear-regression.v1",
+                        "model_id": "model-1",
+                        "model_type": "linear_regression",
+                        "feature_names": ["temperature"],
+                        "preprocessing": {"means": [0.0], "scales": [1.0]},
+                        "coefficients": [2.0],
+                        "intercept": 0.0,
+                        "applicability_range": [{"min": 0.0, "max": 10.0}]
+                    },
+                    "direction": "minimize",
+                    "objectives": ["temperature"],
+                    "bounds": [{"min": 0.0, "max": 10.0}],
+                    "fixed_values": {},
+                    "constraints": [{
+                        "kind": "inequality",
+                        "coefficients": {"temperature": 1.0},
+                        "value": 4.0,
+                        "tolerance": 0.0
+                    }],
+                    "trials": 48,
+                    "seed": 7
+                }
+            }))
+            .expect("encode optimization payload"),
+            checkpoint_json: Some(json!({"stage": "queued"}).to_string()),
+            next_run_at: None,
+            progress: 0,
+        },
+    )
+    .expect("create optimization task");
+    drop(connection);
+
+    let sink = Arc::new(RecordingSink::default());
+    let mut scheduler = Scheduler::new(
+        path.clone(),
+        "local".to_string(),
+        SchedulerConfig {
+            max_workers: 1,
+            max_attempts: 1,
+            retry_base: Duration::from_millis(1),
+            retry_max: Duration::from_millis(1),
+            poll_interval: Duration::from_millis(1),
+        },
+        Arc::new(SystemClock),
+        vec![Arc::new(ComputeOptimizationTaskHandler::from_optional(Some(
+            python_worker_config(),
+        )))],
+        sink.clone(),
+    )
+    .expect("create optimization scheduler");
+
+    let deadline = Instant::now() + Duration::from_secs(60);
+    loop {
+        scheduler.tick().expect("run optimization scheduler tick");
+        let connection = Connection::open(&path).expect("open task database");
+        let current = repository::get(&connection, "local", task.id)
+            .expect("read task")
+            .expect("task exists");
+        if matches!(current.state, TaskState::Completed | TaskState::Failed) {
+            assert_eq!(
+                current.state,
+                TaskState::Completed,
+                "optimization task failed: {current:?}"
+            );
+            let checkpoint: serde_json::Value =
+                serde_json::from_str(current.checkpoint_json.as_deref().expect("checkpoint"))
+                    .expect("decode checkpoint");
+            let result = &checkpoint["result"];
+            assert_eq!(result["state"], "completed");
+            assert_eq!(result["model_id"], "model-1");
+            assert_eq!(result["method"], "tpe");
+            assert_eq!(result["deterministic_seed"], json!(7));
+            let recommendation = &result["recommendations"][0];
+            assert_eq!(recommendation["feasible"], json!(true));
+            let temperature = recommendation["values"]["temperature"]
+                .as_f64()
+                .expect("temperature value");
+            assert!(
+                temperature >= 4.0 - 1e-9,
+                "recommendation must satisfy the hard constraint, got {temperature}"
+            );
+            assert!(temperature <= 10.0);
+            break;
+        }
+        assert!(Instant::now() < deadline, "optimization task timed out");
+        thread::yield_now();
+    }
+
+    let events = sink.events.lock().expect("event lock");
+    assert!(!events.is_empty(), "optimization must emit progress");
     for event in events.iter() {
         let encoded = serde_json::to_string(event).expect("encode progress event");
         assert!(!encoded.contains("payload_json"));

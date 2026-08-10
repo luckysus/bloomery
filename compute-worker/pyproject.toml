@@ -12,6 +12,7 @@ dependencies = [
     "numpy>=1.26,<3",
     "onnx>=1.16,<2",
     "onnxruntime>=1.19,<2",
+    "optuna>=3.6,<5",
 ]
 
 [tool.pytest.ini_options]

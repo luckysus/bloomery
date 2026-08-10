@@ -8,6 +8,7 @@ import {
 } from "../../bridge/desktop";
 import { useLocale, type MessageKey } from "../../i18n/locale";
 import DatasetPredictionControls from "./DatasetPredictionControls";
+import OptimizationPanel from "./OptimizationPanel";
 
 type Props = {
   dataset: SteelDatasetRecord;
@@ -248,6 +249,7 @@ export default function DatasetTrainingControls({ dataset }: Props) {
         </dl>
       </section>}
       {result && <DatasetPredictionControls datasetId={dataset.id} trainingResult={result} />}
+      {result && <OptimizationPanel datasetId={dataset.id} trainingResult={result} />}
     </section>
   );
 }

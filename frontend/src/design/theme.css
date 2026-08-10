@@ -4265,6 +4265,94 @@ button.bloomery-knowledge-document.is-active {
   padding: 18px;
 }
 
+.bloomery-optimization-panel {
+  border-top: 1px dashed var(--bloomery-line);
+  margin-top: 18px;
+  padding-top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.bloomery-optimization-bounds {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+}
+
+.bloomery-optimization-bounds p {
+  margin: 0;
+  color: var(--bloomery-muted, #6b7280);
+}
+
+.bloomery-optimization-bounds label,
+.bloomery-optimization-constraint label,
+.bloomery-optimization-run-settings label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.bloomery-optimization-bounds label span,
+.bloomery-optimization-constraint label span,
+.bloomery-optimization-run-settings label span {
+  min-width: 96px;
+  font-size: 12px;
+}
+
+.bloomery-optimization-bounds input,
+.bloomery-optimization-constraint input,
+.bloomery-optimization-constraint select,
+.bloomery-optimization-run-settings input {
+  width: 120px;
+}
+
+.bloomery-optimization-constraint {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border: 1px solid var(--bloomery-line);
+  border-radius: 10px;
+  padding: 10px;
+}
+
+.bloomery-optimization-constraint-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.bloomery-optimization-run-settings {
+  display: flex;
+  gap: 18px;
+}
+
+.bloomery-optimization-recommendations {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.bloomery-optimization-recommendations li {
+  border: 1px solid var(--bloomery-line);
+  border-radius: 10px;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+}
+
+.bloomery-optimization-recommendations em {
+  font-style: normal;
+  color: var(--bloomery-muted, #6b7280);
+}
+
 .bloomery-onnx-panel label {
   color: var(--bloomery-text-dim);
   display: block;

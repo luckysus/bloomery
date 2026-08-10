@@ -9,6 +9,7 @@ use serde_json::{json, Value};
 pub const COMPUTE_TRAIN_LINEAR_REGRESSION_KIND: &str = "compute_train_linear_regression";
 pub const COMPUTE_PREDICT_LINEAR_REGRESSION_KIND: &str = "compute_predict_linear_regression";
 pub const COMPUTE_PREDICT_ONNX_KIND: &str = "compute_predict_onnx";
+pub const COMPUTE_OPTIMIZE_CONSTRAINED_KIND: &str = "compute_optimize_constrained";
 
 #[derive(Debug, Clone)]
 pub struct ComputeTaskHandler {
@@ -95,6 +96,32 @@ impl TaskHandler for ComputeOnnxPredictionTaskHandler {
     fn run(&self, task: TaskRecord, context: HandlerContext) -> HandlerFuture {
         let worker = self.worker.clone();
         Box::pin(async move { run_task(task, context, worker, "predict_onnx") })
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct ComputeOptimizationTaskHandler {
+    worker: Option<WorkerConfig>,
+}
+
+impl ComputeOptimizationTaskHandler {
+    pub fn from_optional(worker: Option<WorkerConfig>) -> Self {
+        Self { worker }
+    }
+}
+
+impl TaskHandler for ComputeOptimizationTaskHandler {
+    fn kind(&self) -> &str {
+        COMPUTE_OPTIMIZE_CONSTRAINED_KIND
+    }
+
+    fn resumable(&self) -> bool {
+        true
+    }
+
+    fn run(&self, task: TaskRecord, context: HandlerContext) -> HandlerFuture {
+        let worker = self.worker.clone();
+        Box::pin(async move { run_task(task, context, worker, "optimize_constrained") })
     }
 }
 
@@ -198,6 +225,8 @@ fn run_task(
         || expected_operation == "predict_onnx"
     {
         result["state"] == "completed" && result.get("predictions").is_some()
+    } else if expected_operation == "optimize_constrained" {
+        result["state"] == "completed" && result.get("recommendations").is_some()
     } else {
         result["state"] == "completed" && result.get("artifact").is_some()
     };
@@ -221,6 +250,8 @@ fn run_task(
         {
             return Err(HandlerError::permanent("compute_worker_invalid_result"));
         }
+    } else if expected_operation == "optimize_constrained" {
+        validate_optimization_result(&result)?;
     }
     let checkpoint = json!({"stage": "completed", "result": result});
     let checkpoint_json = serde_json::to_string(&checkpoint)
@@ -280,6 +311,41 @@ fn annotate_prediction_result(mut result: Value, payload: &Value) -> Result<Valu
     result["confidence"] = Value::Null;
     result["constraints"] = json!([]);
     Ok(result)
+}
+
+fn validate_optimization_result(result: &Value) -> Result<(), HandlerError> {
+    if result.get("method").and_then(Value::as_str).is_none()
+        || result.get("direction").and_then(Value::as_str).is_none()
+        || result.get("model_id").and_then(Value::as_str).is_none()
+        || result.get("trials_completed").and_then(Value::as_u64).is_none()
+        || !result
+            .as_object()
+            .map(|object| object.contains_key("deterministic_seed"))
+            .unwrap_or(false)
+    {
+        return Err(HandlerError::permanent("compute_worker_invalid_result"));
+    }
+    let recommendations = result
+        .get("recommendations")
+        .and_then(Value::as_array)
+        .filter(|items| !items.is_empty())
+        .ok_or_else(|| HandlerError::permanent("compute_worker_invalid_result"))?;
+    for recommendation in recommendations {
+        if !recommendation
+            .get("values")
+            .map(Value::is_object)
+            .unwrap_or(false)
+            || !recommendation
+                .get("objectives")
+                .map(Value::is_array)
+                .unwrap_or(false)
+            || recommendation.get("prediction").and_then(Value::as_f64).is_none()
+            || recommendation.get("feasible").and_then(Value::as_bool) != Some(true)
+        {
+            return Err(HandlerError::permanent("compute_worker_invalid_result"));
+        }
+    }
+    Ok(())
 }
 
 fn map_worker_error(error: WorkerSupervisorError, fallback: &'static str) -> HandlerError {

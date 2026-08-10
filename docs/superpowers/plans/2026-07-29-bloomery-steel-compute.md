@@ -130,10 +130,28 @@ cooperative cancellation remain open.
 
 **Files:** Create worker optimization modules, Rust task/tool adapters, and tests.
 
-- [ ] **Step 1: Write tests** for bounds, equality/inequality constraints, fixed values, infeasible problems, single/multi-objective runs, deterministic seeds, cancellation, progress, and recommendation validation.
-- [ ] **Step 2: Run optimization tests** and expect failure.
-- [ ] **Step 3: Implement Optuna-backed search.** Support single-objective Bayesian/TPE and multi-objective NSGA-II. Re-evaluate every returned candidate through the active model and hard constraints; reject infeasible recommendations rather than hiding violations.
+- [x] **Step 1: Write tests** for bounds, equality/inequality constraints, fixed values, infeasible problems, single/multi-objective runs, deterministic seeds, cancellation, progress, and recommendation validation.
+- [x] **Step 2: Run optimization tests** and expect failure.
+- [x] **Step 3: Implement Optuna-backed search.** Support single-objective Bayesian/TPE and multi-objective NSGA-II. Re-evaluate every returned candidate through the active model and hard constraints; reject infeasible recommendations rather than hiding violations.
 - [ ] **Step 4: Run worker, task recovery, and Agent integration tests** and expect pass.
+
+**Progress evidence (2026-08-10):** The constrained optimization loop is
+closed end to end for trained linear models. The Worker module
+`optimization.py` validates the artifact, bounds, objectives, fixed values,
+and linear equality/inequality constraints, runs constraint-aware TPE for
+single-objective and NSGA-II for multi-objective searches with deterministic
+seeds and cooperative cancellation, deterministically projects candidates
+onto equality surfaces, and re-evaluates every recommendation through the
+active model and hard constraints; infeasible problems raise
+`optimization_infeasible` with violation details instead of hiding them.
+Rust registers `compute_optimize_constrained`, builds the payload from the
+completed training checkpoint, enforces the recommendation result contract,
+and passes the end-to-end scheduler test with a hard inequality constraint.
+The analysis UI adds direction, objectives, bounds, fixed values, one linear
+constraint, trials/seed, task cancel/retry, and recommendation display.
+The Python Worker suite passes 45 tests, the Rust offline suite passes,
+and the frontend suite passes 81 tests. The Agent tool adapter for
+optimization remains open.
 
 ### Task 10: Build versioned steel evaluations
 
