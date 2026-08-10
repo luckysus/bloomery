@@ -160,6 +160,13 @@ capability flag. Rust registers the matching task kinds and the scheduler
 e2e test trains and predicts a random forest without any private cloud
 access. Worker suite passes 62 tests; Rust offline and frontend suites pass.
 
+Evidence (2026-08-10): the compute worker packages from the committed
+`uv.lock` via `compute-worker/build.ps1` into a single-file
+`bloomery-compute-worker.exe` with an artifact manifest (SHA-256, Python and
+locked package versions, SBOM, checksums, explicit unsigned marker, no
+private URLs). The packaged executable answers hello/shutdown frames without
+system Python. Release signing of the worker artifact remains open in the
+release-quality gate.
 Evidence (2026-08-10): the steel terminology source now ships versioned
 and license-audited: 32 authored terms covering grades, composition
 elements, properties, defects, standards, and all five main process stages,

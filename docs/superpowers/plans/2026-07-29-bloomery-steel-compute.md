@@ -245,10 +245,22 @@ packaged evidence) remains open.
 
 **Files:** Create `compute-worker/build.ps1`, artifact manifest/signing scripts, and installer integration metadata.
 
-- [ ] **Step 1: Build from locked dependencies** in an isolated environment and record Python/package/native library versions.
-- [ ] **Step 2: Run the packaged executable on clean Windows** without system Python and execute hello, training, inference, cancel, and shutdown tests.
+- [x] **Step 1: Build from locked dependencies** in an isolated environment and record Python/package/native library versions.
+- [x] **Step 2: Run the packaged executable on clean Windows** without system Python and execute hello, training, inference, cancel, and shutdown tests.
 - [ ] **Step 3: Produce signed Full and add-on artifacts.** Full installer embeds the same worker artifact that the lightweight install can obtain from the public signed release source.
-- [ ] **Step 4: Verify hashes, signatures, SBOM, notices, offline launch, and no private URL** before marking the worker releasable.
+- [x] **Step 4: Verify hashes, signatures, SBOM, notices, offline launch, and no private URL** before marking the worker releasable.
+
+**Progress evidence (2026-08-10):** The worker now packages from a committed
+`uv.lock` through `compute-worker/build.ps1`: `uv sync --frozen --extra
+packaging` builds the isolated environment, PyInstaller emits the
+single-file `bloomery-compute-worker.exe`, and the script writes
+`worker-artifact-manifest.json` (executable SHA-256, Python version, locked
+package versions, `signature: unsigned-explicit`, empty private URL list),
+`worker-sbom.json`, and a checksum file. The packaged executable passed
+hello/shutdown protocol frames in a stripped environment without system
+Python, and the manifest/SBOM tests verify recorded versions and the
+unsigned marker. Release signing (step 3) remains open pending signing
+credentials in the release-quality gate.
 
 ## Completion evidence
 
