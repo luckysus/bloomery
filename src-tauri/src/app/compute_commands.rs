@@ -1,2 +1,3 @@
 pub(crate) mod commands;
-pub(crate) mod logic;
+pub(crate) mod gateway;
+pub mod logic;

@@ -143,6 +143,13 @@ a standard source ledger that never redistributes restricted text, SHA-256
 pinned assets, and six enforcing Rust tests. Full calculator coverage and
 versioned evaluations remain open for Gate F item one.
 
+Evidence (2026-08-10): the Agent now exposes constrained optimization
+through `steel.optimize_constrained` (confirmation-required submission) and
+`steel.optimization_status` tools wired to the workspace task database via
+the `OptimizationGateway` trait, with argument validation, cancellation
+handling, typed error surfacing, allowlist exposure in the steel manifest,
+and eight new integration tests passing in the full offline Rust suite.
+
 ### Gate G: finished desktop product
 
 - [ ] First-run setup, workbench, chat, knowledge, analysis, extensions, settings, and diagnostics are complete.

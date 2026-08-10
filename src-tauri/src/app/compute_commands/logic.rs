@@ -482,7 +482,7 @@ pub fn build_optimization_payload(
     }))
 }
 
-pub fn train_steel_dataset(
+pub(crate) fn train_steel_dataset(
     db: tauri::State<DbState>,
     request: TrainSteelDatasetRequest,
 ) -> Result<BackgroundTaskResponse, String> {
@@ -539,7 +539,7 @@ pub fn train_steel_dataset(
     })
 }
 
-pub fn get_compute_training_result(
+pub(crate) fn get_compute_training_result(
     db: tauri::State<DbState>,
     id: String,
 ) -> Result<Option<Value>, String> {
@@ -564,7 +564,7 @@ pub fn get_compute_training_result(
     })
 }
 
-pub fn predict_steel_model(
+pub(crate) fn predict_steel_model(
     db: tauri::State<DbState>,
     request: PredictSteelModelRequest,
 ) -> Result<BackgroundTaskResponse, String> {
@@ -620,7 +620,7 @@ pub fn predict_steel_model(
     })
 }
 
-pub fn get_compute_prediction_result(
+pub(crate) fn get_compute_prediction_result(
     db: tauri::State<DbState>,
     id: String,
 ) -> Result<Option<Value>, String> {
@@ -645,63 +645,100 @@ pub fn get_compute_prediction_result(
     })
 }
 
-pub fn optimize_steel_process(
+pub(crate) fn optimize_steel_process(
     db: tauri::State<DbState>,
     request: OptimizeSteelProcessRequest,
 ) -> Result<BackgroundTaskResponse, String> {
     let training_task_id = uuid::Uuid::parse_str(&request.training_task_id)
         .map_err(|error| format!("invalid training task ID: {error}"))?;
     with_conn_mut(&db, |connection| {
-        let workspace_id = current_workspace_id();
-        let training_task = task_repository::get(connection, workspace_id, training_task_id)
-            .map_err(|error| error.to_string())?
-            .ok_or_else(|| "training task was not found in the local workspace".to_string())?;
-        if training_task.kind != crate::compute::handler::COMPUTE_TRAIN_LINEAR_REGRESSION_KIND {
-            return Err("task is not a linear regression training task".to_string());
-        }
-        if training_task.state != crate::tasks::TaskState::Completed {
-            return Err("training task must be completed before optimization".to_string());
-        }
-        let training_payload: Value = serde_json::from_str(&training_task.payload_json)
-            .map_err(|error| format!("invalid training task payload: {error}"))?;
-        let source_dataset_id = training_payload["payload"]["dataset_id"]
-            .as_str()
-            .ok_or_else(|| "training task has no dataset identity".to_string())?;
-        if source_dataset_id != request.dataset_id {
-            return Err("optimization dataset does not match the training task".to_string());
-        }
-        let checkpoint: Value = serde_json::from_str(
-            training_task
-                .checkpoint_json
-                .as_deref()
-                .ok_or_else(|| "completed training task has no result".to_string())?,
-        )
-        .map_err(|error| format!("invalid training checkpoint: {error}"))?;
-        let artifact = checkpoint["result"]["artifact"].clone();
-        let payload = build_optimization_payload(
-            &request.dataset_id,
-            &request.training_task_id,
-            &artifact,
-            &request,
-        )?;
-        let task_payload = serde_json::to_string(&payload).map_err(|error| error.to_string())?;
-        task_repository::create(
-            connection,
-            NewTask {
-                workspace_id: workspace_id.to_string(),
-                kind: crate::compute::handler::COMPUTE_OPTIMIZE_CONSTRAINED_KIND.to_string(),
-                payload_json: task_payload,
-                checkpoint_json: Some(json!({"stage": "queued"}).to_string()),
-                next_run_at: None,
-                progress: 0,
-            },
-        )
-        .map(background_task_response)
-        .map_err(|error| error.to_string())
+        submit_optimization_on_connection(connection, &request, training_task_id)
+            .map(background_task_response)
     })
 }
 
-pub fn get_compute_optimization_result(
+pub fn submit_optimization_on_connection(
+    connection: &mut rusqlite::Connection,
+    request: &OptimizeSteelProcessRequest,
+    training_task_id: uuid::Uuid,
+) -> Result<crate::tasks::model::TaskRecord, String> {
+    let workspace_id = current_workspace_id();
+    let training_task = task_repository::get(connection, workspace_id, training_task_id)
+        .map_err(|error| error.to_string())?
+        .ok_or_else(|| "training task was not found in the local workspace".to_string())?;
+    if training_task.kind != crate::compute::handler::COMPUTE_TRAIN_LINEAR_REGRESSION_KIND {
+        return Err("task is not a linear regression training task".to_string());
+    }
+    if training_task.state != crate::tasks::TaskState::Completed {
+        return Err("training task must be completed before optimization".to_string());
+    }
+    let training_payload: Value = serde_json::from_str(&training_task.payload_json)
+        .map_err(|error| format!("invalid training task payload: {error}"))?;
+    let source_dataset_id = training_payload["payload"]["dataset_id"]
+        .as_str()
+        .ok_or_else(|| "training task has no dataset identity".to_string())?;
+    if source_dataset_id != request.dataset_id {
+        return Err("optimization dataset does not match the training task".to_string());
+    }
+    let checkpoint: Value = serde_json::from_str(
+        training_task
+            .checkpoint_json
+            .as_deref()
+            .ok_or_else(|| "completed training task has no result".to_string())?,
+    )
+    .map_err(|error| format!("invalid training checkpoint: {error}"))?;
+    let artifact = checkpoint["result"]["artifact"].clone();
+    let payload = build_optimization_payload(
+        &request.dataset_id,
+        &request.training_task_id,
+        &artifact,
+        request,
+    )?;
+    let task_payload = serde_json::to_string(&payload).map_err(|error| error.to_string())?;
+    task_repository::create(
+        connection,
+        NewTask {
+            workspace_id: workspace_id.to_string(),
+            kind: crate::compute::handler::COMPUTE_OPTIMIZE_CONSTRAINED_KIND.to_string(),
+            payload_json: task_payload,
+            checkpoint_json: Some(json!({"stage": "queued"}).to_string()),
+            next_run_at: None,
+            progress: 0,
+        },
+    )
+    .map_err(|error| error.to_string())
+}
+
+pub fn optimization_task_status_on_connection(
+    connection: &rusqlite::Connection,
+    id: uuid::Uuid,
+) -> Result<Value, String> {
+    let task = task_repository::get(connection, current_workspace_id(), id)
+        .map_err(|error| error.to_string())?
+        .ok_or_else(|| "task_not_found: task not found".to_string())?;
+    if task.kind != crate::compute::handler::COMPUTE_OPTIMIZE_CONSTRAINED_KIND {
+        return Err("task is not a constrained optimization task".to_string());
+    }
+    let mut status = json!({
+        "task_id": task.id.to_string(),
+        "state": task.state,
+        "progress": task.progress,
+        "attempt": task.attempt,
+        "error_code": task.error_code,
+    });
+    if task.state == crate::tasks::TaskState::Completed {
+        let checkpoint: Value = serde_json::from_str(
+            task.checkpoint_json
+                .as_deref()
+                .ok_or_else(|| "completed optimization task has no result".to_string())?,
+        )
+        .map_err(|error| format!("invalid optimization checkpoint: {error}"))?;
+        status["result"] = checkpoint.get("result").cloned().unwrap_or(Value::Null);
+    }
+    Ok(status)
+}
+
+pub(crate) fn get_compute_optimization_result(
     db: tauri::State<DbState>,
     id: String,
 ) -> Result<Option<Value>, String> {
@@ -726,7 +763,7 @@ pub fn get_compute_optimization_result(
     })
 }
 
-pub fn predict_onnx_model(
+pub(crate) fn predict_onnx_model(
     db: tauri::State<DbState>,
     request: PredictOnnxModelRequest,
 ) -> Result<BackgroundTaskResponse, String> {
@@ -750,7 +787,7 @@ pub fn predict_onnx_model(
     })
 }
 
-pub fn get_compute_onnx_prediction_result(
+pub(crate) fn get_compute_onnx_prediction_result(
     db: tauri::State<DbState>,
     id: String,
 ) -> Result<Option<Value>, String> {

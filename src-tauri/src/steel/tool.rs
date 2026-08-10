@@ -1,3 +1,4 @@
+use super::optimization_tool::{optimize_constrained_tool, optimization_status_tool, OptimizationGateway};
 use super::{
     calculate_carbon_equivalent, CarbonEquivalentFormula, CompositionInput, CompositionUnit,
 };
@@ -79,6 +80,21 @@ impl SteelToolExecutor {
                 .into_iter()
                 .collect(),
         }
+    }
+
+    pub fn with_optimization_gateway(
+        gateway: Arc<dyn OptimizationGateway>,
+        tool_calls_enabled: bool,
+    ) -> Self {
+        let mut registrations: Vec<ToolRegistration> = tool_calls_enabled
+            .then(|| carbon_equivalent_tool())
+            .into_iter()
+            .collect();
+        if tool_calls_enabled {
+            registrations.push(optimize_constrained_tool(gateway.clone()));
+            registrations.push(optimization_status_tool(gateway));
+        }
+        Self { registrations }
     }
 }
 

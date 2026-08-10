@@ -148,7 +148,7 @@ cooperative cancellation remain open.
 - [x] **Step 1: Write tests** for bounds, equality/inequality constraints, fixed values, infeasible problems, single/multi-objective runs, deterministic seeds, cancellation, progress, and recommendation validation.
 - [x] **Step 2: Run optimization tests** and expect failure.
 - [x] **Step 3: Implement Optuna-backed search.** Support single-objective Bayesian/TPE and multi-objective NSGA-II. Re-evaluate every returned candidate through the active model and hard constraints; reject infeasible recommendations rather than hiding violations.
-- [ ] **Step 4: Run worker, task recovery, and Agent integration tests** and expect pass.
+- [x] **Step 4: Run worker, task recovery, and Agent integration tests** and expect pass.
 
 **Progress evidence (2026-08-10):** The constrained optimization loop is
 closed end to end for trained linear models. The Worker module
@@ -167,6 +167,19 @@ constraint, trials/seed, task cancel/retry, and recommendation display.
 The Python Worker suite passes 45 tests, the Rust offline suite passes,
 and the frontend suite passes 81 tests. The Agent tool adapter for
 optimization remains open.
+
+**Progress evidence (2026-08-10, Agent adapter):** Task 9 step 4 is now
+closed. `steel/optimization_tool.rs` registers `steel.optimize_constrained`
+(ConfirmationRequired) and `steel.optimization_status` (Automatic) Agent
+tools behind a public `OptimizationGateway` trait; the desktop runtime binds
+`DesktopOptimizationGateway` to the workspace database through the new
+connection-level `submit_optimization_on_connection` and
+`optimization_task_status_on_connection` helpers. Tool arguments are
+validated before submission, cancellations are honored, and gateway
+failures surface as typed errors. The steel manifest allowlist now exposes
+both tools. Eight new integration tests (fake-gateway tool behavior plus
+real SQLite submission/status round-trips) pass alongside the full offline
+Rust suite.
 
 ### Task 10: Build versioned steel evaluations
 

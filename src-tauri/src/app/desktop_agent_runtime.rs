@@ -47,7 +47,11 @@ pub(crate) async fn run_standard_agent(
         .map_err(|error| format!("configure local chat provider failed: {error}"))?;
     let tool_calls_enabled = provider.capabilities().tool_calls;
     let model = ProviderModelAdapter::new(provider);
-    let steel_tools = SteelToolExecutor::new(tool_calls_enabled);
+    let optimization_gateway = std::sync::Arc::new(
+        crate::app::compute_commands::gateway::DesktopOptimizationGateway::new(database.clone()),
+    );
+    let steel_tools =
+        SteelToolExecutor::with_optimization_gateway(optimization_gateway, tool_calls_enabled);
     let mcp_configs = crate::storage::repositories::mcp::list(&connection, workspace_id)
         .map_err(|error| format!("load MCP configurations failed: {error}"))?;
     let mcp_tools = load_enabled_tools(app, mcp_configs).await?;

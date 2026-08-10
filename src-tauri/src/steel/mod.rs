@@ -1,6 +1,7 @@
 mod analysis;
 mod calculators;
 mod datasets;
+mod optimization_tool;
 mod tool;
 
 pub use analysis::{
@@ -15,5 +16,8 @@ pub use calculators::{
 pub use datasets::{
     hash_dataset_source, preview_dataset, read_dataset_table, DatasetPreview,
     DatasetPreviewRequest, DatasetTable,
+};
+pub use optimization_tool::{
+    optimize_constrained_tool, optimization_status_tool, OptimizationGateway,
 };
 pub use tool::{carbon_equivalent_tool, SteelToolExecutor};

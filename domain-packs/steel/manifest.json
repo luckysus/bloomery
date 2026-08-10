@@ -23,7 +23,7 @@
     "citation_required": true,
     "max_evidence_items": 12
   },
-  "builtin_tool_allowlist": ["knowledge.query", "steel.carbon_equivalent"],
+  "builtin_tool_allowlist": ["knowledge.query", "steel.carbon_equivalent", "steel.optimize_constrained", "steel.optimization_status"],
   "mcp_recommendations": [
     {
       "id": "standards-reference",
