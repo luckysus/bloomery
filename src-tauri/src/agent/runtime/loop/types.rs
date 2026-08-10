@@ -18,8 +18,7 @@ pub(super) const MAX_TOOL_OUTPUT_BYTES: usize = 32 * 1024;
 
 pub type ToolFuture =
     Pin<Box<dyn Future<Output = Result<Value, ToolExecutionError>> + Send + 'static>>;
-pub type PermissionFuture =
-    Pin<Box<dyn Future<Output = PermissionDecision> + Send + 'static>>;
+pub type PermissionFuture = Pin<Box<dyn Future<Output = PermissionDecision> + Send + 'static>>;
 
 #[derive(Clone)]
 pub struct CancellationToken(Arc<dyn Fn() -> bool + Send + Sync>);

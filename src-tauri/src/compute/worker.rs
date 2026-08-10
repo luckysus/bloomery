@@ -28,6 +28,8 @@ pub enum WorkerSupervisorError {
     InvalidConfig(String),
     Io(String),
     Protocol(FrameError),
+    Callback(String),
+    Cancelled,
     WorkerExited,
     Remote { code: String, message: String },
 }
@@ -38,6 +40,8 @@ impl Display for WorkerSupervisorError {
             Self::InvalidConfig(message) => formatter.write_str(message),
             Self::Io(message) => write!(formatter, "worker I/O failed: {message}"),
             Self::Protocol(error) => write!(formatter, "worker protocol failed: {error}"),
+            Self::Callback(message) => write!(formatter, "worker callback failed: {message}"),
+            Self::Cancelled => formatter.write_str("worker request was cancelled"),
             Self::WorkerExited => formatter.write_str("worker exited before returning a response"),
             Self::Remote { code, message } => write!(formatter, "worker error {code}: {message}"),
         }
@@ -105,11 +109,22 @@ impl WorkerClient {
     }
 
     pub fn request(&mut self, request: &WorkerRequest) -> Result<Value, WorkerSupervisorError> {
+        self.request_with_progress(request, |_| Ok(()))
+    }
+
+    pub fn request_with_progress<F>(
+        &mut self,
+        request: &WorkerRequest,
+        on_progress: F,
+    ) -> Result<Value, WorkerSupervisorError>
+    where
+        F: FnMut(&Value) -> Result<(), WorkerSupervisorError>,
+    {
         let value = serde_json::to_value(request).map_err(|error| {
             WorkerSupervisorError::Protocol(FrameError::InvalidJson(error.to_string()))
         })?;
         write_frame(&mut self.stdin, &value)?;
-        read_response(&mut self.stdout, &request.id)
+        read_response_with_progress(&mut self.stdout, &request.id, on_progress)
     }
 
     pub fn shutdown(mut self, request: &WorkerRequest) -> Result<Value, WorkerSupervisorError> {
@@ -125,6 +140,17 @@ pub fn read_response<R: Read>(
     reader: &mut R,
     request_id: &str,
 ) -> Result<Value, WorkerSupervisorError> {
+    read_response_with_progress(reader, request_id, |_| Ok(()))
+}
+
+pub fn read_response_with_progress<
+    R: Read,
+    F: FnMut(&Value) -> Result<(), WorkerSupervisorError>,
+>(
+    reader: &mut R,
+    request_id: &str,
+    mut on_progress: F,
+) -> Result<Value, WorkerSupervisorError> {
     loop {
         let response = read_frame(reader)?.ok_or(WorkerSupervisorError::WorkerExited)?;
         let object = response.as_object().ok_or_else(|| {
@@ -133,6 +159,14 @@ pub fn read_response<R: Read>(
             ))
         })?;
         if object.get("id").is_none() && object.get("method").is_some() {
+            if object.get("method").and_then(Value::as_str) == Some("progress") {
+                let params = object.get("params").ok_or_else(|| {
+                    WorkerSupervisorError::Protocol(FrameError::InvalidRequest(
+                        "progress notification params are required".to_string(),
+                    ))
+                })?;
+                on_progress(params)?;
+            }
             continue;
         }
         if object.get("id") != Some(&Value::String(request_id.to_string())) {

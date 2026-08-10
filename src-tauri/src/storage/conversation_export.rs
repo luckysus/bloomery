@@ -47,7 +47,11 @@ pub fn render_markdown(snapshot: &SessionSnapshot) -> String {
         "# {title}\n\n> Bloomery local conversation export\n> Conversation ID: {}\n> Updated: {}\n\n",
         snapshot.conversation.id, snapshot.conversation.updated_at
     );
-    if let Some(summary) = snapshot.summary.as_ref().filter(|value| !value.text.trim().is_empty()) {
+    if let Some(summary) = snapshot
+        .summary
+        .as_ref()
+        .filter(|value| !value.text.trim().is_empty())
+    {
         output.push_str("## Conversation summary\n\n");
         output.push_str(summary.text.trim());
         output.push_str("\n\n");
@@ -97,7 +101,9 @@ pub fn write_snapshot(
             .create_new(true)
             .write(true)
             .open(&temporary)
-            .map_err(|error| format!("create conversation export temporary file failed: {error}"))?;
+            .map_err(|error| {
+                format!("create conversation export temporary file failed: {error}")
+            })?;
         file.write_all(&bytes)
             .map_err(|error| format!("write conversation export failed: {error}"))?;
         file.sync_all()
@@ -177,7 +183,8 @@ mod tests {
 
     #[test]
     fn json_export_writes_snapshot_without_partial_target() {
-        let root = std::env::temp_dir().join(format!("bloomery-conversation-export-{}", Uuid::new_v4()));
+        let root =
+            std::env::temp_dir().join(format!("bloomery-conversation-export-{}", Uuid::new_v4()));
         fs::create_dir_all(&root).expect("create export root");
         let output = root.join("conversation.json");
 
@@ -189,7 +196,10 @@ mod tests {
         assert!(fs::read_dir(&root)
             .expect("read export root")
             .flatten()
-            .all(|entry| !entry.file_name().to_string_lossy().starts_with(".conversation.json.tmp-")));
+            .all(|entry| !entry
+                .file_name()
+                .to_string_lossy()
+                .starts_with(".conversation.json.tmp-")));
 
         fs::remove_dir_all(root).expect("remove export root");
     }

@@ -15,14 +15,14 @@ use bloomery::providers::http::{ProviderError, ProviderErrorCode};
 use bloomery::providers::profiles::ProviderKind;
 use chrono::Utc;
 use serde_json::{json, Value};
+use std::future::Future;
+use std::pin::Pin;
 use std::sync::Mutex;
 use std::sync::{
     atomic::{AtomicUsize, Ordering},
     Arc,
 };
 use std::time::Duration;
-use std::future::Future;
-use std::pin::Pin;
 use uuid::Uuid;
 
 struct ScriptedModel {

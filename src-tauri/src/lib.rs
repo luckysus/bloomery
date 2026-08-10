@@ -1,10 +1,10 @@
 pub mod agent;
 pub mod app;
+pub mod compute;
 mod context;
 mod db;
 pub mod diagnostics;
 pub mod domains;
-pub mod compute;
 pub mod mcp;
 pub mod models;
 pub mod permissions;

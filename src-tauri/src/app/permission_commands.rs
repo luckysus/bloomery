@@ -3,19 +3,14 @@ use crate::permissions::PermissionRule;
 use uuid::Uuid;
 
 #[tauri::command]
-pub fn list_permission_rules(
-    db: tauri::State<DbState>,
-) -> Result<Vec<PermissionRule>, String> {
+pub fn list_permission_rules(db: tauri::State<DbState>) -> Result<Vec<PermissionRule>, String> {
     with_conn(&db, |connection| {
         crate::storage::repositories::permissions::list(connection, current_workspace_id())
     })
 }
 
 #[tauri::command]
-pub fn revoke_permission_rule(
-    db: tauri::State<DbState>,
-    rule_id: String,
-) -> Result<(), String> {
+pub fn revoke_permission_rule(db: tauri::State<DbState>, rule_id: String) -> Result<(), String> {
     let rule_id = parse_rule_id(&rule_id)?;
     with_conn_mut(&db, |connection| {
         crate::storage::repositories::permissions::revoke(

@@ -1,5 +1,7 @@
 use crate::agent::protocol::PermissionDecision;
-use crate::agent::runtime::{CancellationToken, PermissionFuture, PermissionRequest, PermissionResolver};
+use crate::agent::runtime::{
+    CancellationToken, PermissionFuture, PermissionRequest, PermissionResolver,
+};
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -143,13 +145,7 @@ impl PermissionResolver for InteractivePermissionResolver {
             .lock()
             .map(|mut pending| {
                 pending
-                    .insert(
-                        permission_id,
-                        PendingPermission {
-                            request,
-                            sender,
-                        },
-                    )
+                    .insert(permission_id, PendingPermission { request, sender })
                     .is_none()
             })
             .unwrap_or(false);

@@ -100,7 +100,9 @@ pub fn resolve_agent_permission(
             )
         })?;
     }
-    state.resolve_permission(permission_id, decision).map(|_| ())
+    state
+        .resolve_permission(permission_id, decision)
+        .map(|_| ())
 }
 
 fn parse_uuid(value: &str, field: &str) -> Result<Uuid, String> {

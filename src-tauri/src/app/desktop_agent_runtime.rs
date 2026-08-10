@@ -22,24 +22,24 @@ pub(crate) async fn run_standard_agent(
     let database = database_path(app)?;
     let (mut connection, _) = crate::storage::database::open(&database)
         .map_err(|error| format!("open agent runtime database failed: {error}"))?;
-    let persistent_permission_keys = crate::storage::repositories::permissions::list(
-        &connection,
-        workspace_id,
-    )
-    .map_err(|error| format!("load permission rules failed: {error}"))?
-    .into_iter()
-    .filter_map(|rule| {
-        if rule.effect != RuleEffect::Allow {
-            return None;
-        }
-        match rule.scope {
-            ParameterScope::Exact(arguments) => Some(crate::agent::desktop::permission_key_for(
-                rule.tool_id.as_str(),
-                &arguments,
-            )),
-            ParameterScope::Any | ParameterScope::Fields(_) => None,
-        }
-    });
+    let persistent_permission_keys =
+        crate::storage::repositories::permissions::list(&connection, workspace_id)
+            .map_err(|error| format!("load permission rules failed: {error}"))?
+            .into_iter()
+            .filter_map(|rule| {
+                if rule.effect != RuleEffect::Allow {
+                    return None;
+                }
+                match rule.scope {
+                    ParameterScope::Exact(arguments) => {
+                        Some(crate::agent::desktop::permission_key_for(
+                            rule.tool_id.as_str(),
+                            &arguments,
+                        ))
+                    }
+                    ParameterScope::Any | ParameterScope::Fields(_) => None,
+                }
+            });
     agent_state.load_always_permission_keys(persistent_permission_keys);
     let (profile, credential) =
         crate::agent::desktop::provider_profile_from_config(&preparation.config)?;

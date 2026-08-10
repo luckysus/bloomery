@@ -1,8 +1,11 @@
+use bloomery::agent::desktop::LocalAgentState;
 use bloomery::agent::protocol::{PermissionDecision, PermissionRisk};
 use bloomery::agent::runtime::{CancellationToken, PermissionRequest, PermissionResolver};
-use bloomery::agent::desktop::LocalAgentState;
 use serde_json::json;
-use std::sync::{Arc, atomic::{AtomicBool, Ordering}};
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    Arc,
+};
 use std::time::Duration;
 use uuid::Uuid;
 
@@ -27,10 +30,7 @@ async fn interactive_permissions_wait_until_the_desktop_command_resolves_them() 
         let resolver = resolver.clone();
         async move {
             resolver
-                .decide(
-                    request(permission_id),
-                    CancellationToken::new(|| false),
-                )
+                .decide(request(permission_id), CancellationToken::new(|| false))
                 .await
         }
     });

@@ -4,6 +4,7 @@ import { desktop, type DatasetAnalysis, type DatasetColumnMapping, type DatasetP
 import { useLocale } from "../../i18n/locale";
 import DatasetAnalysisControls from "./DatasetAnalysisControls";
 import DatasetAnalysisResult from "./DatasetAnalysisResult";
+import DatasetTrainingControls from "./DatasetTrainingControls";
 
 function columnRange(column: DatasetPreview["columns"][number]) {
   return column.min !== null && column.max !== null ? `${column.min} - ${column.max}` : "-";
@@ -224,6 +225,7 @@ export default function DatasetPanel() {
                   onGroupByColumnChange={(ordinal) => updateGroupByColumn(item.id, ordinal)}
                   onCorrelationColumnToggle={(ordinal) => toggleCorrelationColumn(item.id, ordinal)}
                 />
+                {item.mappingState === "ready" && <DatasetTrainingControls dataset={item} />}
                 {item.mappingState === "draft" && <button type="button" className="bloomery-dataset-activate" data-testid={`activate-dataset-${item.id}`} onClick={() => void activateDataset(item.id)} disabled={datasetActivateBusyId !== null} title={t("analysisDatasetActivate")}>
                   {datasetActivateBusyId === item.id ? <LoaderCircle size={15} className="bloomery-spin" aria-hidden="true" /> : <Power size={15} aria-hidden="true" />}
                   <span>{datasetActivateBusyId === item.id ? t("analysisDatasetActivating") : t("analysisDatasetActivate")}</span>

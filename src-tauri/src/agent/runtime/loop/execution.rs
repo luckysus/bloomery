@@ -242,12 +242,12 @@ where
                     .permissions
                     .decide(
                         PermissionRequest {
-                        permission_id,
-                        tool_call_id: call.tool_call_id,
-                        tool_id: call.tool_id.clone(),
-                        tool_name: call.tool_name.clone(),
-                        risk: call.risk,
-                        arguments: call.arguments.clone(),
+                            permission_id,
+                            tool_call_id: call.tool_call_id,
+                            tool_id: call.tool_id.clone(),
+                            tool_name: call.tool_name.clone(),
+                            risk: call.risk,
+                            arguments: call.arguments.clone(),
                         },
                         cancellation.clone(),
                     )

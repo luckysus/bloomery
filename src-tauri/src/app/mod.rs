@@ -2,6 +2,7 @@ pub(crate) mod agent_commands;
 pub(crate) mod bundled_domain;
 pub(crate) mod bundled_domain_commands;
 pub(crate) mod commands;
+pub(crate) mod compute_commands;
 pub(crate) mod desktop_agent_runtime;
 pub(crate) mod desktop_ask_commands;
 pub(crate) mod desktop_cancel_commands;
@@ -11,10 +12,10 @@ pub(crate) mod desktop_summary_commands;
 pub mod domain_commands;
 pub(crate) mod event_sink;
 pub(crate) mod identity;
-pub(crate) mod mcp_commands;
-pub(crate) mod mcp_agent_runtime;
-pub(crate) mod mcp_runtime;
 pub(crate) mod knowledge_commands;
+pub(crate) mod mcp_agent_runtime;
+pub(crate) mod mcp_commands;
+pub(crate) mod mcp_runtime;
 pub(crate) mod permission_commands;
 pub(crate) mod provider_commands;
 pub(crate) mod secret_commands;
@@ -63,7 +64,9 @@ pub fn run() {
         }
         RunEvent::Exit => {
             let _ = tauri::async_runtime::block_on(
-                app_handle.state::<mcp_runtime::McpRuntimeState>().shutdown_all(),
+                app_handle
+                    .state::<mcp_runtime::McpRuntimeState>()
+                    .shutdown_all(),
             );
             app_handle.state::<SchedulerState>().request_shutdown();
         }

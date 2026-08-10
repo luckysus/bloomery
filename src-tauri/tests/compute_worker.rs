@@ -44,7 +44,10 @@ fn supervisor_round_trips_a_real_python_training_worker() {
         .arg("python")
         .output()
         .expect("Windows Python lookup must be available");
-    assert!(python.status.success(), "python must be installed for the worker contract");
+    assert!(
+        python.status.success(),
+        "python must be installed for the worker contract"
+    );
     let executable = String::from_utf8_lossy(&python.stdout)
         .lines()
         .map(str::trim)
@@ -87,8 +90,14 @@ fn supervisor_round_trips_a_real_python_training_worker() {
         ))
         .expect("worker training");
     assert_eq!(trained["result"]["state"], "completed");
-    assert_eq!(trained["result"]["artifact"]["model_type"], "linear_regression");
-    assert_eq!(trained["result"]["artifact"]["feature_names"], json!(["temperature"]));
+    assert_eq!(
+        trained["result"]["artifact"]["model_type"],
+        "linear_regression"
+    );
+    assert_eq!(
+        trained["result"]["artifact"]["feature_names"],
+        json!(["temperature"])
+    );
 
     let shutdown = client
         .shutdown(&WorkerRequest::new("shutdown-1", "shutdown", json!({})))

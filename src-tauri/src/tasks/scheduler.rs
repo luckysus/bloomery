@@ -71,8 +71,37 @@ pub trait TaskHandler: Send + Sync {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct TaskProgress {
+    pub id: uuid::Uuid,
+    pub kind: String,
+    pub state: TaskState,
+    pub progress: u8,
+    pub attempt: u32,
+    pub error_code: Option<String>,
+    pub cancel_requested: bool,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+impl From<&TaskRecord> for TaskProgress {
+    fn from(task: &TaskRecord) -> Self {
+        Self {
+            id: task.id,
+            kind: task.kind.clone(),
+            state: task.state,
+            progress: task.progress,
+            attempt: task.attempt,
+            error_code: task.error_code.clone(),
+            cancel_requested: task.cancel_requested,
+            created_at: task.created_at.clone(),
+            updated_at: task.updated_at.clone(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum SchedulerEvent {
-    Progress(TaskRecord),
+    Progress(TaskProgress),
 }
 
 pub trait EventSink: Send + Sync {
@@ -116,7 +145,8 @@ impl HandlerContext {
             next_run_at.as_deref(),
         )?;
         drop(connection);
-        self.sink.emit(SchedulerEvent::Progress(record.clone()));
+        self.sink
+            .emit(SchedulerEvent::Progress(TaskProgress::from(&record)));
         Ok(record)
     }
 

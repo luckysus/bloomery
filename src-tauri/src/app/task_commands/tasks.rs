@@ -20,7 +20,7 @@ pub struct BackgroundTaskResponse {
     pub updated_at: String,
 }
 
-fn task_response(task: TaskRecord) -> BackgroundTaskResponse {
+pub(crate) fn background_task_response(task: TaskRecord) -> BackgroundTaskResponse {
     let can_cancel = !task.cancel_requested
         && matches!(
             task.state,
@@ -76,7 +76,7 @@ fn cancel_task(
         _ => return Err("task_not_cancellable: task cannot be cancelled".to_string()),
     }
     .map_err(|error| error.to_string())?;
-    Ok(task_response(updated))
+    Ok(background_task_response(updated))
 }
 
 fn retry_task(
@@ -94,7 +94,7 @@ fn retry_task(
         return Err("task_not_retryable: task cannot be retried".to_string());
     }
     repository::retry_manually(connection, workspace_id, id, task.attempt, task.state)
-        .map(task_response)
+        .map(background_task_response)
         .map_err(|error| error.to_string())
 }
 
@@ -104,7 +104,7 @@ pub fn list_background_tasks(
 ) -> Result<Vec<BackgroundTaskResponse>, String> {
     with_conn(&db, |connection| {
         repository::list(connection, current_workspace_id())
-            .map(|tasks| tasks.into_iter().map(task_response).collect())
+            .map(|tasks| tasks.into_iter().map(background_task_response).collect())
             .map_err(|error| error.to_string())
     })
 }
@@ -162,7 +162,7 @@ mod tests {
     #[test]
     fn task_response_exposes_status_without_payload_or_checkpoint() {
         let mut connection = database();
-        let response = task_response(create_task(&mut connection));
+        let response = background_task_response(create_task(&mut connection));
 
         assert!(response.can_cancel);
         assert!(!response.can_retry);

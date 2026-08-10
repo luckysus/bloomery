@@ -260,6 +260,29 @@ export interface DatasetAnalysis {
   warnings: string[];
 }
 
+export interface TrainSteelDatasetRequest {
+  datasetId: string;
+  targetColumn: number;
+  featureColumns: number[];
+  splitPolicy?: {
+    kind: "random" | "group" | "time";
+    validationFraction: number;
+    seed?: number;
+  };
+}
+
+export interface ComputeTrainingResult {
+  task_id: string;
+  state: "completed";
+  artifact: {
+    model_id: string;
+    model_type: string;
+    feature_names: string[];
+    metrics: Record<string, unknown>;
+    applicability_range: Array<{ min: number | null; max: number | null }>;
+  };
+}
+
 export function isDesktopRuntime() {
   return "__TAURI_INTERNALS__" in window;
 }
@@ -727,6 +750,10 @@ export const desktop = {
     groupByColumn?: number;
     correlationColumns?: number[];
   }) => call<DatasetAnalysis>("analyze_steel_dataset", { request }),
+  trainSteelDataset: (request: TrainSteelDatasetRequest) =>
+    call<BackgroundTask>("train_steel_dataset", { request }),
+  getComputeTrainingResult: (id: string) =>
+    call<ComputeTrainingResult | null>("get_compute_training_result", { id }),
   listProviderProfiles: () => call<ProviderProfileResponse[]>("list_provider_profiles"),
   saveProviderProfile: (profile: ProviderProfileInput) =>
     call<ProviderProfileResponse>("save_provider_profile", { profile }),
