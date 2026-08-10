@@ -1,0 +1,69 @@
+{
+  "schema_version": "1.0.0",
+  "license": "Apache-2.0",
+  "policy": "Only standard identifiers and general usage notes are recorded. Restricted standards text is never copied, quoted, or redistributed.",
+  "entries": [
+    {
+      "id": "domain-authored-baseline",
+      "kind": "authored",
+      "title": "Bloomery steel domain authored terminology baseline",
+      "publisher": "Bloomery contributors",
+      "license": "Apache-2.0",
+      "restricted_text_redistributed": false
+    },
+    {
+      "id": "gb-t-700",
+      "kind": "standard_reference",
+      "title": "GB/T 700 Carbon structural steels",
+      "publisher": "Standardization Administration of China",
+      "license": "standard-text-not-redistributed",
+      "license_note": "Identifier and general usage only; consult the official publication for binding requirements.",
+      "restricted_text_redistributed": false
+    },
+    {
+      "id": "gb-t-1591",
+      "kind": "standard_reference",
+      "title": "GB/T 1591 High strength low alloy structural steels",
+      "publisher": "Standardization Administration of China",
+      "license": "standard-text-not-redistributed",
+      "license_note": "Identifier and general usage only; consult the official publication for binding requirements.",
+      "restricted_text_redistributed": false
+    },
+    {
+      "id": "gb-t-699",
+      "kind": "standard_reference",
+      "title": "GB/T 699 Quality carbon structural steels",
+      "publisher": "Standardization Administration of China",
+      "license": "standard-text-not-redistributed",
+      "license_note": "Identifier and general usage only; consult the official publication for binding requirements.",
+      "restricted_text_redistributed": false
+    },
+    {
+      "id": "gb-t-228-1",
+      "kind": "standard_reference",
+      "title": "GB/T 228.1 Metallic materials - Tensile testing - Part 1: Method of test at room temperature",
+      "publisher": "Standardization Administration of China",
+      "license": "standard-text-not-redistributed",
+      "license_note": "Identifier and general usage only; consult the official publication for binding requirements.",
+      "restricted_text_redistributed": false
+    },
+    {
+      "id": "gb-t-229",
+      "kind": "standard_reference",
+      "title": "GB/T 229 Metallic materials - Charpy pendulum impact test",
+      "publisher": "Standardization Administration of China",
+      "license": "standard-text-not-redistributed",
+      "license_note": "Identifier and general usage only; consult the official publication for binding requirements.",
+      "restricted_text_redistributed": false
+    },
+    {
+      "id": "iso-6892-1",
+      "kind": "standard_reference",
+      "title": "ISO 6892-1 Metallic materials - Tensile testing - Part 1: Method of test at room temperature",
+      "publisher": "International Organization for Standardization",
+      "license": "standard-text-not-redistributed",
+      "license_note": "Identifier and general usage only; consult the official publication for binding requirements.",
+      "restricted_text_redistributed": false
+    }
+  ]
+}

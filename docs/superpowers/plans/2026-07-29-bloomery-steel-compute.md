@@ -26,10 +26,25 @@ docs/steel/{data-model,models,optimization,evaluation}.md
 
 **Files:** Create steel package manifest, terminology files, source ledger, and validation tests.
 
-- [ ] **Step 1: Write package tests** requiring unique canonical terms, aliases, category, units where relevant, source/license metadata, and no ambiguous alias without a disambiguation rule.
-- [ ] **Step 2: Run domain validation** and expect missing package.
-- [ ] **Step 3: Add versioned terminology** for grades, composition elements, properties, defects, standards, and steelmaking/refining/casting/heating/rolling stages. Include Chinese and English aliases; do not copy restricted standards text.
-- [ ] **Step 4: Run terminology and license-ledger tests** and expect pass.
+- [x] **Step 1: Write package tests** requiring unique canonical terms, aliases, category, units where relevant, source/license metadata, and no ambiguous alias without a disambiguation rule.
+- [x] **Step 2: Run domain validation** and expect missing package.
+- [x] **Step 3: Add versioned terminology** for grades, composition elements, properties, defects, standards, and steelmaking/refining/casting/heating/rolling stages. Include Chinese and English aliases; do not copy restricted standards text.
+- [x] **Step 4: Run terminology and license-ledger tests** and expect pass.
+
+**Progress evidence (2026-08-10):** The steel terminology source is
+versioned and license-audited. `assets/terminology.json` schema 1.1.0
+carries 32 authored terms across grades, composition elements, mechanical
+properties, defects, standards, and the steelmaking/refining/casting/
+heating/rolling stages with Chinese and English aliases, unit declarations
+for quantitative categories, and per-term source references. The new
+`assets/source-ledger.json` records every source with publisher, license,
+and an explicit `restricted_text_redistributed: false` guarantee; standards
+are referenced by identifier only. Both assets are SHA-256 pinned in the
+manifest. `tests/steel_terminology.rs` enforces unique ids/canonicals,
+alias uniqueness with disambiguation rules, category and process-stage
+coverage, unit declarations, ledger resolution, and pinned-hash package
+loading; all 6 tests pass alongside the existing package and domain
+suites.
 
 ### Task 2: Implement deterministic steel calculators
 

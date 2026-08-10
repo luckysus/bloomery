@@ -1,14 +1,268 @@
 {
-  "schema_version": "1.0.0",
+  "schema_version": "1.1.0",
   "license": "Apache-2.0",
-  "source_policy": "Canonical terms are authored by Bloomery contributors. Standards text is not redistributed.",
+  "source_policy": "Canonical terms and definitions are authored by Bloomery contributors or reference public standard identifiers only. Restricted standards text is never redistributed.",
+  "disambiguation_rules": [
+    {
+      "alias": "有害元素",
+      "resolution": "Shared by phosphorus and sulfur in steelmaking context; resolve from the surrounding composition element being discussed, and keep both when the context is residual-element control in general."
+    }
+  ],
   "terms": [
+    {
+      "id": "q235b",
+      "canonical": "Q235B",
+      "aliases": ["Q235 B", "Q235级钢"],
+      "category": "steel_grade",
+      "definition": "Chinese carbon structural steel grade with nominal yield strength 235 MPa and quality level B. Property values require product form, thickness, and applicable standard context.",
+      "source": "gb-t-700"
+    },
     {
       "id": "q355b",
       "canonical": "Q355B",
       "aliases": ["Q355 B", "Q355级钢"],
       "category": "steel_grade",
-      "definition": "A Chinese structural steel grade identifier. Property values require product form, thickness, temperature, and applicable standard context.",
+      "definition": "Chinese high-strength low-alloy structural steel grade with nominal yield strength 355 MPa and quality level B. Property values require thickness, temperature, and standard context.",
+      "source": "gb-t-1591"
+    },
+    {
+      "id": "q460c",
+      "canonical": "Q460C",
+      "aliases": ["Q460 C"],
+      "category": "steel_grade",
+      "definition": "Chinese high-strength low-alloy structural steel grade with nominal yield strength 460 MPa and quality level C, including 0-degree-C impact requirements.",
+      "source": "gb-t-1591"
+    },
+    {
+      "id": "steel_45",
+      "canonical": "45钢",
+      "aliases": ["45号钢", "45 steel", "steel 45"],
+      "category": "steel_grade",
+      "definition": "Chinese quality carbon structural steel with nominal carbon content around 0.45 percent by mass. Heat-treatment response depends on section size and cooling rate.",
+      "source": "gb-t-699"
+    },
+    {
+      "id": "carbon",
+      "canonical": "carbon",
+      "aliases": ["C", "碳"],
+      "category": "composition_element",
+      "definition": "Primary strengthening element in steel; governs strength, hardness, and weldability trade-offs.",
+      "units": ["percent_mass"],
+      "source": "domain-authored-baseline"
+    },
+    {
+      "id": "silicon",
+      "canonical": "silicon",
+      "aliases": ["Si", "硅"],
+      "category": "composition_element",
+      "definition": "Deoxidizer and solid-solution strengthening element commonly reported in heat composition.",
+      "units": ["percent_mass"],
+      "source": "domain-authored-baseline"
+    },
+    {
+      "id": "manganese",
+      "canonical": "manganese",
+      "aliases": ["Mn", "锰"],
+      "category": "composition_element",
+      "definition": "Strengthening element that combines with sulfur to reduce hot shortness risk.",
+      "units": ["percent_mass"],
+      "source": "domain-authored-baseline"
+    },
+    {
+      "id": "phosphorus",
+      "canonical": "phosphorus",
+      "aliases": ["P", "磷", "有害元素"],
+      "category": "composition_element",
+      "definition": "Residual element that increases cold brittleness; limited by grade specifications.",
+      "units": ["percent_mass"],
+      "source": "domain-authored-baseline"
+    },
+    {
+      "id": "sulfur",
+      "canonical": "sulfur",
+      "aliases": ["S", "硫", "有害元素"],
+      "category": "composition_element",
+      "definition": "Residual element that promotes hot shortness and manganese-sulfide inclusions; limited by grade specifications.",
+      "units": ["percent_mass"],
+      "source": "domain-authored-baseline"
+    },
+    {
+      "id": "yield_strength",
+      "canonical": "yield strength",
+      "aliases": ["屈服强度", "ReL", "Rp0.2"],
+      "category": "mechanical_property",
+      "definition": "Stress at which a material begins to deform plastically; measured per the applicable tensile test standard.",
+      "units": ["MPa"],
+      "source": "gb-t-228-1"
+    },
+    {
+      "id": "tensile_strength",
+      "canonical": "tensile strength",
+      "aliases": ["抗拉强度", "Rm"],
+      "category": "mechanical_property",
+      "definition": "Maximum engineering stress sustained during a tensile test before necking or fracture.",
+      "units": ["MPa"],
+      "source": "gb-t-228-1"
+    },
+    {
+      "id": "elongation",
+      "canonical": "elongation after fracture",
+      "aliases": ["断后伸长率", "A"],
+      "category": "mechanical_property",
+      "definition": "Percentage increase of the gauge length after fracture in a tensile test.",
+      "units": ["percent"],
+      "source": "gb-t-228-1"
+    },
+    {
+      "id": "impact_energy",
+      "canonical": "impact absorbed energy",
+      "aliases": ["冲击吸收能量", "KV2", "冲击功"],
+      "category": "mechanical_property",
+      "definition": "Energy absorbed by a Charpy V-notch specimen at a specified test temperature.",
+      "units": ["J"],
+      "source": "gb-t-229"
+    },
+    {
+      "id": "hardness",
+      "canonical": "hardness",
+      "aliases": ["硬度", "布氏硬度", "洛氏硬度"],
+      "category": "mechanical_property",
+      "definition": "Resistance to localized indentation; the numeric value is only comparable within the same hardness scale.",
+      "units": ["HBW", "HRC"],
+      "source": "domain-authored-baseline"
+    },
+    {
+      "id": "carbon_equivalent",
+      "canonical": "carbon equivalent",
+      "aliases": ["碳当量", "CEV"],
+      "category": "derived_index",
+      "definition": "Composition-derived index estimating hardenability and cold-crack sensitivity; the numeric value depends on the formula version, so formula identity must always be recorded.",
+      "source": "domain-authored-baseline"
+    },
+    {
+      "id": "crack",
+      "canonical": "crack",
+      "aliases": ["裂纹", "开裂"],
+      "category": "defect",
+      "definition": "Local separation of material that may originate during casting, rolling, heat treatment, or welding.",
+      "source": "domain-authored-baseline"
+    },
+    {
+      "id": "blowhole",
+      "canonical": "blowhole",
+      "aliases": ["气孔", "气泡"],
+      "category": "defect",
+      "definition": "Cavity formed by trapped gas during solidification.",
+      "source": "domain-authored-baseline"
+    },
+    {
+      "id": "inclusion",
+      "canonical": "inclusion",
+      "aliases": ["夹杂", "非金属夹杂物"],
+      "category": "defect",
+      "definition": "Non-metallic particle such as oxide or sulfide retained in the steel matrix; severity is rated per the applicable standard.",
+      "source": "domain-authored-baseline"
+    },
+    {
+      "id": "segregation",
+      "canonical": "segregation",
+      "aliases": ["偏析", "中心偏析"],
+      "category": "defect",
+      "definition": "Local enrichment of solute elements caused by uneven solidification.",
+      "source": "domain-authored-baseline"
+    },
+    {
+      "id": "gb_t_700",
+      "canonical": "GB/T 700",
+      "aliases": ["碳素结构钢标准"],
+      "category": "standard",
+      "definition": "Chinese national standard for carbon structural steels. Referenced by identifier only; the standard text is not redistributed.",
+      "source": "gb-t-700"
+    },
+    {
+      "id": "gb_t_1591",
+      "canonical": "GB/T 1591",
+      "aliases": ["低合金高强度结构钢标准"],
+      "category": "standard",
+      "definition": "Chinese national standard for high-strength low-alloy structural steels. Referenced by identifier only; the standard text is not redistributed.",
+      "source": "gb-t-1591"
+    },
+    {
+      "id": "gb_t_228_1",
+      "canonical": "GB/T 228.1",
+      "aliases": ["金属材料拉伸试验标准"],
+      "category": "standard",
+      "definition": "Chinese national standard for metallic tensile testing at room temperature. Referenced by identifier only; the standard text is not redistributed.",
+      "source": "gb-t-228-1"
+    },
+    {
+      "id": "gb_t_229",
+      "canonical": "GB/T 229",
+      "aliases": ["金属材料夏比摆锤冲击试验标准"],
+      "category": "standard",
+      "definition": "Chinese national standard for Charpy pendulum impact testing. Referenced by identifier only; the standard text is not redistributed.",
+      "source": "gb-t-229"
+    },
+    {
+      "id": "iso_6892_1",
+      "canonical": "ISO 6892-1",
+      "aliases": ["金属拉伸试验国际标准"],
+      "category": "standard",
+      "definition": "International standard for metallic tensile testing at room temperature. Referenced by identifier only; the standard text is not redistributed.",
+      "source": "iso-6892-1"
+    },
+    {
+      "id": "bof_steelmaking",
+      "canonical": "basic oxygen furnace",
+      "aliases": ["转炉", "BOF"],
+      "category": "process_stage",
+      "stage": "steelmaking",
+      "definition": "Primary steelmaking stage that converts hot metal into crude steel by oxygen blowing.",
+      "source": "domain-authored-baseline"
+    },
+    {
+      "id": "ladle_furnace",
+      "canonical": "ladle furnace",
+      "aliases": ["LF", "钢包炉", "LF精炼"],
+      "category": "process_stage",
+      "stage": "refining",
+      "definition": "Secondary metallurgy stage for temperature, composition, inclusion, and cleanliness control before casting.",
+      "source": "domain-authored-baseline"
+    },
+    {
+      "id": "rh_degassing",
+      "canonical": "RH vacuum degassing",
+      "aliases": ["RH", "真空脱气"],
+      "category": "process_stage",
+      "stage": "refining",
+      "definition": "Vacuum circulation refining stage for decarburization and hydrogen, nitrogen, and oxygen removal.",
+      "source": "domain-authored-baseline"
+    },
+    {
+      "id": "continuous_casting",
+      "canonical": "continuous casting",
+      "aliases": ["连铸", "CC"],
+      "category": "process_stage",
+      "stage": "casting",
+      "definition": "Process that solidifies molten steel into a semi-finished strand such as slab, bloom, or billet.",
+      "source": "domain-authored-baseline"
+    },
+    {
+      "id": "reheating_furnace",
+      "canonical": "reheating furnace",
+      "aliases": ["加热炉", "均热炉"],
+      "category": "process_stage",
+      "stage": "heating",
+      "definition": "Stage that reheats cast strands to the rolling temperature window before hot rolling.",
+      "source": "domain-authored-baseline"
+    },
+    {
+      "id": "hot_rolling",
+      "canonical": "hot rolling",
+      "aliases": ["热轧", "轧制"],
+      "category": "process_stage",
+      "stage": "rolling",
+      "definition": "Deformation stage above the recrystallization temperature that sets final dimensions and microstructure.",
       "source": "domain-authored-baseline"
     },
     {
@@ -20,11 +274,11 @@
       "source": "domain-authored-baseline"
     },
     {
-      "id": "ladle_furnace",
-      "canonical": "ladle furnace",
-      "aliases": ["LF", "钢包炉"],
-      "category": "process_stage",
-      "definition": "Secondary metallurgy stage for temperature, composition, inclusion, and cleanliness control.",
+      "id": "slab",
+      "canonical": "slab",
+      "aliases": ["板坯", "连铸板坯"],
+      "category": "semi_product",
+      "definition": "Rectangular semi-finished casting that is the typical feed of hot strip mills.",
       "source": "domain-authored-baseline"
     }
   ]

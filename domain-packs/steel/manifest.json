@@ -68,7 +68,12 @@
     {
       "path": "assets/terminology.json",
       "kind": "terminology",
-      "sha256": "bc17313791b8b92c923b8467a123d85247ea2bc161a08ea79e83d2a9f9122d19"
+      "sha256": "71cec6f153a8be8daed9b8b11d280420a7789cccfc7d46b6c2ae3dfc14d7f145"
+    },
+    {
+      "path": "assets/source-ledger.json",
+      "kind": "source_ledger",
+      "sha256": "bed164c2a4d6da1e6435447c24a88e17bcc55f80e0068713ede21a1a7d9cc248"
     },
     {
       "path": "assets/retrieval-presets.json",

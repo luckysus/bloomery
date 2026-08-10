@@ -135,6 +135,14 @@ suite passes, and the frontend suite passes 81 tests. Steel terminology,
 evaluations, the Agent optimization tool adapter, and packaged-worker
 release evidence remain open.
 
+Evidence (2026-08-10): the steel terminology source now ships versioned
+and license-audited: 32 authored terms covering grades, composition
+elements, properties, defects, standards, and all five main process stages,
+with Chinese and English aliases, unit declarations, disambiguation rules,
+a standard source ledger that never redistributes restricted text, SHA-256
+pinned assets, and six enforcing Rust tests. Full calculator coverage and
+versioned evaluations remain open for Gate F item one.
+
 ### Gate G: finished desktop product
 
 - [ ] First-run setup, workbench, chat, knowledge, analysis, extensions, settings, and diagnostics are complete.
