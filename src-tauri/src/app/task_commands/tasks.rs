@@ -9,6 +9,7 @@ use uuid::Uuid;
 pub struct BackgroundTaskResponse {
     pub id: Uuid,
     pub kind: String,
+    pub dataset_id: Option<String>,
     pub state: TaskState,
     pub progress: u8,
     pub attempt: u32,
@@ -21,6 +22,7 @@ pub struct BackgroundTaskResponse {
 }
 
 pub(crate) fn background_task_response(task: TaskRecord) -> BackgroundTaskResponse {
+    let dataset_id = task_dataset_id(&task);
     let can_cancel = !task.cancel_requested
         && matches!(
             task.state,
@@ -37,6 +39,7 @@ pub(crate) fn background_task_response(task: TaskRecord) -> BackgroundTaskRespon
     BackgroundTaskResponse {
         id: task.id,
         kind: task.kind,
+        dataset_id,
         state: task.state,
         progress: task.progress,
         attempt: task.attempt,
@@ -47,6 +50,15 @@ pub(crate) fn background_task_response(task: TaskRecord) -> BackgroundTaskRespon
         created_at: task.created_at,
         updated_at: task.updated_at,
     }
+}
+
+fn task_dataset_id(task: &TaskRecord) -> Option<String> {
+    if task.kind != crate::compute::handler::COMPUTE_TRAIN_LINEAR_REGRESSION_KIND {
+        return None;
+    }
+    let payload: serde_json::Value = serde_json::from_str(&task.payload_json).ok()?;
+    let dataset_id = payload.get("payload")?.get("dataset_id")?.as_str()?.trim();
+    (!dataset_id.is_empty() && dataset_id.len() <= 128).then(|| dataset_id.to_string())
 }
 
 fn cancel_task(
@@ -175,6 +187,30 @@ mod tests {
         ] {
             assert!(!json.contains(forbidden), "leaked {forbidden}");
         }
+    }
+
+    #[test]
+    fn compute_task_response_exposes_only_dataset_identity() {
+        let mut connection = database();
+        let task = repository::create(
+            &mut connection,
+            NewTask {
+                workspace_id: "workspace-a".to_string(),
+                kind: crate::compute::handler::COMPUTE_TRAIN_LINEAR_REGRESSION_KIND.to_string(),
+                payload_json: r#"{"operation":"train_linear_regression","payload":{"dataset_id":"dataset-1","features":[[1.0]],"targets":[2.0]}}"#.to_string(),
+                checkpoint_json: Some(r#"{"worker_progress":17}"#.to_string()),
+                next_run_at: None,
+                progress: 17,
+            },
+        )
+        .expect("create compute task");
+
+        let response = serde_json::to_string(&background_task_response(task))
+            .expect("serialize compute task response");
+
+        assert!(response.contains(r#""dataset_id":"dataset-1""#));
+        assert!(!response.contains("features"));
+        assert!(!response.contains("worker_progress"));
     }
 
     #[test]

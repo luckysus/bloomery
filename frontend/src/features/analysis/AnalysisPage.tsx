@@ -8,6 +8,7 @@ import {
 } from "../../bridge/desktop";
 import { useLocale } from "../../i18n/locale";
 import DatasetPanel from "./DatasetPanel";
+import OnnxInferencePanel from "./OnnxInferencePanel";
 
 const elements = ["C", "Mn", "Cr", "Mo", "V", "Ni", "Cu", "Si", "B"] as const;
 type Element = (typeof elements)[number];
@@ -168,6 +169,7 @@ export default function AnalysisPage() {
       </div>
 
       <DatasetPanel />
+      <OnnxInferencePanel />
     </div>
   );
 }

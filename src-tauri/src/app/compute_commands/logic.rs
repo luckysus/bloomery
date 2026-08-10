@@ -4,6 +4,8 @@ use crate::steel::{hash_dataset_source, read_dataset_table, DatasetTable};
 use crate::storage::repositories::steel::{self as steel_repository, SteelDatasetColumnRecord};
 use crate::tasks::{repository as task_repository, NewTask};
 use serde_json::{json, Value};
+use sha2::{Digest, Sha256};
+use std::io::Read;
 use std::collections::HashSet;
 
 #[derive(Debug, Clone, serde::Deserialize)]
@@ -14,6 +16,23 @@ pub struct TrainSteelDatasetRequest {
     pub feature_columns: Vec<usize>,
     #[serde(default)]
     pub split_policy: Option<Value>,
+}
+
+#[derive(Debug, Clone, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PredictSteelModelRequest {
+    pub dataset_id: String,
+    pub training_task_id: String,
+    pub feature_values: Vec<f64>,
+}
+
+#[derive(Debug, Clone, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PredictOnnxModelRequest {
+    pub model_path: String,
+    pub model_sha256: String,
+    pub manifest: Value,
+    pub features: Vec<Vec<f64>>,
 }
 
 pub fn build_linear_regression_payload(
@@ -142,6 +161,156 @@ fn parse_finite(value: &str) -> Option<f64> {
         .filter(|number| number.is_finite())
 }
 
+pub fn build_linear_regression_prediction_payload(
+    dataset_id: &str,
+    training_task_id: &str,
+    artifact: &Value,
+    feature_values: &[f64],
+) -> Result<Value, String> {
+    if dataset_id.trim().is_empty() {
+        return Err("dataset ID is required".to_string());
+    }
+    if training_task_id.trim().is_empty() {
+        return Err("training task ID is required".to_string());
+    }
+    if artifact["artifact_version"] != "linear-regression.v1"
+        || artifact["model_type"] != "linear_regression"
+    {
+        return Err("unsupported training model artifact".to_string());
+    }
+    let expected_count = artifact["feature_schema"]["count"]
+        .as_u64()
+        .or_else(|| {
+            artifact["feature_names"]
+                .as_array()
+                .map(Vec::len)
+                .map(|value| value as u64)
+        })
+        .ok_or_else(|| "training model artifact has no feature schema".to_string())?;
+    if feature_values.len() != expected_count as usize {
+        return Err("prediction feature count does not match the model".to_string());
+    }
+    if feature_values.iter().any(|value| !value.is_finite()) {
+        return Err("prediction features must be finite numbers".to_string());
+    }
+    Ok(json!({
+        "operation": "predict_linear_regression",
+        "payload": {
+            "dataset_id": dataset_id,
+            "training_task_id": training_task_id,
+            "artifact": artifact,
+            "features": [feature_values],
+        }
+    }))
+}
+
+pub fn build_onnx_prediction_payload(
+    request: &PredictOnnxModelRequest,
+) -> Result<Value, String> {
+    let model_path = request.model_path.trim();
+    if model_path.is_empty() {
+        return Err("ONNX model path is required".to_string());
+    }
+    let path = std::path::Path::new(model_path);
+    validate_onnx_model_path(path)?;
+    if request.model_sha256.len() != 64
+        || !request
+            .model_sha256
+            .bytes()
+            .all(|byte| byte.is_ascii_hexdigit())
+    {
+        return Err("ONNX model sha256 is invalid".to_string());
+    }
+    let actual_hash = hash_onnx_model(path)?;
+    let expected_hash = request.model_sha256.to_ascii_lowercase();
+    if actual_hash != expected_hash {
+        return Err("ONNX model hash does not match the selected file".to_string());
+    }
+    if !request.manifest.is_object() {
+        return Err("ONNX manifest must be an object".to_string());
+    }
+    for key in ["model_id", "model_version", "inputs", "outputs", "preprocessing"] {
+        if request.manifest.get(key).is_none() {
+            return Err(format!("ONNX manifest is missing {key}"));
+        }
+    }
+    validate_onnx_features(&request.features)?;
+    Ok(json!({
+        "operation": "predict_onnx",
+        "payload": {
+            "model_path": model_path,
+            "model_sha256": actual_hash,
+            "manifest": request.manifest,
+            "features": request.features,
+        }
+    }))
+}
+
+pub fn hash_onnx_model_file(path_text: &str) -> Result<String, String> {
+    let path_text = path_text.trim();
+    if path_text.is_empty() {
+        return Err("ONNX model path is required".to_string());
+    }
+    let path = std::path::Path::new(path_text);
+    validate_onnx_model_path(path)?;
+    hash_onnx_model(path)
+}
+
+fn validate_onnx_model_path(path: &std::path::Path) -> Result<(), String> {
+    if !path.is_file() {
+        return Err("ONNX model file was not found".to_string());
+    }
+    if path
+        .extension()
+        .and_then(|extension| extension.to_str())
+        .is_none_or(|extension| !extension.eq_ignore_ascii_case("onnx"))
+    {
+        return Err("ONNX model path must use the .onnx extension".to_string());
+    }
+    Ok(())
+}
+
+fn hash_onnx_model(path: &std::path::Path) -> Result<String, String> {
+    let mut file = std::fs::File::open(path).map_err(|error| format!("read ONNX model: {error}"))?;
+    let mut digest = Sha256::new();
+    let mut buffer = [0_u8; 1024 * 1024];
+    loop {
+        let count = file
+            .read(&mut buffer)
+            .map_err(|error| format!("read ONNX model: {error}"))?;
+        if count == 0 {
+            break;
+        }
+        digest.update(&buffer[..count]);
+    }
+    Ok(format!("{:x}", digest.finalize()))
+}
+
+fn validate_onnx_features(features: &[Vec<f64>]) -> Result<(), String> {
+    if features.is_empty() {
+        return Err("ONNX features must be a non-empty matrix".to_string());
+    }
+    if features.len() > 100_000 {
+        return Err("ONNX features exceed the row limit".to_string());
+    }
+    let width = features[0].len();
+    if width == 0 {
+        return Err("ONNX features must contain non-empty rows".to_string());
+    }
+    if width > 128 {
+        return Err("ONNX features exceed the column limit".to_string());
+    }
+    for row in features {
+        if row.len() != width {
+            return Err("ONNX features must have a consistent column count".to_string());
+        }
+        if row.iter().any(|value| !value.is_finite()) {
+            return Err("ONNX features must be finite numbers".to_string());
+        }
+    }
+    Ok(())
+}
+
 pub fn train_steel_dataset(
     db: tauri::State<DbState>,
     request: TrainSteelDatasetRequest,
@@ -173,6 +342,7 @@ pub fn train_steel_dataset(
         let task_payload = json!({
             "operation": "train_linear_regression",
             "payload": {
+                "dataset_id": payload["dataset_id"],
                 "data_version": source_sha256,
                 "features": payload["features"],
                 "targets": payload["targets"],
@@ -223,9 +393,140 @@ pub fn get_compute_training_result(
     })
 }
 
+pub fn predict_steel_model(
+    db: tauri::State<DbState>,
+    request: PredictSteelModelRequest,
+) -> Result<BackgroundTaskResponse, String> {
+    let training_task_id = uuid::Uuid::parse_str(&request.training_task_id)
+        .map_err(|error| format!("invalid training task ID: {error}"))?;
+    with_conn_mut(&db, |connection| {
+        let workspace_id = current_workspace_id();
+        let training_task = task_repository::get(connection, workspace_id, training_task_id)
+            .map_err(|error| error.to_string())?
+            .ok_or_else(|| "training task was not found in the local workspace".to_string())?;
+        if training_task.kind != crate::compute::handler::COMPUTE_TRAIN_LINEAR_REGRESSION_KIND {
+            return Err("task is not a linear regression training task".to_string());
+        }
+        if training_task.state != crate::tasks::TaskState::Completed {
+            return Err("training task must be completed before prediction".to_string());
+        }
+        let training_payload: Value = serde_json::from_str(&training_task.payload_json)
+            .map_err(|error| format!("invalid training task payload: {error}"))?;
+        let source_dataset_id = training_payload["payload"]["dataset_id"]
+            .as_str()
+            .ok_or_else(|| "training task has no dataset identity".to_string())?;
+        if source_dataset_id != request.dataset_id {
+            return Err("prediction dataset does not match the training task".to_string());
+        }
+        let checkpoint: Value = serde_json::from_str(
+            training_task
+                .checkpoint_json
+                .as_deref()
+                .ok_or_else(|| "completed training task has no result".to_string())?,
+        )
+        .map_err(|error| format!("invalid training checkpoint: {error}"))?;
+        let artifact = checkpoint["result"]["artifact"].clone();
+        let payload = build_linear_regression_prediction_payload(
+            &request.dataset_id,
+            &request.training_task_id,
+            &artifact,
+            &request.feature_values,
+        )?;
+        let task_payload = serde_json::to_string(&payload).map_err(|error| error.to_string())?;
+        task_repository::create(
+            connection,
+            NewTask {
+                workspace_id: workspace_id.to_string(),
+                kind: crate::compute::handler::COMPUTE_PREDICT_LINEAR_REGRESSION_KIND.to_string(),
+                payload_json: task_payload,
+                checkpoint_json: Some(json!({"stage": "queued"}).to_string()),
+                next_run_at: None,
+                progress: 0,
+            },
+        )
+        .map(background_task_response)
+        .map_err(|error| error.to_string())
+    })
+}
+
+pub fn get_compute_prediction_result(
+    db: tauri::State<DbState>,
+    id: String,
+) -> Result<Option<Value>, String> {
+    let id = uuid::Uuid::parse_str(&id).map_err(|error| format!("invalid task ID: {error}"))?;
+    with_conn(&db, |connection| {
+        let task = task_repository::get(connection, current_workspace_id(), id)
+            .map_err(|error| error.to_string())?
+            .ok_or_else(|| "task_not_found: task not found".to_string())?;
+        if task.kind != crate::compute::handler::COMPUTE_PREDICT_LINEAR_REGRESSION_KIND {
+            return Err("task is not a linear regression prediction task".to_string());
+        }
+        if task.state != crate::tasks::TaskState::Completed {
+            return Ok(None);
+        }
+        let checkpoint: Value = serde_json::from_str(
+            task.checkpoint_json
+                .as_deref()
+                .ok_or_else(|| "completed prediction task has no result".to_string())?,
+        )
+        .map_err(|error| format!("invalid prediction checkpoint: {error}"))?;
+        Ok(checkpoint.get("result").cloned())
+    })
+}
+
+pub fn predict_onnx_model(
+    db: tauri::State<DbState>,
+    request: PredictOnnxModelRequest,
+) -> Result<BackgroundTaskResponse, String> {
+    let task_payload = build_onnx_prediction_payload(&request)?;
+    with_conn_mut(&db, |connection| {
+        let workspace_id = current_workspace_id().to_string();
+        task_repository::create(
+            connection,
+            NewTask {
+                workspace_id,
+                kind: crate::compute::handler::COMPUTE_PREDICT_ONNX_KIND.to_string(),
+                payload_json: serde_json::to_string(&task_payload)
+                    .map_err(|error| error.to_string())?,
+                checkpoint_json: Some(json!({"stage": "queued"}).to_string()),
+                next_run_at: None,
+                progress: 0,
+            },
+        )
+        .map(background_task_response)
+        .map_err(|error| error.to_string())
+    })
+}
+
+pub fn get_compute_onnx_prediction_result(
+    db: tauri::State<DbState>,
+    id: String,
+) -> Result<Option<Value>, String> {
+    let id = uuid::Uuid::parse_str(&id).map_err(|error| format!("invalid task ID: {error}"))?;
+    with_conn(&db, |connection| {
+        let task = task_repository::get(connection, current_workspace_id(), id)
+            .map_err(|error| error.to_string())?
+            .ok_or_else(|| "task_not_found: task not found".to_string())?;
+        if task.kind != crate::compute::handler::COMPUTE_PREDICT_ONNX_KIND {
+            return Err("task is not an ONNX prediction task".to_string());
+        }
+        if task.state != crate::tasks::TaskState::Completed {
+            return Ok(None);
+        }
+        let checkpoint: Value = serde_json::from_str(
+            task.checkpoint_json
+                .as_deref()
+                .ok_or_else(|| "completed ONNX task has no result".to_string())?,
+        )
+        .map_err(|error| format!("invalid ONNX checkpoint: {error}"))?;
+        Ok(checkpoint.get("result").cloned())
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use sha2::{Digest, Sha256};
 
     #[test]
     fn builds_numeric_training_payload_and_preserves_missing_features() {
@@ -307,5 +608,126 @@ mod tests {
         assert_eq!(payload["targets"], serde_json::json!([355.0, 360.0, 365.0]));
         assert_eq!(payload["feature_names"], serde_json::json!(["temperature"]));
         assert_eq!(payload["field_mapping"]["temperature"], "temperature");
+    }
+
+    #[test]
+    fn builds_prediction_payload_with_model_provenance_and_features() {
+        let artifact = json!({
+            "artifact_version": "linear-regression.v1",
+            "model_id": "model-1",
+            "model_type": "linear_regression",
+            "feature_names": ["temperature", "carbon"],
+            "feature_schema": {"count": 2},
+        });
+
+        let payload = build_linear_regression_prediction_payload(
+            "dataset-1",
+            "task-1",
+            &artifact,
+            &[125.0, 0.2],
+        )
+        .expect("build prediction payload");
+
+        assert_eq!(payload["operation"], "predict_linear_regression");
+        assert_eq!(payload["payload"]["dataset_id"], "dataset-1");
+        assert_eq!(payload["payload"]["training_task_id"], "task-1");
+        assert_eq!(payload["payload"]["features"], json!([[125.0, 0.2]]));
+        assert_eq!(payload["payload"]["artifact"]["model_id"], "model-1");
+    }
+
+    #[test]
+    fn rejects_prediction_features_that_do_not_match_model_schema() {
+        let artifact = json!({
+            "artifact_version": "linear-regression.v1",
+            "model_id": "model-1",
+            "model_type": "linear_regression",
+            "feature_names": ["temperature", "carbon"],
+            "feature_schema": {"count": 2},
+        });
+
+        let error =
+            build_linear_regression_prediction_payload("dataset-1", "task-1", &artifact, &[125.0])
+                .expect_err("feature count mismatch must be rejected");
+
+        assert_eq!(error, "prediction feature count does not match the model");
+    }
+
+    #[test]
+    fn builds_onnx_prediction_payload_with_hash_and_batch_features() {
+        let path = std::env::temp_dir().join(format!("bloomery-model-{}.onnx", uuid::Uuid::new_v4()));
+        let bytes = b"onnx-fixture";
+        std::fs::write(&path, bytes).expect("write model fixture");
+        let mut digest = Sha256::new();
+        digest.update(bytes);
+        let request = PredictOnnxModelRequest {
+            model_path: path.to_string_lossy().into_owned(),
+            model_sha256: format!("{:x}", digest.finalize()),
+            manifest: json!({
+                "model_id": "mul-model",
+                "model_version": "1.0.0",
+                "inputs": [{"name": "X", "dtype": "float32", "shape": [-1, 2]}],
+                "outputs": [{"name": "Y", "dtype": "float32", "shape": [-1, 2]}],
+                "preprocessing": {
+                    "feature_names": ["temperature", "carbon"],
+                    "means": [0.0, 0.0],
+                    "scales": [1.0, 1.0]
+                }
+            }),
+            features: vec![vec![1.0, 2.0], vec![3.0, 4.0]],
+        };
+
+        let payload = build_onnx_prediction_payload(&request).expect("build ONNX payload");
+
+        assert_eq!(payload["operation"], "predict_onnx");
+        assert_eq!(payload["payload"]["model_sha256"], request.model_sha256);
+        assert_eq!(payload["payload"]["features"], json!([[1.0, 2.0], [3.0, 4.0]]));
+        assert_eq!(payload["payload"]["manifest"]["model_id"], "mul-model");
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn rejects_onnx_prediction_when_model_hash_is_wrong() {
+        let path = std::env::temp_dir().join(format!("bloomery-model-{}.onnx", uuid::Uuid::new_v4()));
+        std::fs::write(&path, b"onnx-fixture").expect("write model fixture");
+        let request = PredictOnnxModelRequest {
+            model_path: path.to_string_lossy().into_owned(),
+            model_sha256: "0".repeat(64),
+            manifest: json!({"model_id": "mul-model", "model_version": "1.0.0"}),
+            features: vec![vec![1.0]],
+        };
+
+        let error = build_onnx_prediction_payload(&request)
+            .expect_err("wrong ONNX model hash must be rejected");
+
+        assert_eq!(error, "ONNX model hash does not match the selected file");
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn hashes_onnx_model_file_for_ui_pinning() {
+        let path = std::env::temp_dir().join(format!("bloomery-hash-{}.onnx", uuid::Uuid::new_v4()));
+        std::fs::write(&path, b"onnx-fixture").expect("write model fixture");
+
+        let mut digest = Sha256::new();
+        digest.update(b"onnx-fixture");
+        let expected = format!("{:x}", digest.finalize());
+
+        assert_eq!(
+            hash_onnx_model_file(&path.to_string_lossy()).expect("hash model"),
+            expected
+        );
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn rejects_hashing_files_without_onnx_extension() {
+        let path = std::env::temp_dir().join(format!("bloomery-hash-{}.bin", uuid::Uuid::new_v4()));
+        std::fs::write(&path, b"onnx-fixture").expect("write model fixture");
+
+        let error = hash_onnx_model_file(&path.to_string_lossy())
+            .expect_err("non-ONNX extensions must be rejected");
+
+        assert_eq!(error, "ONNX model path must use the .onnx extension");
+        let _ = std::fs::remove_file(path);
     }
 }

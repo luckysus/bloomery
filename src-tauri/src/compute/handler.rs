@@ -7,6 +7,8 @@ use serde::Deserialize;
 use serde_json::{json, Value};
 
 pub const COMPUTE_TRAIN_LINEAR_REGRESSION_KIND: &str = "compute_train_linear_regression";
+pub const COMPUTE_PREDICT_LINEAR_REGRESSION_KIND: &str = "compute_predict_linear_regression";
+pub const COMPUTE_PREDICT_ONNX_KIND: &str = "compute_predict_onnx";
 
 #[derive(Debug, Clone)]
 pub struct ComputeTaskHandler {
@@ -40,7 +42,59 @@ impl TaskHandler for ComputeTaskHandler {
 
     fn run(&self, task: TaskRecord, context: HandlerContext) -> HandlerFuture {
         let worker = self.worker.clone();
-        Box::pin(async move { run_task(task, context, worker) })
+        Box::pin(async move { run_task(task, context, worker, "train_linear_regression") })
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct ComputePredictionTaskHandler {
+    worker: Option<WorkerConfig>,
+}
+
+impl ComputePredictionTaskHandler {
+    pub fn from_optional(worker: Option<WorkerConfig>) -> Self {
+        Self { worker }
+    }
+}
+
+impl TaskHandler for ComputePredictionTaskHandler {
+    fn kind(&self) -> &str {
+        COMPUTE_PREDICT_LINEAR_REGRESSION_KIND
+    }
+
+    fn resumable(&self) -> bool {
+        true
+    }
+
+    fn run(&self, task: TaskRecord, context: HandlerContext) -> HandlerFuture {
+        let worker = self.worker.clone();
+        Box::pin(async move { run_task(task, context, worker, "predict_linear_regression") })
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct ComputeOnnxPredictionTaskHandler {
+    worker: Option<WorkerConfig>,
+}
+
+impl ComputeOnnxPredictionTaskHandler {
+    pub fn from_optional(worker: Option<WorkerConfig>) -> Self {
+        Self { worker }
+    }
+}
+
+impl TaskHandler for ComputeOnnxPredictionTaskHandler {
+    fn kind(&self) -> &str {
+        COMPUTE_PREDICT_ONNX_KIND
+    }
+
+    fn resumable(&self) -> bool {
+        true
+    }
+
+    fn run(&self, task: TaskRecord, context: HandlerContext) -> HandlerFuture {
+        let worker = self.worker.clone();
+        Box::pin(async move { run_task(task, context, worker, "predict_onnx") })
     }
 }
 
@@ -54,11 +108,12 @@ fn run_task(
     task: TaskRecord,
     context: HandlerContext,
     worker: Option<WorkerConfig>,
+    expected_operation: &'static str,
 ) -> Result<HandlerOutcome, HandlerError> {
     let worker = worker.ok_or_else(|| HandlerError::permanent("compute_worker_unavailable"))?;
     let payload: ComputeTaskPayload = serde_json::from_str(&task.payload_json)
         .map_err(|_| HandlerError::permanent("invalid_compute_payload"))?;
-    if payload.operation != "train_linear_regression" {
+    if payload.operation != expected_operation {
         return Err(HandlerError::permanent("unsupported_compute_operation"));
     }
     if !payload.payload.is_object() {
@@ -135,12 +190,37 @@ fn run_task(
         Err(error) => return Err(map_worker_error(error, "compute_worker_failed")),
     };
 
-    let result = response
+    let mut result = response
         .get("result")
         .cloned()
         .ok_or_else(|| HandlerError::permanent("compute_worker_protocol_error"))?;
-    if result["state"] != "completed" || result.get("artifact").is_none() {
+    let valid_result = if expected_operation == "predict_linear_regression"
+        || expected_operation == "predict_onnx"
+    {
+        result["state"] == "completed" && result.get("predictions").is_some()
+    } else {
+        result["state"] == "completed" && result.get("artifact").is_some()
+    };
+    if !valid_result {
         return Err(HandlerError::permanent("compute_worker_invalid_result"));
+    }
+    if expected_operation == "predict_linear_regression" {
+        result = annotate_prediction_result(result, &payload.payload)?;
+    } else if expected_operation == "predict_onnx" {
+        if result.get("model_sha256").and_then(Value::as_str).is_none()
+            || result.get("predictions").is_none()
+            || result.get("opset_version").and_then(Value::as_u64).is_none()
+            || !result
+                .get("applicability_warnings")
+                .map(Value::is_array)
+                .unwrap_or(false)
+            || !result
+                .as_object()
+                .map(|object| object.contains_key("confidence"))
+                .unwrap_or(false)
+        {
+            return Err(HandlerError::permanent("compute_worker_invalid_result"));
+        }
     }
     let checkpoint = json!({"stage": "completed", "result": result});
     let checkpoint_json = serde_json::to_string(&checkpoint)
@@ -157,6 +237,49 @@ fn run_task(
         ))
         .map_err(|error| map_worker_error(error, "compute_worker_shutdown_failed"))?;
     Ok(HandlerOutcome::Completed)
+}
+
+fn annotate_prediction_result(mut result: Value, payload: &Value) -> Result<Value, HandlerError> {
+    let names = payload["artifact"]["feature_names"]
+        .as_array()
+        .ok_or_else(|| HandlerError::permanent("compute_worker_invalid_model"))?;
+    let ranges = payload["artifact"]["applicability_range"]
+        .as_array()
+        .ok_or_else(|| HandlerError::permanent("compute_worker_invalid_model"))?;
+    let input = payload["features"]
+        .as_array()
+        .and_then(|rows| rows.first())
+        .and_then(Value::as_array)
+        .ok_or_else(|| HandlerError::permanent("compute_worker_invalid_payload"))?;
+    if names.len() != input.len() || ranges.len() != input.len() {
+        return Err(HandlerError::permanent("compute_worker_invalid_model"));
+    }
+
+    let mut warnings = Vec::new();
+    for (index, value) in input.iter().enumerate() {
+        let Some(number) = value.as_f64() else {
+            continue;
+        };
+        let range = &ranges[index];
+        let min = range.get("min").and_then(Value::as_f64);
+        let max = range.get("max").and_then(Value::as_f64);
+        if min.is_some_and(|bound| number < bound) || max.is_some_and(|bound| number > bound) {
+            warnings.push(json!({
+                "feature": names[index],
+                "index": index,
+                "value": number,
+                "min": min,
+                "max": max,
+                "code": "outside_applicability_range",
+            }));
+        }
+    }
+    result["input_values"] = Value::Array(input.clone());
+    result["applicability_range"] = Value::Array(ranges.clone());
+    result["applicability_warnings"] = Value::Array(warnings);
+    result["confidence"] = Value::Null;
+    result["constraints"] = json!([]);
+    Ok(result)
 }
 
 fn map_worker_error(error: WorkerSupervisorError, fallback: &'static str) -> HandlerError {

@@ -2,10 +2,11 @@ from __future__ import annotations
 
 from typing import Any, BinaryIO
 
+from .onnx_inference import OnnxInferenceError, predict_onnx
 from .protocol import PROTOCOL_VERSION, FrameError, encode_frame, parse_request, read_frame
 from .training import predict_linear_regression, train_linear_regression
 
-WORKER_VERSION = "0.2.0"
+WORKER_VERSION = "0.3.0"
 
 
 def _response(request_id: str, *, result: dict[str, Any] | None = None, error: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -53,7 +54,12 @@ def _dispatch(request: dict[str, Any], output: BinaryIO) -> bool:
                     "protocol_version": PROTOCOL_VERSION,
                     "worker_version": WORKER_VERSION,
                     "capabilities": ["hello", "submit", "cancel", "shutdown", "training", "inference"],
-                    "operations": ["echo", "train_linear_regression", "predict_linear_regression"],
+                    "operations": [
+                        "echo",
+                        "train_linear_regression",
+                        "predict_linear_regression",
+                        "predict_onnx",
+                    ],
                 },
             ),
         )
@@ -82,7 +88,12 @@ def _dispatch(request: dict[str, Any], output: BinaryIO) -> bool:
         operation = params.get("operation")
         if not isinstance(task_id, str) or not task_id.strip():
             _write(output, _error(request_id, "invalid_params", "task_id is required"))
-        elif operation not in {"echo", "train_linear_regression", "predict_linear_regression"}:
+        elif operation not in {
+            "echo",
+            "train_linear_regression",
+            "predict_linear_regression",
+            "predict_onnx",
+        }:
             _write(
                 output,
                 _error(request_id, "unsupported_operation", "the requested worker operation is not available"),
@@ -143,13 +154,37 @@ def _dispatch(request: dict[str, Any], output: BinaryIO) -> bool:
                         result={"task_id": task_id, "state": "completed", **prediction},
                     ),
                 )
+        elif operation == "predict_onnx":
+            payload = params.get("payload", {})
+            if not isinstance(payload, dict):
+                _write(output, _error(request_id, "invalid_params", "payload must be an object"))
+                return False
+            _write(output, _progress(task_id, 10, "inference"))
+            try:
+                prediction = predict_onnx(
+                    payload,
+                    report=lambda stage, progress: _write(
+                        output, _progress(task_id, progress, stage)
+                    ),
+                )
+            except OnnxInferenceError as error:
+                _write(output, _error(request_id, error.code, str(error)))
+            else:
+                _write(output, _progress(task_id, 100, "completed"))
+                _write(
+                    output,
+                    _response(
+                        request_id,
+                        result={"task_id": task_id, "state": "completed", **prediction},
+                    ),
+                )
         else:
             _write(
                 output,
                 _error(
                     request_id,
                     "unsupported_operation",
-                    "supported operations are echo, train_linear_regression, and predict_linear_regression",
+                    "supported operations are echo, train_linear_regression, predict_linear_regression, and predict_onnx",
                 ),
             )
         return False

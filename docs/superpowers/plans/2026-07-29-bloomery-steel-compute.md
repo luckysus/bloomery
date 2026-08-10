@@ -95,6 +95,14 @@ The Python Worker suite passes 12 tests. The Task remains open until the
 remaining supported model families, cancellation, persistent artifact storage,
 and Rust end-to-end task integration are complete.
 
+**Progress evidence (2026-08-10):** Rust full offline verification now passes
+the compute worker round-trip, training persistence, prediction persistence,
+applicability metadata, protocol freshness, and all existing integration
+targets. The analysis UI also exposes prediction task cancellation and retry
+through the shared background-task bridge with bilingual state labels. ONNX
+model lifecycle, constrained optimization, artifact packaging, and the
+remaining worker cancellation and persistence requirements remain open.
+
 ### Task 8: Implement ONNX export/import and local inference
 
 **Files:** Create worker inference/export modules, Rust model repository/tool adapter, and tests.
@@ -103,6 +111,20 @@ and Rust end-to-end task integration are complete.
 - [ ] **Step 2: Run inference tests** and expect failure.
 - [ ] **Step 3: Implement ONNX model lifecycle.** Validate model hash, opset, input/output schemas, preprocessing manifest, and supported runtime before activation. Inference outputs model/version, normalized inputs, predictions, confidence information when available, and applicability warnings.
 - [ ] **Step 4: Run parity and Agent tool tests** and expect pass.
+
+**Progress evidence (2026-08-10):** The import/inference half of the ONNX
+loop is closed. The Worker rejects hash mismatches, opsets outside 7-21,
+non-default operator domains, and operators outside the explicit whitelist
+before session activation, validates I/O schemas and preprocessing
+manifests, runs chunked batch inference with staged progress frames, and
+records applicability warnings plus manifest-declared applicability-distance
+confidence. Rust persists ONNX tasks, pins model hashes through
+`hash_onnx_model_file`, enforces the result contract, and passes the
+end-to-end scheduler test. The analysis UI ships model selection, manifest
+editing, task cancel/retry, and result display with confidence metadata.
+The Python Worker suite passes 24 tests and the frontend suite passes 76.
+Export, numeric parity with source models, the Agent tool adapter, and full
+cooperative cancellation remain open.
 
 ### Task 9: Implement constrained process optimization
 

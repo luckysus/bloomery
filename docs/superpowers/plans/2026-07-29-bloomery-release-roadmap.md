@@ -78,10 +78,17 @@ Evidence (2026-08-03): content-addressed PDF/Markdown/TXT/HTML/DOCX/CSV/XLSX ing
 
 ### Gate D: modular agent runtime
 
-- [ ] The current monolithic local agent is removed after behavior migration.
-- [ ] Runs persist state and ordered protocol events before UI delivery.
-- [ ] Context budgeting, memory, tool repair, cancellation, and recovery pass tests.
-- [ ] `PROTOCOL.md` and generated TypeScript types match Rust serialization.
+- [x] The current monolithic local agent is removed after behavior migration.
+- [x] Runs persist state and ordered protocol events before UI delivery.
+- [x] Context budgeting, memory, tool repair, cancellation, and recovery pass tests.
+- [x] `PROTOCOL.md` and generated TypeScript types match Rust serialization.
+
+Evidence (2026-08-10): the modular Agent runtime, persisted event sink,
+bounded context and memory lifecycle, Tool-Call Repair, cancellation/recovery,
+protocol exporter, generated TypeScript contracts, and the removal of
+`local_agent.rs` are covered by the current Rust suite. Full offline Rust,
+protocol freshness, frontend runtime boundaries, and production build checks
+passed on the current `main` worktree.
 
 ### Gate E: controlled extension ecosystem
 
@@ -93,9 +100,26 @@ Evidence (2026-08-03): content-addressed PDF/Markdown/TXT/HTML/DOCX/CSV/XLSX ing
 ### Gate F: complete steel workbench
 
 - [ ] Official steel terminology, standards, retrieval presets, calculations, and evaluations ship.
-- [ ] CSV/XLSX production datasets support mapping, validation, profiling, and analysis.
-- [ ] ONNX inference records model, inputs, ranges, constraints, and confidence metadata.
+- [x] CSV/XLSX production datasets support mapping, validation, profiling, and analysis.
+- [x] ONNX inference records model, inputs, ranges, constraints, and confidence metadata.
 - [ ] The supervised local compute worker performs training and constrained optimization without private cloud access.
+
+Evidence (2026-08-10): the current Rust suite covers CSV/XLSX preview and
+mapping, activation, profiling, correlations, outlier evidence, and
+workspace-scoped dataset persistence. Linear regression training and
+artifact-backed inference now run through the local Python Worker with
+persisted, restart-safe tasks; supported model families, ONNX lifecycle,
+constrained optimization, and packaged-worker release evidence remain open.
+
+Evidence (2026-08-10): the ONNX inference loop is closed end to end. The
+Worker validates model hash, opset window 7-21, an explicit operator
+whitelist, and I/O schemas, runs chunked batch inference with staged
+progress, and records applicability warnings plus manifest-declared
+applicability-distance confidence. Rust persists the task, pins the model
+hash through `hash_onnx_model_file`, and enforces the result contract; the
+analysis workbench adds model selection, manifest editing, task lifecycle,
+and result display. Constrained optimization and packaged-worker release
+evidence remain open.
 
 ### Gate G: finished desktop product
 

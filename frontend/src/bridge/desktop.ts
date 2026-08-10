@@ -283,6 +283,54 @@ export interface ComputeTrainingResult {
   };
 }
 
+export interface ComputePredictionResult {
+  task_id: string;
+  state: "completed";
+  model_id: string;
+  model_type: string;
+  feature_names: string[];
+  input_values: Array<number | null>;
+  predictions: number[];
+  applicability_range: Array<{ min: number | null; max: number | null }>;
+  applicability_warnings: Array<{
+    code: string;
+    feature: string;
+    index: number;
+    value: number;
+    min: number | null;
+    max: number | null;
+  }>;
+  confidence: number | null;
+  constraints: unknown[];
+}
+
+export interface ComputeOnnxPredictionResult {
+  task_id: string;
+  state: "completed";
+  model_id: string;
+  model_version: string;
+  model_sha256: string;
+  opset_version: number;
+  operators: string[];
+  input_schema: Array<{ name: string; type: string; shape: Array<number | null> }>;
+  output_schema: Array<{ name: string; type: string; shape: Array<number | null> }>;
+  preprocessing: { feature_names: string[]; means: number[]; scales: number[] };
+  normalized_inputs: number[][];
+  predictions: number[] | number[][];
+  outputs: Record<string, unknown>;
+  applicability_warnings: Array<{
+    row: number;
+    feature: string;
+    index: number;
+    value: number;
+    min: number | null;
+    max: number | null;
+    code: string;
+  }>;
+  confidence: number[] | null;
+  constraints: unknown[];
+}
+
 export function isDesktopRuntime() {
   return "__TAURI_INTERNALS__" in window;
 }
@@ -345,6 +393,7 @@ export interface KnowledgeHealth {
 export interface BackgroundTask {
   id: string;
   kind: string;
+  dataset_id?: string | null;
   state: "queued" | "running" | "waiting_external" | "paused" | "completed" | "failed" | "cancelled" | "interrupted";
   progress: number;
   attempt: number;
@@ -754,6 +803,23 @@ export const desktop = {
     call<BackgroundTask>("train_steel_dataset", { request }),
   getComputeTrainingResult: (id: string) =>
     call<ComputeTrainingResult | null>("get_compute_training_result", { id }),
+  predictSteelModel: (request: {
+    datasetId: string;
+    trainingTaskId: string;
+    featureValues: number[];
+  }) => call<BackgroundTask>("predict_steel_model", { request }),
+  getComputePredictionResult: (id: string) =>
+    call<ComputePredictionResult | null>("get_compute_prediction_result", { id }),
+  hashOnnxModelFile: (path: string) =>
+    call<string>("hash_onnx_model_file", { path }),
+  predictOnnxModel: (request: {
+    modelPath: string;
+    modelSha256: string;
+    manifest: Record<string, unknown>;
+    features: number[][];
+  }) => call<BackgroundTask>("predict_onnx_model", { request }),
+  getComputeOnnxPredictionResult: (id: string) =>
+    call<ComputeOnnxPredictionResult | null>("get_compute_onnx_prediction_result", { id }),
   listProviderProfiles: () => call<ProviderProfileResponse[]>("list_provider_profiles"),
   saveProviderProfile: (profile: ProviderProfileInput) =>
     call<ProviderProfileResponse>("save_provider_profile", { profile }),

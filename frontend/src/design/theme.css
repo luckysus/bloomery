@@ -3960,6 +3960,445 @@ button.bloomery-knowledge-document.is-active {
   margin-top: 8px;
 }
 
+.bloomery-dataset-training {
+  border-top: 1px solid var(--bloomery-line);
+  flex: 1 0 100%;
+  margin-top: 14px;
+  padding: 14px 4px 0;
+}
+
+.bloomery-dataset-training-heading,
+.bloomery-training-result-heading,
+.bloomery-training-task {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+}
+
+.bloomery-dataset-training-heading h3,
+.bloomery-training-result-heading h4 {
+  color: var(--bloomery-text);
+  font-size: 13px;
+  margin: 0;
+}
+
+.bloomery-dataset-training-heading > svg,
+.bloomery-training-result-heading > svg {
+  color: var(--bloomery-amber);
+}
+
+.bloomery-training-target,
+.bloomery-training-features {
+  margin-top: 12px;
+}
+
+.bloomery-training-target {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+}
+
+.bloomery-training-target > span,
+.bloomery-training-features legend {
+  color: var(--bloomery-text-muted);
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.bloomery-training-target select {
+  background: var(--bloomery-bg);
+  border: 1px solid var(--bloomery-line-strong);
+  border-radius: 3px;
+  color: var(--bloomery-text-soft);
+  font: inherit;
+  font-size: 11px;
+  min-height: 30px;
+  min-width: 150px;
+  padding: 0 7px;
+}
+
+.bloomery-training-features {
+  border: 0;
+  padding: 0;
+}
+
+.bloomery-training-features > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px 14px;
+  margin-top: 7px;
+}
+
+.bloomery-training-features label {
+  align-items: center;
+  color: var(--bloomery-text-soft);
+  display: inline-flex;
+  font-size: 11px;
+  gap: 5px;
+}
+
+.bloomery-dataset-training-button,
+.bloomery-training-task button {
+  align-items: center;
+  border: 1px solid var(--bloomery-line-strong);
+  border-radius: 3px;
+  cursor: pointer;
+  display: inline-flex;
+  font: inherit;
+  gap: 6px;
+  justify-content: center;
+}
+
+.bloomery-dataset-training-button {
+  background: var(--bloomery-text);
+  color: var(--bloomery-bg);
+  font-size: 11px;
+  margin-top: 13px;
+  min-height: 31px;
+  padding: 0 11px;
+}
+
+.bloomery-dataset-training-button:disabled,
+.bloomery-training-task button:disabled {
+  cursor: wait;
+  opacity: 0.55;
+}
+
+.bloomery-training-task {
+  color: var(--bloomery-text-muted);
+  font-size: 11px;
+  margin-top: 12px;
+  min-height: 30px;
+}
+
+.bloomery-training-task > span {
+  font-variant-numeric: tabular-nums;
+  min-width: 0;
+}
+
+.bloomery-training-task button {
+  background: transparent;
+  color: var(--bloomery-text-soft);
+  font-size: 10px;
+  min-height: 27px;
+  padding: 0 8px;
+}
+
+.bloomery-training-task button:hover:not(:disabled) {
+  border-color: var(--bloomery-amber);
+  color: var(--bloomery-text);
+}
+
+.bloomery-training-result {
+  border-top: 1px solid var(--bloomery-line);
+  margin-top: 14px;
+  padding-top: 13px;
+}
+
+.bloomery-training-result-details {
+  display: grid;
+  gap: 7px;
+  margin: 12px 0 0;
+}
+
+.bloomery-training-result-details > div {
+  align-items: baseline;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: minmax(100px, 0.45fr) minmax(0, 1fr);
+}
+
+.bloomery-training-result-details dt {
+  color: var(--bloomery-text-muted);
+  font-size: 10px;
+  text-transform: uppercase;
+}
+
+.bloomery-training-result-details dd {
+  color: var(--bloomery-text-soft);
+  font-size: 11px;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.bloomery-dataset-prediction {
+  border-top: 1px solid var(--bloomery-line);
+  margin-top: 14px;
+  padding-top: 13px;
+}
+
+.bloomery-dataset-prediction-heading {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+}
+
+.bloomery-dataset-prediction-heading h4 {
+  color: var(--bloomery-text);
+  font-size: 12px;
+  margin: 0;
+}
+
+.bloomery-dataset-prediction-heading > svg {
+  color: var(--bloomery-amber);
+}
+
+.bloomery-prediction-inputs {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  margin-top: 12px;
+}
+
+.bloomery-prediction-inputs label {
+  display: grid;
+  gap: 5px;
+}
+
+.bloomery-prediction-inputs span {
+  color: var(--bloomery-text-muted);
+  font-size: 10px;
+  font-weight: 650;
+  text-transform: uppercase;
+}
+
+.bloomery-prediction-inputs input {
+  background: var(--bloomery-bg);
+  border: 1px solid var(--bloomery-line-strong);
+  border-radius: 3px;
+  color: var(--bloomery-text-soft);
+  font: inherit;
+  font-size: 11px;
+  min-height: 30px;
+  min-width: 0;
+  padding: 0 7px;
+}
+
+.bloomery-dataset-prediction-button {
+  align-items: center;
+  background: var(--bloomery-text);
+  border: 1px solid var(--bloomery-line-strong);
+  border-radius: 3px;
+  color: var(--bloomery-bg);
+  cursor: pointer;
+  display: inline-flex;
+  font: inherit;
+  font-size: 11px;
+  gap: 6px;
+  justify-content: center;
+  margin-top: 12px;
+  min-height: 30px;
+  padding: 0 10px;
+}
+
+.bloomery-dataset-prediction-button:disabled {
+  cursor: wait;
+  opacity: 0.55;
+}
+
+.bloomery-prediction-task {
+  align-items: center;
+  color: var(--bloomery-text-muted);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: space-between;
+  font-size: 11px;
+  margin-top: 10px;
+}
+
+.bloomery-prediction-task > span {
+  font-variant-numeric: tabular-nums;
+  min-width: 0;
+}
+
+.bloomery-prediction-task button {
+  align-items: center;
+  background: transparent;
+  border: 1px solid var(--bloomery-line-strong);
+  border-radius: 3px;
+  color: var(--bloomery-text-soft);
+  cursor: pointer;
+  display: inline-flex;
+  font: inherit;
+  font-size: 10px;
+  gap: 5px;
+  min-height: 27px;
+  padding: 0 8px;
+}
+
+.bloomery-prediction-task button:disabled {
+  cursor: wait;
+  opacity: 0.55;
+}
+
+.bloomery-prediction-task button:hover:not(:disabled) {
+  border-color: var(--bloomery-amber);
+  color: var(--bloomery-text);
+}
+
+.bloomery-prediction-result {
+  border-left: 3px solid var(--bloomery-amber);
+  margin-top: 13px;
+  padding: 1px 0 1px 11px;
+}
+
+.bloomery-prediction-result h5 {
+  color: var(--bloomery-text);
+  font-size: 11px;
+  margin: 0;
+}
+
+.bloomery-prediction-result dl {
+  display: grid;
+  gap: 6px;
+  margin: 9px 0 0;
+}
+
+.bloomery-onnx-panel {
+  border: 1px solid var(--bloomery-line);
+  border-radius: 14px;
+  margin-top: 22px;
+  padding: 18px;
+}
+
+.bloomery-onnx-panel label {
+  color: var(--bloomery-text-dim);
+  display: block;
+  font-size: 11px;
+  margin: 12px 0 5px;
+}
+
+.bloomery-onnx-model-row {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.bloomery-onnx-model-row > button {
+  align-items: center;
+  background: transparent;
+  border: 1px solid var(--bloomery-line);
+  border-radius: 8px;
+  color: var(--bloomery-text);
+  cursor: pointer;
+  display: inline-flex;
+  gap: 7px;
+  font-size: 12px;
+  padding: 7px 12px;
+}
+
+.bloomery-onnx-model-row > button:hover:not(:disabled) {
+  border-color: var(--bloomery-amber);
+}
+
+.bloomery-onnx-model-row > button:disabled {
+  cursor: progress;
+  opacity: 0.7;
+}
+
+.bloomery-onnx-model-path {
+  align-items: center;
+  color: var(--bloomery-text-dim);
+  display: inline-flex;
+  font-size: 12px;
+  gap: 8px;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+.bloomery-onnx-model-path code {
+  color: var(--bloomery-amber);
+  font-size: 11px;
+}
+
+.bloomery-onnx-manifest,
+.bloomery-onnx-features {
+  background: var(--bloomery-panel);
+  border: 1px solid var(--bloomery-line);
+  border-radius: 8px;
+  color: var(--bloomery-text);
+  font-family: var(--bloomery-mono, "Cascadia Code", Consolas, monospace);
+  font-size: 12px;
+  padding: 9px 11px;
+  resize: vertical;
+  width: 100%;
+}
+
+.bloomery-onnx-panel .bloomery-dataset-prediction-button {
+  margin-top: 12px;
+}
+
+.bloomery-onnx-hash {
+  overflow-wrap: anywhere;
+}
+
+.bloomery-onnx-predictions {
+  display: grid;
+  gap: 4px;
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+}
+
+.bloomery-onnx-predictions li {
+  align-items: baseline;
+  display: flex;
+  font-size: 12px;
+  gap: 10px;
+  justify-content: space-between;
+}
+
+.bloomery-onnx-predictions li em {
+  color: var(--bloomery-text-dim);
+  font-size: 11px;
+  font-style: normal;
+}
+
+.bloomery-prediction-result h6 {
+  color: var(--bloomery-text-dim);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  margin: 10px 0 0;
+  text-transform: uppercase;
+}
+
+.bloomery-prediction-result dl div {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: minmax(90px, 0.4fr) minmax(0, 1fr);
+}
+
+.bloomery-prediction-result dt,
+.bloomery-prediction-result dd {
+  font-size: 10px;
+}
+
+.bloomery-prediction-result dt {
+  color: var(--bloomery-text-muted);
+}
+
+.bloomery-prediction-result dd {
+  color: var(--bloomery-text-soft);
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.bloomery-analysis-warning {
+  align-items: center;
+  color: var(--bloomery-amber);
+  display: flex;
+  font-size: 10px;
+  gap: 5px;
+  line-height: 1.4;
+  margin: 9px 0 0;
+}
+
 .bloomery-result-body dl {
   border-top: 1px solid var(--bloomery-line);
   margin: 27px 0 0;

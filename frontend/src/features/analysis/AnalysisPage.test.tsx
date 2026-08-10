@@ -12,6 +12,13 @@ vi.mock("../../bridge/desktop", () => ({
     saveSteelDataset: vi.fn(),
     activateSteelDataset: vi.fn(),
     analyzeSteelDataset: vi.fn(),
+    listBackgroundTasks: vi.fn(),
+    getComputeTrainingResult: vi.fn(),
+    hashOnnxModelFile: vi.fn(),
+    predictOnnxModel: vi.fn(),
+    getComputeOnnxPredictionResult: vi.fn(),
+    cancelBackgroundTask: vi.fn(),
+    retryBackgroundTask: vi.fn(),
   },
 }));
 
@@ -20,6 +27,8 @@ describe("AnalysisPage", () => {
     vi.clearAllMocks();
     vi.mocked(desktop.openFileDialog).mockResolvedValue(null);
     vi.mocked(desktop.listSteelDatasets).mockResolvedValue([]);
+    vi.mocked(desktop.listBackgroundTasks).mockResolvedValue([]);
+    vi.mocked(desktop.getComputeTrainingResult).mockResolvedValue(null);
     vi.mocked(desktop.calculateSteelCarbonEquivalent).mockResolvedValue({
       formula_id: "carbon-equivalent.iiw.v1",
       expression: "C + Mn/6 + (Cr + Mo + V)/5 + (Ni + Cu)/15",

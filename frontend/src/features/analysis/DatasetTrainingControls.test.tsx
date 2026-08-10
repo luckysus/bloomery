@@ -7,6 +7,9 @@ vi.mock("../../bridge/desktop", () => ({
   desktop: {
     trainSteelDataset: vi.fn(),
     listBackgroundTasks: vi.fn(),
+    getComputeTrainingResult: vi.fn(),
+    cancelBackgroundTask: vi.fn(),
+    retryBackgroundTask: vi.fn(),
   },
 }));
 
@@ -59,6 +62,33 @@ describe("DatasetTrainingControls", () => {
       updated_at: "2026-08-10T00:00:00Z",
     });
     vi.mocked(desktop.listBackgroundTasks).mockResolvedValue([]);
+    vi.mocked(desktop.getComputeTrainingResult).mockResolvedValue(null);
+    vi.mocked(desktop.cancelBackgroundTask).mockResolvedValue({
+      id: "task-1",
+      kind: "compute_train_linear_regression",
+      state: "cancelled",
+      progress: 32,
+      attempt: 1,
+      error_code: null,
+      cancel_requested: false,
+      can_cancel: false,
+      can_retry: true,
+      created_at: "2026-08-10T00:00:00Z",
+      updated_at: "2026-08-10T00:00:01Z",
+    });
+    vi.mocked(desktop.retryBackgroundTask).mockResolvedValue({
+      id: "task-1",
+      kind: "compute_train_linear_regression",
+      state: "queued",
+      progress: 32,
+      attempt: 2,
+      error_code: null,
+      cancel_requested: false,
+      can_cancel: true,
+      can_retry: false,
+      created_at: "2026-08-10T00:00:00Z",
+      updated_at: "2026-08-10T00:00:01Z",
+    });
   });
 
   it("queues a selected target and feature set for a ready dataset", async () => {
@@ -75,5 +105,73 @@ describe("DatasetTrainingControls", () => {
       splitPolicy: { kind: "random", validationFraction: 0.2, seed: 0 },
     }));
     expect(await screen.findByTestId("training-task-dataset-1")).toHaveTextContent("task-1");
+  });
+
+  it("refreshes a queued task and renders its completed model result", async () => {
+    const queued = {
+      id: "task-1",
+      kind: "compute_train_linear_regression",
+      state: "queued" as const,
+      progress: 0,
+      attempt: 0,
+      error_code: null,
+      cancel_requested: false,
+      can_cancel: true,
+      can_retry: false,
+      created_at: "2026-08-10T00:00:00Z",
+      updated_at: "2026-08-10T00:00:00Z",
+    };
+    const running = { ...queued, state: "running" as const, progress: 32, attempt: 1 };
+    const completed = { ...running, state: "completed" as const, progress: 100, can_cancel: false };
+    vi.mocked(desktop.listBackgroundTasks)
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([running])
+      .mockResolvedValue([completed]);
+    vi.mocked(desktop.getComputeTrainingResult).mockResolvedValue({
+      task_id: "task-1",
+      state: "completed",
+      artifact: {
+        model_id: "linear-task-1",
+        model_type: "linear_regression",
+        feature_names: ["temperature"],
+        metrics: { rmse: 1.25, r2: 0.98 },
+        applicability_range: [{ min: 10, max: 40 }],
+      },
+    });
+
+    render(<DatasetTrainingControls dataset={dataset} />);
+    fireEvent.click(screen.getByRole("button"));
+
+    await screen.findByTestId("training-task-dataset-1");
+    expect(await screen.findByTestId("training-result-dataset-1", {}, { timeout: 3000 })).toHaveTextContent("linear-task-1");
+    expect(screen.getByTestId("training-task-dataset-1")).toHaveTextContent("100%");
+    expect(screen.getByTestId("training-metric-rmse-dataset-1")).toHaveTextContent("1.25");
+    expect(desktop.getComputeTrainingResult).toHaveBeenCalledWith("task-1");
+  });
+
+  it("cancels an active training task and shows the terminal state", async () => {
+    vi.mocked(desktop.listBackgroundTasks).mockResolvedValueOnce([]).mockResolvedValue([
+      {
+        id: "task-1",
+        kind: "compute_train_linear_regression",
+        state: "running",
+        progress: 32,
+        attempt: 1,
+        error_code: null,
+        cancel_requested: false,
+        can_cancel: true,
+        can_retry: false,
+        created_at: "2026-08-10T00:00:00Z",
+        updated_at: "2026-08-10T00:00:00Z",
+      },
+    ]);
+
+    render(<DatasetTrainingControls dataset={dataset} />);
+    fireEvent.click(screen.getByRole("button"));
+    await screen.findByTestId("training-cancel-dataset-1");
+    fireEvent.click(screen.getByTestId("training-cancel-dataset-1"));
+
+    await waitFor(() => expect(desktop.cancelBackgroundTask).toHaveBeenCalledWith("task-1"));
+    expect(await screen.findByTestId("training-task-dataset-1")).toHaveTextContent(/cancelled|已取消/i);
   });
 });

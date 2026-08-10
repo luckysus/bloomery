@@ -100,6 +100,11 @@ macro_rules! handler {
             crate::app::steel_commands::commands::analyze_steel_dataset,
             crate::app::compute_commands::commands::train_steel_dataset,
             crate::app::compute_commands::commands::get_compute_training_result,
+            crate::app::compute_commands::commands::predict_steel_model,
+            crate::app::compute_commands::commands::get_compute_prediction_result,
+            crate::app::compute_commands::commands::predict_onnx_model,
+            crate::app::compute_commands::commands::hash_onnx_model_file,
+            crate::app::compute_commands::commands::get_compute_onnx_prediction_result,
         ]
     };
 }
