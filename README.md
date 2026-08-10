@@ -149,6 +149,8 @@ bloomery/
 
 公开事件协议位于 `docs/PROTOCOL.md`。设计规格和实施计划位于 `docs/superpowers/`；当前代码与测试是实现状态的最终依据。
 
+更多文档：[`SECURITY.md`](SECURITY.md) 安全策略、[`CONTRIBUTING.md`](CONTRIBUTING.md) 贡献指南、[`docs/NON-GOALS.md`](docs/NON-GOALS.md) 非目标、[`docs/releases/case-study.md`](docs/releases/case-study.md) 可复现钢铁案例研究。
+
 ### 发布路线图
 
 | 阶段 | 状态 |
@@ -277,6 +279,8 @@ bloomery/
 ~~~
 
 The public event contract is documented in `docs/PROTOCOL.md`. Design specifications and implementation plans live under `docs/superpowers/`; source code and tests remain the authority for current behavior.
+
+More docs: [`SECURITY.md`](SECURITY.md) security policy, [`CONTRIBUTING.md`](CONTRIBUTING.md) contributor guide, [`docs/NON-GOALS.md`](docs/NON-GOALS.md) non-goals, and [`docs/releases/case-study.md`](docs/releases/case-study.md) reproducible steel case study.
 
 ### Non-goals
 

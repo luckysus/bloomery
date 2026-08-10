@@ -226,7 +226,16 @@ production build succeeds.
 - [ ] Windows 10 and 11 install, upgrade, uninstall, and data-preservation tests pass.
 - [ ] Security, dependency, secret, protocol, migration, performance, and steel evaluation gates pass.
 - [ ] Signed installers, portable package, updater metadata, SBOM, notices, and checksums exist.
-- [ ] Chinese and English docs, Non-goals, security policy, contributor guide, extension guides, demo, and reproducible case study exist.
+- [x] Chinese and English docs, Non-goals, security policy, contributor guide, extension guides, demo, and reproducible case study exist.
+
+Evidence (2026-08-10): the documentation set is complete: bilingual README
+with status and gate table, `SECURITY.md` (reporting channel, secret,
+permission, backup, domain-package, and worker guarantees),
+`CONTRIBUTING.md` (setup, quality bar, commit rules), `docs/NON-GOALS.md`
+(six explicit non-goals), extension guides for MCP/Skills/domain packages,
+release building/updater docs, and `docs/releases/case-study.md` reproducing
+the steel workflow end to end with the exact offline commands and expected
+thresholds.
 
 ## Required verification commands
 
