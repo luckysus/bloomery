@@ -151,6 +151,15 @@ completed tasks, list versions, and switch the active version. Five new
 repository tests plus the upgraded migration suite pass in the full offline
 Rust run.
 
+Evidence (2026-08-10): the supervised local compute worker now covers the
+planned model families: ElasticNet, Random Forest, and
+HistGradientBoosting train through `train_sklearn_model` with environment
+locks and pickled `sklearn-pickle.v1` artifacts, `predict_trained_model`
+dispatches prediction across families, and XGBoost stays an explicit
+capability flag. Rust registers the matching task kinds and the scheduler
+e2e test trains and predicts a random forest without any private cloud
+access. Worker suite passes 62 tests; Rust offline and frontend suites pass.
+
 Evidence (2026-08-10): the steel terminology source now ships versioned
 and license-audited: 32 authored terms covering grades, composition
 elements, properties, defects, standards, and all five main process stages,

@@ -269,6 +269,7 @@ export interface TrainSteelDatasetRequest {
     validationFraction: number;
     seed?: number;
   };
+  algorithm?: "linear_regression" | "elasticnet" | "random_forest" | "hist_gradient_boosting";
 }
 
 export interface ComputeTrainingResult {

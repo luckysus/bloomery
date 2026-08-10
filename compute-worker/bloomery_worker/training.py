@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import base64
 import hashlib
 import json
 import math
+import pickle
 import random
+import sys
 from collections.abc import Mapping, Sequence
 from typing import Any
 
@@ -11,11 +14,20 @@ from typing import Any
 MAX_ROWS = 100_000
 MAX_FEATURES = 128
 ARTIFACT_VERSION = "linear-regression.v1"
+SKLEARN_ARTIFACT_VERSION = "sklearn-pickle.v1"
+SUPPORTED_ALGORITHMS = {
+    "linear_regression",
+    "elasticnet",
+    "random_forest",
+    "hist_gradient_boosting",
+}
 
 
 def train_linear_regression(payload: Mapping[str, Any]) -> dict[str, Any]:
     """Fit a deterministic, standard-library linear regression artifact."""
     features, targets, feature_names = _validate_dataset(payload)
+    if payload.get("algorithm", "linear_regression") != "linear_regression":
+        raise ValueError(f"unsupported training algorithm: {payload.get('algorithm')}")
     split = _split_indices(len(features), payload)
     means, scales, transformed = _fit_preprocessing(features, split["train_indices"])
     coefficients, intercept = _fit_ordinary_least_squares(
@@ -104,9 +116,179 @@ def predict_linear_regression(
     }
 
 
+def environment_lock() -> dict[str, str]:
+    """Record the runtime versions a pickled model depends on."""
+    try:
+        import sklearn
+
+        sklearn_version = sklearn.__version__
+    except ImportError:
+        sklearn_version = "unavailable"
+    fingerprint = f"python={sys.version.split()[0]}|scikit-learn={sklearn_version}"
+    return {
+        "python": sys.version.split()[0],
+        "scikit_learn": sklearn_version,
+        "fingerprint": fingerprint,
+        "lock_sha256": hashlib.sha256(fingerprint.encode("utf-8")).hexdigest(),
+    }
+
+
+def xgboost_available() -> bool:
+    try:
+        import xgboost  # noqa: F401
+
+        return True
+    except ImportError:
+        return False
+
+
+def train_sklearn_model(payload: Mapping[str, Any]) -> dict[str, Any]:
+    """Fit a scikit-learn pipeline and persist it as a pickled artifact."""
+    features, targets, feature_names = _validate_dataset(payload)
+    algorithm = payload.get("algorithm", "linear_regression")
+    if algorithm == "linear_regression":
+        return train_linear_regression(payload)
+    try:
+        import numpy as np
+    except ImportError as error:
+        raise ValueError("numpy is not installed") from error
+
+    split = _split_indices(len(features), payload)
+    means, scales, transformed = _fit_preprocessing(features, split["train_indices"])
+    seed_value = payload.get("seed", 0)
+    if isinstance(seed_value, bool) or not isinstance(seed_value, int):
+        raise ValueError("seed must be an integer")
+
+    train_rows = np.asarray([transformed[i] for i in split["train_indices"]], dtype=np.float64)
+    train_targets = np.asarray([targets[i] for i in split["train_indices"]], dtype=np.float64)
+
+    parameters: dict[str, Any] = {"algorithm": algorithm, "seed": seed_value}
+    if algorithm == "elasticnet":
+        from sklearn.linear_model import ElasticNet
+
+        alpha = float(payload.get("alpha", 0.01))
+        l1_ratio = float(payload.get("l1_ratio", 0.5))
+        if alpha <= 0 or not 0 <= l1_ratio <= 1:
+            raise ValueError("elasticnet requires alpha > 0 and 0 <= l1_ratio <= 1")
+        parameters.update({"alpha": alpha, "l1_ratio": l1_ratio, "max_iter": 5000})
+        model = ElasticNet(alpha=alpha, l1_ratio=l1_ratio, max_iter=5000)
+    elif algorithm == "random_forest":
+        from sklearn.ensemble import RandomForestRegressor
+
+        estimators = int(payload.get("n_estimators", 100))
+        if estimators < 1 or estimators > 1000:
+            raise ValueError("n_estimators must be between 1 and 1000")
+        parameters.update({"n_estimators": estimators})
+        model = RandomForestRegressor(n_estimators=estimators, random_state=seed_value)
+    elif algorithm == "hist_gradient_boosting":
+        from sklearn.ensemble import HistGradientBoostingRegressor
+
+        max_iter = int(payload.get("max_iter", 100))
+        if max_iter < 1 or max_iter > 2000:
+            raise ValueError("max_iter must be between 1 and 2000")
+        parameters.update({"max_iter": max_iter})
+        model = HistGradientBoostingRegressor(max_iter=max_iter, random_state=seed_value)
+    else:
+        raise ValueError(f"unsupported training algorithm: {algorithm}")
+
+    model.fit(train_rows, train_targets)
+    all_predictions = [
+        float(value) for value in model.predict(np.asarray(transformed, dtype=np.float64))
+    ]
+
+    if hasattr(model, "coef_"):
+        importance = [abs(float(value)) for value in np.asarray(model.coef_).ravel()]
+    elif hasattr(model, "feature_importances_"):
+        importance = [float(value) for value in model.feature_importances_]
+    else:
+        importance = [0.0 for _ in feature_names]
+
+    artifact: dict[str, Any] = {
+        "artifact_version": SKLEARN_ARTIFACT_VERSION,
+        "model_type": algorithm,
+        "data_version": str(payload.get("data_version", "unknown")),
+        "feature_names": feature_names,
+        "feature_schema": {"count": len(feature_names), "names": feature_names},
+        "field_mapping": _mapping(payload.get("field_mapping", {})),
+        "preprocessing": {
+            "fit_scope": "train_only",
+            "imputation": "train_mean",
+            "means": means,
+            "scales": scales,
+        },
+        "parameters": parameters,
+        "split": split,
+        "metrics": {
+            "train": _metrics(targets, all_predictions, split["train_indices"]),
+            "validation": _metrics(targets, all_predictions, split["validation_indices"]),
+        },
+        "feature_importance": importance,
+        "applicability_range": _applicability_range(features, split["train_indices"]),
+        "environment": environment_lock(),
+        "model_pickle_base64": base64.b64encode(pickle.dumps(model)).decode("ascii"),
+    }
+    artifact["model_id"] = _artifact_id(artifact)
+    return artifact
+
+
+def predict_model(
+    artifact: Mapping[str, Any], features: Sequence[Sequence[Any]]
+) -> dict[str, Any]:
+    """Dispatch prediction across supported artifact families."""
+    version = artifact.get("artifact_version")
+    if version == ARTIFACT_VERSION:
+        return predict_linear_regression(artifact, features)
+    if version != SKLEARN_ARTIFACT_VERSION:
+        raise ValueError("unsupported model artifact version")
+    names = artifact.get("feature_names")
+    preprocessing = artifact.get("preprocessing")
+    blob = artifact.get("model_pickle_base64")
+    if (
+        not isinstance(names, list)
+        or not isinstance(preprocessing, Mapping)
+        or not isinstance(blob, str)
+    ):
+        raise ValueError("model artifact schema is invalid")
+    means = preprocessing.get("means")
+    scales = preprocessing.get("scales")
+    if (
+        not isinstance(means, list)
+        or not isinstance(scales, list)
+        or len(means) != len(names)
+        or len(scales) != len(names)
+    ):
+        raise ValueError("model preprocessing schema is invalid")
+    rows = _normalise_features(features, len(names))
+    transformed = [
+        [
+            ((value if value is not None else float(means[column])) - float(means[column]))
+            / float(scales[column])
+            for column, value in enumerate(row)
+        ]
+        for row in rows
+    ]
+    try:
+        import numpy as np
+
+        model = pickle.loads(base64.b64decode(blob))
+        predictions = [
+            float(value)
+            for value in model.predict(np.asarray(transformed, dtype=np.float64))
+        ]
+    except Exception as error:
+        raise ValueError("model artifact could not be loaded") from error
+    return {
+        "model_id": str(artifact.get("model_id", "")),
+        "model_type": str(artifact.get("model_type", "unknown")),
+        "predictions": predictions,
+        "feature_names": names,
+        "environment": artifact.get("environment", {}),
+    }
+
+
 def _validate_dataset(payload: Mapping[str, Any]) -> tuple[list[list[float | None]], list[float], list[str]]:
     algorithm = payload.get("algorithm", "linear_regression")
-    if algorithm != "linear_regression":
+    if algorithm not in SUPPORTED_ALGORITHMS:
         raise ValueError(f"unsupported training algorithm: {algorithm}")
     features = payload.get("features")
     targets = payload.get("targets")

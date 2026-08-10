@@ -1,8 +1,10 @@
 use bloomery::compute::handler::{
     ComputeExportOnnxTaskHandler, ComputeOnnxPredictionTaskHandler, ComputeOptimizationTaskHandler,
-    ComputePredictionTaskHandler, ComputeTaskHandler, COMPUTE_EXPORT_ONNX_KIND,
+    ComputePredictionTaskHandler, ComputeSklearnTrainingTaskHandler, ComputeTaskHandler,
+    ComputeTrainedPredictionTaskHandler, COMPUTE_EXPORT_ONNX_KIND,
     COMPUTE_OPTIMIZE_CONSTRAINED_KIND, COMPUTE_PREDICT_LINEAR_REGRESSION_KIND,
-    COMPUTE_PREDICT_ONNX_KIND, COMPUTE_TRAIN_LINEAR_REGRESSION_KIND,
+    COMPUTE_PREDICT_ONNX_KIND, COMPUTE_PREDICT_TRAINED_KIND, COMPUTE_TRAIN_LINEAR_REGRESSION_KIND,
+    COMPUTE_TRAIN_SKLEARN_KIND,
 };
 use bloomery::compute::worker::{WorkerClient, WorkerConfig};
 use bloomery::storage::migrations::migrate;
@@ -296,6 +298,166 @@ fn decode_base64(input: &str) -> Vec<u8> {
         }
     }
     out
+}
+
+#[test]
+fn scheduler_trains_sklearn_model_and_predicts_through_trained_path() {
+    let path = std::env::temp_dir().join(format!(
+        "bloomery-sklearn-task-{}.sqlite3",
+        uuid::Uuid::new_v4()
+    ));
+    let mut connection = Connection::open(&path).expect("open task database");
+    migrate(&mut connection).expect("migrate task database");
+    let features: Vec<Vec<f64>> = (0..40)
+        .map(|i| vec![f64::from(i), f64::from(i % 5)])
+        .collect();
+    let targets: Vec<f64> = features.iter().map(|row| 2.0 * row[0] + row[1]).collect();
+    let task = repository::create(
+        &mut connection,
+        NewTask {
+            workspace_id: "local".to_string(),
+            kind: COMPUTE_TRAIN_SKLEARN_KIND.to_string(),
+            payload_json: serde_json::to_string(&json!({
+                "operation": "train_sklearn_model",
+                "payload": {
+                    "dataset_id": "dataset-1",
+                    "algorithm": "random_forest",
+                    "n_estimators": 20,
+                    "seed": 7,
+                    "features": features,
+                    "targets": targets,
+                    "feature_names": ["temperature", "carbon"],
+                    "split_policy": {"kind": "random", "validation_fraction": 0.25, "seed": 7}
+                }
+            }))
+            .expect("encode sklearn training payload"),
+            checkpoint_json: Some(json!({"stage": "queued"}).to_string()),
+            next_run_at: None,
+            progress: 0,
+        },
+    )
+    .expect("create sklearn training task");
+    drop(connection);
+
+    let sink = Arc::new(RecordingSink::default());
+    let mut scheduler = Scheduler::new(
+        path.clone(),
+        "local".to_string(),
+        SchedulerConfig {
+            max_workers: 1,
+            max_attempts: 1,
+            retry_base: Duration::from_millis(1),
+            retry_max: Duration::from_millis(1),
+            poll_interval: Duration::from_millis(1),
+        },
+        Arc::new(SystemClock),
+        vec![Arc::new(ComputeSklearnTrainingTaskHandler::from_optional(
+            Some(python_worker_config()),
+        ))],
+        sink.clone(),
+    )
+    .expect("create sklearn training scheduler");
+
+    let artifact = {
+        let deadline = Instant::now() + Duration::from_secs(60);
+        loop {
+            scheduler.tick().expect("run sklearn training tick");
+            let connection = Connection::open(&path).expect("open task database");
+            let current = repository::get(&connection, "local", task.id)
+                .expect("read task")
+                .expect("task exists");
+            if matches!(current.state, TaskState::Completed | TaskState::Failed) {
+                assert_eq!(
+                    current.state,
+                    TaskState::Completed,
+                    "sklearn training failed: {current:?}"
+                );
+                let checkpoint: serde_json::Value =
+                    serde_json::from_str(current.checkpoint_json.as_deref().expect("checkpoint"))
+                        .expect("decode checkpoint");
+                break checkpoint["result"]["artifact"].clone();
+            }
+            assert!(Instant::now() < deadline, "sklearn training timed out");
+            thread::yield_now();
+        }
+    };
+    drop(scheduler);
+    assert_eq!(artifact["model_type"], "random_forest");
+    assert_eq!(artifact["artifact_version"], "sklearn-pickle.v1");
+
+    let mut connection = Connection::open(&path).expect("reopen task database");
+    let predict_task = repository::create(
+        &mut connection,
+        NewTask {
+            workspace_id: "local".to_string(),
+            kind: COMPUTE_PREDICT_TRAINED_KIND.to_string(),
+            payload_json: serde_json::to_string(&json!({
+                "operation": "predict_trained_model",
+                "payload": {
+                    "dataset_id": "dataset-1",
+                    "training_task_id": task.id.to_string(),
+                    "artifact": artifact,
+                    "features": [[10.0, 2.0]]
+                }
+            }))
+            .expect("encode trained prediction payload"),
+            checkpoint_json: Some(json!({"stage": "queued"}).to_string()),
+            next_run_at: None,
+            progress: 0,
+        },
+    )
+    .expect("create trained prediction task");
+    drop(connection);
+
+    let sink = Arc::new(RecordingSink::default());
+    let mut scheduler = Scheduler::new(
+        path.clone(),
+        "local".to_string(),
+        SchedulerConfig {
+            max_workers: 1,
+            max_attempts: 1,
+            retry_base: Duration::from_millis(1),
+            retry_max: Duration::from_millis(1),
+            poll_interval: Duration::from_millis(1),
+        },
+        Arc::new(SystemClock),
+        vec![Arc::new(
+            ComputeTrainedPredictionTaskHandler::from_optional(Some(python_worker_config())),
+        )],
+        sink.clone(),
+    )
+    .expect("create trained prediction scheduler");
+
+    let deadline = Instant::now() + Duration::from_secs(60);
+    loop {
+        scheduler.tick().expect("run trained prediction tick");
+        let connection = Connection::open(&path).expect("open task database");
+        let current = repository::get(&connection, "local", predict_task.id)
+            .expect("read task")
+            .expect("task exists");
+        if matches!(current.state, TaskState::Completed | TaskState::Failed) {
+            assert_eq!(
+                current.state,
+                TaskState::Completed,
+                "trained prediction failed: {current:?}"
+            );
+            let checkpoint: serde_json::Value =
+                serde_json::from_str(current.checkpoint_json.as_deref().expect("checkpoint"))
+                    .expect("decode checkpoint");
+            let prediction = checkpoint["result"]["predictions"][0]
+                .as_f64()
+                .expect("trained prediction value");
+            assert!(prediction.is_finite());
+            // The random forest must track the synthetic 2a+b surface.
+            assert!((prediction - 22.0).abs() < 6.0, "prediction {prediction}");
+            break;
+        }
+        assert!(Instant::now() < deadline, "trained prediction timed out");
+        thread::yield_now();
+    }
+
+    drop(scheduler);
+    let _ = std::fs::remove_file(path);
 }
 
 #[test]

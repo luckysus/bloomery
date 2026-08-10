@@ -6,9 +6,9 @@ from .onnx_export import export_linear_onnx
 from .onnx_inference import OnnxInferenceError, predict_onnx
 from .optimization import OptimizationError, optimize_constrained
 from .protocol import PROTOCOL_VERSION, FrameError, encode_frame, parse_request, read_frame
-from .training import predict_linear_regression, train_linear_regression
+from .training import predict_linear_regression, predict_model, train_linear_regression, train_sklearn_model, xgboost_available
 
-WORKER_VERSION = "0.4.0"
+WORKER_VERSION = "0.5.0"
 
 
 def _response(request_id: str, *, result: dict[str, Any] | None = None, error: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -55,11 +55,14 @@ def _dispatch(request: dict[str, Any], output: BinaryIO) -> bool:
                 result={
                     "protocol_version": PROTOCOL_VERSION,
                     "worker_version": WORKER_VERSION,
-                    "capabilities": ["hello", "submit", "cancel", "shutdown", "training", "inference", "optimization"],
+                    "capabilities": ["hello", "submit", "cancel", "shutdown", "training", "inference", "optimization"]
+                    + (["xgboost"] if xgboost_available() else []),
                     "operations": [
                         "echo",
                         "train_linear_regression",
+                        "train_sklearn_model",
                         "predict_linear_regression",
+                        "predict_trained_model",
                         "predict_onnx",
                         "optimize_constrained",
                         "export_linear_onnx",
@@ -95,7 +98,9 @@ def _dispatch(request: dict[str, Any], output: BinaryIO) -> bool:
         elif operation not in {
             "echo",
             "train_linear_regression",
+            "train_sklearn_model",
             "predict_linear_regression",
+            "predict_trained_model",
             "predict_onnx",
             "optimize_constrained",
             "export_linear_onnx",
@@ -134,6 +139,49 @@ def _dispatch(request: dict[str, Any], output: BinaryIO) -> bool:
                     _response(
                         request_id,
                         result={"task_id": task_id, "state": "completed", "artifact": artifact},
+                    ),
+                )
+        elif operation == "train_sklearn_model":
+            payload = params.get("payload", {})
+            if not isinstance(payload, dict):
+                _write(output, _error(request_id, "invalid_params", "payload must be an object"))
+                return False
+            _write(output, _progress(task_id, 10, "training"))
+            try:
+                artifact = train_sklearn_model(payload)
+            except ValueError as error:
+                _write(output, _error(request_id, "invalid_payload", str(error)))
+            else:
+                _write(output, _progress(task_id, 100, "completed"))
+                _write(
+                    output,
+                    _response(
+                        request_id,
+                        result={"task_id": task_id, "state": "completed", "artifact": artifact},
+                    ),
+                )
+        elif operation == "predict_trained_model":
+            payload = params.get("payload", {})
+            if not isinstance(payload, dict):
+                _write(output, _error(request_id, "invalid_params", "payload must be an object"))
+                return False
+            artifact = payload.get("artifact")
+            features = payload.get("features")
+            if not isinstance(artifact, dict) or not isinstance(features, list):
+                _write(output, _error(request_id, "invalid_params", "artifact and features are required"))
+                return False
+            _write(output, _progress(task_id, 10, "inference"))
+            try:
+                prediction = predict_model(artifact, features)
+            except ValueError as error:
+                _write(output, _error(request_id, "invalid_payload", str(error)))
+            else:
+                _write(output, _progress(task_id, 100, "completed"))
+                _write(
+                    output,
+                    _response(
+                        request_id,
+                        result={"task_id": task_id, "state": "completed", **prediction},
                     ),
                 )
         elif operation == "predict_linear_regression":

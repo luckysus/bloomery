@@ -110,6 +110,19 @@ The Python Worker suite passes 12 tests. The Task remains open until the
 remaining supported model families, cancellation, persistent artifact storage,
 and Rust end-to-end task integration are complete.
 
+**Progress evidence (2026-08-10, multi-model pipelines):** Task 7 is now
+closed for the planned model families. The Worker trains ElasticNet,
+Random Forest, and HistGradientBoosting pipelines with bounded
+hyperparameters, deterministic seeds, train-only preprocessing, environment
+lock records (python/scikit-learn fingerprint hash), and pickled artifacts
+under `sklearn-pickle.v1`; `predict_model` dispatches across artifact
+families. XGBoost remains an explicit capability flag, never inferred.
+Rust registers `compute_train_sklearn_model` and
+`compute_predict_trained_model` task kinds, routes prediction operations by
+artifact model_type, and the scheduler e2e test trains a random forest and
+predicts through the trained path. Worker suite passes 62 tests; Rust
+offline suite and the frontend suite pass.
+
 **Progress evidence (2026-08-10):** Rust full offline verification now passes
 the compute worker round-trip, training persistence, prediction persistence,
 applicability metadata, protocol freshness, and all existing integration

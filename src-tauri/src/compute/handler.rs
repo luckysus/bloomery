@@ -11,6 +11,8 @@ pub const COMPUTE_PREDICT_LINEAR_REGRESSION_KIND: &str = "compute_predict_linear
 pub const COMPUTE_PREDICT_ONNX_KIND: &str = "compute_predict_onnx";
 pub const COMPUTE_OPTIMIZE_CONSTRAINED_KIND: &str = "compute_optimize_constrained";
 pub const COMPUTE_EXPORT_ONNX_KIND: &str = "compute_export_onnx";
+pub const COMPUTE_PREDICT_TRAINED_KIND: &str = "compute_predict_trained_model";
+pub const COMPUTE_TRAIN_SKLEARN_KIND: &str = "compute_train_sklearn_model";
 
 #[derive(Debug, Clone)]
 pub struct ComputeTaskHandler {
@@ -152,6 +154,58 @@ impl TaskHandler for ComputeExportOnnxTaskHandler {
     }
 }
 
+#[derive(Debug, Clone)]
+pub struct ComputeTrainedPredictionTaskHandler {
+    worker: Option<WorkerConfig>,
+}
+
+impl ComputeTrainedPredictionTaskHandler {
+    pub fn from_optional(worker: Option<WorkerConfig>) -> Self {
+        Self { worker }
+    }
+}
+
+impl TaskHandler for ComputeTrainedPredictionTaskHandler {
+    fn kind(&self) -> &str {
+        COMPUTE_PREDICT_TRAINED_KIND
+    }
+
+    fn resumable(&self) -> bool {
+        true
+    }
+
+    fn run(&self, task: TaskRecord, context: HandlerContext) -> HandlerFuture {
+        let worker = self.worker.clone();
+        Box::pin(async move { run_task(task, context, worker, "predict_trained_model") })
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct ComputeSklearnTrainingTaskHandler {
+    worker: Option<WorkerConfig>,
+}
+
+impl ComputeSklearnTrainingTaskHandler {
+    pub fn from_optional(worker: Option<WorkerConfig>) -> Self {
+        Self { worker }
+    }
+}
+
+impl TaskHandler for ComputeSklearnTrainingTaskHandler {
+    fn kind(&self) -> &str {
+        COMPUTE_TRAIN_SKLEARN_KIND
+    }
+
+    fn resumable(&self) -> bool {
+        true
+    }
+
+    fn run(&self, task: TaskRecord, context: HandlerContext) -> HandlerFuture {
+        let worker = self.worker.clone();
+        Box::pin(async move { run_task(task, context, worker, "train_sklearn_model") })
+    }
+}
+
 #[derive(Debug, Deserialize)]
 struct ComputeTaskPayload {
     operation: String,
@@ -250,6 +304,7 @@ fn run_task(
         .ok_or_else(|| HandlerError::permanent("compute_worker_protocol_error"))?;
     let valid_result = if expected_operation == "predict_linear_regression"
         || expected_operation == "predict_onnx"
+        || expected_operation == "predict_trained_model"
     {
         result["state"] == "completed" && result.get("predictions").is_some()
     } else if expected_operation == "optimize_constrained" {
