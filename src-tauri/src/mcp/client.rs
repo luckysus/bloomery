@@ -119,7 +119,7 @@ impl McpClient {
                     },
                     name: tool.name,
                     description: tool.description.unwrap_or_else(|| "MCP tool".to_string()),
-                    input_schema: tool.input_schema,
+                    input_schema: normalize_input_schema(tool.input_schema),
                     output_schema: tool
                         .output_schema
                         .unwrap_or_else(|| serde_json::json!({"type": "object"})),
@@ -221,6 +221,27 @@ fn peer_info(peer: &ServerPeerInfo) -> Result<(McpServerIdentity, McpCapabilitie
 fn stable_tool_id(server_id: &str, name: &str) -> Result<ToolId, McpError> {
     let id = format!("mcp.{}.{}", stable_segment(server_id), stable_segment(name));
     ToolId::new(id).map_err(|_| McpError::InvalidToolId(name.to_string()))
+}
+
+/// MCP servers may omit the object type declaration; the shared typed-schema
+/// contract requires every tool input schema to declare `"type": "object"`.
+fn normalize_input_schema(schema: serde_json::Value) -> serde_json::Value {
+    match schema {
+        serde_json::Value::Object(mut map) => {
+            let declares_object = map
+                .get("type")
+                .and_then(|value| value.as_str())
+                .is_some_and(|value| value == "object");
+            if !declares_object {
+                map.insert(
+                    "type".to_string(),
+                    serde_json::Value::String("object".to_string()),
+                );
+            }
+            serde_json::Value::Object(map)
+        }
+        _ => serde_json::json!({"type": "object"}),
+    }
 }
 
 fn stable_segment(value: &str) -> String {

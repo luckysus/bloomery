@@ -13,6 +13,44 @@ pub struct ToolSpec {
     pub risk: PermissionRisk,
 }
 
+impl ToolSpec {
+    /// Built-in and MCP tools share one typed-schema contract: every input
+    /// schema must be a JSON Schema object declaration so repair, permission
+    /// summaries, and model adapters can rely on it.
+    pub fn validate_schema(&self) -> Result<(), String> {
+        let schema = self
+            .input_schema
+            .as_object()
+            .ok_or_else(|| format!("tool {} input schema must be an object", self.id))?;
+        if schema.get("type").and_then(Value::as_str) != Some("object") {
+            return Err(format!(
+                "tool {} input schema must declare \"type\": \"object\"",
+                self.id
+            ));
+        }
+        if let Some(properties) = schema.get("properties") {
+            if !properties.is_object() {
+                return Err(format!(
+                    "tool {} input schema properties must be an object",
+                    self.id
+                ));
+            }
+        }
+        if let Some(required) = schema.get("required") {
+            let required = required.as_array().ok_or_else(|| {
+                format!("tool {} input schema required must be an array", self.id)
+            })?;
+            if !required.iter().all(Value::is_string) {
+                return Err(format!(
+                    "tool {} input schema required must list property names",
+                    self.id
+                ));
+            }
+        }
+        Ok(())
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum SyntaxRepair {

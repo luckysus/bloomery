@@ -21,6 +21,7 @@ impl<'a> CompositeToolExecutor<'a> {
                         registration.spec.id
                     ));
                 }
+                registration.spec.validate_schema()?;
                 registrations.push(registration.clone());
             }
         }

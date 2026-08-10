@@ -92,10 +92,21 @@ passed on the current `main` worktree.
 
 ### Gate E: controlled extension ecosystem
 
-- [ ] Built-in and MCP tools share typed schemas and permission enforcement.
+- [x] Built-in and MCP tools share typed schemas and permission enforcement.
 - [x] stdio, Streamable HTTP, and legacy SSE MCP transports pass contract tests.
 - [x] Claude-compatible Skills load from user, workspace, and domain scopes.
-- [ ] Signed official and clearly marked unsigned third-party domain packages install safely.
+- [x] Signed official and clearly marked unsigned third-party domain packages install safely.
+
+Evidence (2026-08-10): Gate E is closed. `ToolSpec::validate_schema` enforces
+the shared typed-schema contract for every registration composed through
+`CompositeToolExecutor` (object type declaration, object properties, string
+required lists), the MCP boundary normalizes server schemas into the
+contract, and `tools_schema.rs` proves built-in steel tools validate while
+malformed schemas are rejected; permission risks remain split between
+Automatic and ConfirmationRequired with the existing request flow. Signed
+official installs, explicit unsigned third-party installs, tamper and
+untrusted-key rejection, rollback, and staging cleanup were already covered
+by the domain installer suite.
 
 ### Gate F: complete steel workbench
 
