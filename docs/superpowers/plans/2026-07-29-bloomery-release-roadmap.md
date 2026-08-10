@@ -150,6 +150,16 @@ the `OptimizationGateway` trait, with argument validation, cancellation
 handling, typed error surfacing, allowlist exposure in the steel manifest,
 and eight new integration tests passing in the full offline Rust suite.
 
+Evidence (2026-08-10): the versioned steel evaluation suite
+`steel-evaluations-v1.json` is pinned in the manifest and executed by both
+the Rust runner (calculators, dataset mapping, dataset profiling,
+terminology) and the Worker suite (inference vectors, training
+reproducibility, optimization feasibility), each category against its
+recorded threshold with verbatim failure recording; provider categories
+keep provider/model/run_at fields. Gate F item one now waits only on the
+full Gate F verification sweep (signature, 100k-row import, ONNX parity,
+packaged evidence).
+
 ### Gate G: finished desktop product
 
 - [ ] First-run setup, workbench, chat, knowledge, analysis, extensions, settings, and diagnostics are complete.

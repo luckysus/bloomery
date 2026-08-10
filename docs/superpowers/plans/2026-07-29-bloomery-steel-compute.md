@@ -185,10 +185,25 @@ Rust suite.
 
 **Files:** Create package evaluation cases, runner, golden outputs, and `docs/steel/evaluation.md`.
 
-- [ ] **Step 1: Define licensed evaluation sets** for terminology, retrieval, citations, calculations, dataset mapping, profiling, inference, training, and optimization.
-- [ ] **Step 2: Run the initial evaluator** and record failures rather than weakening thresholds.
-- [ ] **Step 3: Add release thresholds** for exact calculators, citation validity, retrieval recall, mapping accuracy, model reproducibility, and optimization feasibility. Record provider/model versions for nondeterministic LLM cases.
+- [x] **Step 1: Define licensed evaluation sets** for terminology, retrieval, citations, calculations, dataset mapping, profiling, inference, training, and optimization.
+- [x] **Step 2: Run the initial evaluator** and record failures rather than weakening thresholds.
+- [x] **Step 3: Add release thresholds** for exact calculators, citation validity, retrieval recall, mapping accuracy, model reproducibility, and optimization feasibility. Record provider/model versions for nondeterministic LLM cases.
 - [ ] **Step 4: Run Gate F verification:** package validation/signature, all steel/worker tests, 100k-row import, ONNX parity, restart-safe training/optimization, no network/private server access, and evaluation thresholds.
+
+**Progress evidence (2026-08-10):** The versioned evaluation suite
+`evaluations/steel-evaluations-v1.json` (schema/evaluation version 1.0.0,
+SHA-256 pinned in the manifest) declares nine categories with thresholds:
+calculators, dataset_mapping, dataset_profiling, terminology, inference,
+training_reproducibility, optimization_feasibility, retrieval, citation, and
+terminology_qa. The Rust runner `steel/evaluations.rs` executes the four
+rust categories against the package assets and records verbatim failures;
+the Worker suite executes inference, training reproducibility, and
+optimization feasibility from the same versioned file. Provider categories
+reserve provider/model/run_at recording fields and claim no score until
+executed. `tests/steel_evaluations.rs` proves the official suite meets its
+thresholds and that a corrupted vector is recorded as a failure instead of
+being hidden. Gate F step 4 (signature, 100k-row import, ONNX parity,
+packaged evidence) remains open.
 
 ### Task 11: Package the worker for Windows
 

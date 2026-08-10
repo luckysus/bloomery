@@ -1,4 +1,6 @@
-use super::optimization_tool::{optimize_constrained_tool, optimization_status_tool, OptimizationGateway};
+use super::optimization_tool::{
+    optimization_status_tool, optimize_constrained_tool, OptimizationGateway,
+};
 use super::{
     calculate_carbon_equivalent, CarbonEquivalentFormula, CompositionInput, CompositionUnit,
 };

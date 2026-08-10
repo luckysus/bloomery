@@ -62,6 +62,13 @@
       "dataset": "evaluations/steel-qa.jsonl",
       "expected_behavior": "Use canonical steel terms, preserve units, and avoid unsupported standard claims.",
       "threshold": 1.0
+    },
+    {
+      "id": "steel-deterministic-v1",
+      "kind": "evaluation",
+      "dataset": "evaluations/steel-evaluations-v1.json",
+      "expected_behavior": "Deterministic calculator, mapping, terminology, inference, training, and optimization cases must meet their recorded thresholds without weakening them.",
+      "threshold": 1.0
     }
   ],
   "assets": [
@@ -89,6 +96,11 @@
       "path": "evaluations/steel-qa.jsonl",
       "kind": "evaluation_fixture",
       "sha256": "d313cc7f5c1a774303fcab493f7b27f5c9328385aa7698e645f3c6a911c871bb"
+    },
+    {
+      "path": "evaluations/steel-evaluations-v1.json",
+      "kind": "evaluation_suite",
+      "sha256": "58e7f0153c75eb58da5cafa27194925bcf4e361f436362cc47e5b48e70b9dba0"
     }
   ]
 }

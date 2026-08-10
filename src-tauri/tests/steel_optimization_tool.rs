@@ -82,7 +82,8 @@ async fn invoke(
 
 #[test]
 fn gateway_executor_registers_optimization_tools_with_confirmation_risk() {
-    let executor = SteelToolExecutor::with_optimization_gateway(Arc::new(FakeGateway::default()), true);
+    let executor =
+        SteelToolExecutor::with_optimization_gateway(Arc::new(FakeGateway::default()), true);
     let registrations = executor.registrations();
     assert_eq!(registrations.len(), 3);
     let optimize = registrations
@@ -183,7 +184,8 @@ async fn optimization_tool_surfaces_gateway_failures_as_typed_errors() {
 
 #[tokio::test]
 async fn optimization_tools_respect_cancellation() {
-    let executor = SteelToolExecutor::with_optimization_gateway(Arc::new(FakeGateway::default()), true);
+    let executor =
+        SteelToolExecutor::with_optimization_gateway(Arc::new(FakeGateway::default()), true);
 
     let error = invoke(
         &executor,
@@ -199,7 +201,8 @@ async fn optimization_tools_respect_cancellation() {
 
 #[tokio::test]
 async fn optimization_status_tool_reports_result_and_errors() {
-    let executor = SteelToolExecutor::with_optimization_gateway(Arc::new(FakeGateway::default()), true);
+    let executor =
+        SteelToolExecutor::with_optimization_gateway(Arc::new(FakeGateway::default()), true);
 
     let status = invoke(
         &executor,
@@ -212,7 +215,10 @@ async fn optimization_status_tool_reports_result_and_errors() {
     .expect("status lookup must succeed");
     assert_eq!(status["state"], "completed");
     assert_eq!(status["result"]["method"], "tpe");
-    assert_eq!(status["result"]["recommendations"][0]["feasible"], json!(true));
+    assert_eq!(
+        status["result"]["recommendations"][0]["feasible"],
+        json!(true)
+    );
 
     let error = invoke(
         &executor,

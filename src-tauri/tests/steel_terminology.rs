@@ -11,9 +11,7 @@ fn read_json(relative: &str) -> Value {
     let path = steel_package_root().join(relative);
     let text = std::fs::read_to_string(&path)
         .unwrap_or_else(|error| panic!("read {}: {error}", path.display()));
-    serde_json::from_str(&text).unwrap_or_else(|error| {
-        panic!("parse {}: {error}", path.display())
-    })
+    serde_json::from_str(&text).unwrap_or_else(|error| panic!("parse {}: {error}", path.display()))
 }
 
 const ALLOWED_CATEGORIES: &[&str] = &[
@@ -37,7 +35,8 @@ const REQUIRED_CATEGORIES: &[&str] = &[
     "process_stage",
 ];
 
-const REQUIRED_PROCESS_STAGES: &[&str] = &["steelmaking", "refining", "casting", "heating", "rolling"];
+const REQUIRED_PROCESS_STAGES: &[&str] =
+    &["steelmaking", "refining", "casting", "heating", "rolling"];
 
 fn terms<'a>(terminology: &'a Value) -> Vec<&'a Value> {
     terminology["terms"]
@@ -58,8 +57,14 @@ fn terminology_licenses_and_schema_are_declared() {
     let terminology = read_json("assets/terminology.json");
     assert_eq!(terminology["license"], "Apache-2.0");
     assert_eq!(terminology["schema_version"], "1.1.0");
-    assert!(!terminology["source_policy"].as_str().unwrap_or("").is_empty());
-    assert!(!terms(&terminology).is_empty(), "terminology must not be empty");
+    assert!(!terminology["source_policy"]
+        .as_str()
+        .unwrap_or("")
+        .is_empty());
+    assert!(
+        !terms(&terminology).is_empty(),
+        "terminology must not be empty"
+    );
 }
 
 #[test]
@@ -115,7 +120,10 @@ fn aliases_are_unique_unless_disambiguated() {
                 .as_str()
                 .unwrap_or_else(|| panic!("term {id} has a non-string alias"))
                 .to_lowercase();
-            assert!(local.insert(alias.clone()), "term {id} repeats alias {alias}");
+            assert!(
+                local.insert(alias.clone()),
+                "term {id} repeats alias {alias}"
+            );
             assert!(
                 alias != canonical,
                 "term {id} aliases its own canonical form"
@@ -199,9 +207,15 @@ fn every_term_source_resolves_to_a_ledger_entry_without_restricted_text() {
     assert!(!ledger["policy"].as_str().unwrap_or("").is_empty());
 
     let mut entries = HashSet::new();
-    for entry in ledger["entries"].as_array().expect("ledger must list entries") {
+    for entry in ledger["entries"]
+        .as_array()
+        .expect("ledger must list entries")
+    {
         let id = entry["id"].as_str().expect("ledger entry needs id");
-        assert!(entries.insert(id.to_string()), "duplicate ledger entry {id}");
+        assert!(
+            entries.insert(id.to_string()),
+            "duplicate ledger entry {id}"
+        );
         assert!(
             !entry["title"].as_str().unwrap_or("").trim().is_empty(),
             "ledger entry {id} has no title"

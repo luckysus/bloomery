@@ -29,19 +29,16 @@ impl OptimizationGateway for DesktopOptimizationGateway {
         let training_task_id = uuid::Uuid::parse_str(&request.training_task_id)
             .map_err(|error| format!("invalid training task ID: {error}"))?;
         let mut connection = self.open()?;
-        let task = logic::submit_optimization_on_connection(
-            &mut connection,
-            &request,
-            training_task_id,
-        )?;
-        Ok(json!(crate::app::task_commands::tasks::background_task_response(
-            task
-        )))
+        let task =
+            logic::submit_optimization_on_connection(&mut connection, &request, training_task_id)?;
+        Ok(json!(
+            crate::app::task_commands::tasks::background_task_response(task)
+        ))
     }
 
     fn status(&self, task_id: &str) -> Result<Value, String> {
-        let id = uuid::Uuid::parse_str(task_id)
-            .map_err(|error| format!("invalid task ID: {error}"))?;
+        let id =
+            uuid::Uuid::parse_str(task_id).map_err(|error| format!("invalid task ID: {error}"))?;
         let connection = self.open()?;
         logic::optimization_task_status_on_connection(&connection, id)
     }

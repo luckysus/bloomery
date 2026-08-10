@@ -32,9 +32,9 @@ impl ToolHandler for OptimizeConstrainedTool {
                 ));
             }
             validate_optimization_arguments(&arguments)?;
-            gateway.submit(arguments).map_err(|error| {
-                ToolExecutionError::new("steel_optimization_submit_failed", error)
-            })
+            gateway
+                .submit(arguments)
+                .map_err(|error| ToolExecutionError::new("steel_optimization_submit_failed", error))
         })
     }
 }
@@ -107,13 +107,12 @@ impl ToolHandler for OptimizationStatusTool {
                     "optimization status lookup was cancelled",
                 ));
             }
-            let request = serde_json::from_value::<OptimizationStatusRequest>(arguments)
-                .map_err(|error| {
-                    ToolExecutionError::new("steel_optimization_invalid", error.to_string())
-                })?;
-            gateway.status(&request.task_id).map_err(|error| {
-                ToolExecutionError::new("steel_optimization_status_failed", error)
-            })
+            let request = serde_json::from_value::<OptimizationStatusRequest>(arguments).map_err(
+                |error| ToolExecutionError::new("steel_optimization_invalid", error.to_string()),
+            )?;
+            gateway
+                .status(&request.task_id)
+                .map_err(|error| ToolExecutionError::new("steel_optimization_status_failed", error))
         })
     }
 }

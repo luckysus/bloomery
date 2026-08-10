@@ -238,7 +238,10 @@ fn run_task(
     } else if expected_operation == "predict_onnx" {
         if result.get("model_sha256").and_then(Value::as_str).is_none()
             || result.get("predictions").is_none()
-            || result.get("opset_version").and_then(Value::as_u64).is_none()
+            || result
+                .get("opset_version")
+                .and_then(Value::as_u64)
+                .is_none()
             || !result
                 .get("applicability_warnings")
                 .map(Value::is_array)
@@ -317,7 +320,10 @@ fn validate_optimization_result(result: &Value) -> Result<(), HandlerError> {
     if result.get("method").and_then(Value::as_str).is_none()
         || result.get("direction").and_then(Value::as_str).is_none()
         || result.get("model_id").and_then(Value::as_str).is_none()
-        || result.get("trials_completed").and_then(Value::as_u64).is_none()
+        || result
+            .get("trials_completed")
+            .and_then(Value::as_u64)
+            .is_none()
         || !result
             .as_object()
             .map(|object| object.contains_key("deterministic_seed"))
@@ -339,7 +345,10 @@ fn validate_optimization_result(result: &Value) -> Result<(), HandlerError> {
                 .get("objectives")
                 .map(Value::is_array)
                 .unwrap_or(false)
-            || recommendation.get("prediction").and_then(Value::as_f64).is_none()
+            || recommendation
+                .get("prediction")
+                .and_then(Value::as_f64)
+                .is_none()
             || recommendation.get("feasible").and_then(Value::as_bool) != Some(true)
         {
             return Err(HandlerError::permanent("compute_worker_invalid_result"));

@@ -65,7 +65,10 @@ fn optimization_request(training_task_id: uuid::Uuid) -> OptimizeSteelProcessReq
         training_task_id: training_task_id.to_string(),
         direction: "minimize".to_string(),
         objective_columns: vec![0],
-        bounds: vec![json!({"min": 0.0, "max": 10.0}), json!({"min": 0.0, "max": 5.0})],
+        bounds: vec![
+            json!({"min": 0.0, "max": 10.0}),
+            json!({"min": 0.0, "max": 5.0}),
+        ],
         fixed_values: vec![None, Some(2.0)],
         constraints: vec![json!({
             "kind": "inequality",
@@ -93,7 +96,10 @@ fn gateway_submission_creates_a_persisted_optimization_task() {
     let payload: serde_json::Value =
         serde_json::from_str(&task.payload_json).expect("decode optimization payload");
     assert_eq!(payload["operation"], "optimize_constrained");
-    assert_eq!(payload["payload"]["training_task_id"], training_task_id.to_string());
+    assert_eq!(
+        payload["payload"]["training_task_id"],
+        training_task_id.to_string()
+    );
     assert_eq!(payload["payload"]["fixed_values"], json!({"carbon": 2.0}));
     assert_eq!(
         payload["payload"]["constraints"][0]["coefficients"],
@@ -124,7 +130,10 @@ fn gateway_submission_creates_a_persisted_optimization_task() {
     let status = optimization_task_status_on_connection(&connection, task.id)
         .expect("read completed optimization status");
     assert_eq!(status["state"], "completed");
-    assert_eq!(status["result"]["recommendations"][0]["feasible"], json!(true));
+    assert_eq!(
+        status["result"]["recommendations"][0]["feasible"],
+        json!(true)
+    );
 
     drop(connection);
     let _ = std::fs::remove_file(path);
@@ -139,7 +148,10 @@ fn gateway_submission_rejects_mismatched_datasets_and_unfinished_training() {
     request.dataset_id = "other-dataset".to_string();
     let error = submit_optimization_on_connection(&mut connection, &request, training_task_id)
         .expect_err("mismatched dataset must be rejected");
-    assert_eq!(error, "optimization dataset does not match the training task");
+    assert_eq!(
+        error,
+        "optimization dataset does not match the training task"
+    );
 
     let pending_training = repository::create(
         &mut connection,

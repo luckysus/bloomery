@@ -5,8 +5,8 @@ use crate::storage::repositories::steel::{self as steel_repository, SteelDataset
 use crate::tasks::{repository as task_repository, NewTask};
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
-use std::io::Read;
 use std::collections::HashSet;
+use std::io::Read;
 
 #[derive(Debug, Clone, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -223,9 +223,7 @@ pub fn build_linear_regression_prediction_payload(
     }))
 }
 
-pub fn build_onnx_prediction_payload(
-    request: &PredictOnnxModelRequest,
-) -> Result<Value, String> {
+pub fn build_onnx_prediction_payload(request: &PredictOnnxModelRequest) -> Result<Value, String> {
     let model_path = request.model_path.trim();
     if model_path.is_empty() {
         return Err("ONNX model path is required".to_string());
@@ -248,7 +246,13 @@ pub fn build_onnx_prediction_payload(
     if !request.manifest.is_object() {
         return Err("ONNX manifest must be an object".to_string());
     }
-    for key in ["model_id", "model_version", "inputs", "outputs", "preprocessing"] {
+    for key in [
+        "model_id",
+        "model_version",
+        "inputs",
+        "outputs",
+        "preprocessing",
+    ] {
         if request.manifest.get(key).is_none() {
             return Err(format!("ONNX manifest is missing {key}"));
         }
@@ -290,7 +294,8 @@ fn validate_onnx_model_path(path: &std::path::Path) -> Result<(), String> {
 }
 
 fn hash_onnx_model(path: &std::path::Path) -> Result<String, String> {
-    let mut file = std::fs::File::open(path).map_err(|error| format!("read ONNX model: {error}"))?;
+    let mut file =
+        std::fs::File::open(path).map_err(|error| format!("read ONNX model: {error}"))?;
     let mut digest = Sha256::new();
     let mut buffer = [0_u8; 1024 * 1024];
     loop {
@@ -368,7 +373,10 @@ pub fn build_optimization_payload(
         let name = feature_names[*ordinal]
             .as_str()
             .ok_or_else(|| "feature name is invalid".to_string())?;
-        if objective_names.iter().any(|existing: &String| existing == name) {
+        if objective_names
+            .iter()
+            .any(|existing: &String| existing == name)
+        {
             return Err(format!("objective {name} is duplicated"));
         }
         objective_names.push(name.to_string());
@@ -414,7 +422,9 @@ pub fn build_optimization_payload(
             .and_then(Value::as_str)
             .ok_or_else(|| format!("constraints[{index}].kind is required"))?;
         if kind != "equality" && kind != "inequality" {
-            return Err(format!("constraints[{index}].kind must be equality or inequality"));
+            return Err(format!(
+                "constraints[{index}].kind must be equality or inequality"
+            ));
         }
         let coefficients = entry
             .get("coefficients")
@@ -431,7 +441,9 @@ pub fn build_optimization_payload(
             let value = coefficient
                 .as_f64()
                 .filter(|value| value.is_finite())
-                .ok_or_else(|| format!("constraints[{index}].coefficients[{column}] must be finite"))?;
+                .ok_or_else(|| {
+                    format!("constraints[{index}].coefficients[{column}] must be finite")
+                })?;
             if value != 0.0 {
                 non_zero = true;
             }
@@ -463,7 +475,9 @@ pub fn build_optimization_payload(
         constraints.push(constraint);
     }
     if request.trials < 1 || request.trials > MAX_OPTIMIZATION_TRIALS {
-        return Err(format!("trials must be between 1 and {MAX_OPTIMIZATION_TRIALS}"));
+        return Err(format!(
+            "trials must be between 1 and {MAX_OPTIMIZATION_TRIALS}"
+        ));
     }
     Ok(json!({
         "operation": "optimize_constrained",
@@ -913,7 +927,10 @@ mod tests {
             training_task_id: "task-1".to_string(),
             direction: "minimize".to_string(),
             objective_columns: vec![0],
-            bounds: vec![json!({"min": 0.0, "max": 10.0}), json!({"min": 0.0, "max": 5.0})],
+            bounds: vec![
+                json!({"min": 0.0, "max": 10.0}),
+                json!({"min": 0.0, "max": 5.0}),
+            ],
             fixed_values: vec![None, Some(2.0)],
             constraints: vec![json!({
                 "kind": "inequality",
@@ -925,9 +942,8 @@ mod tests {
             seed: 7,
         };
 
-        let payload =
-            build_optimization_payload("dataset-1", "task-1", &artifact, &request)
-                .expect("build optimization payload");
+        let payload = build_optimization_payload("dataset-1", "task-1", &artifact, &request)
+            .expect("build optimization payload");
 
         assert_eq!(payload["operation"], "optimize_constrained");
         assert_eq!(payload["payload"]["objectives"], json!(["temperature"]));
@@ -936,7 +952,10 @@ mod tests {
             payload["payload"]["constraints"][0]["coefficients"],
             json!({"temperature": 1.0, "carbon": 0.0})
         );
-        assert_eq!(payload["payload"]["constraints"][0]["tolerance"], json!(0.01));
+        assert_eq!(
+            payload["payload"]["constraints"][0]["tolerance"],
+            json!(0.01)
+        );
         assert_eq!(payload["payload"]["trials"], json!(24));
         assert_eq!(payload["payload"]["seed"], json!(7));
     }
@@ -1030,7 +1049,8 @@ mod tests {
 
     #[test]
     fn builds_onnx_prediction_payload_with_hash_and_batch_features() {
-        let path = std::env::temp_dir().join(format!("bloomery-model-{}.onnx", uuid::Uuid::new_v4()));
+        let path =
+            std::env::temp_dir().join(format!("bloomery-model-{}.onnx", uuid::Uuid::new_v4()));
         let bytes = b"onnx-fixture";
         std::fs::write(&path, bytes).expect("write model fixture");
         let mut digest = Sha256::new();
@@ -1056,14 +1076,18 @@ mod tests {
 
         assert_eq!(payload["operation"], "predict_onnx");
         assert_eq!(payload["payload"]["model_sha256"], request.model_sha256);
-        assert_eq!(payload["payload"]["features"], json!([[1.0, 2.0], [3.0, 4.0]]));
+        assert_eq!(
+            payload["payload"]["features"],
+            json!([[1.0, 2.0], [3.0, 4.0]])
+        );
         assert_eq!(payload["payload"]["manifest"]["model_id"], "mul-model");
         let _ = std::fs::remove_file(path);
     }
 
     #[test]
     fn rejects_onnx_prediction_when_model_hash_is_wrong() {
-        let path = std::env::temp_dir().join(format!("bloomery-model-{}.onnx", uuid::Uuid::new_v4()));
+        let path =
+            std::env::temp_dir().join(format!("bloomery-model-{}.onnx", uuid::Uuid::new_v4()));
         std::fs::write(&path, b"onnx-fixture").expect("write model fixture");
         let request = PredictOnnxModelRequest {
             model_path: path.to_string_lossy().into_owned(),
@@ -1081,7 +1105,8 @@ mod tests {
 
     #[test]
     fn hashes_onnx_model_file_for_ui_pinning() {
-        let path = std::env::temp_dir().join(format!("bloomery-hash-{}.onnx", uuid::Uuid::new_v4()));
+        let path =
+            std::env::temp_dir().join(format!("bloomery-hash-{}.onnx", uuid::Uuid::new_v4()));
         std::fs::write(&path, b"onnx-fixture").expect("write model fixture");
 
         let mut digest = Sha256::new();

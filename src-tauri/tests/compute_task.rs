@@ -1,8 +1,7 @@
 use bloomery::compute::handler::{
-    ComputeOnnxPredictionTaskHandler, ComputeOptimizationTaskHandler,
-    ComputePredictionTaskHandler, ComputeTaskHandler, COMPUTE_OPTIMIZE_CONSTRAINED_KIND,
-    COMPUTE_PREDICT_LINEAR_REGRESSION_KIND, COMPUTE_PREDICT_ONNX_KIND,
-    COMPUTE_TRAIN_LINEAR_REGRESSION_KIND,
+    ComputeOnnxPredictionTaskHandler, ComputeOptimizationTaskHandler, ComputePredictionTaskHandler,
+    ComputeTaskHandler, COMPUTE_OPTIMIZE_CONSTRAINED_KIND, COMPUTE_PREDICT_LINEAR_REGRESSION_KIND,
+    COMPUTE_PREDICT_ONNX_KIND, COMPUTE_TRAIN_LINEAR_REGRESSION_KIND,
 };
 use bloomery::compute::worker::{WorkerClient, WorkerConfig};
 use bloomery::storage::migrations::migrate;
@@ -330,9 +329,9 @@ fn scheduler_runs_optimization_and_enforces_constraints() {
             poll_interval: Duration::from_millis(1),
         },
         Arc::new(SystemClock),
-        vec![Arc::new(ComputeOptimizationTaskHandler::from_optional(Some(
-            python_worker_config(),
-        )))],
+        vec![Arc::new(ComputeOptimizationTaskHandler::from_optional(
+            Some(python_worker_config()),
+        ))],
         sink.clone(),
     )
     .expect("create optimization scheduler");
@@ -444,9 +443,9 @@ fn scheduler_runs_onnx_prediction_and_persists_model_provenance() {
             poll_interval: Duration::from_millis(1),
         },
         Arc::new(SystemClock),
-        vec![Arc::new(ComputeOnnxPredictionTaskHandler::from_optional(Some(
-            python_worker_config(),
-        )))],
+        vec![Arc::new(ComputeOnnxPredictionTaskHandler::from_optional(
+            Some(python_worker_config()),
+        ))],
         sink.clone(),
     )
     .expect("create ONNX scheduler");
@@ -473,10 +472,7 @@ fn scheduler_runs_onnx_prediction_and_persists_model_provenance() {
                 checkpoint["result"]["predictions"],
                 json!([[1.0, 4.0], [9.0, 16.0], [25.0, 36.0]])
             );
-            assert_eq!(
-                checkpoint["result"]["model_sha256"],
-                model_sha256
-            );
+            assert_eq!(checkpoint["result"]["model_sha256"], model_sha256);
             break;
         }
         assert!(Instant::now() < deadline, "ONNX task timed out");
