@@ -33,6 +33,7 @@ vi.mock("../bridge/desktop", () => ({
     listenDesktopAgentDeltas: vi.fn().mockResolvedValue(() => undefined),
     desktopAgentChat: vi.fn(),
     cancelDesktopRun: vi.fn().mockResolvedValue(undefined),
+    listProviderProfiles: vi.fn().mockResolvedValue([]),
   },
 }));
 

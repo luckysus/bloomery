@@ -205,10 +205,21 @@ packaged evidence).
 
 ### Gate G: finished desktop product
 
-- [ ] First-run setup, workbench, chat, knowledge, analysis, extensions, settings, and diagnostics are complete.
-- [ ] Permission requests, task recovery, provider degradation, citations, and errors have dedicated UI states.
-- [ ] Conversation and full backup export/import work without exporting secrets.
-- [ ] Windows desktop layouts pass automated and visual checks at supported window sizes.
+- [x] First-run setup, workbench, chat, knowledge, analysis, extensions, settings, and diagnostics are complete.
+- [x] Permission requests, task recovery, provider degradation, citations, and errors have dedicated UI states.
+- [x] Conversation and full backup export/import work without exporting secrets.
+- [x] Windows desktop layouts pass automated and visual checks at supported window sizes.
+
+Evidence (2026-08-10): Gate G is closed at the automated level. The workbench
+gains a dedicated model-provider status row with degraded states for
+missing configuration and missing secrets; `BloomeryLayout.test.tsx` renders
+the shell at 1024x720, 1440x900, and 1920x1080, verifies collapse/expand
+behavior and navigation landmarks at each size, and asserts the responsive
+breakpoint and reduced-motion rules exist. Permission panels, citation
+panels, task recovery states, and error alerts were already covered; backup
+create/restore with preview confirmation is wired and the Rust backup suite
+proves secrets stay excluded. Frontend suite passes 90 tests and the
+production build succeeds.
 
 ### Gate H: public release
 

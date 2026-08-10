@@ -2,6 +2,7 @@ import {
   AlertCircle,
   ArrowUpRight,
   BookOpen,
+  BrainCircuit,
   CircleAlert,
   CircleCheck,
   Clock3,
@@ -13,6 +14,7 @@ import {
   RefreshCw,
   Server,
 } from "lucide-react";
+import { useEffect, useState } from "react";
 import { useLocale, type MessageKey } from "../i18n/locale";
 import { desktop, type BackgroundTask, type Conversation } from "../bridge/desktop";
 import { useWorkbenchOverview } from "../features/workbench/useWorkbenchOverview";
@@ -73,8 +75,43 @@ export default function WorkbenchHome({ initializationState, onOpenSection }: Wo
         ? t("workbenchActiveTaskCount", { count: activeTaskCount })
         : t("noActiveTasks");
 
+  const [providerStatus, setProviderStatus] = useState<"loading" | "missing" | "secret" | "ready">("loading");
+  const [providerLabel, setProviderLabel] = useState("");
+  useEffect(() => {
+    if (!ready) return;
+    let mounted = true;
+    desktop
+      .listProviderProfiles()
+      .then((profiles) => {
+        if (!mounted) return;
+        const chat = profiles.find(
+          (profile) => profile.enabled && (profile.kind === "open_ai_compatible" || profile.kind === "ollama"),
+        );
+        if (!chat) {
+          setProviderStatus("missing");
+          setProviderLabel(t("providerNotConfigured"));
+        } else if (!chat.secret_configured) {
+          setProviderStatus("secret");
+          setProviderLabel(t("providerSecretMissing"));
+        } else {
+          setProviderStatus("ready");
+          setProviderLabel(chat.display_name);
+        }
+      })
+      .catch(() => {
+        if (mounted) {
+          setProviderStatus("missing");
+          setProviderLabel(t("providerNotConfigured"));
+        }
+      });
+    return () => {
+      mounted = false;
+    };
+  }, [ready, t]);
+
   const statusRows = [
     { labelKey: "localRuntime", value: t("started"), icon: Server, tone: "good", testId: undefined },
+    { labelKey: "modelProvider", value: providerStatus === "loading" ? t("loading") : providerLabel, icon: BrainCircuit, tone: providerStatus === "ready" ? "good" : "pending", testId: "workbench-provider-status" },
     { labelKey: "knowledgeBase", value: knowledgeStatus, icon: BookOpen, tone: knowledgeFailed ? "pending" : health?.knowledge_base_count ? "good" : "neutral", testId: "workbench-knowledge-status" },
     { labelKey: "backgroundTasks", value: taskStatus, icon: Clock3, tone: tasksFailed ? "pending" : activeTaskCount ? "good" : "neutral", testId: "workbench-task-status" },
   ] as const;

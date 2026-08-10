@@ -9,6 +9,7 @@ vi.mock("../bridge/desktop", () => ({
     listKnowledgeBases: vi.fn(),
     listBackgroundTasks: vi.fn(),
     getKnowledgeHealth: vi.fn(),
+    listProviderProfiles: vi.fn().mockResolvedValue([]),
   },
 }));
 
