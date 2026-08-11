@@ -90,20 +90,19 @@ pub fn preview_remove_domain_package(
 
 #[tauri::command]
 pub fn remove_domain_package(
+    app: tauri::AppHandle,
     db: tauri::State<DbState>,
     package_id: String,
     version: String,
 ) -> Result<(), String> {
-    let record = with_conn(&db, |connection| {
-        domain_repository::get(connection, current_workspace_id(), &package_id, &version)
-    })?
-    .ok_or_else(|| "domain package version is not installed".to_string())?;
-    if record.active {
-        return Err("active domain package cannot be removed".to_string());
-    }
-    std::fs::remove_dir_all(&record.path)
-        .map_err(|error| format!("remove domain package files failed: {error}"))?;
+    let root = domains_root(&app)?;
     with_conn_mut(&db, |connection| {
-        domain_repository::remove(connection, current_workspace_id(), &package_id, &version)
+        crate::app::domain_removal::remove_package_atomically(
+            connection,
+            current_workspace_id(),
+            &root,
+            &package_id,
+            &version,
+        )
     })
 }

@@ -195,6 +195,38 @@ pub fn remove(
     Ok(())
 }
 
+pub fn restore(
+    connection: &mut Connection,
+    workspace_id: &str,
+    package: &DomainPackageRecord,
+) -> Result<(), String> {
+    let manifest_json =
+        serde_json::to_string(&package.manifest).map_err(|error| error.to_string())?;
+    let inserted = connection
+        .execute(
+            "INSERT INTO domain_packages
+               (workspace_id, id, version, path, package_sha256, trust, manifest_json,
+                installed_at, active)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+            params![
+                workspace_id,
+                package.id,
+                package.version,
+                package.path,
+                package.package_sha256,
+                trust_value(package.trust),
+                manifest_json,
+                package.installed_at,
+                if package.active { 1_i64 } else { 0_i64 },
+            ],
+        )
+        .map_err(|error| error.to_string())?;
+    if inserted != 1 {
+        return Err("domain package record was not restored".to_string());
+    }
+    Ok(())
+}
+
 fn map_record(row: &rusqlite::Row<'_>) -> rusqlite::Result<DomainPackageRecord> {
     let trust: String = row.get(4)?;
     let manifest_json: String = row.get(5)?;

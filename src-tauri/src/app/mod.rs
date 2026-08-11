@@ -10,6 +10,7 @@ pub(crate) mod desktop_chat_commands;
 pub(crate) mod desktop_stream;
 pub(crate) mod desktop_summary_commands;
 pub mod domain_commands;
+pub(crate) mod domain_removal;
 pub(crate) mod event_sink;
 pub(crate) mod identity;
 pub(crate) mod knowledge_commands;
