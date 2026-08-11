@@ -54,6 +54,8 @@ test-results/
 # Rust / Tauri
 src-tauri/target/
 src-tauri/gen/schemas/
+src-tauri/resources/compute-worker/*
+!src-tauri/resources/compute-worker/.gitkeep
 src-tauri/final_local_agent_tests.txt
 src-tauri/final_test_results.txt
 src-tauri/test_output_*.txt

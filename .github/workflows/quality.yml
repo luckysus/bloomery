@@ -33,6 +33,22 @@ jobs:
         with:
           toolchain: stable
 
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v9
+
+      - name: Install locked compute worker environment
+        run: uv sync --frozen --extra test
+        working-directory: compute-worker
+
+      - name: Run compute worker suite
+        run: .\.venv\Scripts\python.exe -m pytest -q
+        working-directory: compute-worker
+
       - name: Install frontend dependencies
         run: npm ci
         working-directory: frontend

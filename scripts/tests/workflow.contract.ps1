@@ -17,7 +17,15 @@ foreach ($relativePath in $workflows) {
     }
     $content = Get-Content -LiteralPath $path -Raw
     $normalizedContent = $content.Replace("\", "/")
-    foreach ($requiredText in @("windows-latest", "actions/checkout", "npm ci")) {
+    foreach ($requiredText in @(
+        "windows-latest",
+        "actions/checkout",
+        "actions/setup-python",
+        "astral-sh/setup-uv",
+        "compute-worker",
+        "uv sync --frozen",
+        "npm ci"
+    )) {
         if ($normalizedContent -notmatch [regex]::Escape($requiredText)) {
             throw "$relativePath is missing required release automation: $requiredText"
         }

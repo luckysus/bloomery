@@ -13,6 +13,15 @@ $ErrorActionPreference = "Stop"
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $rustRoot = Join-Path $repoRoot "src-tauri"
 $tauriConfigPath = Join-Path $rustRoot "tauri.conf.json"
+$workerRoot = Join-Path $repoRoot "compute-worker"
+$workerBuildScript = Join-Path $workerRoot "build.ps1"
+$workerResourceRoot = Join-Path $rustRoot "resources\compute-worker"
+$workerArtifactNames = @(
+    "bloomery-compute-worker.exe",
+    "worker-artifact-manifest.json",
+    "worker-sbom.json",
+    "bloomery-compute-worker.sha256"
+)
 
 function Invoke-Checked {
     param(
@@ -63,41 +72,84 @@ if (-not $SkipTests) {
     Invoke-Checked "Deterministic test suite" "powershell" $testArguments $repoRoot
 }
 
-$bundleValue = if ($Bundles -eq "all") { "msi,nsis" } else { $Bundles }
-$buildArguments = @("tauri", "build", "--ci", "--bundles", $bundleValue)
-$updaterConfigPath = $null
-if ($Signed) {
-    if ([string]::IsNullOrWhiteSpace($env:TAURI_SIGNING_PRIVATE_KEY)) {
-        throw "TAURI_SIGNING_PRIVATE_KEY is required for a signed release"
-    }
-    if ([string]::IsNullOrWhiteSpace($env:BLOOMERY_UPDATER_PUBLIC_KEY)) {
-        throw "BLOOMERY_UPDATER_PUBLIC_KEY is required for a signed release"
-    }
-    if ([string]::IsNullOrWhiteSpace($env:BLOOMERY_UPDATER_ENDPOINT)) {
-        throw "BLOOMERY_UPDATER_ENDPOINT is required for a signed release"
-    }
-    if ([string]::IsNullOrWhiteSpace($env:BLOOMERY_RELEASE_ASSET_BASE_URL)) {
-        throw "BLOOMERY_RELEASE_ASSET_BASE_URL is required for a signed release"
-    }
-    $updaterConfigPath = Join-Path $env:TEMP ("bloomery-updater-" + [Guid]::NewGuid().ToString("N") + ".json")
-    $configScript = Join-Path $PSScriptRoot "write-updater-config.ps1"
-    Invoke-Checked "Signed updater configuration" "powershell" @(
-        "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $configScript,
-        "-OutputPath", $updaterConfigPath
-    ) $repoRoot
-    $buildArguments += @("--config", $updaterConfigPath)
-} else {
-    $buildArguments += "--no-sign"
-}
-if ($Offline) {
-    $buildArguments = @("--offline") + $buildArguments
-}
+$workerBuildOutput = Join-Path $env:TEMP ("bloomery-worker-" + [Guid]::NewGuid().ToString("N"))
 try {
-    $buildName = if ($Signed) { "Signed Windows package build" } else { "Unsigned Windows package build" }
-    Invoke-Checked $buildName "cargo" $buildArguments $rustRoot
+    if (-not (Test-Path -LiteralPath $workerBuildScript -PathType Leaf)) {
+        throw "Compute worker build script is missing: $workerBuildScript"
+    }
+    $workerBuildArguments = @(
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        $workerBuildScript,
+        "-OutputDirectory",
+        $workerBuildOutput
+    )
+    if ($Offline) {
+        $workerBuildArguments += "-Offline"
+    }
+    Invoke-Checked "Compute Worker package" "powershell" $workerBuildArguments $repoRoot
+
+    New-Item -ItemType Directory -Path $workerResourceRoot -Force | Out-Null
+    foreach ($artifactName in $workerArtifactNames) {
+        $sourcePath = Join-Path $workerBuildOutput $artifactName
+        if (-not (Test-Path -LiteralPath $sourcePath -PathType Leaf)) {
+            throw "Compute worker artifact is missing: $sourcePath"
+        }
+        $destinationPath = Join-Path $workerResourceRoot $artifactName
+        if (Test-Path -LiteralPath $destinationPath) {
+            Remove-Item -LiteralPath $destinationPath -Force
+        }
+        Copy-Item -LiteralPath $sourcePath -Destination $destinationPath -Force
+    }
+
+    $bundleValue = if ($Bundles -eq "all") { "msi,nsis" } else { $Bundles }
+    $buildArguments = @("tauri", "build", "--ci", "--bundles", $bundleValue)
+    $updaterConfigPath = $null
+    if ($Signed) {
+        if ([string]::IsNullOrWhiteSpace($env:TAURI_SIGNING_PRIVATE_KEY)) {
+            throw "TAURI_SIGNING_PRIVATE_KEY is required for a signed release"
+        }
+        if ([string]::IsNullOrWhiteSpace($env:BLOOMERY_UPDATER_PUBLIC_KEY)) {
+            throw "BLOOMERY_UPDATER_PUBLIC_KEY is required for a signed release"
+        }
+        if ([string]::IsNullOrWhiteSpace($env:BLOOMERY_UPDATER_ENDPOINT)) {
+            throw "BLOOMERY_UPDATER_ENDPOINT is required for a signed release"
+        }
+        if ([string]::IsNullOrWhiteSpace($env:BLOOMERY_RELEASE_ASSET_BASE_URL)) {
+            throw "BLOOMERY_RELEASE_ASSET_BASE_URL is required for a signed release"
+        }
+        $updaterConfigPath = Join-Path $env:TEMP ("bloomery-updater-" + [Guid]::NewGuid().ToString("N") + ".json")
+        $configScript = Join-Path $PSScriptRoot "write-updater-config.ps1"
+        Invoke-Checked "Signed updater configuration" "powershell" @(
+            "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $configScript,
+            "-OutputPath", $updaterConfigPath
+        ) $repoRoot
+        $buildArguments += @("--config", $updaterConfigPath)
+    } else {
+        $buildArguments += "--no-sign"
+    }
+    if ($Offline) {
+        $buildArguments = @("--offline") + $buildArguments
+    }
+    try {
+        $buildName = if ($Signed) { "Signed Windows package build" } else { "Unsigned Windows package build" }
+        Invoke-Checked $buildName "cargo" $buildArguments $rustRoot
+    } finally {
+        if ($updaterConfigPath -and (Test-Path -LiteralPath $updaterConfigPath)) {
+            Remove-Item -LiteralPath $updaterConfigPath -Force
+        }
+    }
 } finally {
-    if ($updaterConfigPath -and (Test-Path -LiteralPath $updaterConfigPath)) {
-        Remove-Item -LiteralPath $updaterConfigPath -Force
+    foreach ($artifactName in $workerArtifactNames) {
+        $stagedArtifact = Join-Path $workerResourceRoot $artifactName
+        if (Test-Path -LiteralPath $stagedArtifact) {
+            Remove-Item -LiteralPath $stagedArtifact -Force
+        }
+    }
+    if (Test-Path -LiteralPath $workerBuildOutput) {
+        Remove-Item -LiteralPath $workerBuildOutput -Recurse -Force
     }
 }
 

@@ -15,18 +15,25 @@ New-Item -ItemType Directory -Force -Path $distRoot | Out-Null
 function Invoke-Checked {
     param([string]$Name, [scriptblock]$Invocation)
     Write-Output "==> $Name"
-    & $Invocation
-    if ($LASTEXITCODE -ne 0) {
-        throw "$Name failed with exit code $LASTEXITCODE"
+    Push-Location $workerRoot
+    try {
+        & $Invocation
+        $exitCode = $LASTEXITCODE
+    }
+    finally {
+        Pop-Location
+    }
+    if ($exitCode -ne 0) {
+        throw "$Name failed with exit code $exitCode"
     }
 }
 
 Invoke-Checked "Locked isolated environment" {
     if ($Offline) {
-        uv sync --frozen --extra packaging --offline
+        uv sync --frozen --extra packaging --extra test --offline
     }
     else {
-        uv sync --frozen --extra packaging
+        uv sync --frozen --extra packaging --extra test
     }
 }
 

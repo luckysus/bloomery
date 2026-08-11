@@ -85,9 +85,10 @@ impl WorkerClient {
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::null());
-        #[cfg(windows)]
-        if let Some(system_root) = std::env::var_os("SystemRoot") {
-            command.env("SystemRoot", system_root);
+        for key in ["SystemRoot", "PATH", "TEMP", "TMP"] {
+            if let Some(value) = std::env::var_os(key) {
+                command.env(key, value);
+            }
         }
         if let Some(directory) = &config.working_directory {
             command.current_dir(directory);

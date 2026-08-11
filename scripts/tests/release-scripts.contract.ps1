@@ -20,6 +20,24 @@ if (-not (Test-Path -LiteralPath (Join-Path $rustRoot ([string]$windowsIcon)) -P
     throw "Configured Windows bundle icon is missing: $windowsIcon"
 }
 
+$resourceProperties = @($tauriConfig.bundle.resources.PSObject.Properties.Name)
+if ($resourceProperties -notcontains "resources/compute-worker") {
+    throw "tauri.conf.json must bundle the packaged compute worker"
+}
+
+$buildReleasePath = Join-Path $repoRoot "scripts\build-release.ps1"
+$buildReleaseContent = Get-Content -LiteralPath $buildReleasePath -Raw
+foreach ($requiredWorkerText in @(
+    '$workerBuildScript',
+    '$workerResourceRoot',
+    "bloomery-compute-worker.exe",
+    'Join-Path $workerRoot "build.ps1"'
+)) {
+    if ($buildReleaseContent -notmatch [regex]::Escape($requiredWorkerText)) {
+        throw "scripts/build-release.ps1 is missing Worker release integration: $requiredWorkerText"
+    }
+}
+
 $requiredScripts = @(
     @{ Path = "scripts/check.ps1"; RequiresOffline = $true; RequiresExitCode = $true },
     @{ Path = "scripts/test.ps1"; RequiresOffline = $true; RequiresExitCode = $true },
@@ -124,9 +142,28 @@ $buildScript = Join-Path $repoRoot "scripts\build-release.ps1"
 function cargo {
     $global:LASTEXITCODE = 37
 }
+function powershell {
+    param([Parameter(ValueFromRemainingArguments = $true)][object[]]$Arguments)
+    $outputIndex = [Array]::IndexOf($Arguments, "-OutputDirectory")
+    if ($outputIndex -lt 0 -or $outputIndex + 1 -ge $Arguments.Count) {
+        throw "contract Worker build did not receive an output directory"
+    }
+    $workerOutputRoot = [string]$Arguments[$outputIndex + 1]
+    New-Item -ItemType Directory -Path $workerOutputRoot -Force | Out-Null
+    foreach ($artifactName in @(
+        "bloomery-compute-worker.exe",
+        "worker-artifact-manifest.json",
+        "worker-sbom.json",
+        "bloomery-compute-worker.sha256"
+    )) {
+        Set-Content -LiteralPath (Join-Path $workerOutputRoot $artifactName) -Value "contract fixture"
+    }
+    $global:LASTEXITCODE = 0
+}
 $contractOutput = Join-Path $env:TEMP ("bloomery-release-contract-" + [Guid]::NewGuid().ToString())
 Assert-InjectedFailure -Name "build-release.ps1" -Invocation { & $buildScript -SkipTests -Bundles nsis -OutputDirectory $contractOutput } -ExpectedMessage "Unsigned Windows package build failed with exit code 37"
 Remove-Item Function:\cargo -ErrorAction SilentlyContinue
+Remove-Item Function:\powershell -ErrorAction SilentlyContinue
 
 $global:LASTEXITCODE = 0
 Write-Output "Release script contract passed."

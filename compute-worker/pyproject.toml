@@ -18,6 +18,7 @@ dependencies = [
 
 [project.optional-dependencies]
 packaging = ["pyinstaller>=6,<7"]
+test = ["pytest>=8,<9"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

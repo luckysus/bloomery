@@ -6,6 +6,7 @@ use bloomery::compute::handler::{
     COMPUTE_PREDICT_ONNX_KIND, COMPUTE_PREDICT_TRAINED_KIND, COMPUTE_TRAIN_LINEAR_REGRESSION_KIND,
     COMPUTE_TRAIN_SKLEARN_KIND,
 };
+use bloomery::compute::protocol::WorkerRequest;
 use bloomery::compute::worker::{WorkerClient, WorkerConfig};
 use bloomery::storage::migrations::migrate;
 use bloomery::tasks::model::{NewTask, TaskState};
@@ -33,29 +34,85 @@ impl EventSink for RecordingSink {
 }
 
 fn python_worker_config() -> WorkerConfig {
-    let python = std::process::Command::new("where.exe")
-        .arg("python")
-        .output()
-        .expect("Windows Python lookup must be available");
-    assert!(python.status.success(), "python must be installed");
-    let executable = String::from_utf8_lossy(&python.stdout)
-        .lines()
-        .map(str::trim)
-        .find(|line| !line.is_empty())
+    let worker_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("..")
+        .join("compute-worker");
+    let venv_python = worker_root.join(".venv").join("Scripts").join("python.exe");
+    let executable = std::env::var_os("BLOOMERY_COMPUTE_WORKER_PYTHON")
         .map(PathBuf::from)
+        .filter(|path| path.is_file())
+        .or_else(|| venv_python.is_file().then_some(venv_python))
+        .or_else(|| {
+            let python = std::process::Command::new("where.exe")
+                .arg("python")
+                .output()
+                .expect("Windows Python lookup must be available");
+            assert!(python.status.success(), "python must be installed");
+            String::from_utf8_lossy(&python.stdout)
+                .lines()
+                .map(str::trim)
+                .find(|line| !line.is_empty())
+                .map(PathBuf::from)
+        })
         .expect("Python lookup must return an executable");
     let mut config = WorkerConfig::new(executable);
     config.args = vec!["-m".into(), "bloomery_worker".into()];
-    config.working_directory = Some(
-        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("..")
-            .join("compute-worker"),
-    );
+    config.working_directory = Some(worker_root);
     config
 }
 
+#[test]
+fn worker_can_load_runtime_dependencies_after_spawn() {
+    let mut client = WorkerClient::spawn(python_worker_config()).expect("spawn worker");
+    let hello = client
+        .request(&WorkerRequest::new("runtime-hello", "hello", json!({})))
+        .expect("worker hello");
+    assert_eq!(hello["result"]["protocol_version"], "1.0");
+
+    let response = client
+        .request_with_progress(
+            &WorkerRequest::new(
+                "runtime-optimization",
+                "submit",
+                json!({
+                    "task_id": "runtime-check",
+                    "operation": "optimize_constrained",
+                    "payload": {
+                        "dataset_id": "dataset-1",
+                        "training_task_id": "training-1",
+                        "artifact": {
+                            "artifact_version": "linear-regression.v1",
+                            "model_id": "model-1",
+                            "model_type": "linear_regression",
+                            "feature_names": ["temperature"],
+                            "preprocessing": {"means": [0.0], "scales": [1.0]},
+                            "coefficients": [2.0],
+                            "intercept": 0.0,
+                            "applicability_range": [{"min": 0.0, "max": 10.0}]
+                        },
+                        "direction": "minimize",
+                        "objectives": ["temperature"],
+                        "bounds": [{"min": 0.0, "max": 10.0}],
+                        "fixed_values": {},
+                        "constraints": [{
+                            "kind": "inequality",
+                            "coefficients": {"temperature": 1.0},
+                            "value": 4.0,
+                            "tolerance": 0.0
+                        }],
+                        "trials": 4,
+                        "seed": 7
+                    }
+                }),
+            ),
+            |_| Ok(()),
+        )
+        .expect("worker optimization");
+    assert_eq!(response["result"]["state"], "completed");
+}
+
 fn onnx_model_path_and_hash() -> (PathBuf, String) {
-    let output = std::process::Command::new("python")
+    let output = std::process::Command::new(python_worker_config().executable)
         .args([
             "-c",
             "from onnxruntime.datasets import get_example; print(get_example('mul_1.onnx'))",
