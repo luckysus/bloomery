@@ -239,7 +239,9 @@ fn compute_worker_config(app: &tauri::AppHandle) -> Option<crate::compute::worke
     if let Some(executable) = resource_worker {
         let manifest = executable.with_file_name("worker-artifact-manifest.json");
         return Some(
-            crate::compute::worker::WorkerConfig::new(executable).with_artifact_manifest(manifest),
+            crate::compute::worker::WorkerConfig::new(executable)
+                .with_artifact_manifest(manifest)
+                .with_process_tree_isolation(),
         );
     }
 
