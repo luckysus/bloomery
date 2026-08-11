@@ -588,6 +588,7 @@ export interface DocumentImportResponse {
 }
 
 export type ProviderKind = "open_ai_compatible" | "ollama" | "siliconflow" | "mineru";
+export type ProviderCapability = "chat" | "embedding" | "rerank" | "document_parser";
 
 export interface ProviderProfileInput {
   id?: string;
@@ -867,8 +868,13 @@ getComputeOptimizationResult: (id: string) =>
   listProviderProfiles: () => call<ProviderProfileResponse[]>("list_provider_profiles"),
   saveProviderProfile: (profile: ProviderProfileInput) =>
     call<ProviderProfileResponse>("save_provider_profile", { profile }),
-  testProviderProfile: (id: string) =>
-    call<ProviderProbeResponse>("test_provider_profile", { id }),
+  setDefaultProvider: (capability: ProviderCapability, profileId: string | null) =>
+    call<void>("set_default_provider_profile", { capability, profileId }),
+  testProviderProfile: (id: string, capability?: ProviderCapability) =>
+    call<ProviderProbeResponse>(
+      "test_provider_profile",
+      capability ? { id, capability } : { id },
+    ),
   setProviderSecret: (profileId: string, credentialName: string, value: string) =>
     call<SecretStatus>("secret_set", { profileId, credentialName, value }),
   deleteProviderSecret: (profileId: string, credentialName: string) =>

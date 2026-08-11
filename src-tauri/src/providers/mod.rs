@@ -46,6 +46,57 @@ pub fn configured_rerank_provider(
         .map(ConfiguredRerankProvider::SiliconFlow)
 }
 
+pub async fn probe_siliconflow(
+    profile: ProviderProfile,
+    credential: Option<SecretValue>,
+    capability: ProviderCapability,
+) -> Result<u16, ProviderError> {
+    let model = profile.model_id.clone();
+    let provider = match capability {
+        ProviderCapability::Embedding => SiliconFlowProvider::with_models(
+            profile,
+            credential,
+            SiliconFlowPlan::Free,
+            model,
+            None,
+        )?,
+        ProviderCapability::Rerank => SiliconFlowProvider::with_models(
+            profile,
+            credential,
+            SiliconFlowPlan::Free,
+            None,
+            model,
+        )?,
+        _ => {
+            return Err(ProviderError::new(
+                ProviderErrorCode::UnsupportedCapability,
+                None,
+                "SiliconFlow probe requires embedding or rerank capability",
+            ))
+        }
+    };
+    match capability {
+        ProviderCapability::Embedding => {
+            provider
+                .embed(vec!["Bloomery provider probe".to_string()])
+                .await?;
+        }
+        ProviderCapability::Rerank => {
+            provider
+                .rerank(
+                    "Bloomery provider probe".to_string(),
+                    vec![RerankDocument {
+                        id: "probe".to_string(),
+                        text: "Bloomery provider probe".to_string(),
+                    }],
+                )
+                .await?;
+        }
+        _ => unreachable!("unsupported SiliconFlow probe capability"),
+    }
+    Ok(reqwest::StatusCode::OK.as_u16())
+}
+
 impl EmbeddingProvider for ConfiguredEmbeddingProvider {
     fn capabilities(&self) -> &ProviderCapabilities {
         match self {

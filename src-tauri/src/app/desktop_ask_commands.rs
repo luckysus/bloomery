@@ -3,16 +3,18 @@ use crate::agent::desktop::{
 };
 use crate::app::desktop_stream::stream_llm_answer;
 use crate::db::{current_workspace_id, with_conn, DbState};
+use crate::storage::secrets::SecretState;
 
 #[tauri::command]
 pub async fn desktop_llm_ask(
     app: tauri::AppHandle,
     db: tauri::State<'_, DbState>,
+    secrets: tauri::State<'_, SecretState>,
     agent_state: tauri::State<'_, LocalAgentState>,
     request: LocalAskRequest,
 ) -> Result<String, String> {
     let preparation = with_conn(&db, |conn| {
-        prepare_local_ask(conn, current_workspace_id(), request)
+        prepare_local_ask(conn, current_workspace_id(), request, secrets.store())
     })?;
     let answer = stream_llm_answer(
         &app,

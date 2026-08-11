@@ -2,26 +2,46 @@ use super::model::{LocalLlmConfig, StreamedLlmAnswer};
 use crate::providers::capabilities::{ChatEvent, ChatProvider, ChatRequest};
 use crate::providers::configured_chat_provider;
 use crate::providers::profiles::{
-    resolve_chat_profile, ProviderCapability, ProviderKind, ProviderProfile,
+    resolve_chat_profile, ProviderCapability, ProviderKind, ProviderProfile, ProviderProfileRecord,
 };
-use crate::storage::secrets::SecretValue;
+use crate::storage::repositories::{provider_profiles, settings};
+use crate::storage::secrets::{SecretStore, SecretValue};
 use std::sync::Mutex;
 
 pub fn load_local_llm_config(
     conn: &rusqlite::Connection,
     workspace_id: &str,
+    secrets: &dyn SecretStore,
 ) -> Result<LocalLlmConfig, String> {
-    let raw = crate::storage::repositories::settings::get(
-        conn,
-        workspace_id,
-        super::model::LOCAL_LLM_CONFIG_KEY,
-    )?;
-    raw.map(|value| {
-        serde_json::from_str(&value)
-            .map_err(|error| format!("parse local llm config failed: {error}"))
+    let raw = settings::get(conn, workspace_id, super::model::LOCAL_LLM_CONFIG_KEY)?;
+    let legacy = raw
+        .map(|value| {
+            serde_json::from_str(&value)
+                .map_err(|error| format!("parse local llm config failed: {error}"))
+        })
+        .transpose()?;
+    if let Some(config) = legacy.filter(|config: &LocalLlmConfig| {
+        !config.provider.trim().is_empty() && !config.model_name.trim().is_empty()
+    }) {
+        return Ok(config);
+    }
+
+    let record =
+        provider_profiles::get_default_record(conn, workspace_id, ProviderCapability::Chat)?
+            .ok_or_else(|| "default chat provider is not configured".to_string())?;
+    let model_name = record
+        .profile
+        .model_id
+        .clone()
+        .ok_or_else(|| "default chat provider model is not configured".to_string())?;
+    let credential = profile_credential(&record, secrets)?;
+    Ok(LocalLlmConfig {
+        provider: record.profile.kind.as_str().to_string(),
+        base_url: record.profile.base_url,
+        model_name,
+        api_key: String::new(),
+        credential,
     })
-    .transpose()
-    .map(|config| config.unwrap_or_default())
 }
 
 pub fn validate_local_llm_config(config: &LocalLlmConfig) -> Result<(), String> {
@@ -42,12 +62,15 @@ pub fn provider_profile_from_config(
                 error
             }
         })?;
-    if config.api_key.trim().is_empty() && profile.kind != ProviderKind::Ollama {
+    let credential = match config.credential.clone() {
+        Some(value) => Some(value),
+        None => (!config.api_key.trim().is_empty())
+            .then(|| SecretValue::new(config.api_key.trim()).map_err(|error| error.to_string()))
+            .transpose()?,
+    };
+    if credential.is_none() && profile.kind != ProviderKind::Ollama {
         return Err("API key is required for the configured provider".to_string());
     }
-    let credential = (!config.api_key.trim().is_empty())
-        .then(|| SecretValue::new(config.api_key.trim()).map_err(|error| error.to_string()))
-        .transpose()?;
     Ok((profile, credential))
 }
 
@@ -101,4 +124,117 @@ where
         text: response.text,
         stopped: response.cancelled,
     })
+}
+
+fn profile_credential(
+    record: &ProviderProfileRecord,
+    secrets: &dyn SecretStore,
+) -> Result<Option<SecretValue>, String> {
+    let Some(name) = record.profile.secret_ref.as_deref() else {
+        return Ok(None);
+    };
+    let reference = crate::storage::secrets::SecretRef::at_generation(
+        record.profile.id,
+        name,
+        record.secret_generation,
+    )
+    .map_err(|error| error.to_string())?;
+    match secrets.get(&reference) {
+        Ok(value) => Ok(Some(value)),
+        Err(error) if error.is_not_found() => Ok(None),
+        Err(error) => Err(error.to_string()),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::providers::profiles::{ProviderCapability, ProviderKind, ProviderProfile};
+    use crate::storage::migrations::migrate;
+    use crate::storage::repositories::provider_profiles;
+    use crate::storage::secrets::{SecretError, SecretRef, SecretStore};
+    use rusqlite::Connection;
+    use std::collections::HashMap;
+    use std::sync::Mutex;
+
+    #[derive(Default)]
+    struct MemorySecretStore {
+        values: Mutex<HashMap<String, SecretValue>>,
+    }
+
+    impl SecretStore for MemorySecretStore {
+        fn set(&self, reference: &SecretRef, value: &SecretValue) -> Result<(), SecretError> {
+            self.values
+                .lock()
+                .map_err(|_| SecretError::backend("memory secret store poisoned"))?
+                .insert(reference.account(), value.clone());
+            Ok(())
+        }
+
+        fn get(&self, reference: &SecretRef) -> Result<SecretValue, SecretError> {
+            self.values
+                .lock()
+                .map_err(|_| SecretError::backend("memory secret store poisoned"))?
+                .get(&reference.account())
+                .cloned()
+                .ok_or_else(SecretError::not_found)
+        }
+
+        fn delete(&self, reference: &SecretRef) -> Result<(), SecretError> {
+            self.values
+                .lock()
+                .map_err(|_| SecretError::backend("memory secret store poisoned"))?
+                .remove(&reference.account())
+                .map(|_| ())
+                .ok_or_else(SecretError::not_found)
+        }
+    }
+
+    #[test]
+    fn default_chat_profile_loads_metadata_and_secret_from_local_stores() {
+        let mut connection = Connection::open_in_memory().expect("open database");
+        migrate(&mut connection).expect("migrate database");
+        let store = MemorySecretStore::default();
+        let profile_id = uuid::Uuid::new_v4();
+        provider_profiles::save(
+            &mut connection,
+            "workspace-a",
+            ProviderProfile {
+                id: profile_id,
+                kind: ProviderKind::OpenAiCompatible,
+                display_name: "Steel LLM".to_string(),
+                base_url: "https://provider.example/v1".to_string(),
+                model_id: Some("steel-model".to_string()),
+                secret_ref: Some("api_key".to_string()),
+                enabled: true,
+            },
+        )
+        .expect("save profile");
+        provider_profiles::set_default(
+            &mut connection,
+            "workspace-a",
+            ProviderCapability::Chat,
+            Some(profile_id),
+        )
+        .expect("set chat default");
+        store
+            .set(
+                &SecretRef::new(profile_id, "api_key").expect("secret ref"),
+                &SecretValue::new("sk-secret").expect("secret"),
+            )
+            .expect("save secret");
+
+        let config =
+            load_local_llm_config(&connection, "workspace-a", &store).expect("load config");
+
+        assert_eq!(config.provider, "open_ai_compatible");
+        assert_eq!(config.base_url, "https://provider.example/v1");
+        assert_eq!(config.model_name, "steel-model");
+        assert!(config.api_key.is_empty());
+        assert_eq!(
+            config.credential.as_ref(),
+            Some(&SecretValue::new("sk-secret").expect("secret"))
+        );
+        assert!(config.has_credential());
+    }
 }

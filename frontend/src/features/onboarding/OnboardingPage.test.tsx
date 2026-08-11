@@ -17,6 +17,7 @@ vi.mock("../../bridge/desktop", () => ({
       secret_configured: false,
     }),
     setProviderSecret: vi.fn().mockResolvedValue({ configured: true }),
+    setDefaultProvider: vi.fn().mockResolvedValue(undefined),
     testProviderProfile: vi.fn().mockResolvedValue({ ok: true, status_code: 200, error_code: null, elapsed_ms: 12 }),
     getSetting: vi.fn().mockResolvedValue(null),
     listProviderProfiles: vi.fn().mockResolvedValue([]),
@@ -76,10 +77,11 @@ describe("OnboardingPage", () => {
     fireEvent.change(screen.getByLabelText("API Key"), { target: { value: "sk-secret-value" } });
     fireEvent.click(screen.getByRole("button", { name: "测试 LLM 并继续" }));
 
-    await waitFor(() => expect(desktop.testProviderProfile).toHaveBeenCalledWith("profile-llm"));
+    await waitFor(() => expect(desktop.testProviderProfile).toHaveBeenCalledWith("profile-llm", "chat"));
     expect(screen.getByRole("heading", { name: "检索服务" })).toBeInTheDocument();
     expect(screen.queryByText("sk-secret-value")).not.toBeInTheDocument();
     expect(desktop.setProviderSecret).toHaveBeenCalledWith("profile-llm", "api_key", "sk-secret-value");
+    expect(desktop.setDefaultProvider).toHaveBeenCalledWith("chat", "profile-llm");
   });
 
   it("allows optional retrieval services to be skipped and persists completion", async () => {

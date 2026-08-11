@@ -50,6 +50,7 @@ macro_rules! handler {
             crate::app::domain_commands::remove_domain_package,
             crate::app::provider_commands::commands::list_provider_profiles,
             crate::app::provider_commands::commands::save_provider_profile,
+            crate::app::provider_commands::commands::set_default_provider_profile,
             crate::app::provider_commands::commands::test_provider_profile,
             crate::app::provider_commands::commands::delete_provider_profile,
             crate::app::knowledge_commands::commands::list_knowledge_bases,

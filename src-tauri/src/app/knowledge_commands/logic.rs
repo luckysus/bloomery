@@ -23,7 +23,7 @@ use crate::storage::repositories::knowledge::{
     self, DocumentVersionRecord, KnowledgeBaseDeleteImpact, KnowledgeBaseRecord, KnowledgeHealth,
     SourceDocumentRecord,
 };
-use crate::storage::repositories::provider_profiles;
+use crate::storage::repositories::{provider_profiles, settings};
 use crate::storage::secrets::{SecretRef, SecretState, SecretStore, SecretValue};
 use rusqlite::Connection;
 use serde::Deserialize;
@@ -237,7 +237,7 @@ pub(crate) async fn query_local_knowledge(
             request.candidate_limit = request.candidate_limit.min(max_items);
         }
     }
-    let (embedding_record, rerank_record) = with_conn(&db, |connection| {
+    let (embedding_record, rerank_record, retrieval_plan) = with_conn(&db, |connection| {
         let embedding = provider_profiles::get_default_record(
             connection,
             current_workspace_id(),
@@ -249,10 +249,14 @@ pub(crate) async fn query_local_knowledge(
             current_workspace_id(),
             ProviderCapability::Rerank,
         )?;
-        Ok((embedding, rerank))
+        let plan = SiliconFlowPlan::from_setting(
+            settings::get(connection, current_workspace_id(), "onboarding.retrieval")?.as_deref(),
+        );
+        Ok((embedding, rerank, plan))
     })?;
-    let embedding_provider = prepare_embedding_provider(&embedding_record, secrets.store())?;
-    let reranker = prepare_reranker(rerank_record, secrets.store());
+    let embedding_provider =
+        prepare_embedding_provider(&embedding_record, secrets.store(), retrieval_plan)?;
+    let reranker = prepare_reranker(rerank_record, secrets.store(), retrieval_plan);
     let embedding = embedding_provider
         .embed(vec![request.query.clone()])
         .await
@@ -334,6 +338,7 @@ pub(crate) async fn query_local_knowledge(
 fn prepare_embedding_provider(
     record: &ProviderProfileRecord,
     secrets: &dyn SecretStore,
+    plan: SiliconFlowPlan,
 ) -> Result<ConfiguredEmbeddingProvider, String> {
     if record.profile.kind != ProviderKind::SiliconFlow {
         return Err("configured embedding provider is not supported".to_string());
@@ -346,7 +351,7 @@ fn prepare_embedding_provider(
     configured_embedding_provider(
         record.profile.clone(),
         Some(read_credential(record, secrets)?),
-        SiliconFlowPlan::Free,
+        plan,
         Some(model),
     )
     .map_err(|error| error.to_string())
@@ -355,6 +360,7 @@ fn prepare_embedding_provider(
 fn prepare_reranker(
     record: Option<ProviderProfileRecord>,
     secrets: &dyn SecretStore,
+    plan: SiliconFlowPlan,
 ) -> PreparedReranker {
     let Some(record) = record else {
         return PreparedReranker {
@@ -387,7 +393,7 @@ fn prepare_reranker(
     match configured_rerank_provider(
         record.profile.clone(),
         Some(credential),
-        SiliconFlowPlan::Free,
+        plan,
         record.profile.model_id.clone(),
     ) {
         Ok(provider) => PreparedReranker {

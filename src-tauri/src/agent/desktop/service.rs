@@ -10,6 +10,7 @@ use crate::agent::runtime::{AgentLoopRequest, ContextEntry, EvidenceAttachment};
 use crate::context::build_context_packet_for_connection;
 use crate::rag::citation::{load_evidence_pack, EvidencePack};
 use crate::skills::SkillContext;
+use crate::storage::secrets::SecretStore;
 use rusqlite::Connection;
 use serde_json::Value;
 use uuid::Uuid;
@@ -70,6 +71,7 @@ pub fn prepare_chat(
     conn: &mut Connection,
     workspace_id: &str,
     request: LocalAgentChatRequest,
+    secrets: &dyn SecretStore,
 ) -> Result<ChatPreparation, String> {
     let message = request.message.trim().to_string();
     if message.is_empty() {
@@ -120,7 +122,7 @@ pub fn prepare_chat(
     let (config, prompt, active_domain) = if unavailable_response.is_some() {
         (LocalLlmConfig::default(), String::new(), None)
     } else {
-        let config = super::provider::load_local_llm_config(conn, workspace_id)?;
+        let config = super::provider::load_local_llm_config(conn, workspace_id, secrets)?;
         super::provider::validate_local_llm_config(&config)?;
         let active_domain =
             crate::storage::repositories::domains::active_manifest(conn, workspace_id)?;
@@ -161,12 +163,13 @@ pub fn prepare_local_ask(
     conn: &Connection,
     workspace_id: &str,
     request: LocalAskRequest,
+    secrets: &dyn SecretStore,
 ) -> Result<LocalAskPreparation, String> {
     let query = request.query.trim().to_string();
     if query.is_empty() {
         return Err("query is required".to_string());
     }
-    let config = super::provider::load_local_llm_config(conn, workspace_id)?;
+    let config = super::provider::load_local_llm_config(conn, workspace_id, secrets)?;
     super::provider::validate_local_llm_config(&config)?;
     let mode = request.mode.unwrap_or_else(|| "literature".to_string());
     let run_id = request
@@ -189,11 +192,12 @@ pub fn prepare_summary(
     workspace_id: &str,
     conversation_id: &str,
     covered_message_id: Option<&str>,
+    secrets: &dyn SecretStore,
 ) -> Result<Result<SummaryPreparation, SummarizeConversationResponse>, String> {
     if conversation_id.trim().is_empty() {
         return Err("conversation_id is required".to_string());
     }
-    let config = super::provider::load_local_llm_config(conn, workspace_id)?;
+    let config = super::provider::load_local_llm_config(conn, workspace_id, secrets)?;
     super::provider::validate_local_llm_config(&config)?;
     let (mut messages, latest_summary) =
         super::session::load_summary_state(conn, workspace_id, conversation_id)?;

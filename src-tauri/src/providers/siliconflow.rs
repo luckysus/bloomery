@@ -33,6 +33,20 @@ pub enum SiliconFlowPlan {
     Pro,
 }
 
+impl SiliconFlowPlan {
+    pub fn from_setting(value: Option<&str>) -> Self {
+        let is_pro = value
+            .and_then(|raw| serde_json::from_str::<Value>(raw).ok())
+            .and_then(|json| json.get("plan").and_then(Value::as_str).map(str::to_owned))
+            .is_some_and(|plan| plan.trim().eq_ignore_ascii_case("pro"));
+        if is_pro {
+            Self::Pro
+        } else {
+            Self::Free
+        }
+    }
+}
+
 pub struct SiliconFlowProvider {
     profile: ProviderProfile,
     credential: SecretValue,
@@ -433,6 +447,23 @@ fn provider_response(message: impl Into<String>) -> ProviderError {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn retrieval_plan_is_read_from_persisted_setting() {
+        assert_eq!(
+            SiliconFlowPlan::from_setting(Some(r#"{"plan":"pro"}"#)),
+            SiliconFlowPlan::Pro
+        );
+        assert_eq!(
+            SiliconFlowPlan::from_setting(Some(r#"{"plan":"free"}"#)),
+            SiliconFlowPlan::Free
+        );
+        assert_eq!(
+            SiliconFlowPlan::from_setting(Some(r#"{"plan":"unknown"}"#)),
+            SiliconFlowPlan::Free
+        );
+        assert_eq!(SiliconFlowPlan::from_setting(None), SiliconFlowPlan::Free);
+    }
 
     #[test]
     fn bounded_response_buffer_rejects_overflow_before_append() {

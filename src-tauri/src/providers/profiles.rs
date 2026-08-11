@@ -152,6 +152,8 @@ pub fn resolve_chat_profile(
     let provider = provider.trim();
     let kind = if provider.eq_ignore_ascii_case("ollama") {
         ProviderKind::Ollama
+    } else if provider.eq_ignore_ascii_case("siliconflow") {
+        ProviderKind::SiliconFlow
     } else {
         ProviderKind::OpenAiCompatible
     };

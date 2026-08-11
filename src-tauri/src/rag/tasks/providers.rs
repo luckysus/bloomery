@@ -10,7 +10,7 @@ use crate::providers::siliconflow::{SiliconFlowPlan, SiliconFlowProvider};
 use crate::rag::index::{
     EmbeddingError, EmbeddingRemote, EmbeddingRemoteFactory, EmbeddingRemoteFuture,
 };
-use crate::storage::repositories::provider_profiles;
+use crate::storage::repositories::{provider_profiles, settings};
 use crate::storage::secrets::{SecretRef, SecretStore, SecretValue};
 use crate::tasks::scheduler::HandlerError;
 use rusqlite::Connection;
@@ -106,6 +106,9 @@ impl EmbeddingRemoteFactory for RuntimeProviderFactory {
         expected_revision: u64,
         expected_secret_generation: u64,
     ) -> Result<Arc<dyn EmbeddingRemote>, EmbeddingError> {
+        let plan = self
+            .siliconflow_plan(workspace_id)
+            .map_err(FactoryFailure::embedding)?;
         let (profile, credential) = self
             .profile(
                 workspace_id,
@@ -119,7 +122,7 @@ impl EmbeddingRemoteFactory for RuntimeProviderFactory {
         let provider = SiliconFlowProvider::with_models(
             profile,
             Some(credential),
-            SiliconFlowPlan::Free,
+            plan,
             embedding_model,
             None,
         )
@@ -131,6 +134,15 @@ impl EmbeddingRemoteFactory for RuntimeProviderFactory {
             max_batch_size: capabilities.max_batch_size.unwrap_or(1),
             provider,
         }))
+    }
+}
+
+impl RuntimeProviderFactory {
+    fn siliconflow_plan(&self, workspace_id: &str) -> Result<SiliconFlowPlan, FactoryFailure> {
+        let connection = Connection::open(&self.database).map_err(sqlite_failure)?;
+        let setting = settings::get(&connection, workspace_id, "onboarding.retrieval")
+            .map_err(|error| storage_failure(&error))?;
+        Ok(SiliconFlowPlan::from_setting(setting.as_deref()))
     }
 }
 

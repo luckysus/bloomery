@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { desktop, type ProviderProfileInput, type ProviderProfileResponse } from "../../bridge/desktop";
+import { desktop, type ProviderCapability, type ProviderProfileInput, type ProviderProfileResponse } from "../../bridge/desktop";
 import { useLocale } from "../../i18n/locale";
 import OnboardingView, { type LlmForm, type RetrievalForm, type SetupStep } from "./OnboardingView";
 
@@ -128,11 +128,12 @@ export default function OnboardingPage({ onComplete }: OnboardingPageProps) {
     };
   }, [t]);
 
-  const saveAndProbe = async (input: ProviderProfileInput, apiKey: string) => {
+  const saveAndProbe = async (input: ProviderProfileInput, apiKey: string, capability: ProviderCapability) => {
     const profile = await desktop.saveProviderProfile(input);
     if (apiKey.trim()) await desktop.setProviderSecret(profile.id, "api_key", apiKey);
-    const probe = await desktop.testProviderProfile(profile.id);
+    const probe = await desktop.testProviderProfile(profile.id, capability);
     if (!probe.ok) throw new Error(providerError(probe.error_code, (key) => t(key)));
+    await desktop.setDefaultProvider(capability, profile.id);
     return profile;
   };
 
@@ -141,7 +142,7 @@ export default function OnboardingPage({ onComplete }: OnboardingPageProps) {
     setBusy(true);
     setError(null);
     try {
-      const profile = await saveAndProbe({ kind: llm.kind, display_name: llm.displayName, base_url: llm.baseUrl, model_id: llm.modelId, credential_name: llm.kind === "ollama" ? null : "api_key", enabled: true }, llm.apiKey);
+      const profile = await saveAndProbe({ kind: llm.kind, display_name: llm.displayName, base_url: llm.baseUrl, model_id: llm.modelId, credential_name: llm.kind === "ollama" ? null : "api_key", enabled: true }, llm.apiKey, "chat");
       await persistProgress({ step: "retrieval", llmProfileId: profile.id, retrievalState, mineruConfigured });
       setLlmProfile(profile);
       setLlmProfileId(profile.id);
@@ -164,10 +165,10 @@ export default function OnboardingPage({ onComplete }: OnboardingPageProps) {
     setBusy(true);
     setError(null);
     try {
-      const embedding = await saveAndProbe({ kind: "siliconflow", display_name: `SiliconFlow Embedding (${retrieval.plan})`, base_url: retrieval.baseUrl, model_id: retrieval.embeddingModel, credential_name: "api_key", enabled: true }, retrieval.siliconFlowKey);
-      const reranker = await saveAndProbe({ kind: "siliconflow", display_name: `SiliconFlow Reranker (${retrieval.plan})`, base_url: retrieval.baseUrl, model_id: retrieval.rerankerModel, credential_name: "api_key", enabled: true }, retrieval.siliconFlowKey);
+      const embedding = await saveAndProbe({ kind: "siliconflow", display_name: `SiliconFlow Embedding (${retrieval.plan})`, base_url: retrieval.baseUrl, model_id: retrieval.embeddingModel, credential_name: "api_key", enabled: true }, retrieval.siliconFlowKey, "embedding");
+      const reranker = await saveAndProbe({ kind: "siliconflow", display_name: `SiliconFlow Reranker (${retrieval.plan})`, base_url: retrieval.baseUrl, model_id: retrieval.rerankerModel, credential_name: "api_key", enabled: true }, retrieval.siliconFlowKey, "rerank");
       let mineru: ProviderProfileResponse | null = null;
-      if (retrieval.mineruKey.trim()) mineru = await saveAndProbe({ kind: "mineru", display_name: "MinerU", base_url: "https://mineru.net/api/v4", model_id: null, credential_name: "api_key", enabled: true }, retrieval.mineruKey);
+      if (retrieval.mineruKey.trim()) mineru = await saveAndProbe({ kind: "mineru", display_name: "MinerU", base_url: "https://mineru.net/api/v4", model_id: null, credential_name: "api_key", enabled: true }, retrieval.mineruKey, "document_parser");
       await desktop.setSetting("onboarding.retrieval", JSON.stringify({ state: "configured", plan: retrieval.plan, embedding_profile_id: embedding.id, reranker_profile_id: reranker.id, mineru_profile_id: mineru?.id ?? null }));
       await persistProgress({ step: "finish", llmProfileId, retrievalState: "configured", mineruConfigured: Boolean(mineru) });
       setRetrievalState("configured");

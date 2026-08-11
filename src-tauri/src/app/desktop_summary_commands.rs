@@ -4,11 +4,13 @@ use crate::agent::desktop::{
 };
 use crate::app::desktop_stream::stream_llm_answer;
 use crate::db::{current_workspace_id, with_conn_mut, DbState};
+use crate::storage::secrets::SecretState;
 
 #[tauri::command]
 pub async fn desktop_summarize_conversation(
     app: tauri::AppHandle,
     db: tauri::State<'_, DbState>,
+    secrets: tauri::State<'_, SecretState>,
     agent_state: tauri::State<'_, LocalAgentState>,
     request: SummarizeConversationRequest,
 ) -> Result<SummarizeConversationResponse, String> {
@@ -27,6 +29,7 @@ pub async fn desktop_summarize_conversation(
             workspace_id,
             &conversation_id,
             request.covered_message_id.as_deref(),
+            secrets.store(),
         )
     })?;
     let Ok(prepared) = prepared else {

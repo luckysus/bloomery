@@ -17,6 +17,7 @@ vi.mock("../../bridge/desktop", () => ({
     setSetting: vi.fn(),
     saveProviderProfile: vi.fn(),
     setProviderSecret: vi.fn(),
+    setDefaultProvider: vi.fn(),
     deleteProviderSecret: vi.fn(),
     deleteProviderProfile: vi.fn(),
     testProviderProfile: vi.fn(),
@@ -129,6 +130,7 @@ describe("SettingsPage", () => {
       "api_key",
       "replacement-key",
     );
+    expect(desktop.setDefaultProvider).toHaveBeenCalledWith("chat", chatProfile.id);
   });
 
   it("persists the SiliconFlow free or Pro selection without exposing credentials", async () => {

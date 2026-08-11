@@ -80,7 +80,7 @@
     {
       "path": "assets/source-ledger.json",
       "kind": "source_ledger",
-      "sha256": "bed164c2a4d6da1e6435447c24a88e17bcc55f80e0068713ede21a1a7d9cc248"
+      "sha256": "c877a361b63ea41fa0e0fcf07459ec4620e7c472dc93a5dc50d22292dafd10a9"
     },
     {
       "path": "assets/retrieval-presets.json",
@@ -100,7 +100,7 @@
     {
       "path": "evaluations/steel-evaluations-v1.json",
       "kind": "evaluation_suite",
-      "sha256": "58e7f0153c75eb58da5cafa27194925bcf4e361f436362cc47e5b48e70b9dba0"
+      "sha256": "db4373f9dae11561f6a398e449961c9a2a0a684ff6ab74bf18c561de2d67158d"
     }
   ]
 }

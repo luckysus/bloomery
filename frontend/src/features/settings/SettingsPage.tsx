@@ -7,7 +7,7 @@ import {
   LoaderCircle,
   Settings2,
 } from "lucide-react";
-import { desktop, type PermissionRuleRecord, type ProviderProfileInput } from "../../bridge/desktop";
+import { desktop, type PermissionRuleRecord, type ProviderCapability, type ProviderProfileInput } from "../../bridge/desktop";
 import { useLocale } from "../../i18n/locale";
 import SettingsProviderCard from "./SettingsProviderCard";
 import PermissionRulesPanel from "./PermissionRulesPanel";
@@ -89,6 +89,13 @@ export default function SettingsPage() {
     setEditors((current) => current.map((editor) => editor.slot === next.slot ? next : editor));
   };
 
+  const capabilityForSlot: Record<ProviderSlot, ProviderCapability> = {
+    chat: "chat",
+    embedding: "embedding",
+    reranker: "rerank",
+    mineru: "document_parser",
+  };
+
   const changePlan = async (nextPlan: RetrievalPlan) => {
     setPlan(nextPlan);
     setError(null);
@@ -120,6 +127,10 @@ export default function SettingsPage() {
       if (credentialName && editor.apiKey.trim()) {
         await desktop.setProviderSecret(saved.id, credentialName, editor.apiKey.trim());
       }
+      await desktop.setDefaultProvider(
+        capabilityForSlot[editor.slot],
+        editor.enabled ? saved.id : null,
+      );
       const nextIds = editor.slot === "chat"
         ? retrievalIds
         : { ...retrievalIds, [editor.slot]: saved.id } as RetrievalIds;
@@ -153,7 +164,10 @@ export default function SettingsPage() {
     setError(null);
     setNotice(null);
     try {
-      const result = await desktop.testProviderProfile(editor.id);
+      const result = await desktop.testProviderProfile(
+        editor.id,
+        capabilityForSlot[editor.slot],
+      );
       if (!result.ok) throw new Error(providerErrorMessage(result.error_code, (key) => t(key)));
       setNotice(t("settingsTestPassed"));
     } catch (cause) {
@@ -169,6 +183,7 @@ export default function SettingsPage() {
     setError(null);
     try {
       await desktop.deleteProviderProfile(editor.id);
+      await desktop.setDefaultProvider(capabilityForSlot[editor.slot], null);
       updateEditor(editorFor(editor.slot, undefined));
       const nextIds = editor.slot === "chat" ? retrievalIds : { ...retrievalIds, [editor.slot]: null } as RetrievalIds;
       setRetrievalIds(nextIds);

@@ -1,4 +1,5 @@
 use crate::agent::context::{SummaryMessage, SummaryPlan};
+use crate::storage::secrets::SecretValue;
 use serde::{Deserialize, Serialize};
 
 pub const LOCAL_LLM_CONFIG_KEY: &str = "local_llm_config";
@@ -49,6 +50,14 @@ pub struct LocalLlmConfig {
     pub base_url: String,
     pub model_name: String,
     pub api_key: String,
+    #[serde(skip)]
+    pub(crate) credential: Option<SecretValue>,
+}
+
+impl LocalLlmConfig {
+    pub(crate) fn has_credential(&self) -> bool {
+        self.credential.is_some() || !self.api_key.trim().is_empty()
+    }
 }
 
 #[derive(Clone, Debug, Serialize)]

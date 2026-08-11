@@ -1,7 +1,8 @@
 // Provider profile domain logic and probe implementation.
-use crate::providers::http::{build_client, HttpClientConfig, ProviderErrorCode};
+use crate::providers::http::{build_client, HttpClientConfig, ProviderError, ProviderErrorCode};
 use crate::providers::profiles::{
-    validate_bearer_transport, ProviderKind, ProviderProfile, ProviderProfileRecord,
+    validate_bearer_transport, ProviderCapability, ProviderKind, ProviderProfile,
+    ProviderProfileRecord,
 };
 use crate::storage::repositories::provider_profiles;
 use crate::storage::secrets::{status, SecretRef, SecretStore, SecretValue};
@@ -74,6 +75,27 @@ pub struct ProviderProbeResponse {
     pub elapsed_ms: u64,
 }
 
+#[derive(Debug)]
+struct ProbeFailure {
+    code: String,
+    status_code: Option<u16>,
+}
+
+impl ProbeFailure {
+    fn new(code: impl Into<String>, status_code: Option<u16>) -> Self {
+        Self {
+            code: code.into(),
+            status_code,
+        }
+    }
+}
+
+impl From<ProviderError> for ProbeFailure {
+    fn from(error: ProviderError) -> Self {
+        Self::new(error.code().as_str(), error.status())
+    }
+}
+
 fn profile_response(
     record: ProviderProfileRecord,
     store: &dyn SecretStore,
@@ -127,6 +149,15 @@ pub(crate) fn save_profile(
     )
 }
 
+pub(crate) fn set_default_profile(
+    connection: &mut Connection,
+    workspace_id: &str,
+    capability: ProviderCapability,
+    profile_id: Option<Uuid>,
+) -> Result<(), String> {
+    provider_profiles::set_default(connection, workspace_id, capability, profile_id)
+}
+
 pub(crate) fn profile_credential(
     profile: &ProviderProfile,
     secret_generation: u64,
@@ -167,79 +198,88 @@ pub(crate) fn delete_profile(
 pub(crate) async fn probe_provider(
     profile: ProviderProfile,
     credential: Option<SecretValue>,
+    capability: Option<ProviderCapability>,
 ) -> ProviderProbeResponse {
     let started = Instant::now();
     let result = async {
+        if profile.kind == ProviderKind::SiliconFlow {
+            if let Some(capability) = capability {
+                return crate::providers::probe_siliconflow(profile, credential, capability)
+                    .await
+                    .map_err(ProbeFailure::from);
+            }
+        }
+        probe_base_url(&profile, credential).await
+    }
+    .await;
+    let elapsed_ms = started.elapsed().as_millis().min(u128::from(u64::MAX)) as u64;
+    match result {
+        Ok(status_code) => ProviderProbeResponse {
+            ok: true,
+            status_code: Some(status_code),
+            error_code: None,
+            elapsed_ms,
+        },
+        Err(error) => ProviderProbeResponse {
+            ok: false,
+            status_code: error.status_code,
+            error_code: Some(error.code),
+            elapsed_ms,
+        },
+    }
+}
+
+async fn probe_base_url(
+    profile: &ProviderProfile,
+    credential: Option<SecretValue>,
+) -> Result<u16, ProbeFailure> {
+    let result = async {
         validate_bearer_transport(&profile.base_url, credential.is_some())
-            .map_err(|_| "insecure_transport".to_string())?;
+            .map_err(|_| ProbeFailure::new("insecure_transport", None))?;
         let client = build_client(&HttpClientConfig {
             connect_timeout: Duration::from_secs(5),
             request_timeout: Duration::from_secs(5),
             proxy_url: None,
         })
-        .map_err(|error| error.code().as_str().to_string())?;
+        .map_err(ProbeFailure::from)?;
         let mut request = client.get(&profile.base_url);
         if let Some(value) = credential.as_ref() {
             request = request.bearer_auth(value.expose());
         }
-        request
-            .send()
-            .await
-            .map(|response| response.status())
-            .map_err(|error| {
-                if error.is_timeout() {
-                    ProviderErrorCode::Timeout
-                } else {
-                    ProviderErrorCode::Network
-                }
-                .as_str()
-                .to_string()
-            })
+        request.send().await.map_err(|error| {
+            if error.is_timeout() {
+                ProbeFailure::new(ProviderErrorCode::Timeout.as_str(), None)
+            } else {
+                ProbeFailure::new(ProviderErrorCode::Network.as_str(), None)
+            }
+        })
     }
     .await;
-    let elapsed_ms = started.elapsed().as_millis().min(u128::from(u64::MAX)) as u64;
-    match result {
-        Ok(status) => {
-            let ok = status.is_success()
-                || matches!(
-                    status,
-                    reqwest::StatusCode::NOT_FOUND | reqwest::StatusCode::METHOD_NOT_ALLOWED
-                );
-            let error_code = if ok {
-                None
-            } else {
-                Some(
-                    match status {
-                        reqwest::StatusCode::UNAUTHORIZED | reqwest::StatusCode::FORBIDDEN => {
-                            ProviderErrorCode::Authentication
-                        }
-                        reqwest::StatusCode::TOO_MANY_REQUESTS => ProviderErrorCode::Quota,
-                        _ => ProviderErrorCode::ProviderResponse,
-                    }
-                    .as_str()
-                    .to_string(),
-                )
-            };
-            ProviderProbeResponse {
-                ok,
-                status_code: Some(status.as_u16()),
-                error_code,
-                elapsed_ms,
+    let response = result?;
+    let status = response.status();
+    if status.is_success()
+        || matches!(
+            status,
+            reqwest::StatusCode::NOT_FOUND | reqwest::StatusCode::METHOD_NOT_ALLOWED
+        )
+    {
+        Ok(status.as_u16())
+    } else {
+        let code = match status {
+            reqwest::StatusCode::UNAUTHORIZED | reqwest::StatusCode::FORBIDDEN => {
+                ProviderErrorCode::Authentication
             }
-        }
-        Err(error_code) => ProviderProbeResponse {
-            ok: false,
-            status_code: None,
-            error_code: Some(error_code),
-            elapsed_ms,
-        },
+            reqwest::StatusCode::TOO_MANY_REQUESTS => ProviderErrorCode::Quota,
+            _ => ProviderErrorCode::ProviderResponse,
+        };
+        Err(ProbeFailure::new(code.as_str(), Some(status.as_u16())))
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::providers::profiles::ProviderKind;
+    use crate::providers::profiles::{ProviderCapability, ProviderKind};
     use crate::storage::migrations::migrate;
     use crate::storage::secrets::{SecretError, SecretRef, SecretStore, SecretValue};
     use rusqlite::Connection;
@@ -397,6 +437,35 @@ mod tests {
     }
 
     #[test]
+    fn selecting_a_provider_persists_the_capability_default() {
+        let mut connection = database();
+        let store = MemorySecretStore::default();
+        let saved = save_profile(
+            &mut connection,
+            "workspace-a",
+            &store,
+            input("https://provider.example/v1".to_string()),
+        )
+        .expect("save profile");
+
+        set_default_profile(
+            &mut connection,
+            "workspace-a",
+            ProviderCapability::Chat,
+            Some(saved.id),
+        )
+        .expect("set default profile");
+
+        assert_eq!(
+            provider_profiles::get_default(&connection, "workspace-a", ProviderCapability::Chat)
+                .expect("read default")
+                .expect("default profile")
+                .id,
+            saved.id
+        );
+    }
+
+    #[test]
     fn deleting_a_profile_removes_its_configured_secret() {
         let mut connection = database();
         let store = MemorySecretStore::default();
@@ -473,6 +542,7 @@ mod tests {
         let result = tauri::async_runtime::block_on(probe_provider(
             profile.into_profile().expect("profile"),
             Some(credential),
+            None,
         ));
         assert!(result.ok);
         assert_eq!(result.status_code, Some(204));
@@ -503,6 +573,7 @@ mod tests {
         let result = tauri::async_runtime::block_on(probe_provider(
             profile.into_profile().expect("profile"),
             None,
+            None,
         ));
         server.join().expect("join provider server");
         assert!(!result.ok);
@@ -511,11 +582,53 @@ mod tests {
     }
 
     #[test]
+    fn siliconflow_embedding_probe_calls_the_real_embedding_endpoint() {
+        let listener = TcpListener::bind("127.0.0.1:0").expect("bind SiliconFlow probe");
+        let address = listener.local_addr().expect("provider address");
+        let server = thread::spawn(move || {
+            let (mut stream, _) = listener.accept().expect("accept provider probe");
+            let mut request = [0u8; 4096];
+            let size = stream.read(&mut request).expect("read probe request");
+            let request = String::from_utf8_lossy(&request[..size]);
+            assert!(request.starts_with("POST /v1/embeddings "));
+            assert!(request.contains("authorization: Bearer sk-siliconflow"));
+            let body = r#"{"data":[{"index":0,"embedding":[0.1,0.2]}]}"#;
+            let response = format!(
+                "HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: {}\r\n\r\n{}",
+                body.len(),
+                body
+            );
+            stream
+                .write_all(response.as_bytes())
+                .expect("write probe response");
+        });
+        let profile = ProviderProfile {
+            id: Uuid::new_v4(),
+            kind: ProviderKind::SiliconFlow,
+            display_name: "SiliconFlow".to_string(),
+            base_url: format!("http://{address}/v1"),
+            model_id: Some("BAAI/bge-m3".to_string()),
+            secret_ref: Some("api_key".to_string()),
+            enabled: true,
+        };
+        let result = tauri::async_runtime::block_on(probe_provider(
+            profile,
+            Some(SecretValue::new("sk-siliconflow").expect("secret")),
+            Some(ProviderCapability::Embedding),
+        ));
+        server.join().expect("join provider probe");
+        assert!(result.ok);
+        assert_eq!(result.status_code, Some(200));
+        assert_eq!(result.error_code, None);
+    }
+
+    #[test]
     fn provider_probe_uses_stable_codes_for_transport_and_http_statuses() {
         let insecure = input("http://provider.example/v1".to_string());
         let result = tauri::async_runtime::block_on(probe_provider(
             insecure.into_profile().expect("insecure profile"),
             Some(SecretValue::new("sk-test-secret").expect("secret value")),
+            None,
         ));
         assert!(!result.ok);
         assert_eq!(result.status_code, None);
@@ -539,6 +652,7 @@ mod tests {
             let profile = input(format!("http://{address}"));
             let result = tauri::async_runtime::block_on(probe_provider(
                 profile.into_profile().expect("profile"),
+                None,
                 None,
             ));
             server.join().expect("join provider server");

@@ -5,17 +5,21 @@ use crate::agent::desktop::{
 use crate::app::desktop_agent_runtime::run_standard_agent;
 use crate::app::desktop_stream::stream_llm_answer;
 use crate::db::{current_workspace_id, with_conn_mut, DbState};
+use crate::storage::secrets::SecretState;
 use serde_json::Value;
 
 #[tauri::command]
 pub async fn desktop_agent_chat(
     app: tauri::AppHandle,
     db: tauri::State<'_, DbState>,
+    secrets: tauri::State<'_, SecretState>,
     agent_state: tauri::State<'_, LocalAgentState>,
     request: LocalAgentChatRequest,
 ) -> Result<Value, String> {
     let workspace_id = current_workspace_id();
-    let preparation = with_conn_mut(&db, |conn| prepare_chat(conn, workspace_id, request))?;
+    let preparation = with_conn_mut(&db, |conn| {
+        prepare_chat(conn, workspace_id, request, secrets.store())
+    })?;
     let run_id = preparation.run_id.to_string();
     let conversation_id = preparation.conversation_id.to_string();
 
@@ -51,7 +55,7 @@ pub async fn desktop_agent_chat(
         &answer,
         &preparation.config.provider,
         &preparation.config.model_name,
-        !preparation.config.api_key.trim().is_empty(),
+        preparation.config.has_credential(),
         &preparation.route,
         preparation.evidence_pack.as_ref(),
         &preparation.skills.rendered.enabled_versions,
@@ -73,7 +77,7 @@ pub async fn desktop_agent_chat(
 
     if !streamed.stopped {
         let summary = with_conn_mut(&db, |conn| {
-            prepare_summary(conn, workspace_id, &conversation_id, None)
+            prepare_summary(conn, workspace_id, &conversation_id, None, secrets.store())
         });
         if let Ok(Ok(summary)) = summary {
             if let Ok(summary_answer) = stream_llm_answer(
