@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import io
 import json
 import math
 import pickle
@@ -20,6 +21,40 @@ SUPPORTED_ALGORITHMS = {
     "elasticnet",
     "random_forest",
     "hist_gradient_boosting",
+}
+
+_ALLOWED_PICKLE_GLOBALS = {
+    ("numpy", "ndarray"),
+    ("numpy", "dtype"),
+    ("numpy._core.multiarray", "_reconstruct"),
+    ("numpy._core.multiarray", "scalar"),
+    ("numpy.core.multiarray", "_reconstruct"),
+    ("numpy.core.multiarray", "scalar"),
+    ("numpy.random._pcg64", "PCG64"),
+    ("numpy.random._pickle", "__generator_ctor"),
+    ("numpy.random._pickle", "__bit_generator_ctor"),
+    ("numpy.random.bit_generator", "SeedSequence"),
+    ("numpy.random.bit_generator", "__pyx_unpickle_SeedSequence"),
+    ("sklearn.ensemble._forest", "RandomForestRegressor"),
+    (
+        "sklearn.ensemble._hist_gradient_boosting.binning",
+        "_BinMapper",
+    ),
+    (
+        "sklearn.ensemble._hist_gradient_boosting.gradient_boosting",
+        "HistGradientBoostingRegressor",
+    ),
+    (
+        "sklearn.ensemble._hist_gradient_boosting.predictor",
+        "TreePredictor",
+    ),
+    ("sklearn.linear_model._coordinate_descent", "ElasticNet"),
+    ("sklearn.tree._classes", "DecisionTreeRegressor"),
+    ("sklearn.tree._tree", "Tree"),
+    ("sklearn._loss._loss", "CyHalfSquaredError"),
+    ("sklearn._loss.link", "IdentityLink"),
+    ("sklearn._loss.link", "Interval"),
+    ("sklearn._loss.loss", "HalfSquaredError"),
 }
 
 
@@ -270,7 +305,7 @@ def predict_model(
     try:
         import numpy as np
 
-        model = pickle.loads(base64.b64decode(blob))
+        model = _load_trusted_model_pickle(base64.b64decode(blob))
         predictions = [
             float(value)
             for value in model.predict(np.asarray(transformed, dtype=np.float64))
@@ -284,6 +319,17 @@ def predict_model(
         "feature_names": names,
         "environment": artifact.get("environment", {}),
     }
+
+
+class _TrustedModelUnpickler(pickle.Unpickler):
+    def find_class(self, module: str, name: str) -> Any:
+        if (module, name) not in _ALLOWED_PICKLE_GLOBALS:
+            raise pickle.UnpicklingError(f"pickle global is not allowed: {module}.{name}")
+        return super().find_class(module, name)
+
+
+def _load_trusted_model_pickle(blob: bytes) -> Any:
+    return _TrustedModelUnpickler(io.BytesIO(blob)).load()
 
 
 def _validate_dataset(payload: Mapping[str, Any]) -> tuple[list[list[float | None]], list[float], list[str]]:

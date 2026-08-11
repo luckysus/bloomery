@@ -1,5 +1,6 @@
 use super::protocol::{read_frame, write_frame, FrameError, WorkerRequest};
 use serde_json::Value;
+use sha2::{Digest, Sha256};
 use std::fmt::{Display, Formatter};
 use std::io::BufReader;
 use std::io::Read;
@@ -11,6 +12,7 @@ pub struct WorkerConfig {
     pub executable: PathBuf,
     pub args: Vec<std::ffi::OsString>,
     pub working_directory: Option<PathBuf>,
+    pub artifact_manifest: Option<PathBuf>,
 }
 
 impl WorkerConfig {
@@ -19,7 +21,13 @@ impl WorkerConfig {
             executable,
             args: Vec::new(),
             working_directory: None,
+            artifact_manifest: None,
         }
+    }
+
+    pub fn with_artifact_manifest(mut self, manifest: PathBuf) -> Self {
+        self.artifact_manifest = Some(manifest);
+        self
     }
 }
 
@@ -76,6 +84,9 @@ impl WorkerClient {
                     "worker working directory does not exist".to_string(),
                 ));
             }
+        }
+        if let Some(manifest) = &config.artifact_manifest {
+            verify_worker_manifest(&config.executable, manifest)?;
         }
 
         let mut command = Command::new(&config.executable);
@@ -135,6 +146,66 @@ impl WorkerClient {
             .map_err(|error| WorkerSupervisorError::Io(error.to_string()))?;
         Ok(response)
     }
+}
+
+#[derive(Debug, serde::Deserialize)]
+struct WorkerArtifactManifest {
+    schema_version: String,
+    artifact: String,
+    executable: String,
+    sha256: String,
+}
+
+pub fn verify_worker_manifest(
+    executable: &std::path::Path,
+    manifest_path: &std::path::Path,
+) -> Result<(), WorkerSupervisorError> {
+    if !manifest_path.is_file() {
+        return Err(WorkerSupervisorError::InvalidConfig(
+            "worker artifact manifest does not exist".to_string(),
+        ));
+    }
+    let bytes =
+        std::fs::read(executable).map_err(|error| WorkerSupervisorError::Io(error.to_string()))?;
+    let manifest_bytes = std::fs::read(manifest_path)
+        .map_err(|error| WorkerSupervisorError::Io(error.to_string()))?;
+    let manifest: WorkerArtifactManifest =
+        serde_json::from_slice(&manifest_bytes).map_err(|error| {
+            WorkerSupervisorError::InvalidConfig(format!(
+                "worker artifact manifest is invalid: {error}"
+            ))
+        })?;
+    if manifest.schema_version != "1.0.0" || manifest.artifact != "bloomery-compute-worker" {
+        return Err(WorkerSupervisorError::InvalidConfig(
+            "worker artifact manifest identity is invalid".to_string(),
+        ));
+    }
+    let executable_name = executable
+        .file_name()
+        .and_then(|name| name.to_str())
+        .ok_or_else(|| {
+            WorkerSupervisorError::InvalidConfig(
+                "worker executable name is not valid UTF-8".to_string(),
+            )
+        })?;
+    if !manifest.executable.eq_ignore_ascii_case(executable_name) {
+        return Err(WorkerSupervisorError::InvalidConfig(
+            "worker artifact manifest executable does not match".to_string(),
+        ));
+    }
+    if manifest.sha256.len() != 64 || !manifest.sha256.bytes().all(|byte| byte.is_ascii_hexdigit())
+    {
+        return Err(WorkerSupervisorError::InvalidConfig(
+            "worker artifact manifest checksum is invalid".to_string(),
+        ));
+    }
+    let actual_hash = format!("{:x}", Sha256::digest(bytes));
+    if !actual_hash.eq_ignore_ascii_case(&manifest.sha256) {
+        return Err(WorkerSupervisorError::InvalidConfig(
+            "worker artifact checksum does not match its manifest".to_string(),
+        ));
+    }
+    Ok(())
 }
 
 pub fn read_response<R: Read>(
@@ -197,5 +268,60 @@ impl Drop for WorkerClient {
         if self.child.try_wait().ok().flatten().is_none() {
             let _ = self.child.kill();
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::verify_worker_manifest;
+    use sha2::{Digest, Sha256};
+    use std::fs;
+    use std::path::Path;
+
+    fn write_manifest(path: &Path, executable: &Path, hash: &str) {
+        let manifest = serde_json::json!({
+            "schema_version": "1.0.0",
+            "artifact": "bloomery-compute-worker",
+            "executable": executable.file_name().unwrap().to_string_lossy(),
+            "sha256": hash,
+        });
+        fs::write(path, serde_json::to_vec(&manifest).unwrap()).unwrap();
+    }
+
+    #[test]
+    fn worker_manifest_accepts_the_declared_executable_hash() {
+        let root =
+            std::env::temp_dir().join(format!("bloomery-worker-manifest-{}", uuid::Uuid::new_v4()));
+        fs::create_dir_all(&root).unwrap();
+        let executable = root.join("bloomery-compute-worker.exe");
+        let manifest = root.join("worker-artifact-manifest.json");
+        let bytes = b"trusted worker fixture";
+        fs::write(&executable, bytes).unwrap();
+        let hash = format!("{:x}", Sha256::digest(bytes));
+        write_manifest(&manifest, &executable, &hash);
+
+        verify_worker_manifest(&executable, &manifest).expect("matching manifest must pass");
+
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn worker_manifest_rejects_a_tampered_executable() {
+        let root =
+            std::env::temp_dir().join(format!("bloomery-worker-manifest-{}", uuid::Uuid::new_v4()));
+        fs::create_dir_all(&root).unwrap();
+        let executable = root.join("bloomery-compute-worker.exe");
+        let manifest = root.join("worker-artifact-manifest.json");
+        let original = b"trusted worker fixture";
+        fs::write(&executable, original).unwrap();
+        let hash = format!("{:x}", Sha256::digest(original));
+        write_manifest(&manifest, &executable, &hash);
+        fs::write(&executable, b"tampered worker fixture").unwrap();
+
+        let error = verify_worker_manifest(&executable, &manifest)
+            .expect_err("tampered worker must be rejected");
+        assert!(error.to_string().contains("checksum"));
+
+        fs::remove_dir_all(root).unwrap();
     }
 }

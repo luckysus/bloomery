@@ -208,6 +208,34 @@ fn parse_finite(value: &str) -> Option<f64> {
         .filter(|number| number.is_finite())
 }
 
+const COMPUTE_FRAME_SAFETY_MARGIN_BYTES: usize = 64 * 1024;
+
+fn serialize_compute_task_payload(payload: &Value) -> Result<String, String> {
+    let request = crate::compute::protocol::WorkerRequest::new(
+        "payload-size-check",
+        "submit",
+        json!({
+            "task_id": "payload-size-check",
+            "operation": payload["operation"],
+            "payload": payload["payload"],
+        }),
+    );
+    let request_value = serde_json::to_value(request)
+        .map_err(|error| format!("encode compute payload: {error}"))?;
+    let encoded = crate::compute::protocol::encode_frame(&request_value)
+        .map_err(|error| format!("compute task payload exceeds worker frame: {error}"))?;
+    let maximum =
+        crate::compute::protocol::MAX_FRAME_BYTES.saturating_sub(COMPUTE_FRAME_SAFETY_MARGIN_BYTES);
+    if encoded.len() > maximum {
+        return Err(format!(
+            "compute task payload exceeds worker frame budget: {} bytes (maximum {} bytes)",
+            encoded.len(),
+            maximum
+        ));
+    }
+    serde_json::to_string(payload).map_err(|error| format!("encode compute payload: {error}"))
+}
+
 pub fn build_linear_regression_prediction_payload(
     dataset_id: &str,
     training_task_id: &str,
@@ -581,8 +609,7 @@ pub(crate) fn train_steel_dataset(
             NewTask {
                 workspace_id,
                 kind: task_kind.to_string(),
-                payload_json: serde_json::to_string(&task_payload)
-                    .map_err(|error| error.to_string())?,
+                payload_json: serialize_compute_task_payload(&task_payload)?,
                 checkpoint_json: Some(json!({"stage": "queued"}).to_string()),
                 next_run_at: None,
                 progress: 0,
@@ -667,7 +694,7 @@ pub(crate) fn predict_steel_model(
             }
             _ => return Err("unsupported training model artifact".to_string()),
         };
-        let task_payload = serde_json::to_string(&payload).map_err(|error| error.to_string())?;
+        let task_payload = serialize_compute_task_payload(&payload)?;
         task_repository::create(
             connection,
             NewTask {
@@ -776,7 +803,7 @@ pub(crate) fn export_linear_model_onnx(
             &artifact,
             request.model_version.as_deref(),
         )?;
-        let task_payload = serde_json::to_string(&payload).map_err(|error| error.to_string())?;
+        let task_payload = serialize_compute_task_payload(&payload)?;
         task_repository::create(
             connection,
             NewTask {
@@ -985,7 +1012,7 @@ pub fn submit_optimization_on_connection(
         &artifact,
         request,
     )?;
-    let task_payload = serde_json::to_string(&payload).map_err(|error| error.to_string())?;
+    let task_payload = serialize_compute_task_payload(&payload)?;
     task_repository::create(
         connection,
         NewTask {
@@ -1066,8 +1093,7 @@ pub(crate) fn predict_onnx_model(
             NewTask {
                 workspace_id,
                 kind: crate::compute::handler::COMPUTE_PREDICT_ONNX_KIND.to_string(),
-                payload_json: serde_json::to_string(&task_payload)
-                    .map_err(|error| error.to_string())?,
+                payload_json: serialize_compute_task_payload(&task_payload)?,
                 checkpoint_json: Some(json!({"stage": "queued"}).to_string()),
                 next_run_at: None,
                 progress: 0,
@@ -1211,6 +1237,18 @@ mod tests {
         assert_eq!(payload["targets"], serde_json::json!([355.0, 360.0, 365.0]));
         assert_eq!(payload["feature_names"], serde_json::json!(["temperature"]));
         assert_eq!(payload["field_mapping"]["temperature"], "temperature");
+    }
+
+    #[test]
+    fn rejects_compute_task_payloads_that_would_exceed_worker_frame_budget() {
+        let payload = json!({
+            "operation": "train_linear_regression",
+            "payload": {"features": ["x".repeat(crate::compute::protocol::MAX_FRAME_BYTES)]},
+        });
+
+        let error = serialize_compute_task_payload(&payload)
+            .expect_err("oversized compute payload must be rejected before persistence");
+        assert!(error.contains("worker frame"));
     }
 
     #[test]

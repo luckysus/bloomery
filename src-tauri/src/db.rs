@@ -237,7 +237,10 @@ fn compute_worker_config(app: &tauri::AppHandle) -> Option<crate::compute::worke
         })
         .filter(|path| path.is_file());
     if let Some(executable) = resource_worker {
-        return Some(crate::compute::worker::WorkerConfig::new(executable));
+        let manifest = executable.with_file_name("worker-artifact-manifest.json");
+        return Some(
+            crate::compute::worker::WorkerConfig::new(executable).with_artifact_manifest(manifest),
+        );
     }
 
     let executable = std::env::var_os("BLOOMERY_COMPUTE_WORKER_PYTHON")

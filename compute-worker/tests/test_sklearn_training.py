@@ -1,3 +1,7 @@
+import base64
+import os
+import pickle
+
 import pytest
 
 from bloomery_worker.training import (
@@ -78,6 +82,26 @@ def test_elasticnet_hyperparameters_are_validated():
 def test_predict_model_rejects_unknown_artifact_versions():
     with pytest.raises(ValueError, match="unsupported model artifact version"):
         predict_model({"artifact_version": "bogus"}, [[1.0]])
+
+
+def test_predict_model_rejects_untrusted_pickle_without_executing_globals(tmp_path):
+    marker = tmp_path / "pickle-executed.txt"
+
+    class Malicious:
+        def __reduce__(self):
+            return (os.system, (f'echo owned > "{marker}"',))
+
+    artifact = {
+        "artifact_version": "sklearn-pickle.v1",
+        "model_type": "random_forest",
+        "feature_names": ["temperature"],
+        "preprocessing": {"means": [0.0], "scales": [1.0]},
+        "model_pickle_base64": base64.b64encode(pickle.dumps(Malicious())).decode("ascii"),
+    }
+
+    with pytest.raises(ValueError, match="model artifact could not be loaded"):
+        predict_model(artifact, [[1.0]])
+    assert not marker.exists()
 
 
 def test_xgboost_capability_is_explicit_not_inferred():
