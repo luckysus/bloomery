@@ -762,6 +762,9 @@ fn open_connection(path: &PathBuf) -> Result<Connection, TaskError> {
     connection
         .busy_timeout(Duration::from_secs(5))
         .map_err(|error| TaskError::new("storage_error", error.to_string()))?;
+    connection
+        .pragma_update(None, "journal_mode", "WAL")
+        .map_err(|error| TaskError::new("storage_error", error.to_string()))?;
     Ok(connection)
 }
 
@@ -925,6 +928,27 @@ mod tests {
         assert!(
             gate_was_held,
             "shutdown gate must remain held from claim through spawn"
+        );
+    }
+
+    #[test]
+    fn scheduler_connections_enable_wal_for_concurrent_task_progress() {
+        let path =
+            std::env::temp_dir().join(format!("bloomery-scheduler-wal-{}.sqlite3", Uuid::new_v4()));
+        let mut connection = Connection::open(&path).expect("open test database");
+        migrate(&mut connection).expect("migrate test database");
+        drop(connection);
+
+        let scheduler_connection = open_connection(&path).expect("open scheduler database");
+        let journal_mode: String = scheduler_connection
+            .query_row("PRAGMA journal_mode", [], |row| row.get(0))
+            .expect("read journal mode");
+        drop(scheduler_connection);
+        fs::remove_file(&path).expect("remove test database");
+
+        assert_eq!(
+            journal_mode, "wal",
+            "scheduler task connections must use WAL for concurrent progress reads"
         );
     }
 
