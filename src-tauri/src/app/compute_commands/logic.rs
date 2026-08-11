@@ -1,5 +1,6 @@
 use crate::app::task_commands::tasks::{background_task_response, BackgroundTaskResponse};
 use crate::db::{current_workspace_id, with_conn, with_conn_mut, DbState};
+use crate::permissions::path::authorize_existing_file;
 use crate::steel::{hash_dataset_source, read_dataset_table, DatasetTable};
 use crate::storage::repositories::steel::{self as steel_repository, SteelDatasetColumnRecord};
 use crate::storage::repositories::steel_models::{
@@ -284,8 +285,7 @@ pub fn build_onnx_prediction_payload(request: &PredictOnnxModelRequest) -> Resul
     if model_path.is_empty() {
         return Err("ONNX model path is required".to_string());
     }
-    let path = std::path::Path::new(model_path);
-    validate_onnx_model_path(path)?;
+    let path = validate_onnx_model_path(std::path::Path::new(model_path))?;
     if request.model_sha256.len() != 64
         || !request
             .model_sha256
@@ -294,7 +294,7 @@ pub fn build_onnx_prediction_payload(request: &PredictOnnxModelRequest) -> Resul
     {
         return Err("ONNX model sha256 is invalid".to_string());
     }
-    let actual_hash = hash_onnx_model(path)?;
+    let actual_hash = hash_onnx_model(&path)?;
     let expected_hash = request.model_sha256.to_ascii_lowercase();
     if actual_hash != expected_hash {
         return Err("ONNX model hash does not match the selected file".to_string());
@@ -317,7 +317,7 @@ pub fn build_onnx_prediction_payload(request: &PredictOnnxModelRequest) -> Resul
     Ok(json!({
         "operation": "predict_onnx",
         "payload": {
-            "model_path": model_path,
+            "model_path": path.to_string_lossy(),
             "model_sha256": actual_hash,
             "manifest": request.manifest,
             "features": request.features,
@@ -330,15 +330,14 @@ pub fn hash_onnx_model_file(path_text: &str) -> Result<String, String> {
     if path_text.is_empty() {
         return Err("ONNX model path is required".to_string());
     }
-    let path = std::path::Path::new(path_text);
-    validate_onnx_model_path(path)?;
-    hash_onnx_model(path)
+    let path = validate_onnx_model_path(std::path::Path::new(path_text))?;
+    hash_onnx_model(&path)
 }
 
-fn validate_onnx_model_path(path: &std::path::Path) -> Result<(), String> {
-    if !path.is_file() {
-        return Err("ONNX model file was not found".to_string());
-    }
+fn validate_onnx_model_path(path: &std::path::Path) -> Result<std::path::PathBuf, String> {
+    let authorized = authorize_existing_file(path)
+        .map_err(|error| format!("ONNX model path is not authorized: {error}"))?;
+    let path = authorized.canonical_path();
     if path
         .extension()
         .and_then(|extension| extension.to_str())
@@ -346,7 +345,7 @@ fn validate_onnx_model_path(path: &std::path::Path) -> Result<(), String> {
     {
         return Err("ONNX model path must use the .onnx extension".to_string());
     }
-    Ok(())
+    Ok(path.to_path_buf())
 }
 
 fn hash_onnx_model(path: &std::path::Path) -> Result<String, String> {
@@ -403,9 +402,7 @@ pub fn build_optimization_payload(
     if training_task_id.trim().is_empty() {
         return Err("training task ID is required".to_string());
     }
-    if artifact["artifact_version"] != "linear-regression.v1"
-        || artifact["model_type"] != "linear_regression"
-    {
+    if !is_supported_optimization_artifact(artifact) {
         return Err("unsupported training model artifact".to_string());
     }
     if request.direction != "minimize" && request.direction != "maximize" {
@@ -550,6 +547,20 @@ pub fn build_optimization_payload(
             "seed": request.seed,
         }
     }))
+}
+
+fn is_supported_optimization_artifact(artifact: &Value) -> bool {
+    match (
+        artifact["artifact_version"].as_str(),
+        artifact["model_type"].as_str(),
+    ) {
+        (Some("linear-regression.v1"), Some("linear_regression")) => true,
+        (
+            Some("sklearn-pickle.v1"),
+            Some("elasticnet" | "random_forest" | "hist_gradient_boosting"),
+        ) => true,
+        _ => false,
+    }
 }
 
 pub(crate) fn train_steel_dataset(
@@ -984,8 +995,8 @@ pub fn submit_optimization_on_connection(
     let training_task = task_repository::get(connection, workspace_id, training_task_id)
         .map_err(|error| error.to_string())?
         .ok_or_else(|| "training task was not found in the local workspace".to_string())?;
-    if training_task.kind != crate::compute::handler::COMPUTE_TRAIN_LINEAR_REGRESSION_KIND {
-        return Err("task is not a linear regression training task".to_string());
+    if !crate::compute::handler::is_training_task_kind(&training_task.kind) {
+        return Err("task is not a model training task".to_string());
     }
     if training_task.state != crate::tasks::TaskState::Completed {
         return Err("training task must be completed before optimization".to_string());

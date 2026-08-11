@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+import binascii
 import hashlib
 import io
 import json
@@ -14,6 +15,8 @@ from typing import Any
 
 MAX_ROWS = 100_000
 MAX_FEATURES = 128
+MAX_PICKLE_BYTES = 4 * 1024 * 1024
+MAX_PICKLE_BASE64_CHARS = ((MAX_PICKLE_BYTES + 2) // 3) * 4
 ARTIFACT_VERSION = "linear-regression.v1"
 SKLEARN_ARTIFACT_VERSION = "sklearn-pickle.v1"
 SUPPORTED_ALGORITHMS = {
@@ -44,6 +47,7 @@ _ALLOWED_PICKLE_GLOBALS = {
         "sklearn.ensemble._hist_gradient_boosting.gradient_boosting",
         "HistGradientBoostingRegressor",
     ),
+    ("sklearn.ensemble._hist_gradient_boosting.loss", "LeastSquares"),
     (
         "sklearn.ensemble._hist_gradient_boosting.predictor",
         "TreePredictor",
@@ -238,6 +242,10 @@ def train_sklearn_model(payload: Mapping[str, Any]) -> dict[str, Any]:
     else:
         importance = [0.0 for _ in feature_names]
 
+    model_pickle = pickle.dumps(model)
+    if len(model_pickle) > MAX_PICKLE_BYTES:
+        raise ValueError("trained model artifact is too large")
+
     artifact: dict[str, Any] = {
         "artifact_version": SKLEARN_ARTIFACT_VERSION,
         "model_type": algorithm,
@@ -260,7 +268,7 @@ def train_sklearn_model(payload: Mapping[str, Any]) -> dict[str, Any]:
         "feature_importance": importance,
         "applicability_range": _applicability_range(features, split["train_indices"]),
         "environment": environment_lock(),
-        "model_pickle_base64": base64.b64encode(pickle.dumps(model)).decode("ascii"),
+        "model_pickle_base64": base64.b64encode(model_pickle).decode("ascii"),
     }
     artifact["model_id"] = _artifact_id(artifact)
     return artifact
@@ -275,6 +283,14 @@ def predict_model(
         return predict_linear_regression(artifact, features)
     if version != SKLEARN_ARTIFACT_VERSION:
         raise ValueError("unsupported model artifact version")
+    model_type = artifact.get("model_type")
+    if model_type not in {
+        "elasticnet",
+        "random_forest",
+        "hist_gradient_boosting",
+    }:
+        raise ValueError("unsupported model type")
+    _validate_environment_lock(artifact)
     names = artifact.get("feature_names")
     preprocessing = artifact.get("preprocessing")
     blob = artifact.get("model_pickle_base64")
@@ -302,14 +318,27 @@ def predict_model(
         ]
         for row in rows
     ]
+    decoded_pickle = _decode_model_pickle(blob)
     try:
         import numpy as np
 
-        model = _load_trusted_model_pickle(base64.b64decode(blob))
-        predictions = [
-            float(value)
-            for value in model.predict(np.asarray(transformed, dtype=np.float64))
-        ]
+        model = _load_trusted_model_pickle(decoded_pickle)
+        raw_predictions = model.predict(np.asarray(transformed, dtype=np.float64))
+        if len(raw_predictions) != len(rows):
+            raise ValueError("model predictions row count does not match input")
+        predictions = []
+        for value in raw_predictions:
+            number = float(value)
+            if not math.isfinite(number):
+                raise ValueError("model predictions must be finite")
+            predictions.append(number)
+    except ValueError as error:
+        if str(error) in {
+            "model predictions row count does not match input",
+            "model predictions must be finite",
+        }:
+            raise
+        raise ValueError("model artifact could not be loaded") from error
     except Exception as error:
         raise ValueError("model artifact could not be loaded") from error
     return {
@@ -319,6 +348,29 @@ def predict_model(
         "feature_names": names,
         "environment": artifact.get("environment", {}),
     }
+
+
+def _decode_model_pickle(blob: str) -> bytes:
+    if not isinstance(blob, str) or not blob:
+        raise ValueError("model artifact schema is invalid")
+    if len(blob) > MAX_PICKLE_BASE64_CHARS:
+        raise ValueError("model artifact is too large")
+    try:
+        decoded = base64.b64decode(blob, validate=True)
+    except (ValueError, binascii.Error) as error:
+        raise ValueError("model artifact encoding is invalid") from error
+    if not decoded or len(decoded) > MAX_PICKLE_BYTES:
+        raise ValueError("model artifact is too large")
+    return decoded
+
+
+def _validate_environment_lock(artifact: Mapping[str, Any]) -> None:
+    environment = artifact.get("environment")
+    if not isinstance(environment, Mapping):
+        raise ValueError("model environment lock is missing")
+    current = environment_lock()
+    if any(environment.get(key) != current[key] for key in current):
+        raise ValueError("model environment lock does not match current worker")
 
 
 class _TrustedModelUnpickler(pickle.Unpickler):
@@ -334,7 +386,7 @@ def _load_trusted_model_pickle(blob: bytes) -> Any:
 
 def _validate_dataset(payload: Mapping[str, Any]) -> tuple[list[list[float | None]], list[float], list[str]]:
     algorithm = payload.get("algorithm", "linear_regression")
-    if algorithm not in SUPPORTED_ALGORITHMS:
+    if not isinstance(algorithm, str) or algorithm not in SUPPORTED_ALGORITHMS:
         raise ValueError(f"unsupported training algorithm: {algorithm}")
     features = payload.get("features")
     targets = payload.get("targets")

@@ -136,6 +136,9 @@ pub fn ingest_file(
             "maximum source size must be positive",
         ));
     }
+    let authorized_source = crate::permissions::path::authorize_existing_file(source)
+        .map_err(|error| IngestError::new("path_not_authorized", error.to_string()))?;
+    let source = authorized_source.canonical_path();
     let staging_directory = content_root.join(".staging");
     fs::create_dir_all(&staging_directory)
         .map_err(|error| IngestError::io("storage_io", "create staging directory", error))?;

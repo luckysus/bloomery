@@ -1,3 +1,4 @@
+use crate::permissions::path::authorize_existing_file;
 use crate::rag::ingest::SourceFormat;
 use crate::rag::model::SourceLocation;
 use crate::rag::parse::{parse_document, DocumentBlock, ParseLimits};
@@ -64,10 +65,9 @@ pub fn read_dataset_table(request: &DatasetPreviewRequest) -> Result<DatasetTabl
     if source_path.is_empty() {
         return Err("dataset source path is required".to_string());
     }
-    let path = Path::new(source_path);
-    if !path.is_file() {
-        return Err("dataset source file does not exist".to_string());
-    }
+    let path = authorize_existing_file(Path::new(source_path))
+        .map_err(|error| format!("dataset source path is not authorized: {error}"))?;
+    let path = path.canonical_path();
     let format = format_for_path(path)?;
     let parsed =
         parse_document(path, format, ParseLimits::default()).map_err(|error| error.to_string())?;
@@ -264,9 +264,10 @@ pub fn preview_dataset(request: &DatasetPreviewRequest) -> Result<DatasetPreview
 }
 
 pub fn hash_dataset_source(source_path: &str) -> Result<String, String> {
-    let path = Path::new(source_path.trim());
-    let file =
-        File::open(path).map_err(|error| format!("could not read dataset source: {error}"))?;
+    let authorized = authorize_existing_file(Path::new(source_path.trim()))
+        .map_err(|error| format!("dataset source path is not authorized: {error}"))?;
+    let file = File::open(authorized.canonical_path())
+        .map_err(|error| format!("could not read dataset source: {error}"))?;
     let mut reader = BufReader::new(file);
     let mut hasher = Sha256::new();
     let mut buffer = [0_u8; 64 * 1024];

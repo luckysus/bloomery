@@ -5,6 +5,7 @@ import pickle
 import pytest
 
 from bloomery_worker.training import (
+    MAX_PICKLE_BYTES,
     environment_lock,
     predict_model,
     train_sklearn_model,
@@ -71,6 +72,14 @@ def test_unknown_algorithm_is_rejected():
         train_sklearn_model(payload)
 
 
+@pytest.mark.parametrize("algorithm", [[], {}])
+def test_non_string_algorithm_is_rejected_as_a_value_error(algorithm):
+    payload = dataset()
+    payload["algorithm"] = algorithm
+    with pytest.raises(ValueError, match="unsupported training algorithm"):
+        train_sklearn_model(payload)
+
+
 def test_elasticnet_hyperparameters_are_validated():
     payload = dataset()
     payload["algorithm"] = "elasticnet"
@@ -82,6 +91,77 @@ def test_elasticnet_hyperparameters_are_validated():
 def test_predict_model_rejects_unknown_artifact_versions():
     with pytest.raises(ValueError, match="unsupported model artifact version"):
         predict_model({"artifact_version": "bogus"}, [[1.0]])
+
+
+def test_predict_model_rejects_an_oversized_pickle_blob():
+    artifact = {
+        "artifact_version": "sklearn-pickle.v1",
+        "model_type": "random_forest",
+        "feature_names": ["temperature"],
+        "preprocessing": {"means": [0.0], "scales": [1.0]},
+        "environment": environment_lock(),
+        "model_pickle_base64": base64.b64encode(
+            b"x" * (MAX_PICKLE_BYTES + 1)
+        ).decode("ascii"),
+    }
+
+    with pytest.raises(ValueError, match="model artifact is too large"):
+        predict_model(artifact, [[1.0]])
+
+
+def test_predict_model_rejects_a_different_runtime_environment():
+    payload = dataset()
+    payload["algorithm"] = "random_forest"
+    artifact = train_sklearn_model(payload)
+    artifact["environment"] = {
+        **artifact["environment"],
+        "python": "0.0.0",
+    }
+
+    with pytest.raises(ValueError, match="environment lock"):
+        predict_model(artifact, [[1.0, 2.0]])
+
+
+def test_predict_model_rejects_an_unapproved_model_type():
+    artifact = {
+        "artifact_version": "sklearn-pickle.v1",
+        "model_type": "xgboost",
+        "feature_names": ["temperature"],
+        "preprocessing": {"means": [0.0], "scales": [1.0]},
+        "environment": environment_lock(),
+        "model_pickle_base64": base64.b64encode(b"fixture").decode("ascii"),
+    }
+
+    with pytest.raises(ValueError, match="unsupported model type"):
+        predict_model(artifact, [[1.0]])
+
+
+@pytest.mark.parametrize(
+    ("values", "message"),
+    [([float("nan")], "finite"), ([1.0, 2.0], "row count")],
+)
+def test_predict_model_rejects_invalid_prediction_outputs(
+    monkeypatch, values, message
+):
+    class FakeModel:
+        def predict(self, rows):
+            return values
+
+    monkeypatch.setattr(
+        "bloomery_worker.training._load_trusted_model_pickle",
+        lambda blob: FakeModel(),
+    )
+    artifact = {
+        "artifact_version": "sklearn-pickle.v1",
+        "model_type": "random_forest",
+        "feature_names": ["temperature"],
+        "preprocessing": {"means": [0.0], "scales": [1.0]},
+        "environment": environment_lock(),
+        "model_pickle_base64": base64.b64encode(b"fixture").decode("ascii"),
+    }
+
+    with pytest.raises(ValueError, match=message):
+        predict_model(artifact, [[1.0]])
 
 
 def test_predict_model_rejects_untrusted_pickle_without_executing_globals(tmp_path):
@@ -96,6 +176,7 @@ def test_predict_model_rejects_untrusted_pickle_without_executing_globals(tmp_pa
         "model_type": "random_forest",
         "feature_names": ["temperature"],
         "preprocessing": {"means": [0.0], "scales": [1.0]},
+        "environment": environment_lock(),
         "model_pickle_base64": base64.b64encode(pickle.dumps(Malicious())).decode("ascii"),
     }
 

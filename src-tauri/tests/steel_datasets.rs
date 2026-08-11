@@ -128,3 +128,33 @@ fn activates_only_a_dataset_with_a_canonical_mapping() {
 
     let _ = fs::remove_file(path);
 }
+
+#[cfg(windows)]
+#[test]
+fn rejects_dataset_symlink_that_resolves_outside_its_selected_directory() {
+    use std::os::windows::fs::symlink_file;
+
+    let root = std::env::temp_dir().join(format!("bloomery-steel-path-{}", uuid::Uuid::new_v4()));
+    let selected = root.join("selected");
+    let outside = root.join("outside");
+    fs::create_dir_all(&selected).expect("create selected directory");
+    fs::create_dir_all(&outside).expect("create outside directory");
+    let source = outside.join("source.csv");
+    let linked = selected.join("source.csv");
+    fs::write(&source, "heat_id,yield_strength\nH-01,355\n").expect("write outside fixture");
+    if symlink_file(&source, &linked).is_err() {
+        let _ = fs::remove_dir_all(root);
+        return;
+    }
+
+    let result = preview_dataset(&DatasetPreviewRequest {
+        source_path: linked.to_string_lossy().into_owned(),
+        sheet: None,
+    });
+
+    assert!(
+        result.is_err(),
+        "dataset symlink must not escape its selected directory"
+    );
+    let _ = fs::remove_dir_all(root);
+}

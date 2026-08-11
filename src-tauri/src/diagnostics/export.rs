@@ -1,4 +1,5 @@
 use crate::db::{current_workspace_id, database_path, now, with_conn, DbState};
+use crate::permissions::path::authorize_output_path;
 use rusqlite::{params, Connection};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -42,6 +43,9 @@ pub fn export_diagnostics(
 }
 
 fn write_json_atomically(path: &Path, value: &serde_json::Value) -> Result<(), String> {
+    let authorized_path = authorize_output_path(path)
+        .map_err(|error| format!("diagnostics output path is not authorized: {error}"))?;
+    let path = authorized_path.canonical_path();
     let parent = path.parent().unwrap_or_else(|| Path::new("."));
     let name = path
         .file_name()

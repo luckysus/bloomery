@@ -2,6 +2,7 @@ use super::loader::{load_package, resolve_resource_path, DomainError, LoadedDoma
 use super::signature::{
     compute_package_digest, verify_package_signature, DomainTrust, DomainTrustStore, SIGNATURE_FILE,
 };
+use crate::permissions::path::authorize_existing_path;
 use serde::Serialize;
 use std::collections::HashSet;
 use std::fs::{self, File, OpenOptions};
@@ -29,9 +30,9 @@ pub fn install_package(
     app_version: &str,
     trust_store: &DomainTrustStore,
 ) -> Result<InstalledDomainPackage, DomainError> {
-    if !source.is_dir() && !source.is_file() {
-        return Err(DomainError::Io("package source does not exist".to_string()));
-    }
+    let authorized_source = authorize_existing_path(source)
+        .map_err(|error| DomainError::UnsafePath(error.to_string()))?;
+    let source = authorized_source.canonical_path();
     fs::create_dir_all(install_root).map_err(|error| DomainError::Io(error.to_string()))?;
     let staging_root = install_root.join(STAGING_DIR);
     fs::create_dir_all(&staging_root).map_err(|error| DomainError::Io(error.to_string()))?;

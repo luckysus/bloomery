@@ -1,6 +1,8 @@
 #![cfg(windows)]
 
-use bloomery::permissions::path::{AuthorizedRoots, PathAuthorizationError};
+use bloomery::permissions::path::{
+    authorize_existing_path, authorize_output_path, AuthorizedRoots, PathAuthorizationError,
+};
 use std::{
     fs::File,
     path::{Path, PathBuf},
@@ -173,6 +175,22 @@ fn opened_file_handle_is_rechecked_before_effects() {
         roots.verify_opened_file(&authorized, &outside_file),
         Err(PathAuthorizationError::TargetChanged)
     ));
+    cleanup(root, outside);
+}
+
+#[test]
+fn path_helpers_authorize_existing_and_new_sibling_targets() {
+    let (root, outside) = fixture();
+    let existing = root.join("nested").join("inside.txt");
+    let output = root.join("nested").join("new-output.txt");
+
+    let authorized_existing = authorize_existing_path(&existing).unwrap();
+    let authorized_output = authorize_output_path(&output).unwrap();
+
+    assert!(authorized_existing.canonical_path().ends_with("inside.txt"));
+    assert!(authorized_output
+        .canonical_path()
+        .ends_with("new-output.txt"));
     cleanup(root, outside);
 }
 

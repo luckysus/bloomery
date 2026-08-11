@@ -1,3 +1,4 @@
+use crate::permissions::path::{authorize_existing_file, authorize_output_path};
 use chrono::Utc;
 use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
@@ -57,6 +58,10 @@ pub fn create_backup(
     content_root: &Path,
     archive_path: &Path,
 ) -> Result<BackupSummary, String> {
+    let display_path = archive_path.to_path_buf();
+    let authorized_archive = authorize_output_path(archive_path)
+        .map_err(|error| format!("backup archive path is not authorized: {error}"))?;
+    let archive_path = authorized_archive.canonical_path();
     if !database_path.is_file() {
         return Err("backup database does not exist".to_string());
     }
@@ -75,7 +80,10 @@ pub fn create_backup(
     let temporary_database = archive_path.with_extension(format!("sqlite3.tmp-{}", Uuid::new_v4()));
     let result = create_backup_archive(connection, &temporary_database, archive_path, &files);
     let _ = fs::remove_file(&temporary_database);
-    result
+    result.map(|mut summary| {
+        summary.archive_path = display_path.to_string_lossy().into_owned();
+        summary
+    })
 }
 
 fn create_backup_archive(
@@ -145,9 +153,10 @@ fn create_backup_archive(
 }
 
 pub fn preview_backup(archive_path: &Path) -> Result<BackupSummary, String> {
-    if !archive_path.is_file() {
-        return Err("backup archive does not exist".to_string());
-    }
+    let display_path = archive_path.to_path_buf();
+    let authorized_archive = authorize_existing_file(archive_path)
+        .map_err(|error| format!("backup archive path is not authorized: {error}"))?;
+    let archive_path = authorized_archive.canonical_path();
     let archive_file =
         File::open(archive_path).map_err(|error| format!("open backup archive failed: {error}"))?;
     let mut archive = ZipArchive::new(archive_file)
@@ -162,7 +171,7 @@ pub fn preview_backup(archive_path: &Path) -> Result<BackupSummary, String> {
     }
     Ok(BackupSummary {
         format_version: manifest.format_version,
-        archive_path: archive_path.to_string_lossy().into_owned(),
+        archive_path: display_path.to_string_lossy().into_owned(),
         database_bytes: stats.database_bytes,
         content_file_count: stats.content_file_count,
         content_bytes: stats.content_bytes,
@@ -174,9 +183,10 @@ pub fn restore_backup(
     database_path: &Path,
     content_root: &Path,
 ) -> Result<BackupSummary, String> {
-    if !archive_path.is_file() {
-        return Err("backup archive does not exist".to_string());
-    }
+    let display_path = archive_path.to_path_buf();
+    let authorized_archive = authorize_existing_file(archive_path)
+        .map_err(|error| format!("backup archive path is not authorized: {error}"))?;
+    let archive_path = authorized_archive.canonical_path();
     if database_path.is_dir() {
         return Err("restore database destination must be a file".to_string());
     }
@@ -223,7 +233,7 @@ pub fn restore_backup(
     }
     result.map(|(database_bytes, content_bytes)| BackupSummary {
         format_version: manifest.format_version,
-        archive_path: archive_path.to_string_lossy().into_owned(),
+        archive_path: display_path.to_string_lossy().into_owned(),
         database_bytes,
         content_file_count: stats.content_file_count,
         content_bytes,

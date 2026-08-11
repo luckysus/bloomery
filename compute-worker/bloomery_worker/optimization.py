@@ -4,6 +4,12 @@ import math
 from collections.abc import Callable, Mapping, Sequence
 from typing import Any
 
+from .training import (
+    _decode_model_pickle,
+    _load_trusted_model_pickle,
+    _validate_environment_lock,
+)
+
 
 MAX_TRIALS = 500
 MIN_TRIALS = 1
@@ -120,22 +126,15 @@ def optimize_constrained(
 def _model(value: Any) -> dict[str, Any]:
     if not isinstance(value, Mapping):
         raise OptimizationError("invalid_artifact", "model artifact is required")
-    if value.get("artifact_version") != "linear-regression.v1":
-        raise OptimizationError("invalid_artifact", "unsupported model artifact version")
-    if value.get("model_type") != "linear_regression":
-        raise OptimizationError("invalid_artifact", "unsupported model type")
+    artifact_version = value.get("artifact_version")
+    model_type = value.get("model_type")
     names = value.get("feature_names")
     preprocessing = value.get("preprocessing")
-    coefficients = value.get("coefficients")
-    intercept = value.get("intercept")
     if (
         not isinstance(names, list)
         or not names
         or not all(isinstance(name, str) and name.strip() for name in names)
         or not isinstance(preprocessing, Mapping)
-        or not isinstance(coefficients, list)
-        or not isinstance(intercept, (int, float))
-        or len(coefficients) != len(names)
     ):
         raise OptimizationError("invalid_artifact", "model artifact schema is invalid")
     means = preprocessing.get("means")
@@ -145,18 +144,63 @@ def _model(value: Any) -> dict[str, Any]:
         or not isinstance(scales, list)
         or len(means) != len(names)
         or len(scales) != len(names)
-        or any(not isinstance(scale, (int, float)) or float(scale) <= 0 for scale in scales)
+        or any(
+            not isinstance(mean, (int, float))
+            or not math.isfinite(float(mean))
+            for mean in means
+        )
+        or any(
+            not isinstance(scale, (int, float))
+            or not math.isfinite(float(scale))
+            or float(scale) <= 0
+            for scale in scales
+        )
     ):
         raise OptimizationError("invalid_artifact", "model preprocessing is invalid")
-    return {
+    model: dict[str, Any] = {
         "model_id": str(value.get("model_id", "")),
-        "model_type": str(value.get("model_type")),
+        "model_type": str(model_type),
+        "artifact_version": str(artifact_version),
         "feature_names": [str(name) for name in names],
         "means": [float(item) for item in means],
         "scales": [float(item) for item in scales],
-        "coefficients": [float(item) for item in coefficients],
-        "intercept": float(intercept),
     }
+    if artifact_version == "linear-regression.v1" and model_type == "linear_regression":
+        coefficients = value.get("coefficients")
+        intercept = value.get("intercept")
+        if (
+            not isinstance(coefficients, list)
+            or not isinstance(intercept, (int, float))
+            or not math.isfinite(float(intercept))
+            or len(coefficients) != len(names)
+            or any(
+                not isinstance(coefficient, (int, float))
+                or not math.isfinite(float(coefficient))
+                for coefficient in coefficients
+            )
+        ):
+            raise OptimizationError("invalid_artifact", "linear model artifact schema is invalid")
+        model["coefficients"] = [float(item) for item in coefficients]
+        model["intercept"] = float(intercept)
+        return model
+    if artifact_version == "sklearn-pickle.v1" and model_type in {
+        "elasticnet",
+        "random_forest",
+        "hist_gradient_boosting",
+    }:
+        blob = value.get("model_pickle_base64")
+        if not isinstance(blob, str) or not blob:
+            raise OptimizationError("invalid_artifact", "sklearn model artifact is missing its model blob")
+        try:
+            _validate_environment_lock(value)
+            estimator = _load_trusted_model_pickle(_decode_model_pickle(blob))
+        except Exception as error:
+            raise OptimizationError("invalid_artifact", "sklearn model artifact could not be loaded") from error
+        if not callable(getattr(estimator, "predict", None)):
+            raise OptimizationError("invalid_artifact", "sklearn model artifact has no predictor")
+        model["estimator"] = estimator
+        return model
+    raise OptimizationError("invalid_artifact", "unsupported model artifact version or type")
 
 
 def _bounds(value: Any, feature_count: int) -> list[tuple[float, float]]:
@@ -267,11 +311,22 @@ def _constraints(value: Any, feature_names: Sequence[str]) -> list[dict[str, Any
 
 
 def _predict(model: Mapping[str, Any], feature_names: Sequence[str], values: Mapping[str, float]) -> float:
-    total = model["intercept"]
-    for index, name in enumerate(feature_names):
-        normalized = (values[name] - model["means"][index]) / model["scales"][index]
-        total += model["coefficients"][index] * normalized
-    return float(total)
+    normalized = [
+        (values[name] - model["means"][index]) / model["scales"][index]
+        for index, name in enumerate(feature_names)
+    ]
+    if model["artifact_version"] == "linear-regression.v1":
+        total = model["intercept"]
+        for coefficient, value in zip(model["coefficients"], normalized):
+            total += coefficient * value
+        return float(total)
+    try:
+        import numpy as np
+
+        prediction = model["estimator"].predict(np.asarray([normalized], dtype=np.float64))
+        return float(prediction[0])
+    except Exception as error:
+        raise OptimizationError("invalid_artifact", "model prediction failed") from error
 
 
 def _constraint_residual(constraint: Mapping[str, Any], values: Mapping[str, float]) -> float:

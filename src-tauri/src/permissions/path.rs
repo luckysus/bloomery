@@ -143,6 +143,36 @@ impl AuthorizedRoots {
     }
 }
 
+pub fn authorize_existing_path(path: &Path) -> Result<AuthorizedPath, PathAuthorizationError> {
+    let roots = sibling_roots(path)?;
+    let authorized = roots.authorize(path)?;
+    if !authorized.canonical_path().exists() {
+        return Err(PathAuthorizationError::CannotResolve(path.to_path_buf()));
+    }
+    Ok(authorized)
+}
+
+pub fn authorize_existing_file(path: &Path) -> Result<AuthorizedPath, PathAuthorizationError> {
+    let authorized = authorize_existing_path(path)?;
+    if !authorized.canonical_path().is_file() {
+        return Err(PathAuthorizationError::CannotResolve(path.to_path_buf()));
+    }
+    Ok(authorized)
+}
+
+pub fn authorize_output_path(path: &Path) -> Result<AuthorizedPath, PathAuthorizationError> {
+    sibling_roots(path)?.authorize(path)
+}
+
+fn sibling_roots(path: &Path) -> Result<AuthorizedRoots, PathAuthorizationError> {
+    validate_raw_path(path)?;
+    let parent = path
+        .parent()
+        .filter(|parent| !parent.as_os_str().is_empty())
+        .ok_or_else(|| PathAuthorizationError::CannotResolve(path.to_path_buf()))?;
+    AuthorizedRoots::new(vec![parent.to_path_buf()])
+}
+
 fn validate_raw_path(path: &Path) -> Result<(), PathAuthorizationError> {
     if path.as_os_str().is_empty() || !path.is_absolute() {
         return Err(PathAuthorizationError::RelativePath);

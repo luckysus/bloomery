@@ -1,4 +1,5 @@
 use crate::agent::session::model::SessionSnapshot;
+use crate::permissions::path::authorize_output_path;
 use serde::Serialize;
 use std::fs::{self, OpenOptions};
 use std::io::Write;
@@ -79,6 +80,10 @@ pub fn write_snapshot(
     output_path: &Path,
     format: ConversationExportFormat,
 ) -> Result<ConversationExportSummary, String> {
+    let display_path = output_path.to_path_buf();
+    let authorized_output = authorize_output_path(output_path)
+        .map_err(|error| format!("conversation export path is not authorized: {error}"))?;
+    let output_path = authorized_output.canonical_path();
     let file_name = output_path
         .file_name()
         .and_then(|value| value.to_str())
@@ -118,7 +123,7 @@ pub fn write_snapshot(
     }
     result.map(|()| ConversationExportSummary {
         format: format.as_str().to_string(),
-        output_path: output_path.to_string_lossy().into_owned(),
+        output_path: display_path.to_string_lossy().into_owned(),
         message_count: snapshot.messages.len(),
         bytes: bytes.len() as u64,
     })
