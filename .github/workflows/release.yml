@@ -47,7 +47,7 @@ jobs:
           python-version: "3.13"
 
       - name: Set up uv
-        uses: astral-sh/setup-uv@v9
+        uses: astral-sh/setup-uv@v9.0.0
 
       - name: Install locked compute worker environment
         run: uv sync --frozen --extra packaging --extra test
@@ -103,7 +103,7 @@ jobs:
           python-version: "3.13"
 
       - name: Set up uv
-        uses: astral-sh/setup-uv@v9
+        uses: astral-sh/setup-uv@v9.0.0
 
       - name: Install locked compute worker packaging environment
         run: uv sync --frozen --extra packaging --extra test
