@@ -28,6 +28,21 @@ fn linear_model(sha: &str) -> NewSteelModel<'_> {
     }
 }
 
+fn sklearn_model(sha: &str) -> NewSteelModel<'_> {
+    NewSteelModel {
+        lineage_id: "sklearn:dataset-1",
+        kind: "sklearn_artifact",
+        source_task_id: Some("task-sklearn-1"),
+        model_sha256: sha,
+        manifest_json:
+            "{\"model_id\":\"sklearn-model\",\"artifact_version\":\"sklearn-pickle.v1\"}",
+        artifact_json: Some(
+            "{\"artifact_version\":\"sklearn-pickle.v1\",\"model_type\":\"random_forest\"}",
+        ),
+        model_base64: None,
+    }
+}
+
 #[test]
 fn versions_increment_per_lineage_and_first_version_is_active() {
     let (path, mut connection) = migrated_connection();
@@ -150,6 +165,36 @@ fn onnx_versions_require_a_blob_and_reject_artifacts() {
     )
     .expect("onnx version with blob");
     assert_eq!(record.kind, "onnx");
+
+    drop(connection);
+    let _ = std::fs::remove_file(path);
+}
+
+#[test]
+fn sklearn_versions_require_an_inline_artifact_without_a_blob() {
+    let (path, mut connection) = migrated_connection();
+
+    let record = models::create(&mut connection, "local", sklearn_model(SHA_A))
+        .expect("sklearn version with inline artifact");
+    assert_eq!(record.kind, "sklearn_artifact");
+    assert_eq!(record.lineage_id, "sklearn:dataset-1");
+    assert!(record.artifact_json.is_some());
+    assert!(record.model_base64.is_none());
+
+    let error = models::create(
+        &mut connection,
+        "local",
+        NewSteelModel {
+            artifact_json: None,
+            model_base64: Some("AAAA"),
+            ..sklearn_model(SHA_B)
+        },
+    )
+    .expect_err("sklearn versions must not store a blob");
+    assert_eq!(
+        error,
+        "sklearn model versions must store an artifact and no blob"
+    );
 
     drop(connection);
     let _ = std::fs::remove_file(path);

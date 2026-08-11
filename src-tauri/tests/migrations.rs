@@ -109,6 +109,10 @@ fn seed_database_at_version(connection: &mut Connection, version: u32) {
             19,
             include_str!("../src/storage/migrations/0019_steel_models.sql"),
         ),
+        (
+            20,
+            include_str!("../src/storage/migrations/0020_sklearn_model_kind.sql"),
+        ),
     ];
 
     for (migration_version, sql) in migrations.into_iter().take(version as usize) {
@@ -431,7 +435,10 @@ fn version_twelve_database_receives_summary_source_backfill() {
 
     let report = migrate(&mut conn).expect("apply post-v12 migrations");
 
-    assert_eq!(report.applied_versions, vec![13, 14, 15, 16, 17, 18, 19]);
+    assert_eq!(
+        report.applied_versions,
+        vec![13, 14, 15, 16, 17, 18, 19, 20]
+    );
     assert_eq!(
         conn.query_row(
             "SELECT source_message_ids_json FROM conversation_summaries WHERE id = 's-v12'",
@@ -441,6 +448,38 @@ fn version_twelve_database_receives_summary_source_backfill() {
         .unwrap(),
         "[\"m-v12-0\",\"m-v12-1\"]"
     );
+}
+
+#[test]
+fn version_nineteen_database_requires_v20_for_sklearn_model_kind() {
+    let mut conn = Connection::open_in_memory().expect("open memory database");
+    seed_database_at_version(&mut conn, 19);
+
+    let legacy_insert = conn.execute(
+        "INSERT INTO steel_models
+         (workspace_id, id, lineage_id, kind, version, source_task_id,
+          model_sha256, manifest_json, artifact_json, model_base64, is_active, created_at)
+         VALUES ('local', 'legacy-sklearn', 'sklearn:dataset-1', 'sklearn_artifact', 1, NULL,
+                 ?1, '{}', '{}', NULL, 1, 't')",
+        params!["a".repeat(64)],
+    );
+    assert!(
+        legacy_insert.is_err(),
+        "v19 schema must not accept sklearn artifacts before migration 20"
+    );
+
+    let report = migrate(&mut conn).expect("apply v20 model-kind migration");
+    assert_eq!(report.applied_versions, vec![20]);
+
+    conn.execute(
+        "INSERT INTO steel_models
+         (workspace_id, id, lineage_id, kind, version, source_task_id,
+          model_sha256, manifest_json, artifact_json, model_base64, is_active, created_at)
+         VALUES ('local', 'current-sklearn', 'sklearn:dataset-1', 'sklearn_artifact', 1, NULL,
+                 ?1, '{}', '{}', NULL, 1, 't')",
+        params!["b".repeat(64)],
+    )
+    .expect("v20 schema accepts sklearn artifacts");
 }
 
 #[test]
@@ -461,7 +500,7 @@ fn file_database_uses_wal_and_ordered_migrations() {
     assert_eq!(version, latest_version());
     assert_eq!(
         report.applied_versions,
-        vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]
+        vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]
     );
 }
 

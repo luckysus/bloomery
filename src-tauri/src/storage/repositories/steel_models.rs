@@ -55,8 +55,8 @@ pub fn create(
     if model.lineage_id.trim().is_empty() {
         return Err("model lineage is required".to_string());
     }
-    if model.kind != "linear_artifact" && model.kind != "onnx" {
-        return Err("model kind must be linear_artifact or onnx".to_string());
+    if model.kind != "linear_artifact" && model.kind != "sklearn_artifact" && model.kind != "onnx" {
+        return Err("model kind must be linear_artifact, sklearn_artifact, or onnx".to_string());
     }
     if model.model_sha256.len() != 64
         || !model
@@ -74,6 +74,9 @@ pub fn create(
     match model.kind {
         "linear_artifact" if model.artifact_json.is_none() || model.model_base64.is_some() => {
             return Err("linear model versions must store an artifact and no blob".to_string());
+        }
+        "sklearn_artifact" if model.artifact_json.is_none() || model.model_base64.is_some() => {
+            return Err("sklearn model versions must store an artifact and no blob".to_string());
         }
         "onnx" if model.model_base64.is_none() || model.artifact_json.is_some() => {
             return Err("onnx model versions must store a blob and no artifact".to_string());

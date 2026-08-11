@@ -5,6 +5,7 @@ import {
   type BackgroundTask,
   type ComputeTrainingResult,
   type SteelDatasetRecord,
+  type TrainSteelDatasetRequest,
 } from "../../bridge/desktop";
 import { useLocale, type MessageKey } from "../../i18n/locale";
 import DatasetPredictionControls from "./DatasetPredictionControls";
@@ -15,6 +16,14 @@ type Props = {
 };
 
 const POLL_INTERVAL_MS = 500;
+type TrainingAlgorithm = NonNullable<TrainSteelDatasetRequest["algorithm"]>;
+
+const trainingAlgorithms: Array<{ value: TrainingAlgorithm; label: MessageKey }> = [
+  { value: "linear_regression", label: "analysisTrainingAlgorithmLinear" },
+  { value: "elasticnet", label: "analysisTrainingAlgorithmElasticnet" },
+  { value: "random_forest", label: "analysisTrainingAlgorithmRandomForest" },
+  { value: "hist_gradient_boosting", label: "analysisTrainingAlgorithmHistGradientBoosting" },
+];
 
 const taskStateKeys: Record<BackgroundTask["state"], MessageKey> = {
   queued: "analysisTrainingQueued",
@@ -55,6 +64,7 @@ export default function DatasetTrainingControls({ dataset }: Props) {
   const [featureColumns, setFeatureColumns] = useState<number[]>(() =>
     numericColumns.filter((column) => column.ordinal !== defaultTarget).map((column) => column.ordinal),
   );
+  const [algorithm, setAlgorithm] = useState<TrainingAlgorithm>("linear_regression");
   const [task, setTask] = useState<BackgroundTask | null>(null);
   const [result, setResult] = useState<ComputeTrainingResult | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -69,7 +79,10 @@ export default function DatasetTrainingControls({ dataset }: Props) {
     let mounted = true;
     void desktop.listBackgroundTasks().then((tasks) => {
       const recovered = tasks
-        .filter((candidate) => candidate.kind === "compute_train_linear_regression" && candidate.dataset_id === dataset.id)
+        .filter((candidate) => (
+          (candidate.kind === "compute_train_linear_regression" || candidate.kind === "compute_train_sklearn_model")
+          && candidate.dataset_id === dataset.id
+        ))
         .sort((left, right) => right.updated_at.localeCompare(left.updated_at))[0];
       if (mounted && recovered) setTask(recovered);
     }).catch((cause) => {
@@ -140,6 +153,14 @@ export default function DatasetTrainingControls({ dataset }: Props) {
     setError(null);
   };
 
+  const changeAlgorithm = (value: string) => {
+    if (!trainingAlgorithms.some((candidate) => candidate.value === value)) return;
+    setAlgorithm(value as TrainingAlgorithm);
+    setTask(null);
+    setResult(null);
+    setError(null);
+  };
+
   const train = async () => {
     if (busy || activeTask || targetColumn === null || featureColumns.length === 0) {
       setError(t("analysisTrainingNeedColumns"));
@@ -153,6 +174,7 @@ export default function DatasetTrainingControls({ dataset }: Props) {
         targetColumn,
         featureColumns,
         splitPolicy: { kind: "random", validationFraction: 0.2, seed: 0 },
+        algorithm,
       });
       setTask(queued);
       setResult(null);
@@ -207,6 +229,19 @@ export default function DatasetTrainingControls({ dataset }: Props) {
           {numericColumns.map((column) => <option key={column.ordinal} value={column.ordinal}>{columnLabel(column.ordinal)}</option>)}
         </select>
       </label>
+      <label className="bloomery-training-target">
+        <span>{t("analysisTrainingAlgorithm")}</span>
+        <select
+          data-testid={`training-algorithm-${dataset.id}`}
+          value={algorithm}
+          onChange={(event) => changeAlgorithm(event.target.value)}
+          disabled={activeTask}
+        >
+          {trainingAlgorithms.map((candidate) => (
+            <option key={candidate.value} value={candidate.value}>{t(candidate.label)}</option>
+          ))}
+        </select>
+      </label>
       <fieldset className="bloomery-training-features">
         <legend>{t("analysisTrainingFeatures")}</legend>
         <div>
@@ -249,7 +284,9 @@ export default function DatasetTrainingControls({ dataset }: Props) {
         </dl>
       </section>}
       {result && <DatasetPredictionControls datasetId={dataset.id} trainingResult={result} />}
-      {result && <OptimizationPanel datasetId={dataset.id} trainingResult={result} />}
+      {result?.artifact.model_type === "linear_regression" && (
+        <OptimizationPanel datasetId={dataset.id} trainingResult={result} />
+      )}
     </section>
   );
 }

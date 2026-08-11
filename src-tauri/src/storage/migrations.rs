@@ -90,6 +90,10 @@ const MIGRATIONS: &[Migration] = &[
         version: 19,
         sql: include_str!("migrations/0019_steel_models.sql"),
     },
+    Migration {
+        version: 20,
+        sql: include_str!("migrations/0020_sklearn_model_kind.sql"),
+    },
 ];
 
 pub fn latest_version() -> u32 {

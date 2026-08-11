@@ -48,7 +48,10 @@ export default function DatasetPredictionControls({ datasetId, trainingResult }:
     let mounted = true;
     void desktop.listBackgroundTasks().then((tasks) => {
       const recovered = tasks
-        .filter((candidate) => candidate.kind === "compute_predict_linear_regression" && candidate.dataset_id === datasetId)
+        .filter((candidate) => (
+          (candidate.kind === "compute_predict_linear_regression" || candidate.kind === "compute_predict_trained_model")
+          && candidate.dataset_id === datasetId
+        ))
         .sort((left, right) => right.updated_at.localeCompare(left.updated_at))[0];
       if (mounted && recovered) setTask(recovered);
     }).catch((cause) => {

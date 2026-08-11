@@ -14,6 +14,20 @@ pub const COMPUTE_EXPORT_ONNX_KIND: &str = "compute_export_onnx";
 pub const COMPUTE_PREDICT_TRAINED_KIND: &str = "compute_predict_trained_model";
 pub const COMPUTE_TRAIN_SKLEARN_KIND: &str = "compute_train_sklearn_model";
 
+pub fn is_training_task_kind(kind: &str) -> bool {
+    matches!(
+        kind,
+        COMPUTE_TRAIN_LINEAR_REGRESSION_KIND | COMPUTE_TRAIN_SKLEARN_KIND
+    )
+}
+
+pub fn is_prediction_task_kind(kind: &str) -> bool {
+    matches!(
+        kind,
+        COMPUTE_PREDICT_LINEAR_REGRESSION_KIND | COMPUTE_PREDICT_TRAINED_KIND
+    )
+}
+
 #[derive(Debug, Clone)]
 pub struct ComputeTaskHandler {
     worker: Option<WorkerConfig>,

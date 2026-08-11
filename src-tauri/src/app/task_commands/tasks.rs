@@ -4,7 +4,6 @@ use crate::tasks::{repository, TaskRecord, TaskState};
 use rusqlite::Connection;
 use serde::Serialize;
 use uuid::Uuid;
-
 #[derive(Debug, Serialize)]
 pub struct BackgroundTaskResponse {
     pub id: Uuid,
@@ -20,7 +19,6 @@ pub struct BackgroundTaskResponse {
     pub created_at: String,
     pub updated_at: String,
 }
-
 pub(crate) fn background_task_response(task: TaskRecord) -> BackgroundTaskResponse {
     let dataset_id = task_dataset_id(&task);
     let can_cancel = !task.cancel_requested
@@ -51,16 +49,21 @@ pub(crate) fn background_task_response(task: TaskRecord) -> BackgroundTaskRespon
         updated_at: task.updated_at,
     }
 }
-
 fn task_dataset_id(task: &TaskRecord) -> Option<String> {
-    if task.kind != crate::compute::handler::COMPUTE_TRAIN_LINEAR_REGRESSION_KIND {
+    let exposes_dataset_id = crate::compute::handler::is_training_task_kind(&task.kind)
+        || crate::compute::handler::is_prediction_task_kind(&task.kind)
+        || matches!(
+            task.kind.as_str(),
+            crate::compute::handler::COMPUTE_OPTIMIZE_CONSTRAINED_KIND
+                | crate::compute::handler::COMPUTE_EXPORT_ONNX_KIND
+        );
+    if !exposes_dataset_id {
         return None;
     }
     let payload: serde_json::Value = serde_json::from_str(&task.payload_json).ok()?;
     let dataset_id = payload.get("payload")?.get("dataset_id")?.as_str()?.trim();
     (!dataset_id.is_empty() && dataset_id.len() <= 128).then(|| dataset_id.to_string())
 }
-
 fn cancel_task(
     connection: &mut Connection,
     workspace_id: &str,
@@ -211,6 +214,48 @@ mod tests {
         assert!(response.contains(r#""dataset_id":"dataset-1""#));
         assert!(!response.contains("features"));
         assert!(!response.contains("worker_progress"));
+    }
+
+    #[test]
+    fn sklearn_training_task_response_exposes_dataset_identity() {
+        let mut connection = database();
+        let task = repository::create(
+            &mut connection,
+            NewTask {
+                workspace_id: "workspace-a".to_string(),
+                kind: crate::compute::handler::COMPUTE_TRAIN_SKLEARN_KIND.to_string(),
+                payload_json: r#"{"operation":"train_sklearn_model","payload":{"dataset_id":"dataset-sklearn","algorithm":"random_forest","features":[[1.0]],"targets":[2.0]}}"#.to_string(),
+                checkpoint_json: Some(r#"{"worker_progress":17}"#.to_string()),
+                next_run_at: None,
+                progress: 17,
+            },
+        )
+        .expect("create sklearn compute task");
+
+        let response = background_task_response(task);
+
+        assert_eq!(response.dataset_id.as_deref(), Some("dataset-sklearn"));
+    }
+
+    #[test]
+    fn trained_prediction_task_response_exposes_dataset_identity() {
+        let mut connection = database();
+        let task = repository::create(
+            &mut connection,
+            NewTask {
+                workspace_id: "workspace-a".to_string(),
+                kind: crate::compute::handler::COMPUTE_PREDICT_TRAINED_KIND.to_string(),
+                payload_json: r#"{"operation":"predict_trained_model","payload":{"dataset_id":"dataset-predict","training_task_id":"task-1","features":[[1.0]]}}"#.to_string(),
+                checkpoint_json: Some(r#"{"worker_progress":17}"#.to_string()),
+                next_run_at: None,
+                progress: 17,
+            },
+        )
+        .expect("create trained prediction task");
+
+        let response = background_task_response(task);
+
+        assert_eq!(response.dataset_id.as_deref(), Some("dataset-predict"));
     }
 
     #[test]

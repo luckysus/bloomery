@@ -59,6 +59,20 @@ pub struct OptimizeSteelProcessRequest {
 
 pub const MAX_OPTIMIZATION_TRIALS: u32 = 500;
 
+fn requested_training_algorithm(request: &TrainSteelDatasetRequest) -> Result<&str, String> {
+    let algorithm = request
+        .algorithm
+        .as_deref()
+        .unwrap_or("linear_regression")
+        .trim();
+    match algorithm {
+        "linear_regression" | "elasticnet" | "random_forest" | "hist_gradient_boosting" => {
+            Ok(algorithm)
+        }
+        _ => Err(format!("unsupported training algorithm: {algorithm}")),
+    }
+}
+
 #[derive(Debug, Clone, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ExportLinearOnnxRequest {
@@ -514,6 +528,7 @@ pub(crate) fn train_steel_dataset(
     db: tauri::State<DbState>,
     request: TrainSteelDatasetRequest,
 ) -> Result<BackgroundTaskResponse, String> {
+    let algorithm = requested_training_algorithm(&request)?;
     let prepared = with_conn(&db, |connection| {
         let workspace_id = current_workspace_id();
         let dataset = steel_repository::get(connection, workspace_id, &request.dataset_id)?
@@ -538,12 +553,13 @@ pub(crate) fn train_steel_dataset(
 
     let (workspace_id, source_sha256, payload) = prepared;
     with_conn_mut(&db, |connection| {
-        let algorithm = request
-            .algorithm
-            .clone()
-            .unwrap_or_else(|| "linear_regression".to_string());
-        let mut task_payload = json!({
-            "operation": "train_linear_regression",
+        let operation = if algorithm == "linear_regression" {
+            "train_linear_regression"
+        } else {
+            "train_sklearn_model"
+        };
+        let task_payload = json!({
+            "operation": operation,
             "payload": {
                 "dataset_id": payload["dataset_id"],
                 "data_version": source_sha256,
@@ -552,13 +568,12 @@ pub(crate) fn train_steel_dataset(
                 "feature_names": payload["feature_names"],
                 "field_mapping": payload["field_mapping"],
                 "split_policy": payload["split_policy"],
+                "algorithm": algorithm,
             }
         });
         let task_kind = if algorithm == "linear_regression" {
             crate::compute::handler::COMPUTE_TRAIN_LINEAR_REGRESSION_KIND
         } else {
-            task_payload["operation"] = json!("train_sklearn_model");
-            task_payload["payload"]["algorithm"] = json!(algorithm);
             crate::compute::handler::COMPUTE_TRAIN_SKLEARN_KIND
         };
         task_repository::create(
@@ -587,8 +602,8 @@ pub(crate) fn get_compute_training_result(
         let task = task_repository::get(connection, current_workspace_id(), id)
             .map_err(|error| error.to_string())?
             .ok_or_else(|| "task_not_found: task not found".to_string())?;
-        if task.kind != crate::compute::handler::COMPUTE_TRAIN_LINEAR_REGRESSION_KIND {
-            return Err("task is not a linear regression training task".to_string());
+        if !crate::compute::handler::is_training_task_kind(&task.kind) {
+            return Err("task is not a model training task".to_string());
         }
         if task.state != crate::tasks::TaskState::Completed {
             return Ok(None);
@@ -614,8 +629,8 @@ pub(crate) fn predict_steel_model(
         let training_task = task_repository::get(connection, workspace_id, training_task_id)
             .map_err(|error| error.to_string())?
             .ok_or_else(|| "training task was not found in the local workspace".to_string())?;
-        if training_task.kind != crate::compute::handler::COMPUTE_TRAIN_LINEAR_REGRESSION_KIND {
-            return Err("task is not a linear regression training task".to_string());
+        if !crate::compute::handler::is_training_task_kind(&training_task.kind) {
+            return Err("task is not a model training task".to_string());
         }
         if training_task.state != crate::tasks::TaskState::Completed {
             return Err("training task must be completed before prediction".to_string());
@@ -642,11 +657,15 @@ pub(crate) fn predict_steel_model(
             &artifact,
             &request.feature_values,
         )?;
-        let task_kind = if artifact["model_type"] == "linear_regression" {
-            crate::compute::handler::COMPUTE_PREDICT_LINEAR_REGRESSION_KIND
-        } else {
-            payload["operation"] = json!("predict_trained_model");
-            crate::compute::handler::COMPUTE_PREDICT_TRAINED_KIND
+        let task_kind = match artifact["artifact_version"].as_str() {
+            Some("linear-regression.v1") => {
+                crate::compute::handler::COMPUTE_PREDICT_LINEAR_REGRESSION_KIND
+            }
+            Some("sklearn-pickle.v1") => {
+                payload["operation"] = json!("predict_trained_model");
+                crate::compute::handler::COMPUTE_PREDICT_TRAINED_KIND
+            }
+            _ => return Err("unsupported training model artifact".to_string()),
         };
         let task_payload = serde_json::to_string(&payload).map_err(|error| error.to_string())?;
         task_repository::create(
@@ -674,9 +693,7 @@ pub(crate) fn get_compute_prediction_result(
         let task = task_repository::get(connection, current_workspace_id(), id)
             .map_err(|error| error.to_string())?
             .ok_or_else(|| "task_not_found: task not found".to_string())?;
-        if task.kind != crate::compute::handler::COMPUTE_PREDICT_LINEAR_REGRESSION_KIND
-            && task.kind != crate::compute::handler::COMPUTE_PREDICT_TRAINED_KIND
-        {
+        if !crate::compute::handler::is_prediction_task_kind(&task.kind) {
             return Err("task is not a model prediction task".to_string());
         }
         if task.state != crate::tasks::TaskState::Completed {
@@ -833,11 +850,13 @@ pub(crate) fn register_steel_model(
             .map_err(|error| format!("invalid task payload: {error}"))?;
 
         let (kind, lineage, sha256, manifest_json, artifact_json, model_base64) =
-            if task.kind == crate::compute::handler::COMPUTE_TRAIN_LINEAR_REGRESSION_KIND {
+            if crate::compute::handler::is_training_task_kind(&task.kind) {
                 let artifact = &result["artifact"];
-                if artifact["artifact_version"] != "linear-regression.v1" {
-                    return Err("unsupported training model artifact".to_string());
-                }
+                let (kind, lineage_prefix) = match artifact["artifact_version"].as_str() {
+                    Some("linear-regression.v1") => ("linear_artifact", "linear"),
+                    Some("sklearn-pickle.v1") => ("sklearn_artifact", "sklearn"),
+                    _ => return Err("unsupported training model artifact".to_string()),
+                };
                 let artifact_json =
                     serde_json::to_string(artifact).map_err(|error| error.to_string())?;
                 let mut digest = Sha256::new();
@@ -846,8 +865,8 @@ pub(crate) fn register_steel_model(
                     .as_str()
                     .unwrap_or("unknown");
                 (
-                    "linear_artifact",
-                    format!("linear:{dataset_id}"),
+                    kind,
+                    format!("{lineage_prefix}:{dataset_id}"),
                     format!("{:x}", digest.finalize()),
                     artifact_json.clone(),
                     Some(artifact_json),
@@ -1088,6 +1107,28 @@ pub(crate) fn get_compute_onnx_prediction_result(
 mod tests {
     use super::*;
     use sha2::{Digest, Sha256};
+
+    #[test]
+    fn training_and_prediction_task_kind_helpers_cover_supported_models() {
+        assert!(crate::compute::handler::is_training_task_kind(
+            crate::compute::handler::COMPUTE_TRAIN_LINEAR_REGRESSION_KIND
+        ));
+        assert!(crate::compute::handler::is_training_task_kind(
+            crate::compute::handler::COMPUTE_TRAIN_SKLEARN_KIND
+        ));
+        assert!(crate::compute::handler::is_prediction_task_kind(
+            crate::compute::handler::COMPUTE_PREDICT_LINEAR_REGRESSION_KIND
+        ));
+        assert!(crate::compute::handler::is_prediction_task_kind(
+            crate::compute::handler::COMPUTE_PREDICT_TRAINED_KIND
+        ));
+        assert!(!crate::compute::handler::is_training_task_kind(
+            crate::compute::handler::COMPUTE_PREDICT_TRAINED_KIND
+        ));
+        assert!(!crate::compute::handler::is_prediction_task_kind(
+            crate::compute::handler::COMPUTE_TRAIN_SKLEARN_KIND
+        ));
+    }
 
     #[test]
     fn builds_numeric_training_payload_and_preserves_missing_features() {

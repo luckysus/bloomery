@@ -107,8 +107,24 @@ describe("DatasetTrainingControls", () => {
       targetColumn: 2,
       featureColumns: [0],
       splitPolicy: { kind: "random", validationFraction: 0.2, seed: 0 },
+      algorithm: "linear_regression",
     }));
     expect(await screen.findByTestId("training-task-dataset-1")).toHaveTextContent("task-1");
+  });
+
+  it("submits the selected non-linear training algorithm", async () => {
+    render(<DatasetTrainingControls dataset={dataset} />);
+
+    fireEvent.change(screen.getByTestId("training-algorithm-dataset-1"), { target: { value: "random_forest" } });
+    fireEvent.click(screen.getByRole("button", { name: /train|开始训练/i }));
+
+    await waitFor(() => expect(desktop.trainSteelDataset).toHaveBeenCalledWith({
+      datasetId: "dataset-1",
+      targetColumn: 2,
+      featureColumns: [0, 1],
+      splitPolicy: { kind: "random", validationFraction: 0.2, seed: 0 },
+      algorithm: "random_forest",
+    }));
   });
 
   it("refreshes a queued task and renders its completed model result", async () => {
@@ -151,6 +167,39 @@ describe("DatasetTrainingControls", () => {
     expect(screen.getByTestId("training-task-dataset-1")).toHaveTextContent("100%");
     expect(screen.getByTestId("training-metric-rmse-dataset-1")).toHaveTextContent("1.25");
     expect(desktop.getComputeTrainingResult).toHaveBeenCalledWith("task-1");
+  });
+
+  it("restores a completed sklearn training task", async () => {
+    vi.mocked(desktop.listBackgroundTasks).mockResolvedValue([{
+      id: "task-sklearn",
+      kind: "compute_train_sklearn_model",
+      dataset_id: "dataset-1",
+      state: "completed",
+      progress: 100,
+      attempt: 1,
+      error_code: null,
+      cancel_requested: false,
+      can_cancel: false,
+      can_retry: false,
+      created_at: "2026-08-10T00:00:00Z",
+      updated_at: "2026-08-10T00:00:01Z",
+    }]);
+    vi.mocked(desktop.getComputeTrainingResult).mockResolvedValue({
+      task_id: "task-sklearn",
+      state: "completed",
+      artifact: {
+        model_id: "forest-task-sklearn",
+        model_type: "random_forest",
+        feature_names: ["temperature", "carbon"],
+        metrics: { rmse: 2.1 },
+        applicability_range: [{ min: 10, max: 40 }, { min: 0.1, max: 0.4 }],
+      },
+    });
+
+    render(<DatasetTrainingControls dataset={dataset} />);
+
+    expect(await screen.findByTestId("training-result-dataset-1")).toHaveTextContent("forest-task-sklearn");
+    expect(desktop.getComputeTrainingResult).toHaveBeenCalledWith("task-sklearn");
   });
 
   it("cancels an active training task and shows the terminal state", async () => {
