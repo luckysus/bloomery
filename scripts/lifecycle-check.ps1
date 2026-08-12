@@ -69,7 +69,7 @@ if (-not $RunInstallerSmoke) {
     exit 0
 }
 
-if (-not $AllowUnsigned) {
+if ($signature.Status -eq "NotSigned" -and -not $AllowUnsigned) {
     throw "-RunInstallerSmoke requires -AllowUnsigned for an unsigned engineering installer"
 }
 

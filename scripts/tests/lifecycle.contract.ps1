@@ -24,6 +24,10 @@ foreach ($requiredText in @(
     }
 }
 
+if ($content -match 'if \(-not \$AllowUnsigned\)\s*\{\s*throw "-RunInstallerSmoke requires -AllowUnsigned') {
+    throw "lifecycle-check.ps1 must allow signed installer smoke tests without -AllowUnsigned"
+}
+
 $config = Get-Content -LiteralPath $configPath -Raw | ConvertFrom-Json
 if ([string]$config.mainBinaryName -ne "bloomery") {
     throw "Tauri must bundle bloomery as the main binary"

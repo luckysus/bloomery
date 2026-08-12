@@ -39,4 +39,9 @@ foreach ($relativePath in $workflows) {
     }
 }
 
+$releaseWorkflow = Get-Content -LiteralPath (Join-Path $repoRoot ".github\workflows\release.yml") -Raw
+if ($releaseWorkflow -notmatch 'release-check\.ps1 -Signed -Package') {
+    throw ".github\workflows\release.yml must run signed updater release checks"
+}
+
 Write-Output "Workflow contract passed."
