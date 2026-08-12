@@ -136,6 +136,7 @@ pub fn analyze_steel_dataset(
                 correlation_columns: request.correlation_columns,
             },
         )?;
+        reconcile_bounded_analysis(&mut analysis, table.row_count);
         analysis.dataset_id = Some(dataset.id);
         analysis.source_sha256 = Some(dataset.source_sha256);
         analysis.selected_sheet = Some(dataset.selected_sheet);
@@ -151,6 +152,18 @@ pub fn analyze_steel_dataset(
         }
         Ok(analysis)
     })
+}
+
+fn reconcile_bounded_analysis(analysis: &mut DatasetAnalysis, source_row_count: usize) {
+    if source_row_count <= analysis.row_count {
+        return;
+    }
+    analysis.row_count = source_row_count;
+    analysis.excluded_row_count = source_row_count.saturating_sub(analysis.analyzed_row_count);
+    analysis.warnings.push(format!(
+        "analysis is bounded to the first {} retained data rows; {} source rows were excluded",
+        analysis.analyzed_row_count, analysis.excluded_row_count
+    ));
 }
 
 #[cfg(test)]
@@ -176,5 +189,25 @@ mod tests {
 
         assert_eq!(result.formula_id, "carbon-equivalent.iiw.v1");
         assert!((result.value - 0.464).abs() < 1e-9);
+    }
+
+    #[test]
+    fn bounded_analysis_reports_source_rows_and_exclusions() {
+        let mut analysis = analyze_dataset(
+            vec!["yield_strength".to_string()],
+            vec![vec!["355".to_string()], vec!["360".to_string()]],
+            DatasetAnalysisRequest::default(),
+        )
+        .expect("analyze retained rows");
+
+        reconcile_bounded_analysis(&mut analysis, 100_001);
+
+        assert_eq!(analysis.row_count, 100_001);
+        assert_eq!(analysis.analyzed_row_count, 2);
+        assert_eq!(analysis.excluded_row_count, 99_999);
+        assert!(analysis
+            .warnings
+            .iter()
+            .any(|warning| warning.contains("bounded")));
     }
 }

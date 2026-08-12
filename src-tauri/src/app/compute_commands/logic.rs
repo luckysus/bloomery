@@ -94,6 +94,9 @@ pub fn build_linear_regression_payload(
     if table.headers.len() != columns.len() {
         return Err("dataset column metadata does not match the source table".to_string());
     }
+    if table.truncated {
+        return Err("training requires the complete dataset; filter the source below 100000 rows and save it again".to_string());
+    }
     if request.feature_columns.is_empty() {
         return Err("at least one feature column is required".to_string());
     }
@@ -1184,6 +1187,8 @@ mod tests {
                 vec!["H-02".to_string(), "".to_string(), "360".to_string()],
                 vec!["H-03".to_string(), "30".to_string(), "365".to_string()],
             ],
+            row_count: 3,
+            truncated: false,
             warnings: Vec::new(),
         };
         let columns = vec![
@@ -1248,6 +1253,67 @@ mod tests {
         assert_eq!(payload["targets"], serde_json::json!([355.0, 360.0, 365.0]));
         assert_eq!(payload["feature_names"], serde_json::json!(["temperature"]));
         assert_eq!(payload["field_mapping"]["temperature"], "temperature");
+    }
+
+    #[test]
+    fn rejects_training_payload_from_a_truncated_dataset_table() {
+        let table = DatasetTable {
+            source_name: "heats.csv".to_string(),
+            format: "csv".to_string(),
+            sheets: vec!["CSV".to_string()],
+            selected_sheet: "CSV".to_string(),
+            headers: vec!["temperature".to_string(), "strength".to_string()],
+            rows: vec![
+                vec!["10".to_string(), "355".to_string()],
+                vec!["20".to_string(), "360".to_string()],
+            ],
+            row_count: 100_001,
+            truncated: true,
+            warnings: Vec::new(),
+        };
+        let columns = vec![
+            SteelDatasetColumnRecord {
+                ordinal: 0,
+                original_name: "temperature".to_string(),
+                duplicate: false,
+                inferred_type: "number".to_string(),
+                canonical_field: Some("temperature".to_string()),
+                unit: Some("C".to_string()),
+                non_empty_count: 2,
+                missing_count: 0,
+                invalid_count: 0,
+                min: Some(10.0),
+                max: Some(20.0),
+            },
+            SteelDatasetColumnRecord {
+                ordinal: 1,
+                original_name: "strength".to_string(),
+                duplicate: false,
+                inferred_type: "number".to_string(),
+                canonical_field: Some("yield_strength".to_string()),
+                unit: Some("MPa".to_string()),
+                non_empty_count: 2,
+                missing_count: 0,
+                invalid_count: 0,
+                min: Some(355.0),
+                max: Some(360.0),
+            },
+        ];
+
+        let error = build_linear_regression_payload(
+            &table,
+            &columns,
+            &TrainSteelDatasetRequest {
+                dataset_id: "dataset-1".to_string(),
+                target_column: 1,
+                feature_columns: vec![0],
+                split_policy: None,
+                algorithm: None,
+            },
+        )
+        .expect_err("truncated source table must not be used for training");
+
+        assert!(error.contains("complete dataset"));
     }
 
     #[test]

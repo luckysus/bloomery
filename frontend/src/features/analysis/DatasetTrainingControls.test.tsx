@@ -112,6 +112,14 @@ describe("DatasetTrainingControls", () => {
     expect(await screen.findByTestId("training-task-dataset-1")).toHaveTextContent("task-1");
   });
 
+  it("blocks training when the source dataset was truncated", () => {
+    render(<DatasetTrainingControls dataset={{ ...dataset, truncated: true }} />);
+
+    expect(screen.getByTestId("training-truncated-dataset-1")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /train|训练/i })).toBeDisabled();
+    expect(desktop.trainSteelDataset).not.toHaveBeenCalled();
+  });
+
   it("submits the selected non-linear training algorithm", async () => {
     render(<DatasetTrainingControls dataset={dataset} />);
 

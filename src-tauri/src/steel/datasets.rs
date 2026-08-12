@@ -1,3 +1,5 @@
+mod csv;
+
 use crate::permissions::path::authorize_existing_file;
 use crate::rag::ingest::SourceFormat;
 use crate::rag::model::SourceLocation;
@@ -57,6 +59,8 @@ pub struct DatasetTable {
     pub selected_sheet: String,
     pub headers: Vec<String>,
     pub rows: Vec<Vec<String>>,
+    pub row_count: usize,
+    pub truncated: bool,
     pub warnings: Vec<String>,
 }
 
@@ -69,6 +73,9 @@ pub fn read_dataset_table(request: &DatasetPreviewRequest) -> Result<DatasetTabl
         .map_err(|error| format!("dataset source path is not authorized: {error}"))?;
     let path = path.canonical_path();
     let format = format_for_path(path)?;
+    if format == SourceFormat::Csv {
+        return csv::read_dataset_table(path, request.sheet.as_deref());
+    }
     let parsed =
         parse_document(path, format, ParseLimits::default()).map_err(|error| error.to_string())?;
     let tables = parsed
@@ -124,11 +131,13 @@ pub fn read_dataset_table(request: &DatasetPreviewRequest) -> Result<DatasetTabl
             })
             .collect()
     };
+    let row_count = source_rows.len().saturating_sub(1);
     let rows = if source_rows.len() <= 1 {
         Vec::new()
     } else {
         source_rows[1..]
             .iter()
+            .take(MAX_PREVIEW_ROWS)
             .map(|row| {
                 (0..width)
                     .map(|index| row.get(index).cloned().unwrap_or_default())
@@ -136,6 +145,18 @@ pub fn read_dataset_table(request: &DatasetPreviewRequest) -> Result<DatasetTabl
             })
             .collect()
     };
+    let truncated = row_count > rows.len();
+
+    let mut warnings = parsed
+        .warnings
+        .into_iter()
+        .map(|warning| warning.message)
+        .collect::<Vec<_>>();
+    if truncated {
+        warnings.push(format!(
+            "dataset preview is limited to the first {MAX_PREVIEW_ROWS} rows"
+        ));
+    }
 
     Ok(DatasetTable {
         source_name: path
@@ -148,11 +169,9 @@ pub fn read_dataset_table(request: &DatasetPreviewRequest) -> Result<DatasetTabl
         selected_sheet,
         headers,
         rows,
-        warnings: parsed
-            .warnings
-            .into_iter()
-            .map(|warning| warning.message)
-            .collect(),
+        row_count,
+        truncated,
+        warnings,
     })
 }
 
@@ -165,9 +184,9 @@ pub fn preview_dataset(request: &DatasetPreviewRequest) -> Result<DatasetPreview
             format: table.format,
             sheets: table.sheets,
             selected_sheet: table.selected_sheet,
-            row_count: 0,
+            row_count: table.row_count,
             column_count: 0,
-            truncated: false,
+            truncated: table.truncated,
             columns: Vec::new(),
             sample_rows: Vec::new(),
             warnings: table.warnings,
@@ -254,9 +273,9 @@ pub fn preview_dataset(request: &DatasetPreviewRequest) -> Result<DatasetPreview
         format: table.format,
         sheets: table.sheets,
         selected_sheet: table.selected_sheet,
-        row_count: data_rows.len(),
+        row_count: table.row_count,
         column_count: width,
-        truncated: data_rows.len() > MAX_PREVIEW_ROWS,
+        truncated: table.truncated,
         columns,
         sample_rows,
         warnings,

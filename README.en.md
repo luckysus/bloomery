@@ -75,7 +75,7 @@ You can also run `./start-desktop.bat` from the repository root to start the dev
 
 Bloomery stores `bloomery.sqlite3` in the operating system application-data directory rather than in the repository. Conversations, messages, summaries, memories, settings, knowledge metadata, and task state remain local by default.
 
-Local-first does not mean automatically offline. When you enable a cloud LLM, SiliconFlow, MinerU, MCP, or update checks, related requests are sent to the service you configured or enabled. Never put API keys in source code, `.env` files, logs, screenshots, exports, or diagnostic bundles.
+Local-first does not mean automatically offline. When you enable a cloud LLM, SiliconFlow, MinerU, MCP, or update checks, related requests are sent to the service you configured or enabled.
 
 ## Extensions and documentation
 

@@ -74,6 +74,7 @@ export default function DatasetTrainingControls({ dataset }: Props) {
   const taskId = task?.id ?? null;
   const taskState = task?.state ?? null;
   const activeTask = Boolean(task && !isTerminal(task.state));
+  const trainingBlocked = dataset.truncated;
 
   useEffect(() => {
     let mounted = true;
@@ -162,6 +163,10 @@ export default function DatasetTrainingControls({ dataset }: Props) {
   };
 
   const train = async () => {
+    if (trainingBlocked) {
+      setError(t("analysisTrainingTruncated"));
+      return;
+    }
     if (busy || activeTask || targetColumn === null || featureColumns.length === 0) {
       setError(t("analysisTrainingNeedColumns"));
       return;
@@ -224,7 +229,7 @@ export default function DatasetTrainingControls({ dataset }: Props) {
       </div>
       <label className="bloomery-training-target">
         <span>{t("analysisTrainingTarget")}</span>
-        <select data-testid={`training-target-${dataset.id}`} value={targetColumn === null ? "" : String(targetColumn)} onChange={(event) => changeTarget(event.target.value)} disabled={activeTask}>
+        <select data-testid={`training-target-${dataset.id}`} value={targetColumn === null ? "" : String(targetColumn)} onChange={(event) => changeTarget(event.target.value)} disabled={activeTask || trainingBlocked}>
           <option value="">{t("analysisTrainingChooseTarget")}</option>
           {numericColumns.map((column) => <option key={column.ordinal} value={column.ordinal}>{columnLabel(column.ordinal)}</option>)}
         </select>
@@ -235,7 +240,7 @@ export default function DatasetTrainingControls({ dataset }: Props) {
           data-testid={`training-algorithm-${dataset.id}`}
           value={algorithm}
           onChange={(event) => changeAlgorithm(event.target.value)}
-          disabled={activeTask}
+          disabled={activeTask || trainingBlocked}
         >
           {trainingAlgorithms.map((candidate) => (
             <option key={candidate.value} value={candidate.value}>{t(candidate.label)}</option>
@@ -252,7 +257,7 @@ export default function DatasetTrainingControls({ dataset }: Props) {
                 data-testid={`training-feature-${dataset.id}-${column.ordinal}`}
                 checked={featureColumns.includes(column.ordinal)}
                 onChange={() => toggleFeature(column.ordinal)}
-                disabled={activeTask}
+                disabled={activeTask || trainingBlocked}
               />
               <span>{columnLabel(column.ordinal)}</span>
             </label>
@@ -260,7 +265,8 @@ export default function DatasetTrainingControls({ dataset }: Props) {
           {numericColumns.length <= 1 && <span>{t("analysisTrainingNoFeatures")}</span>}
         </div>
       </fieldset>
-      <button className="bloomery-dataset-training-button" type="button" onClick={() => void train()} disabled={busy || activeTask}>
+      {trainingBlocked && <p className="bloomery-analysis-error" data-testid={`training-truncated-${dataset.id}`}><TriangleAlert size={15} aria-hidden="true" />{t("analysisTrainingTruncated")}</p>}
+      <button className="bloomery-dataset-training-button" type="button" onClick={() => void train()} disabled={busy || activeTask || trainingBlocked}>
         {busy ? <LoaderCircle className="bloomery-spin" size={16} aria-hidden="true" /> : <Play size={16} aria-hidden="true" />}
         <span>{busy ? t("analysisTrainingStarting") : t("analysisTrainingStart")}</span>
       </button>

@@ -75,7 +75,7 @@ cargo install tauri-cli --version "^2"
 
 Bloomery 将 `bloomery.sqlite3` 存放在操作系统应用数据目录，而不是仓库目录。会话、消息、摘要、记忆、设置、知识库元数据和任务状态默认保留在本机。
 
-“本地优先”不等于自动离线：当你启用云端 LLM、SiliconFlow、MinerU、MCP 或更新检查时，相应请求会发送到你配置或启用的服务。请勿将 API Key 写入源码、`.env`、日志、截图、导出包或诊断包。
+“本地优先”不等于自动离线：当你启用云端 LLM、SiliconFlow、MinerU、MCP 或更新检查时，相应请求会发送到你配置或启用的服务。
 
 ## 扩展与文档
 
