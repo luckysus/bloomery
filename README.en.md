@@ -8,9 +8,7 @@
 
 [简体中文](README.md) · English
 
-[Guide](#quick-start) · [Protocol](docs/PROTOCOL.md) · [Extensions](docs/extensions/mcp.md) · [Release](docs/releases/building.md) · [Case study](docs/releases/case-study.md) · [Contributing](CONTRIBUTING.md)
-
-[GitHub](https://github.com/luckysus/bloomery) · [Gitee](https://gitee.com/neusu/bloomery) · [Non-goals](docs/NON-GOALS.md) · [Security](SECURITY.md)
+[GitHub](https://github.com/luckysus/bloomery) · [Gitee](https://gitee.com/neusu/bloomery)
 
 [![Bloomery quality](https://github.com/luckysus/bloomery/actions/workflows/quality.yml/badge.svg)](https://github.com/luckysus/bloomery/actions/workflows/quality.yml)
 [![Release candidate](https://github.com/luckysus/bloomery/actions/workflows/release.yml/badge.svg)](https://github.com/luckysus/bloomery/actions/workflows/release.yml)
@@ -162,7 +160,7 @@ bloomery/
 
 The public event protocol is documented in [`docs/PROTOCOL.md`](docs/PROTOCOL.md). Design specs and implementation plans live under `docs/superpowers/`; current source code and tests are the authority for implementation status.
 
-More docs: [`SECURITY.md`](SECURITY.md) security policy, [`CONTRIBUTING.md`](CONTRIBUTING.md) contributing guide, [`docs/NON-GOALS.md`](docs/NON-GOALS.md) non-goals, and [`docs/releases/case-study.md`](docs/releases/case-study.md) reproducible steel case study.
+More docs: [`CONTRIBUTING.md`](CONTRIBUTING.md) contributing guide, [`docs/extensions/mcp.md`](docs/extensions/mcp.md) MCP extensions, [`docs/extensions/skills.md`](docs/extensions/skills.md) Skills, [`docs/extensions/domain-packages.md`](docs/extensions/domain-packages.md) domain packages, [`docs/releases/building.md`](docs/releases/building.md) release builds, and [`docs/releases/case-study.md`](docs/releases/case-study.md) reproducible steel case study.
 
 ## Release roadmap
 
@@ -176,20 +174,6 @@ More docs: [`SECURITY.md`](SECURITY.md) security policy, [`CONTRIBUTING.md`](CON
 | Workbench, diagnostics, export, restore, Windows installation, and formal release | Release target |
 
 These phases are engineering dependencies, not separate MVP, Alpha, or Pro editions. Bloomery will only be labeled as the first public release after all release gates pass.
-
-## Non-goals
-
-Bloomery explicitly does not:
-
-- provide accounts, login, membership, admin consoles, or hosted team workspaces;
-- reuse Steel Agent Web login, sessions, backend APIs, or private data sources;
-- require a server maintained by the project author;
-- host user API keys, knowledge bases, production data, or chat history;
-- make terminal coding, patch generation, or repository automation the core product;
-- execute arbitrary binaries or scripts bundled inside domain packages;
-- run write, shell, or other high-risk tools without user confirmation;
-- promise that third-party cloud-provider requests stay on the local machine;
-- position itself as another generic chat client.
 
 ## Contributing
 

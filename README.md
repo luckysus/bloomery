@@ -8,9 +8,7 @@
 
 简体中文 · [English](README.en.md)
 
-[指南](#快速开始) · [协议](docs/PROTOCOL.md) · [扩展](docs/extensions/mcp.md) · [发布](docs/releases/building.md) · [案例](docs/releases/case-study.md) · [贡献](CONTRIBUTING.md)
-
-[GitHub](https://github.com/luckysus/bloomery) · [Gitee](https://gitee.com/neusu/bloomery) · [Non-goals](docs/NON-GOALS.md) · [Security](SECURITY.md)
+[GitHub](https://github.com/luckysus/bloomery) · [Gitee](https://gitee.com/neusu/bloomery)
 
 [![Bloomery quality](https://github.com/luckysus/bloomery/actions/workflows/quality.yml/badge.svg)](https://github.com/luckysus/bloomery/actions/workflows/quality.yml)
 [![Release candidate](https://github.com/luckysus/bloomery/actions/workflows/release.yml/badge.svg)](https://github.com/luckysus/bloomery/actions/workflows/release.yml)
@@ -162,7 +160,7 @@ bloomery/
 
 公开事件协议位于 [`docs/PROTOCOL.md`](docs/PROTOCOL.md)。设计规格和实施计划位于 `docs/superpowers/`；当前代码与测试是实现状态的最终依据。
 
-更多文档：[`SECURITY.md`](SECURITY.md) 安全策略、[`CONTRIBUTING.md`](CONTRIBUTING.md) 贡献指南、[`docs/NON-GOALS.md`](docs/NON-GOALS.md) 非目标、[`docs/releases/case-study.md`](docs/releases/case-study.md) 可复现钢铁案例研究。
+更多文档：[`CONTRIBUTING.md`](CONTRIBUTING.md) 贡献指南、[`docs/extensions/mcp.md`](docs/extensions/mcp.md) MCP 扩展、[`docs/extensions/skills.md`](docs/extensions/skills.md) Skills、[`docs/extensions/domain-packages.md`](docs/extensions/domain-packages.md) 领域包、[`docs/releases/building.md`](docs/releases/building.md) 发布构建、[`docs/releases/case-study.md`](docs/releases/case-study.md) 可复现钢铁案例研究。
 
 ## 发布路线图
 
@@ -176,20 +174,6 @@ bloomery/
 | 工作台、诊断、导出、恢复、Windows 安装与正式发布 | 发布目标 |
 
 这些阶段是工程依赖顺序，不代表单独发布的 MVP、Alpha 或 Pro 版本。只有全部发布门禁通过后，Bloomery 才会标记为首个公开正式版。
-
-## Non-goals
-
-Bloomery 明确不做以下事情：
-
-- 不提供账号、登录、会员、管理员后台或团队云空间；
-- 不复用 Steel Agent Web 的登录、会话、后端 API 或私有数据源；
-- 不要求连接项目作者维护的服务器；
-- 不托管用户的 API Key、知识库、生产数据或聊天记录；
-- 不把终端编码、补丁生成和代码仓库自动化作为核心产品；
-- 不执行领域包携带的任意二进制或脚本；
-- 不在用户未确认的情况下执行写入、Shell 或其他高风险工具；
-- 不承诺第三方云 Provider 的请求完全留在本机；
-- 不以“又一个通用聊天客户端”为产品定位。
 
 ## 贡献指南
 
