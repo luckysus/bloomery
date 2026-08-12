@@ -1,20 +1,32 @@
-# Bloomery
+<div align="center">
 
-**Windows-first, local-first agent workbench for steel and materials engineering.**
+<img src="docs/assets/bloomery-banner.svg" alt="Bloomery" width="760">
 
-Bloomery is an open-source desktop application for evidence-grounded AI workflows around conversations, local documents, retrieval, production data, and domain tools. The first official domain package focuses on steel and materials engineering.
+<h1>Bloomery</h1>
 
-[中文](#中文) | [English](#english)
+**Windows 优先、本地优先的钢铁与材料工程智能体工作台。**
 
-[GitHub](https://github.com/luckysus/bloomery) | [Gitee](https://gitee.com/neusu/bloomery)
+简体中文 · [English](README.en.md)
 
-> **Project status / 项目状态**
+[指南](#快速开始) · [协议](docs/PROTOCOL.md) · [扩展](docs/extensions/mcp.md) · [发布](docs/releases/building.md) · [案例](docs/releases/case-study.md) · [贡献](CONTRIBUTING.md)
+
+[GitHub](https://github.com/luckysus/bloomery) · [Gitee](https://gitee.com/neusu/bloomery) · [Non-goals](docs/NON-GOALS.md) · [Security](SECURITY.md)
+
+[![Bloomery quality](https://github.com/luckysus/bloomery/actions/workflows/quality.yml/badge.svg)](https://github.com/luckysus/bloomery/actions/workflows/quality.yml)
+[![Release candidate](https://github.com/luckysus/bloomery/actions/workflows/release.yml/badge.svg)](https://github.com/luckysus/bloomery/actions/workflows/release.yml)
+![License](https://img.shields.io/badge/license-Apache--2.0-blue)
+![Windows](https://img.shields.io/badge/platform-Windows%2010%2B-0078D4)
+![Tauri](https://img.shields.io/badge/Tauri-2-FFC131)
+![Rust](https://img.shields.io/badge/Rust-stable-b7410e)
+![Status](https://img.shields.io/badge/status-engineering%20build-orange)
+
+</div>
+
+> **项目状态**
 >
-> Bloomery is under active development. The current `main` branch is an engineering build, not a published stable release. This README describes the boundary and quality bar of the first public release; release installers will be added only after the release gates are met.
+> Bloomery 正在积极开发中。当前 `main` 分支是工程构建，不是已发布的稳定正式版。本 README 描述首个公开正式版的边界和质量目标；只有发布门禁全部通过后才会提供正式安装包。
 
-## 中文
-
-### 项目简介
+## 项目简介
 
 Bloomery 是一个 Windows 优先、本地优先的领域智能体工作台，面向钢铁、材料和工业研发场景。它把本地对话、文档解析、混合检索、证据引用、生产数据分析和可控工具执行放在同一个桌面工作区中。
 
@@ -26,7 +38,7 @@ Bloomery 不是又一个通用聊天窗口。它让用户能够：
 - 通过 MCP、Skills 和领域包扩展能力；
 - 在执行写入、Shell 或其他高风险操作前获得明确的权限确认。
 
-### 核心能力
+## 核心能力
 
 当前开发版已具备以下基础能力：
 
@@ -50,7 +62,7 @@ Bloomery 不是又一个通用聊天窗口。它让用户能够：
 - 生产数据导入、确定性计算、模型推理、预测和受约束优化；
 - 会话导出、完整备份恢复、诊断页、更新和 Windows 安装发布流程。
 
-### 产品定位与架构
+## 产品定位与架构
 
 Bloomery 由两个层次组成：
 
@@ -82,7 +94,7 @@ flowchart LR
 - 领域包不能绕过工具注册表和权限系统，也不能携带任意可执行代码；
 - 前端不得直接调用外部 Provider，不得持有完整 API Key。
 
-### Provider 配置
+## Provider 配置
 
 | 能力 | 默认选择 | 说明 |
 | --- | --- | --- |
@@ -93,7 +105,7 @@ flowchart LR
 
 SiliconFlow 的免费版与 Pro 版由用户自行选择。Bloomery 不代理计费，也不判断订阅类型；应用只保存用户选择的模型和连接结果。API Key 通过设置页输入并保存到 Windows Credential Manager。SQLite 只保存 Provider 配置和凭据引用，不保存明文密钥。
 
-### 快速开始
+## 快速开始
 
 环境要求：Windows 10+、Node.js 20/22/24、Rust stable、Visual Studio Build Tools 的 `Desktop development with C++`、WebView2 Runtime、Git 和 Tauri 2 Windows 前置依赖。
 
@@ -121,13 +133,13 @@ cargo install tauri-cli --version "^2"
 
 也可以从仓库根目录运行 `./start-desktop.bat`。它只启动开发环境，不是正式安装包。
 
-### 本地数据、隐私与网络
+## 本地数据、隐私与网络
 
 Bloomery 将 `bloomery.sqlite3` 放在操作系统应用数据目录，而不是仓库目录。会话、消息、摘要、记忆、设置、知识库元数据、任务状态和索引管理信息保存在本机。
 
 Bloomery 是本地优先，不是自动完全离线。云端 LLM、SiliconFlow、MinerU 或 MCP 请求可能离开本机；网络访问应仅来自用户配置的 Provider、启用的扩展和更新检查。API Key 不得出现在源代码、`.env`、日志、截图、导出包或诊断包中。
 
-### 仓库结构
+## 仓库结构
 
 ~~~text
 bloomery/
@@ -144,14 +156,15 @@ bloomery/
 |-- scripts/                  开发辅助脚本
 |-- start-desktop.bat         Windows 开发启动入口
 |-- LICENSE                   Apache License 2.0
-+-- README.md
++-- README.md                 默认中文 README
++-- README.en.md              English README
 ~~~
 
-公开事件协议位于 `docs/PROTOCOL.md`。设计规格和实施计划位于 `docs/superpowers/`；当前代码与测试是实现状态的最终依据。
+公开事件协议位于 [`docs/PROTOCOL.md`](docs/PROTOCOL.md)。设计规格和实施计划位于 `docs/superpowers/`；当前代码与测试是实现状态的最终依据。
 
 更多文档：[`SECURITY.md`](SECURITY.md) 安全策略、[`CONTRIBUTING.md`](CONTRIBUTING.md) 贡献指南、[`docs/NON-GOALS.md`](docs/NON-GOALS.md) 非目标、[`docs/releases/case-study.md`](docs/releases/case-study.md) 可复现钢铁案例研究。
 
-### 发布路线图
+## 发布路线图
 
 | 阶段 | 状态 |
 | --- | --- |
@@ -164,7 +177,7 @@ bloomery/
 
 这些阶段是工程依赖顺序，不代表单独发布的 MVP、Alpha 或 Pro 版本。只有全部发布门禁通过后，Bloomery 才会标记为首个公开正式版。
 
-### Non-goals
+## Non-goals
 
 Bloomery 明确不做以下事情：
 
@@ -178,7 +191,7 @@ Bloomery 明确不做以下事情：
 - 不承诺第三方云 Provider 的请求完全留在本机；
 - 不以“又一个通用聊天客户端”为产品定位。
 
-### 贡献指南
+## 贡献指南
 
 欢迎提交问题、文档、测试和代码贡献。请先阅读 `docs/PROTOCOL.md` 和相关设计规格，保持单一 Tauri bridge 边界，新 Provider 声明能力和错误类型，新工具通过注册表和权限策略，并且不要提交 API Key、企业数据、真实用户会话、构建产物或生成目录。
 
@@ -195,124 +208,6 @@ cargo test
 
 安全问题不要公开发布凭据或生产数据，请通过仓库维护者提供的安全渠道报告漏洞。
 
-### License
+## License
 
-Bloomery 使用 Apache License 2.0。完整条款见 `LICENSE`，相关声明见 `NOTICE`。既往以 MIT 许可发布版本所授予的权利予以保留。
-
----
-
-## English
-
-### Overview and status
-
-Bloomery is a Windows-first, local-first desktop agent workbench for steel and materials engineering. It combines local conversations, document ingestion, hybrid retrieval, evidence citations, production-data workflows, and controlled tool execution.
-
-Bloomery is under active development. The current `main` branch is an engineering build, not a stable public release. This README documents the target boundary of the first complete public release; current source builds must not be treated as production installers.
-
-### Current foundation and release target
-
-The development branch includes a local workspace, Tauri 2 and Rust execution, SQLite persistence, OpenAI-compatible and Ollama profiles, SiliconFlow `BAAI/bge-m3` and `BAAI/bge-reranker-v2-m3`, MinerU tasks, local ingestion for PDF/Markdown/TXT/HTML/DOCX/CSV/XLSX, and first-run provider setup.
-
-The complete public release additionally targets evidence citations, a recoverable modular agent runtime, context and memory management, tool-call repair, explicit permissions, MCP transports, Claude-compatible Skills, domain packages, the official steel package, data analysis, backup and restore, diagnostics, updates, and signed Windows distribution.
-
-### Architecture
-
-~~~text
-React UI
-  -> single Tauri bridge
-    -> Rust agent runtime
-      -> context / memory / protocol
-      -> local RAG / citations
-      -> tools / permissions / MCP / Skills
-      -> LLM / SiliconFlow / MinerU providers
-      -> SQLite / durable tasks / rebuildable indexes
-      -> steel domain package
-~~~
-
-React owns presentation and short-lived UI state. Rust owns agent execution, context, provider calls, retrieval, permissions, tasks, and storage. SQLite is authoritative; vector indexes are rebuildable derived data. Providers expose explicit capabilities rather than relying on provider-name heuristics.
-
-### Provider setup and quick start
-
-Configure LLM, SiliconFlow Embedding/Reranker, and optional MinerU from the first-run wizard or settings page. SiliconFlow free and Pro choices use the same provider path; Bloomery does not proxy billing or infer subscription status. API keys are stored through Windows Credential Manager and never belong in SQLite, logs, diagnostics, or backups.
-
-Requirements: Windows 10+, Node.js 20/22/24, Rust stable, Visual Studio Build Tools with `Desktop development with C++`, WebView2 Runtime, Git, and Tauri 2 Windows prerequisites.
-
-~~~powershell
-git clone https://github.com/luckysus/bloomery.git
-Set-Location bloomery
-
-Set-Location frontend
-npm install
-npm run test
-npm run test:boundaries
-npm run build
-
-Set-Location ../src-tauri
-cargo check
-cargo test
-cargo tauri dev
-~~~
-
-The repository root also contains `start-desktop.bat` for development startup. It is not a release installer.
-
-### Data, privacy, and network boundaries
-
-Bloomery stores `bloomery.sqlite3` in the operating-system application-data directory. It does not require a Bloomery-owned backend. The application is local-first, not automatically offline: configured cloud LLM, SiliconFlow, MinerU, and MCP requests may leave the machine. Network access should be limited to configured providers, enabled extensions, and update checks.
-
-### Repository layout
-
-~~~text
-bloomery/
-|-- frontend/                 React 18, TypeScript, Vite, and desktop UI
-|-- src-tauri/
-|   |-- src/app/              Tauri commands and application assembly
-|   |-- src/agent/            Agent, context, memory, and protocol
-|   |-- src/providers/        LLM, SiliconFlow, and MinerU
-|   |-- src/rag/              Ingestion, parsing, indexing, retrieval, citations
-|   |-- src/storage/          SQLite, migrations, secret references
-|   +-- tests/                Rust integration and architecture tests
-|-- docs/                     Protocol, design, benchmarks, and release plans
-|-- scripts/                  Development helpers
-|-- start-desktop.bat         Windows development entry point
-|-- LICENSE                   Apache License 2.0
-+-- README.md
-~~~
-
-The public event contract is documented in `docs/PROTOCOL.md`. Design specifications and implementation plans live under `docs/superpowers/`; source code and tests remain the authority for current behavior.
-
-More docs: [`SECURITY.md`](SECURITY.md) security policy, [`CONTRIBUTING.md`](CONTRIBUTING.md) contributor guide, [`docs/NON-GOALS.md`](docs/NON-GOALS.md) non-goals, and [`docs/releases/case-study.md`](docs/releases/case-study.md) reproducible steel case study.
-
-### Non-goals
-
-Bloomery does not aim to:
-
-- provide accounts, subscriptions, an admin console, or a hosted team workspace;
-- reuse the Steel Agent Web login, sessions, backend APIs, or private data sources;
-- require a server maintained by the project author;
-- host user API keys, knowledge bases, production data, or chat history;
-- make terminal coding, patch generation, or repository automation its core product;
-- execute arbitrary binaries or scripts bundled inside a domain package;
-- run write, shell, or other high-risk tools without explicit authorization;
-- claim that third-party cloud-provider requests remain on the local machine;
-- position itself as another generic chat client.
-
-### Roadmap and release boundary
-
-The release sequence is an engineering dependency order, not a set of reduced editions:
-
-1. Complete the local foundation, storage, providers, and local RAG.
-2. Finish the modular agent runtime, protocol, context, memory, recovery, and tool-call repair.
-3. Add explicit permissions, MCP transports, Skills, and domain packages.
-4. Ship the official steel and materials package with data workflows and deterministic tools.
-5. Complete onboarding, workbench, knowledge, chat, diagnostics, export, restore, and recovery UX.
-6. Pass Windows, security, performance, compatibility, packaging, signing, and documentation gates.
-
-Only after all gates pass will Bloomery be labeled as the first complete public release.
-
-### Contributing and license
-
-Contributions to code, tests, documentation, and domain evaluation are welcome. Read `docs/PROTOCOL.md` first, preserve the Tauri bridge boundary, route tools through the registry and permission policy, and add focused tests for behavior changes. Run the frontend and Rust checks shown above before opening a change.
-
-Do not publish credentials or production data in issues or pull requests. Report security vulnerabilities through the repository maintainer's security channel with minimum reproducible information.
-
-Bloomery is released under the Apache License 2.0. See `LICENSE` for the complete text and `NOTICE` for attribution. Rights granted under the earlier MIT-licensed releases are preserved.
+Bloomery 使用 Apache License 2.0。完整条款见 [`LICENSE`](LICENSE)，相关声明见 [`NOTICE`](NOTICE)。既往以 MIT 许可发布版本所授予的权利予以保留。

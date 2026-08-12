@@ -1,0 +1,8 @@
+<svg width="760" height="150" viewBox="0 0 760 150" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Bloomery">
+  <rect width="760" height="150" rx="24" fill="#F8FAFC"/>
+  <path d="M78 106L109 44H142L111 106H78Z" fill="#475569"/>
+  <path d="M116 106L147 44H180L149 106H116Z" fill="#CBD5E1"/>
+  <path d="M154 106L185 44H218L187 106H154Z" fill="#F97316"/>
+  <text x="245" y="88" fill="#0F172A" font-family="Segoe UI, Arial, sans-serif" font-size="58" font-weight="800" letter-spacing="-2">Bloomery</text>
+  <text x="250" y="116" fill="#64748B" font-family="Segoe UI, Arial, sans-serif" font-size="16" font-weight="600">Local-first steel &amp; materials agent workbench</text>
+</svg>
