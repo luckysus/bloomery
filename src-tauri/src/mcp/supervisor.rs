@@ -4,6 +4,9 @@ use super::{
     stdio::{self, McpStderrCapture, McpStderrSnapshot, McpStdioConfig},
     McpClient, McpClientConfig, McpError,
 };
+use std::{future::Future, time::Duration};
+
+const MCP_SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(2);
 
 #[derive(Debug, Clone)]
 pub enum McpTransportConfig {
@@ -47,7 +50,7 @@ impl McpSupervisor {
 
     pub async fn restart(&mut self) -> Result<(), McpError> {
         if let Some(client) = self.client.take() {
-            client.shutdown().await?;
+            shutdown_with_timeout(client.shutdown(), MCP_SHUTDOWN_TIMEOUT).await?;
         }
         let (client, stderr) =
             connect_transport(self.transport.clone(), self.client_config.clone()).await?;
@@ -58,10 +61,19 @@ impl McpSupervisor {
 
     pub async fn shutdown(&mut self) -> Result<(), McpError> {
         if let Some(client) = self.client.take() {
-            client.shutdown().await?;
+            shutdown_with_timeout(client.shutdown(), MCP_SHUTDOWN_TIMEOUT).await?;
         }
         Ok(())
     }
+}
+
+async fn shutdown_with_timeout<F>(shutdown: F, timeout: Duration) -> Result<(), McpError>
+where
+    F: Future<Output = Result<(), McpError>>,
+{
+    tokio::time::timeout(timeout, shutdown)
+        .await
+        .map_err(|_| McpError::Timeout)?
 }
 
 async fn connect_transport(
@@ -83,5 +95,28 @@ async fn connect_transport(
             let client = config.connect(client_config).await?;
             Ok((client, None))
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::shutdown_with_timeout;
+    use crate::mcp::McpError;
+    use std::time::{Duration, Instant};
+
+    #[tokio::test]
+    async fn shutdown_timeout_does_not_wait_for_an_unresponsive_server() {
+        let started = Instant::now();
+        let result = shutdown_with_timeout(
+            async {
+                tokio::time::sleep(Duration::from_millis(100)).await;
+                Ok::<(), McpError>(())
+            },
+            Duration::from_millis(10),
+        )
+        .await;
+
+        assert!(matches!(result, Err(McpError::Timeout)));
+        assert!(started.elapsed() < Duration::from_secs(1));
     }
 }

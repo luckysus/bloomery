@@ -109,7 +109,7 @@ pub fn get(
 }
 
 pub fn save_record(
-    conn: &mut Connection,
+    conn: &Connection,
     workspace_id: &str,
     profile: ProviderProfile,
 ) -> Result<ProviderProfileRecord, String> {
@@ -146,6 +146,9 @@ pub fn save_record(
                     OR provider_profiles.model_id IS NOT excluded.model_id
                     OR provider_profiles.secret_ref IS NOT excluded.secret_ref
                   THEN 1 ELSE 0 END,
+           secret_generation =
+             CASE WHEN provider_profiles.secret_ref IS NOT excluded.secret_ref
+                  THEN 0 ELSE provider_profiles.secret_generation END,
            updated_at = excluded.updated_at",
         params![
             id,
@@ -165,7 +168,7 @@ pub fn save_record(
 }
 
 pub fn save(
-    conn: &mut Connection,
+    conn: &Connection,
     workspace_id: &str,
     profile: ProviderProfile,
 ) -> Result<ProviderProfile, String> {

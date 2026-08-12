@@ -143,10 +143,24 @@ pub(crate) fn save_profile(
     store: &dyn SecretStore,
     input: ProviderProfileInput,
 ) -> Result<ProviderProfileResponse, String> {
-    profile_response(
-        provider_profiles::save_record(connection, workspace_id, input.into_profile()?)?,
-        store,
-    )
+    let profile = input.into_profile()?;
+    let previous = provider_profiles::get_record(connection, workspace_id, profile.id)?;
+    let old_secret = previous.as_ref().and_then(|previous| {
+        (previous.profile.secret_ref != profile.secret_ref).then_some((
+            previous.profile.id,
+            previous.profile.secret_ref.clone()?,
+            previous.secret_generation,
+        ))
+    });
+    let transaction = connection
+        .transaction()
+        .map_err(|error| error.to_string())?;
+    let saved = provider_profiles::save_record(&transaction, workspace_id, profile)?;
+    if let Some((profile_id, old_name, generation)) = old_secret {
+        delete_secret_generations(store, profile_id, &old_name, generation)?;
+    }
+    transaction.commit().map_err(|error| error.to_string())?;
+    profile_response(saved, store)
 }
 
 pub(crate) fn set_default_profile(
@@ -184,15 +198,32 @@ pub(crate) fn delete_profile(
     let record = provider_profiles::get_record(connection, workspace_id, id)?
         .ok_or_else(|| "provider profile not found".to_string())?;
     if let Some(name) = record.profile.secret_ref.as_deref() {
-        let reference = SecretRef::at_generation(record.profile.id, name, record.secret_generation)
+        delete_secret_generations(store, record.profile.id, name, record.secret_generation)?;
+    }
+    provider_profiles::delete(connection, workspace_id, id)
+}
+
+fn delete_secret_generations(
+    store: &dyn SecretStore,
+    profile_id: Uuid,
+    credential_name: &str,
+    maximum_generation: u64,
+) -> Result<(), String> {
+    let mut generation = 0_u64;
+    loop {
+        let reference = SecretRef::at_generation(profile_id, credential_name, generation)
             .map_err(|error| error.to_string())?;
         match store.delete(&reference) {
             Ok(()) => {}
             Err(error) if error.is_not_found() => {}
             Err(error) => return Err(error.to_string()),
         }
+        if generation == maximum_generation {
+            break;
+        }
+        generation += 1;
     }
-    provider_profiles::delete(connection, workspace_id, id)
+    Ok(())
 }
 
 pub(crate) async fn probe_provider(
@@ -293,6 +324,7 @@ mod tests {
     #[derive(Default)]
     struct MemorySecretStore {
         values: Mutex<HashMap<String, SecretValue>>,
+        fail_delete: bool,
     }
 
     impl SecretStore for MemorySecretStore {
@@ -314,6 +346,9 @@ mod tests {
         }
 
         fn delete(&self, reference: &SecretRef) -> Result<(), SecretError> {
+            if self.fail_delete {
+                return Err(SecretError::backend("injected delete failure"));
+            }
             self.values
                 .lock()
                 .map_err(|_| SecretError::backend("memory secret store poisoned"))?
@@ -490,6 +525,83 @@ mod tests {
             .expect("get deleted profile")
             .is_none());
         assert!(store.get(&reference).unwrap_err().is_not_found());
+    }
+
+    #[test]
+    fn changing_a_credential_name_removes_all_old_generations() {
+        let mut connection = database();
+        let store = MemorySecretStore::default();
+        let saved = save_profile(
+            &mut connection,
+            "workspace-a",
+            &store,
+            input("https://provider.example/v1".to_string()),
+        )
+        .expect("save profile");
+        let first = SecretRef::at_generation(saved.id, "api_key", 0).unwrap();
+        store
+            .set(&first, &SecretValue::new("old-generation-zero").unwrap())
+            .unwrap();
+        provider_profiles::activate_secret_generation(
+            &connection,
+            "workspace-a",
+            saved.id,
+            "api_key",
+            0,
+        )
+        .unwrap();
+        let second = SecretRef::at_generation(saved.id, "api_key", 1).unwrap();
+        store
+            .set(&second, &SecretValue::new("old-generation-one").unwrap())
+            .unwrap();
+
+        let renamed = ProviderProfileInput {
+            id: Some(saved.id.to_string()),
+            credential_name: Some("token".to_string()),
+            ..input("https://provider.example/v2".to_string())
+        };
+        let renamed = save_profile(&mut connection, "workspace-a", &store, renamed)
+            .expect("rename provider credential");
+
+        assert_eq!(renamed.secret_generation, 0);
+        assert!(store.get(&first).unwrap_err().is_not_found());
+        assert!(store.get(&second).unwrap_err().is_not_found());
+    }
+
+    #[test]
+    fn failed_old_credential_cleanup_rolls_back_profile_rename() {
+        let mut connection = database();
+        let store = MemorySecretStore::default();
+        let saved = save_profile(
+            &mut connection,
+            "workspace-a",
+            &store,
+            input("https://provider.example/v1".to_string()),
+        )
+        .expect("save profile");
+        let reference = SecretRef::at_generation(saved.id, "api_key", 0).unwrap();
+        store
+            .set(&reference, &SecretValue::new("old-secret").unwrap())
+            .unwrap();
+        let failing_store = MemorySecretStore {
+            fail_delete: true,
+            ..store
+        };
+        let renamed = ProviderProfileInput {
+            id: Some(saved.id.to_string()),
+            credential_name: Some("token".to_string()),
+            ..input("https://provider.example/v2".to_string())
+        };
+
+        let error = save_profile(&mut connection, "workspace-a", &failing_store, renamed)
+            .expect_err("credential cleanup failure must fail the save");
+
+        assert!(error.contains("injected delete failure"));
+        let record = provider_profiles::get_record(&connection, "workspace-a", saved.id)
+            .unwrap()
+            .unwrap();
+        assert_eq!(record.profile.secret_ref.as_deref(), Some("api_key"));
+        assert_eq!(record.profile.base_url, "https://provider.example/v1");
     }
 
     #[test]

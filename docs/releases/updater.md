@@ -16,6 +16,8 @@ provide all of these values through the protected release environment:
 ```powershell
 $env:TAURI_SIGNING_PRIVATE_KEY = "<private key supplied by the signing system>"
 $env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD = "<optional password>"
+$env:BLOOMERY_OFFICIAL_PRIVATE_KEY_2026 = "<64 hexadecimal characters for the 32-byte Ed25519 seed>"
+$env:BLOOMERY_OFFICIAL_PUBLIC_KEY_2026 = "<matching 64-hex public key>"
 $env:BLOOMERY_UPDATER_PUBLIC_KEY = "<matching public key>"
 $env:BLOOMERY_UPDATER_ENDPOINT = "https://github.com/luckysus/bloomery/releases/latest/download/latest.json"
 $env:BLOOMERY_RELEASE_ASSET_BASE_URL = "https://github.com/luckysus/bloomery/releases/download/<tag>"
@@ -29,6 +31,11 @@ The overlay and private key are never committed or copied into the installer.
 The public key and its rotation policy must be published with the release
 documentation. Keep the private key in the approved signing system, not in a
 developer profile, repository secret dump, or build artifact.
+
+`BLOOMERY_OFFICIAL_PRIVATE_KEY_2026` is consumed only by the temporary Rust
+release signer. It creates the official steel package `signature.json`, checks
+that the derived public key matches `BLOOMERY_OFFICIAL_PUBLIC_KEY_2026`, and is
+never written to the package, installer, logs, or repository.
 
 ## Update metadata
 

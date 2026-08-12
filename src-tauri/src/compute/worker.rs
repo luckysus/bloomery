@@ -1,4 +1,7 @@
-use super::protocol::{read_frame, write_frame, FrameError, WorkerRequest};
+use super::protocol::{
+    read_frame, write_frame, FrameError, WorkerNotification, WorkerRequest, WorkerResponse,
+    PROTOCOL_VERSION,
+};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 use std::fmt::{Display, Formatter};
@@ -6,9 +9,13 @@ use std::io::BufReader;
 use std::io::Read;
 use std::path::PathBuf;
 use std::process::{Child, ChildStdin, ChildStdout, Command, Stdio};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
+use std::time::{Duration, Instant};
 
 pub const MAX_STDERR_BYTES: usize = 64 * 1024;
+const DEFAULT_SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(2);
 
 #[derive(Debug, Clone)]
 pub struct WorkerConfig {
@@ -76,7 +83,7 @@ impl From<FrameError> for WorkerSupervisorError {
 
 #[derive(Debug)]
 pub struct WorkerClient {
-    child: Child,
+    child: Arc<Mutex<Child>>,
     stdin: ChildStdin,
     stdout: BufReader<ChildStdout>,
     _process_group: Option<WorkerProcessGroup>,
@@ -163,7 +170,7 @@ impl WorkerClient {
         };
         let stderr_drain = std::thread::spawn(move || drain_worker_stderr(stderr));
         Ok(Self {
-            child,
+            child: Arc::new(Mutex::new(child)),
             stdin,
             stdout: BufReader::new(stdout),
             _process_group: process_group,
@@ -190,15 +197,124 @@ impl WorkerClient {
         read_response_with_progress(&mut self.stdout, &request.id, on_progress)
     }
 
-    pub fn shutdown(mut self, request: &WorkerRequest) -> Result<Value, WorkerSupervisorError> {
-        let response = self.request(request)?;
-        self.child
-            .wait()
-            .map_err(|error| WorkerSupervisorError::Io(error.to_string()))?;
-        if let Some(stderr_drain) = self._stderr_drain.take() {
+    pub fn request_with_progress_and_cancel<F, C>(
+        &mut self,
+        request: &WorkerRequest,
+        on_progress: F,
+        should_cancel: C,
+    ) -> Result<Value, WorkerSupervisorError>
+    where
+        F: FnMut(&Value) -> Result<(), WorkerSupervisorError>,
+        C: Fn() -> bool + Send + 'static,
+    {
+        let stopped = Arc::new(AtomicBool::new(false));
+        let cancelled = Arc::new(AtomicBool::new(false));
+        let child = Arc::clone(&self.child);
+        let monitor_stopped = Arc::clone(&stopped);
+        let monitor_cancelled = Arc::clone(&cancelled);
+        let monitor = std::thread::spawn(move || {
+            while !monitor_stopped.load(Ordering::SeqCst) {
+                if should_cancel() {
+                    monitor_cancelled.store(true, Ordering::SeqCst);
+                    if let Ok(mut child) = child.lock() {
+                        let _ = child.kill();
+                    }
+                    return;
+                }
+                std::thread::sleep(Duration::from_millis(25));
+            }
+        });
+
+        let result = self.request_with_progress(request, on_progress);
+        stopped.store(true, Ordering::SeqCst);
+        let _ = monitor.join();
+        if cancelled.load(Ordering::SeqCst) {
+            Err(WorkerSupervisorError::Cancelled)
+        } else {
+            result
+        }
+    }
+
+    pub fn shutdown(self, request: &WorkerRequest) -> Result<Value, WorkerSupervisorError> {
+        self.shutdown_with_timeout(request, DEFAULT_SHUTDOWN_TIMEOUT)
+    }
+
+    pub fn shutdown_with_timeout(
+        mut self,
+        request: &WorkerRequest,
+        timeout: Duration,
+    ) -> Result<Value, WorkerSupervisorError> {
+        let deadline = Instant::now() + timeout;
+        let response = match self.request_with_progress_and_cancel(
+            request,
+            |_| Ok(()),
+            move || Instant::now() >= deadline,
+        ) {
+            Ok(response) => response,
+            Err(WorkerSupervisorError::Cancelled) => {
+                self.terminate_process();
+                self.finish_stderr(false);
+                return Err(WorkerSupervisorError::Io(
+                    "worker shutdown timed out; process was terminated".to_string(),
+                ));
+            }
+            Err(error) => return Err(error),
+        };
+        let remaining = deadline.saturating_duration_since(Instant::now());
+        if !self.wait_for_exit(remaining)? {
+            self.terminate_process();
+            let _ = self.wait_for_exit(Duration::from_secs(2));
+            self.finish_stderr(false);
+            return Err(WorkerSupervisorError::Io(
+                "worker shutdown timed out; process was terminated".to_string(),
+            ));
+        }
+        self.finish_stderr(true);
+        Ok(response)
+    }
+
+    fn wait_for_exit(&self, timeout: Duration) -> Result<bool, WorkerSupervisorError> {
+        let deadline = Instant::now() + timeout;
+        loop {
+            let exited = self
+                .child
+                .lock()
+                .map_err(|_| {
+                    WorkerSupervisorError::Io("worker process lock was poisoned".to_string())
+                })?
+                .try_wait()
+                .map_err(|error| WorkerSupervisorError::Io(error.to_string()))?
+                .is_some();
+            if exited {
+                return Ok(true);
+            }
+            if Instant::now() >= deadline {
+                return Ok(false);
+            }
+            std::thread::sleep(Duration::from_millis(20));
+        }
+    }
+
+    fn terminate_process(&self) {
+        if let Some(process_group) = &self._process_group {
+            process_group.terminate();
+        }
+        if let Ok(mut child) = self.child.lock() {
+            if child.try_wait().ok().flatten().is_none() {
+                let _ = child.kill();
+            }
+        }
+    }
+
+    fn finish_stderr(&mut self, wait: bool) {
+        let Some(stderr_drain) = self._stderr_drain.take() else {
+            return;
+        };
+        if wait {
+            let _ = stderr_drain.join();
+        } else if stderr_drain.is_finished() {
             let _ = stderr_drain.join();
         }
-        Ok(response)
     }
 }
 
@@ -307,6 +423,15 @@ impl WorkerProcessGroup {
             Ok(Self)
         }
     }
+
+    fn terminate(&self) {
+        #[cfg(windows)]
+        {
+            unsafe {
+                windows_sys::Win32::System::JobObjects::TerminateJobObject(self.handle, 1);
+            }
+        }
+    }
 }
 
 #[cfg(windows)]
@@ -397,49 +522,72 @@ pub fn read_response_with_progress<
 ) -> Result<Value, WorkerSupervisorError> {
     loop {
         let response = read_frame(reader)?.ok_or(WorkerSupervisorError::WorkerExited)?;
-        let object = response.as_object().ok_or_else(|| {
-            WorkerSupervisorError::Protocol(FrameError::InvalidJson(
-                "worker response must be an object".to_string(),
-            ))
-        })?;
-        if object.get("id").is_none() && object.get("method").is_some() {
-            if object.get("method").and_then(Value::as_str) == Some("progress") {
-                let params = object.get("params").ok_or_else(|| {
-                    WorkerSupervisorError::Protocol(FrameError::InvalidRequest(
-                        "progress notification params are required".to_string(),
-                    ))
+        if response.get("id").is_none() && response.get("method").is_some() {
+            let notification: WorkerNotification =
+                serde_json::from_value(response).map_err(|error| {
+                    WorkerSupervisorError::Protocol(FrameError::InvalidRequest(format!(
+                        "invalid worker notification: {error}"
+                    )))
                 })?;
-                on_progress(params)?;
+            if notification.jsonrpc != "2.0" {
+                return Err(WorkerSupervisorError::Protocol(FrameError::InvalidRequest(
+                    "worker notification jsonrpc must be 2.0".to_string(),
+                )));
             }
+            if notification.protocol_version != PROTOCOL_VERSION {
+                return Err(WorkerSupervisorError::Protocol(FrameError::InvalidRequest(
+                    format!("worker notification protocol_version must be {PROTOCOL_VERSION}"),
+                )));
+            }
+            if notification.method != "progress" {
+                return Err(WorkerSupervisorError::Protocol(FrameError::InvalidRequest(
+                    "unsupported worker notification method".to_string(),
+                )));
+            }
+            on_progress(&notification.params)?;
             continue;
         }
-        if object.get("id") != Some(&Value::String(request_id.to_string())) {
+
+        let parsed: WorkerResponse = serde_json::from_value(response.clone()).map_err(|error| {
+            WorkerSupervisorError::Protocol(FrameError::InvalidRequest(format!(
+                "invalid worker response: {error}"
+            )))
+        })?;
+        if parsed.jsonrpc != "2.0" {
+            return Err(WorkerSupervisorError::Protocol(FrameError::InvalidRequest(
+                "worker response jsonrpc must be 2.0".to_string(),
+            )));
+        }
+        if parsed.protocol_version != PROTOCOL_VERSION {
+            return Err(WorkerSupervisorError::Protocol(FrameError::InvalidRequest(
+                format!("worker response protocol_version must be {PROTOCOL_VERSION}"),
+            )));
+        }
+        if parsed.id != request_id {
             return Err(WorkerSupervisorError::Protocol(FrameError::InvalidRequest(
                 "worker response ID does not match request".to_string(),
             )));
         }
-        if let Some(error) = object.get("error").and_then(Value::as_object) {
-            let code = error
-                .get("code")
-                .and_then(Value::as_str)
-                .unwrap_or("worker_error")
-                .to_string();
-            let message = error
-                .get("message")
-                .and_then(Value::as_str)
-                .unwrap_or("worker returned an error")
-                .to_string();
-            return Err(WorkerSupervisorError::Remote { code, message });
+        match (&parsed.result, &parsed.error) {
+            (Some(_), Some(_)) | (None, None) => {
+                return Err(WorkerSupervisorError::Protocol(FrameError::InvalidRequest(
+                    "worker response must contain exactly one result or error".to_string(),
+                )));
+            }
+            (Some(_), None) => return Ok(response),
+            (None, Some(error)) => {
+                return Err(WorkerSupervisorError::Remote {
+                    code: error.code.clone(),
+                    message: error.message.clone(),
+                })
+            }
         }
-        return Ok(response);
     }
 }
 
 impl Drop for WorkerClient {
     fn drop(&mut self) {
-        if self.child.try_wait().ok().flatten().is_none() {
-            let _ = self.child.kill();
-        }
+        self.terminate_process();
         if let Some(stderr_drain) = self._stderr_drain.take() {
             let _ = stderr_drain.join();
         }

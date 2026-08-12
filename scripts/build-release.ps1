@@ -15,6 +15,8 @@ $rustRoot = Join-Path $repoRoot "src-tauri"
 $tauriConfigPath = Join-Path $rustRoot "tauri.conf.json"
 $workerRoot = Join-Path $repoRoot "compute-worker"
 $workerBuildScript = Join-Path $workerRoot "build.ps1"
+$domainPackageRoot = Join-Path $repoRoot "domain-packs\steel"
+$domainSignaturePath = Join-Path $domainPackageRoot "signature.json"
 $workerResourceRoot = Join-Path $rustRoot "resources\compute-worker"
 $workerArtifactNames = @(
     "bloomery-compute-worker.exe",
@@ -62,6 +64,8 @@ $outputPath = [System.IO.Path]::GetFullPath($OutputDirectory)
 if (Test-Path -LiteralPath $outputPath) {
     throw "Release output already exists: $outputPath. Choose a new -OutputDirectory."
 }
+$bundleRoot = Join-Path $rustRoot "target\release\bundle"
+$bundleDirectories = if ($Bundles -eq "all") { @("msi", "nsis") } else { @($Bundles) }
 
 if (-not $SkipTests) {
     $testScript = Join-Path $PSScriptRoot "test.ps1"
@@ -73,7 +77,39 @@ if (-not $SkipTests) {
 }
 
 $workerBuildOutput = Join-Path $env:TEMP ("bloomery-worker-" + [Guid]::NewGuid().ToString("N"))
+$domainSignatureCreated = $false
 try {
+    if ($Signed) {
+        if ([string]::IsNullOrWhiteSpace($env:BLOOMERY_OFFICIAL_PRIVATE_KEY_2026)) {
+            throw "BLOOMERY_OFFICIAL_PRIVATE_KEY_2026 is required for a signed release"
+        }
+        if ($env:BLOOMERY_OFFICIAL_PRIVATE_KEY_2026 -notmatch '^[0-9a-fA-F]{64}$') {
+            throw "BLOOMERY_OFFICIAL_PRIVATE_KEY_2026 must be exactly 64 hexadecimal characters"
+        }
+        if (-not (Test-Path -LiteralPath $domainPackageRoot -PathType Container)) {
+            throw "Official steel domain package is missing: $domainPackageRoot"
+        }
+        if (Test-Path -LiteralPath $domainSignaturePath -PathType Leaf) {
+            throw "Official steel domain package already contains signature.json"
+        }
+        $signArguments = @(
+            "run",
+            "--bin",
+            "sign_domain_package",
+            "--",
+            "--root",
+            $domainPackageRoot
+        )
+        if ($Offline) {
+            $signArguments = @("--offline") + $signArguments
+        }
+        Invoke-Checked "Official domain package signature" "cargo" $signArguments $rustRoot
+        if (-not (Test-Path -LiteralPath $domainSignaturePath -PathType Leaf)) {
+            throw "Domain package signer completed without signature.json"
+        }
+        $domainSignatureCreated = $true
+        Remove-Item Env:\BLOOMERY_OFFICIAL_PRIVATE_KEY_2026 -ErrorAction SilentlyContinue
+    }
     if (-not (Test-Path -LiteralPath $workerBuildScript -PathType Leaf)) {
         throw "Compute worker build script is missing: $workerBuildScript"
     }
@@ -105,11 +141,23 @@ try {
     }
 
     $bundleValue = if ($Bundles -eq "all") { "msi,nsis" } else { $Bundles }
+    foreach ($bundleDirectory in $bundleDirectories) {
+        $staleBundlePath = Join-Path $bundleRoot $bundleDirectory
+        if (Test-Path -LiteralPath $staleBundlePath) {
+            Remove-Item -LiteralPath $staleBundlePath -Recurse -Force
+        }
+    }
     $buildArguments = @("tauri", "build", "--ci", "--bundles", $bundleValue)
     $updaterConfigPath = $null
     if ($Signed) {
         if ([string]::IsNullOrWhiteSpace($env:TAURI_SIGNING_PRIVATE_KEY)) {
             throw "TAURI_SIGNING_PRIVATE_KEY is required for a signed release"
+        }
+        if ([string]::IsNullOrWhiteSpace($env:BLOOMERY_OFFICIAL_PUBLIC_KEY_2026)) {
+            throw "BLOOMERY_OFFICIAL_PUBLIC_KEY_2026 is required for a signed release"
+        }
+        if ($env:BLOOMERY_OFFICIAL_PUBLIC_KEY_2026 -notmatch '^[0-9a-fA-F]{64}$') {
+            throw "BLOOMERY_OFFICIAL_PUBLIC_KEY_2026 must be exactly 64 hexadecimal characters"
         }
         if ([string]::IsNullOrWhiteSpace($env:BLOOMERY_UPDATER_PUBLIC_KEY)) {
             throw "BLOOMERY_UPDATER_PUBLIC_KEY is required for a signed release"
@@ -142,6 +190,12 @@ try {
         }
     }
 } finally {
+    if ($Signed) {
+        Remove-Item Env:\BLOOMERY_OFFICIAL_PRIVATE_KEY_2026 -ErrorAction SilentlyContinue
+    }
+    if ($domainSignatureCreated -and (Test-Path -LiteralPath $domainSignaturePath -PathType Leaf)) {
+        Remove-Item -LiteralPath $domainSignaturePath -Force
+    }
     foreach ($artifactName in $workerArtifactNames) {
         $stagedArtifact = Join-Path $workerResourceRoot $artifactName
         if (Test-Path -LiteralPath $stagedArtifact) {
@@ -153,8 +207,6 @@ try {
     }
 }
 
-$bundleRoot = Join-Path $rustRoot "target\\release\\bundle"
-$bundleDirectories = if ($Bundles -eq "all") { @("msi", "nsis") } else { @($Bundles) }
 $releaseArtifacts = @(
     foreach ($bundleDirectory in $bundleDirectories) {
         $bundlePath = Join-Path $bundleRoot $bundleDirectory
@@ -197,6 +249,18 @@ if ($Offline) {
     $sbomArguments += "-Offline"
 }
 Invoke-Checked "SBOM and third-party notices" "powershell" $sbomArguments $repoRoot
+foreach ($requiredReleaseFile in @(
+    "bloomery-rust-sbom.cdx.json",
+    "bloomery-frontend-sbom.cdx.json",
+    "bloomery-frontend-sbom.spdx.json",
+    "bloomery-python-worker-sbom.cdx.json",
+    "THIRD_PARTY_NOTICES.txt"
+)) {
+    $requiredPath = Join-Path $outputPath $requiredReleaseFile
+    if (-not (Test-Path -LiteralPath $requiredPath -PathType Leaf)) {
+        throw "Required release SBOM or notice file is missing: $requiredReleaseFile"
+    }
+}
 
 $commit = git -C $repoRoot rev-parse HEAD
 if ($LASTEXITCODE -ne 0) {

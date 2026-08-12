@@ -135,3 +135,21 @@ def test_worker_rejects_unsupported_operations_and_unknown_methods() -> None:
     assert messages[0]["error"]["code"] == "unsupported_operation"
     assert messages[1]["id"] == "unknown-1"
     assert messages[1]["error"]["code"] == "method_not_found"
+
+
+def test_worker_rejects_non_string_operations_without_crashing() -> None:
+    input_stream = io.BytesIO(
+        request(
+            "run-1",
+            "submit",
+            {"task_id": "job-1", "operation": [], "payload": {}},
+        )
+        + request("shutdown-1", "shutdown", {})
+    )
+    output_stream = io.BytesIO()
+
+    serve(input_stream, output_stream)
+    messages = read_all(output_stream)
+
+    assert messages[0]["id"] == "run-1"
+    assert messages[0]["error"]["code"] == "invalid_params"

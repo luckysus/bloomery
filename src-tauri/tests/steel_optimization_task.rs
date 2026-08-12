@@ -59,6 +59,49 @@ fn completed_training_task(connection: &mut Connection) -> uuid::Uuid {
     task.id
 }
 
+fn completed_sklearn_training_task(connection: &mut Connection) -> uuid::Uuid {
+    let task = repository::create(
+        connection,
+        NewTask {
+            workspace_id: "local".to_string(),
+            kind: "compute_train_sklearn_model".to_string(),
+            payload_json: json!({
+                "operation": "train_sklearn_model",
+                "payload": {"dataset_id": "dataset-1", "algorithm": "elasticnet"}
+            })
+            .to_string(),
+            checkpoint_json: None,
+            next_run_at: None,
+            progress: 0,
+        },
+    )
+    .expect("create sklearn training task");
+    connection
+        .execute(
+            "UPDATE background_tasks SET state = 'completed', progress = 100, next_run_at = NULL, checkpoint_json = ?1 WHERE id = ?2",
+            rusqlite::params![
+                json!({
+                    "stage": "completed",
+                    "result": {
+                        "artifact": {
+                            "artifact_version": "sklearn-pickle.v1",
+                            "model_id": "sklearn-model-1",
+                            "model_type": "elasticnet",
+                            "feature_names": ["temperature", "carbon"],
+                            "feature_schema": {"count": 2},
+                            "preprocessing": {"means": [0.0, 0.0], "scales": [1.0, 1.0]},
+                            "model_pickle_base64": "c2FmZS1maXh0dXJl"
+                        }
+                    }
+                })
+                .to_string(),
+                task.id.to_string()
+            ],
+        )
+        .expect("complete sklearn training task fixture");
+    task.id
+}
+
 fn optimization_request(training_task_id: uuid::Uuid) -> OptimizeSteelProcessRequest {
     OptimizeSteelProcessRequest {
         dataset_id: "dataset-1".to_string(),
@@ -176,6 +219,30 @@ fn gateway_submission_rejects_mismatched_datasets_and_unfinished_training() {
     )
     .expect_err("unfinished training must be rejected");
     assert_eq!(error, "training task must be completed before optimization");
+
+    drop(connection);
+    let _ = std::fs::remove_file(path);
+}
+
+#[test]
+fn gateway_submission_accepts_a_completed_sklearn_training_task() {
+    let (path, mut connection) = migrated_database();
+    let training_task_id = completed_sklearn_training_task(&mut connection);
+
+    let task = submit_optimization_on_connection(
+        &mut connection,
+        &optimization_request(training_task_id),
+        training_task_id,
+    )
+    .expect("sklearn training task should be eligible for optimization");
+
+    let payload: serde_json::Value =
+        serde_json::from_str(&task.payload_json).expect("decode sklearn optimization payload");
+    assert_eq!(
+        payload["payload"]["artifact"]["artifact_version"],
+        "sklearn-pickle.v1"
+    );
+    assert_eq!(payload["payload"]["artifact"]["model_type"], "elasticnet");
 
     drop(connection);
     let _ = std::fs::remove_file(path);

@@ -1,3 +1,4 @@
+use bloomery::agent::desktop::permission_key_for;
 use bloomery::agent::desktop::LocalAgentState;
 use bloomery::agent::protocol::{PermissionDecision, PermissionRisk};
 use bloomery::agent::runtime::{CancellationToken, PermissionRequest, PermissionResolver};
@@ -112,4 +113,32 @@ async fn session_and_always_decisions_are_reused_for_matching_tool_arguments() {
             .unwrap(),
         PermissionDecision::AllowAlways
     );
+}
+
+#[tokio::test]
+async fn revoked_always_permission_is_not_reused_by_a_live_resolver() {
+    let state = LocalAgentState::default();
+    let resolver = state.permission_resolver();
+    let first = request(Uuid::new_v4());
+    let key = permission_key_for(first.tool_id.as_str(), &first.arguments);
+    state.load_always_permission_keys([key.clone()]);
+
+    assert_eq!(
+        resolver
+            .decide(first, CancellationToken::new(|| false))
+            .await,
+        PermissionDecision::AllowAlways
+    );
+
+    state.revoke_always_permission_key(&key);
+
+    let second_id = Uuid::new_v4();
+    let pending = resolver.decide(request(second_id), CancellationToken::new(|| false));
+    tokio::pin!(pending);
+    tokio::task::yield_now().await;
+    assert!(state.has_pending_permission(second_id));
+    state
+        .resolve_permission(second_id, PermissionDecision::Deny)
+        .unwrap();
+    assert_eq!(pending.await, PermissionDecision::Deny);
 }

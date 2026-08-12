@@ -10,6 +10,7 @@ $ErrorActionPreference = "Stop"
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $rustRoot = Join-Path $repoRoot "src-tauri"
 $frontendRoot = Join-Path $repoRoot "frontend"
+$workerRoot = Join-Path $repoRoot "compute-worker"
 $outputPath = [System.IO.Path]::GetFullPath($OutputDirectory)
 
 function Invoke-Checked {
@@ -34,13 +35,124 @@ function Invoke-Checked {
     }
 }
 
+function Write-PythonWorkerSbom {
+    param(
+        [Parameter(Mandatory = $true)][string]$LockPath,
+        [Parameter(Mandatory = $true)][string]$OutputPath
+    )
+
+    $components = New-Object System.Collections.Generic.List[object]
+    $current = $null
+    function Add-CurrentPackage {
+        if ($null -eq $script:currentPackage) {
+            return
+        }
+        if ([string]::IsNullOrWhiteSpace($script:currentPackage.Name) -or
+            [string]::IsNullOrWhiteSpace($script:currentPackage.Version)) {
+            throw "uv.lock contains a package without a name or version"
+        }
+        $normalizedName = $script:currentPackage.Name.ToLowerInvariant().Replace("_", "-")
+        $component = [ordered]@{
+            type    = if ($script:currentPackage.Source -eq "editable") { "application" } else { "library" }
+            name    = $script:currentPackage.Name
+            version = $script:currentPackage.Version
+            purl    = "pkg:pypi/$normalizedName@$($script:currentPackage.Version)"
+        }
+        $hashes = @($script:currentPackage.Hashes | Sort-Object -Unique)
+        if ($hashes.Count -gt 0) {
+            $component.hashes = @($hashes | ForEach-Object {
+                [ordered]@{
+                    alg     = "SHA-256"
+                    content = $_.ToLowerInvariant()
+                }
+            })
+        }
+        if (-not [string]::IsNullOrWhiteSpace($script:currentPackage.Source)) {
+            $component.properties = @(
+                [ordered]@{
+                    name  = "bloomery.uv.source"
+                    value = $script:currentPackage.Source
+                }
+            )
+        }
+        $components.Add($component) | Out-Null
+    }
+
+    $script:currentPackage = $null
+    foreach ($line in Get-Content -LiteralPath $LockPath) {
+        if ($line -match '^\[\[package\]\]') {
+            Add-CurrentPackage
+            $script:currentPackage = [pscustomobject]@{
+                Name    = $null
+                Version = $null
+                Source  = $null
+                Hashes  = New-Object System.Collections.Generic.List[string]
+            }
+            continue
+        }
+        if ($null -eq $script:currentPackage) {
+            continue
+        }
+        if ($line -match '^name\s*=\s*"([^"]+)"') {
+            $script:currentPackage.Name = $Matches[1]
+        }
+        elseif ($line -match '^version\s*=\s*"([^"]+)"') {
+            $script:currentPackage.Version = $Matches[1]
+        }
+        elseif ($line -match '^source\s*=\s*\{\s*registry\s*=\s*"([^"]+)"') {
+            $script:currentPackage.Source = $Matches[1]
+        }
+        elseif ($line -match '^source\s*=\s*\{\s*editable\s*=') {
+            $script:currentPackage.Source = "editable"
+        }
+        foreach ($match in [regex]::Matches($line, 'hash\s*=\s*"sha256:([0-9a-fA-F]{64})"')) {
+            $script:currentPackage.Hashes.Add($match.Groups[1].Value) | Out-Null
+        }
+    }
+    Add-CurrentPackage
+    $script:currentPackage = $null
+
+    if ($components.Count -eq 0) {
+        throw "uv.lock did not contain any Python Worker packages"
+    }
+    $metadataComponent = [ordered]@{
+        type    = "application"
+        name    = "bloomery-compute-worker"
+        version = "0.1.0"
+        purl    = "pkg:pypi/bloomery-compute-worker@0.1.0"
+    }
+    $bom = [ordered]@{
+        '$schema'    = "http://cyclonedx.org/schema/bom-1.5.schema.json"
+        bomFormat    = "CycloneDX"
+        specVersion  = "1.5"
+        version      = 1
+        metadata     = [ordered]@{
+            tools     = @(
+                [ordered]@{
+                    vendor = "Bloomery"
+                    name   = "generate-sbom.ps1"
+                }
+            )
+            component = $metadataComponent
+        }
+        components   = $components.ToArray()
+    }
+    [System.IO.File]::WriteAllText(
+        $OutputPath,
+        ($bom | ConvertTo-Json -Depth 12),
+        [System.Text.UTF8Encoding]::new($false)
+    )
+}
+
 foreach ($requiredPath in @(
     (Join-Path $rustRoot "Cargo.toml"),
     (Join-Path $rustRoot "Cargo.lock"),
     (Join-Path $rustRoot "about.toml"),
     (Join-Path $rustRoot "THIRD_PARTY_NOTICES.hbs"),
     (Join-Path $frontendRoot "package.json"),
-    (Join-Path $frontendRoot "package-lock.json")
+    (Join-Path $frontendRoot "package-lock.json"),
+    (Join-Path $workerRoot "pyproject.toml"),
+    (Join-Path $workerRoot "uv.lock")
 )) {
     if (-not (Test-Path -LiteralPath $requiredPath -PathType Leaf)) {
         throw "SBOM input is missing: $requiredPath"
@@ -54,6 +166,7 @@ $rustTempPath = Join-Path $rustRoot ($rustTempName + ".json")
 $rustOutputPath = Join-Path $outputPath "bloomery-rust-sbom.cdx.json"
 $frontendCyclonePath = Join-Path $outputPath "bloomery-frontend-sbom.cdx.json"
 $frontendSpdxPath = Join-Path $outputPath "bloomery-frontend-sbom.spdx.json"
+$pythonWorkerCyclonePath = Join-Path $outputPath "bloomery-python-worker-sbom.cdx.json"
 $noticesPath = Join-Path $outputPath "THIRD_PARTY_NOTICES.txt"
 $npmErrorPath = Join-Path $env:TEMP ("bloomery-npm-sbom-" + [Guid]::NewGuid().ToString("N") + ".log")
 
@@ -93,6 +206,10 @@ try {
         Pop-Location
     }
 
+    Write-PythonWorkerSbom `
+        -LockPath (Join-Path $workerRoot "uv.lock") `
+        -OutputPath $pythonWorkerCyclonePath
+
     $aboutArguments = @(
         "about",
         "generate",
@@ -106,7 +223,7 @@ try {
     }
     Invoke-Checked "Third-party license notices" "cargo" $aboutArguments $rustRoot
 
-    foreach ($jsonPath in @($rustOutputPath, $frontendCyclonePath, $frontendSpdxPath)) {
+    foreach ($jsonPath in @($rustOutputPath, $frontendCyclonePath, $frontendSpdxPath, $pythonWorkerCyclonePath)) {
         $null = Get-Content -LiteralPath $jsonPath -Raw | ConvertFrom-Json
     }
     if ((Get-Item -LiteralPath $noticesPath).Length -eq 0) {

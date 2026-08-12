@@ -20,13 +20,41 @@ if (-not (Test-Path -LiteralPath (Join-Path $rustRoot ([string]$windowsIcon)) -P
     throw "Configured Windows bundle icon is missing: $windowsIcon"
 }
 
+$buildReleasePath = Join-Path $repoRoot "scripts\build-release.ps1"
+$buildReleaseContent = Get-Content -LiteralPath $buildReleasePath -Raw
+$missingOfficialKeyValidation = $buildReleaseContent -notmatch "BLOOMERY_OFFICIAL_PUBLIC_KEY_2026" `
+    -or $buildReleaseContent -notmatch "64 hexadecimal characters"
+if ($missingOfficialKeyValidation) {
+    throw "signed release must require and validate the official domain-package public key"
+}
+$domainSignerPath = Join-Path $rustRoot "src\bin\sign_domain_package.rs"
+if (-not (Test-Path -LiteralPath $domainSignerPath -PathType Leaf)) {
+    throw "release signing helper is missing: src/bin/sign_domain_package.rs"
+}
+if ($buildReleaseContent -notmatch "BLOOMERY_OFFICIAL_PRIVATE_KEY_2026" `
+    -or $buildReleaseContent -notmatch "sign_domain_package") {
+    throw "signed release must generate the official domain-package signature"
+}
+if ($buildReleaseContent -notmatch "BLOOMERY_OFFICIAL_PRIVATE_KEY_2026.*64 hexadecimal characters") {
+    throw "signed release must validate the official domain-package private seed"
+}
+if ($buildReleaseContent -notmatch 'Remove-Item Env:\\BLOOMERY_OFFICIAL_PRIVATE_KEY_2026') {
+    throw "build-release.ps1 must remove the official domain private seed before unrelated build steps"
+}
+if ($buildReleaseContent -notmatch '\$bundleRoot' -or
+    $buildReleaseContent -notmatch '\$staleBundlePath' -or
+    $buildReleaseContent -notmatch 'Remove-Item -LiteralPath \$staleBundlePath -Recurse -Force') {
+    throw "build-release.ps1 must clear stale bundle outputs before collecting release artifacts"
+}
+
 $resourceProperties = @($tauriConfig.bundle.resources.PSObject.Properties.Name)
 if ($resourceProperties -notcontains "resources/compute-worker") {
     throw "tauri.conf.json must bundle the packaged compute worker"
 }
+if ($buildReleaseContent -notmatch "bloomery-python-worker-sbom.cdx.json") {
+    throw "release artifacts must include the Python Worker SBOM generated from uv.lock"
+}
 
-$buildReleasePath = Join-Path $repoRoot "scripts\build-release.ps1"
-$buildReleaseContent = Get-Content -LiteralPath $buildReleasePath -Raw
 foreach ($requiredWorkerText in @(
     '$workerBuildScript',
     '$workerResourceRoot',
@@ -68,8 +96,23 @@ foreach ($scriptDefinition in $requiredScripts) {
     if ($scriptDefinition.RequiresOffline -and $content -notmatch '\[switch\]\$Offline') {
         throw "$relativePath must support offline verification"
     }
+    if ($relativePath -eq "scripts/generate-sbom.ps1") {
+        foreach ($requiredSbomText in @(
+            '$workerRoot',
+            '"uv.lock"',
+            "bloomery-python-worker-sbom.cdx.json",
+            "pkg:pypi/"
+        )) {
+            if ($content -notmatch [regex]::Escape($requiredSbomText)) {
+                throw "$relativePath must generate a Python Worker SBOM from uv.lock"
+            }
+        }
+    }
     if ($relativePath -eq "scripts/test.ps1" -and $content -notmatch '--test-threads=1') {
         throw "$relativePath must serialize Rust tests that mutate process-wide diagnostics state"
+    }
+    if ($relativePath -eq "scripts/test.ps1" -and $content -notmatch '--jobs.*1') {
+        throw "$relativePath must serialize Rust test binaries to avoid cross-binary races"
     }
 }
 
@@ -129,8 +172,32 @@ if ($lifecycleInvocation -lt 0 -or $packageInvocation -lt 0 -or $packageInvocati
 if ($releaseCheckContent -notmatch '\[switch\]\$Performance' -or $releaseCheckContent -notmatch 'benchmark-retrieval\.ps1') {
     throw "release-check.ps1 must expose the deterministic performance gate"
 }
+if ($releaseCheckContent -notmatch 'compute-worker' -or
+    $releaseCheckContent -notmatch 'pytest' -or
+    $releaseCheckContent -notmatch 'steel_evaluations') {
+    throw "release-check.ps1 must run the Python Worker and steel evaluation gates"
+}
 if ($releaseCheckContent -notmatch '\[switch\]\$InstallerSmoke' -or $releaseCheckContent -notmatch '-RunInstallerSmoke') {
     throw "release-check.ps1 must expose the Windows installer smoke gate"
+}
+if ($releaseCheckContent -notmatch '\[switch\]\$Signed' -or
+    $releaseCheckContent -notmatch '\[switch\]\$RequireSigned' -or
+    $releaseCheckContent -notmatch 'AllowUnsigned') {
+    throw "release-check.ps1 must distinguish unsigned engineering packages from required signed releases"
+}
+if ($releaseCheckContent -notmatch 'RequireSigned.*Signed|Signed.*RequireSigned') {
+    throw "release-check.ps1 must require -Signed when -RequireSigned is requested"
+}
+foreach ($requiredPackageIsolationText in @(
+    '$packageOutputPath',
+    '-OutputDirectory',
+    'Get-ChildItem -LiteralPath $packageOutputPath',
+    '-InstallerPath',
+    '$candidateInstaller.FullName'
+)) {
+    if ($releaseCheckContent -notmatch [regex]::Escape($requiredPackageIsolationText)) {
+    throw "release-check.ps1 must isolate package output and lifecycle validation to the current run"
+    }
 }
 function powershell {
     $global:LASTEXITCODE = 37

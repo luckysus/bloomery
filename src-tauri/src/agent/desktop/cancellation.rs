@@ -103,7 +103,14 @@ impl LocalAgentState {
 
     pub fn load_always_permission_keys(&self, keys: impl IntoIterator<Item = String>) {
         if let Ok(mut permissions) = self.always_permissions.lock() {
+            permissions.clear();
             permissions.extend(keys);
+        }
+    }
+
+    pub fn revoke_always_permission_key(&self, key: &str) {
+        if let Ok(mut permissions) = self.always_permissions.lock() {
+            permissions.remove(key);
         }
     }
 

@@ -118,6 +118,8 @@ jobs:
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          BLOOMERY_OFFICIAL_PRIVATE_KEY_2026: ${{ secrets.BLOOMERY_OFFICIAL_PRIVATE_KEY_2026 }}
+          BLOOMERY_OFFICIAL_PUBLIC_KEY_2026: ${{ vars.BLOOMERY_OFFICIAL_PUBLIC_KEY_2026 }}
           BLOOMERY_UPDATER_PUBLIC_KEY: ${{ vars.BLOOMERY_UPDATER_PUBLIC_KEY }}
           BLOOMERY_UPDATER_ENDPOINT: https://github.com/luckysus/bloomery/releases/latest/download/latest.json
           BLOOMERY_RELEASE_ASSET_BASE_URL: https://github.com/luckysus/bloomery/releases/download/${{ github.ref_name }}

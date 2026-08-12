@@ -3,6 +3,8 @@ param(
     [switch]$Offline,
     [switch]$WithE2E,
     [switch]$Package,
+    [switch]$Signed,
+    [switch]$RequireSigned,
     [switch]$Performance,
     [switch]$InstallerSmoke,
     [switch]$AllowDirty
@@ -48,12 +50,24 @@ if (-not $AllowDirty) {
 if ($InstallerSmoke -and -not $Package) {
     throw "-InstallerSmoke requires -Package so the smoke test uses the current build"
 }
+if ($Signed -and -not $Package) {
+    throw "-Signed requires -Package so the signed artifact can be verified"
+}
+if ($RequireSigned -and -not $Package) {
+    throw "-RequireSigned requires -Package so the signed artifact can be verified"
+}
+if ($RequireSigned -and -not $Signed) {
+    throw "-RequireSigned requires -Signed"
+}
 
 $frontendRoot = Join-Path $repoRoot "frontend"
 $rustRoot = Join-Path $repoRoot "src-tauri"
+$workerRoot = Join-Path $repoRoot "compute-worker"
+$workerPython = Join-Path $workerRoot ".venv\Scripts\python.exe"
 $tauriConfigPath = Join-Path $rustRoot "tauri.conf.json"
 $packagePath = Join-Path $frontendRoot "package.json"
 $cargoPath = Join-Path $rustRoot "Cargo.toml"
+$packageOutputPath = $null
 
 foreach ($requiredPath in @(
     $tauriConfigPath,
@@ -127,6 +141,19 @@ if ($Offline) {
 }
 Invoke-Checked "Application security checks" "powershell" $securityArguments $repoRoot
 
+$workerTestArguments = @("-m", "pytest", "-q")
+if (-not (Test-Path -LiteralPath $workerPython -PathType Leaf)) {
+    throw "Locked Python Worker environment is missing: $workerPython"
+}
+Invoke-Checked "Python Worker test suite" $workerPython $workerTestArguments $workerRoot
+
+$steelEvaluationArguments = @("test")
+if ($Offline) {
+    $steelEvaluationArguments += "--offline"
+}
+$steelEvaluationArguments += @("--test", "steel_evaluations", "--", "--test-threads=1")
+Invoke-Checked "Versioned steel evaluation suite" "cargo" $steelEvaluationArguments $rustRoot
+
 if ($Performance) {
     $benchmarkScript = Join-Path $PSScriptRoot "benchmark-retrieval.ps1"
     if (-not (Test-Path -LiteralPath $benchmarkScript -PathType Leaf)) {
@@ -139,9 +166,19 @@ if ($Performance) {
 
 if ($Package) {
     $buildScript = Join-Path $PSScriptRoot "build-release.ps1"
-    $packageArguments = @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $buildScript, "-SkipTests")
+    $packageOutputPath = Join-Path $repoRoot ("artifacts\Bloomery-" + $tauriVersion + "-release-check-" + [Guid]::NewGuid().ToString("N"))
+    $packageArguments = @(
+        "-NoProfile",
+        "-ExecutionPolicy", "Bypass",
+        "-File", $buildScript,
+        "-SkipTests",
+        "-OutputDirectory", $packageOutputPath
+    )
     if ($Offline) {
         $packageArguments += "-Offline"
+    }
+    if ($Signed) {
+        $packageArguments += "-Signed"
     }
     Invoke-Checked "Windows release package" "powershell" $packageArguments $repoRoot
 }
@@ -149,13 +186,16 @@ if ($Package) {
 $lifecycleScript = Join-Path $PSScriptRoot "lifecycle-check.ps1"
 $lifecycleArguments = @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $lifecycleScript)
 if ($Package) {
-    $candidateInstaller = Get-ChildItem -LiteralPath (Join-Path $repoRoot "artifacts") -Recurse -Filter "*-setup.exe" -File -ErrorAction SilentlyContinue |
+    $candidateInstaller = Get-ChildItem -LiteralPath $packageOutputPath -Filter "*-setup.exe" -File -ErrorAction SilentlyContinue |
         Sort-Object LastWriteTime |
         Select-Object -Last 1
     if ($null -eq $candidateInstaller) {
         throw "Packaged release does not contain an NSIS installer"
     }
-    $lifecycleArguments += @("-InstallerPath", $candidateInstaller.FullName, "-AllowUnsigned")
+    $lifecycleArguments += @("-InstallerPath", $candidateInstaller.FullName)
+    if (-not $RequireSigned) {
+        $lifecycleArguments += "-AllowUnsigned"
+    }
 }
 if ($InstallerSmoke) {
     $lifecycleArguments += "-RunInstallerSmoke"

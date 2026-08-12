@@ -1,6 +1,6 @@
 use bloomery::domains::{
     cleanup_staging, compute_package_digest, install_package, load_package, official_trust_store,
-    resolve_resource_path, DomainTrust, DomainTrustStore,
+    resolve_resource_path, sign_domain_package, DomainTrust, DomainTrustStore,
 };
 use bloomery::storage::migrations::migrate;
 use bloomery::storage::repositories::domains::{
@@ -189,6 +189,41 @@ fn installs_signed_package_with_official_trust() {
 }
 
 #[test]
+fn signs_a_domain_package_with_a_private_seed() {
+    let package = TempPackage::new();
+    fs::write(
+        package.path().join("assets/steel.json"),
+        "{\"grade\":\"Q355B\"}",
+    )
+    .expect("write asset");
+    package.write_manifest(valid_manifest());
+
+    let signing_key = SigningKey::from_bytes(&[7_u8; 32]);
+    sign_domain_package(package.path(), &signing_key, "bloomery-official-2026")
+        .expect("sign domain package");
+
+    let signature_path = package.path().join("signature.json");
+    let envelope: serde_json::Value =
+        serde_json::from_slice(&fs::read(&signature_path).expect("read signature"))
+            .expect("decode signature");
+    let digest = compute_package_digest(package.path()).expect("compute signed package digest");
+    assert_eq!(envelope["key_id"], "bloomery-official-2026");
+    assert_eq!(envelope["algorithm"], "ed25519");
+    assert_eq!(envelope["package_sha256"], digest);
+    assert_eq!(
+        envelope["signature"].as_str().map(str::len),
+        Some(128),
+        "signature must contain 64 encoded bytes"
+    );
+
+    let mut trust = DomainTrustStore::default();
+    trust.add_official_key("bloomery-official-2026", signing_key.verifying_key());
+    let installed = install_package(package.path(), TempPackage::new().path(), "0.1.0", &trust)
+        .expect("signed package must install as official");
+    assert_eq!(installed.trust, DomainTrust::OfficialSigned);
+}
+
+#[test]
 fn accepts_unsigned_package_as_explicit_third_party() {
     let package = TempPackage::new();
     fs::write(package.path().join("assets/steel.json"), "{}").expect("write asset");
@@ -272,6 +307,33 @@ fn official_trust_store_builds_with_embedded_key() {
         .expect("install unsigned package against official trust store");
 
     assert_eq!(installed.trust, DomainTrust::ThirdPartyUnsigned);
+}
+
+#[test]
+fn official_trust_store_rejects_the_known_throwaway_signing_key() {
+    let package = TempPackage::new();
+    fs::write(package.path().join("assets/steel.json"), "{}").expect("write asset");
+    package.write_manifest(valid_manifest());
+
+    // The previous implementation embedded the public key derived from this
+    // publicly documented throwaway seed. It must never be a release trust
+    // root, even if a package carries the expected key id.
+    let throwaway_key = SigningKey::from_bytes(&[0x42_u8; 32]);
+    write_signature(&package, &throwaway_key, "bloomery-official-2026");
+
+    let error = install_package(
+        package.path(),
+        TempPackage::new().path(),
+        "0.1.0",
+        &official_trust_store(),
+    )
+    .expect_err("the public throwaway key must not authenticate an official package");
+
+    assert!(
+        error.to_string().contains("not trusted")
+            || error.to_string().contains("verification failed"),
+        "unexpected trust-store error: {error}"
+    );
 }
 
 #[test]

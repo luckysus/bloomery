@@ -251,10 +251,18 @@ fn compute_worker_config(app: &tauri::AppHandle) -> Option<crate::compute::worke
     let working_directory = std::env::var_os("BLOOMERY_COMPUTE_WORKER_DIR")
         .map(std::path::PathBuf::from)
         .filter(|path| path.is_dir())?;
-    let mut config = crate::compute::worker::WorkerConfig::new(executable);
+    Some(python_worker_config(executable, working_directory))
+}
+
+fn python_worker_config(
+    executable: PathBuf,
+    working_directory: PathBuf,
+) -> crate::compute::worker::WorkerConfig {
+    let mut config =
+        crate::compute::worker::WorkerConfig::new(executable).with_process_tree_isolation();
     config.args = vec!["-m".into(), "bloomery_worker".into()];
     config.working_directory = Some(working_directory);
-    Some(config)
+    config
 }
 
 #[cfg(test)]
@@ -303,5 +311,16 @@ mod tests {
             .any(|handler| { handler.kind() == crate::rag::index::rebuild::INDEX_REBUILD_KIND }));
 
         let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn python_worker_fallback_uses_process_tree_isolation() {
+        let config =
+            python_worker_config(PathBuf::from("python.exe"), PathBuf::from("compute-worker"));
+
+        assert!(
+            config.isolate_process_tree,
+            "development Python workers must use the same process-tree guard as packaged workers"
+        );
     }
 }

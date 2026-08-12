@@ -128,7 +128,7 @@ fn all_domain_commands_remain_registered_in_the_single_handler_module() {
 #[test]
 fn bundled_steel_resource_is_valid_and_has_declared_asset_integrity() {
     let source = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("resources")
+        .join("..")
         .join("domain-packs")
         .join("steel");
     let package = load_package(&source, "0.1.0").expect("load bundled steel package");
@@ -137,12 +137,49 @@ fn bundled_steel_resource_is_valid_and_has_declared_asset_integrity() {
     assert_eq!(package.manifest.version, "1.0.0");
     assert_eq!(
         package.manifest.builtin_tool_allowlist,
-        vec!["steel.carbon_equivalent".to_string()]
+        vec![
+            "knowledge.query".to_string(),
+            "steel.carbon_equivalent".to_string(),
+            "steel.optimize_constrained".to_string(),
+            "steel.optimization_status".to_string(),
+        ]
     );
-    assert_eq!(package.assets.len(), 1);
+    assert_eq!(package.assets.len(), 6);
+    assert!(package
+        .assets
+        .iter()
+        .any(|asset| asset.relative_path == PathBuf::from("assets/terminology.json")));
+    assert!(
+        package
+            .assets
+            .iter()
+            .any(|asset| asset.relative_path
+                == PathBuf::from("evaluations/steel-evaluations-v1.json"))
+    );
+    assert!(package.manifest.evaluations.iter().any(|evaluation| {
+        evaluation.id == "steel-deterministic-v1"
+            && evaluation.dataset == "evaluations/steel-evaluations-v1.json"
+    }));
+}
+
+#[test]
+fn tauri_bundles_the_complete_root_steel_package() {
+    let config_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tauri.conf.json");
+    let config: Value =
+        serde_json::from_slice(&fs::read(config_path).expect("read Tauri configuration"))
+            .expect("parse Tauri configuration");
+    let resources = config["bundle"]["resources"]
+        .as_object()
+        .expect("bundle resources must be an object");
+
     assert_eq!(
-        package.assets[0].relative_path,
-        PathBuf::from("assets/steel-terminology.json")
+        resources.get("../domain-packs/steel"),
+        Some(&Value::String("domain-packs/steel".to_string())),
+        "the release must bundle the complete root steel domain package"
+    );
+    assert!(
+        !resources.contains_key("resources/domain-packs/steel"),
+        "the stale reduced steel resource must not be bundled"
     );
 }
 

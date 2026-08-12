@@ -28,9 +28,16 @@ package/
 - `third_party_unsigned`：没有签名。包可以在隔离的声明式边界内使用，但界面必须展示未签名警告。
 - 未知 key、摘要不匹配或签名格式错误都会拒绝安装。不能因为作者名或包 ID 看起来像官方内容就授予官方信任。
 
-The repository currently contains a development placeholder public key. It is not a release trust root. Before a public release, generate the key pair offline, replace the public key in `src-tauri/src/domains/trust.rs`, publish the key id and rotation policy, and keep the private key outside the repository and CI logs.
+Development builds without a provisioned official public key trust no signed
+package as official. A signed release must provide the 64-hex-character
+`BLOOMERY_OFFICIAL_PUBLIC_KEY_2026` build variable; the Rust host embeds that
+public value at compile time. Generate the key pair offline, publish the key id
+and rotation policy, and keep the private key outside the repository and CI logs.
 
-当前仓库中的公钥仍是开发占位值，不是正式发行信任根。公开发布前必须离线生成正式密钥对，替换 `src-tauri/src/domains/trust.rs` 中的公钥，公开 key id 和轮换策略，并确保私钥不进入仓库或 CI 日志。
+未注入正式公钥的开发构建不会把任何签名包标记为官方包。签名发布必须提供
+64 位十六进制的 `BLOOMERY_OFFICIAL_PUBLIC_KEY_2026` 构建变量，Rust 主程序
+会在编译时嵌入该公钥。必须离线生成密钥对，公开 key id 和轮换策略，并确保
+私钥不进入仓库或 CI 日志。
 ## Signing / 签名
 
 The signer computes Bloomery's deterministic package digest over every package file except `signature.json`. The signature envelope is:

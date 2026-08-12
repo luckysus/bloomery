@@ -30,6 +30,10 @@ foreach ($relativePath in $workflows) {
             throw "$relativePath is missing required release automation: $requiredText"
         }
     }
+    if ($relativePath -eq ".github\workflows\release.yml" -and
+        ($normalizedContent -notmatch "BLOOMERY_OFFICIAL_PRIVATE_KEY_2026")) {
+        throw "$relativePath must pass the official domain-package private seed to signed release builds"
+    }
     if ($normalizedContent -notmatch "scripts/(test|release-check)\.ps1") {
         throw "$relativePath must invoke the deterministic release test entry point"
     }

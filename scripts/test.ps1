@@ -56,7 +56,7 @@ if ($runFrontend) {
 if ($runRust) {
     Invoke-Checked "Rust formatting" "cargo" @("fmt", "--all", "--", "--check") $rustRoot
 
-    $cargoTestArguments = @("test")
+    $cargoTestArguments = @("test", "--jobs", "1")
     if ($Offline) {
         $cargoTestArguments += "--offline"
     }

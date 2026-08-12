@@ -90,9 +90,11 @@ or bypass signing and release audit requirements.
 The in-app updater is wired through the official Tauri updater and process
 plugins. Local engineering builds stay unsigned by default. Use the protected
 release environment and `scripts/build-release.ps1 -Signed` only after the
-public key, updater metadata, and signing key have been provisioned. See
-`docs/releases/updater.md`; private signing material must never enter the
-repository or an artifact.
+domain-package public key (`BLOOMERY_OFFICIAL_PUBLIC_KEY_2026`), updater
+metadata, and signing key have been provisioned. The domain public key must be
+exactly 64 hexadecimal characters and is embedded at compile time; the script
+refuses signed builds without it. See `docs/releases/updater.md`; private
+signing material must never enter the repository or an artifact.
 
 ## Troubleshooting / 故障排查
 

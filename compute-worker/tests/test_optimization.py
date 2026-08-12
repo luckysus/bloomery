@@ -3,6 +3,7 @@ import math
 import pytest
 
 from bloomery_worker.optimization import OptimizationError, optimize_constrained
+from bloomery_worker.training import train_sklearn_model
 
 
 def linear_artifact(
@@ -55,6 +56,31 @@ def test_optimization_respects_bounds_and_re_evaluates_recommendation() -> None:
     assert recommendation["prediction"] == pytest.approx(2.0 * value)
     # Minimizing 2*x over [0, 10] lands close to the lower bound.
     assert recommendation["objectives"][0] < 2.0
+
+
+def test_optimization_accepts_a_supported_sklearn_artifact() -> None:
+    artifact = train_sklearn_model(
+        {
+            "features": [[float(index)] for index in range(40)],
+            "targets": [float(index * 2) for index in range(40)],
+            "feature_names": ["temperature"],
+            "split_policy": {"kind": "random", "validation_fraction": 0.25, "seed": 11},
+            "algorithm": "elasticnet",
+            "seed": 11,
+        }
+    )
+
+    result = optimize_constrained(
+        base_payload(
+            artifact=artifact,
+            bounds=[{"min": 0.0, "max": 39.0}],
+            trials=24,
+        )
+    )
+
+    assert result["model_type"] == "elasticnet"
+    assert result["recommendations"]
+    assert all(recommendation["feasible"] for recommendation in result["recommendations"])
 
 
 def test_inequality_constraint_is_enforced_on_recommendations() -> None:

@@ -95,6 +95,8 @@ def _dispatch(request: dict[str, Any], output: BinaryIO) -> bool:
         operation = params.get("operation")
         if not isinstance(task_id, str) or not task_id.strip():
             _write(output, _error(request_id, "invalid_params", "task_id is required"))
+        elif not isinstance(operation, str) or not operation.strip():
+            _write(output, _error(request_id, "invalid_params", "operation is required"))
         elif operation not in {
             "echo",
             "train_linear_regression",

@@ -78,6 +78,21 @@ fn request_round_trip_preserves_typed_fields() {
 }
 
 #[test]
+fn response_envelope_requires_the_current_protocol_version() {
+    let bytes = encode_frame(&json!({
+        "jsonrpc": "1.0",
+        "protocol_version": "0.9",
+        "id": "run-1",
+        "result": {"state": "completed"}
+    }))
+    .expect("encode response");
+
+    let error = bloomery::compute::worker::read_response(&mut Cursor::new(bytes), "run-1")
+        .expect_err("response with stale protocol metadata must be rejected");
+    assert!(error.to_string().contains("protocol"));
+}
+
+#[test]
 fn write_frame_emits_exactly_one_complete_frame() {
     let mut output = Vec::new();
     write_frame(&mut output, &json!({"message": "温度"})).expect("write frame");

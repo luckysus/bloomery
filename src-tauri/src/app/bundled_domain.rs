@@ -27,7 +27,7 @@ fn bundled_steel_package_candidates(resource_dir: &Path) -> [PathBuf; 2] {
     [
         resource_dir.join(BUNDLED_STEEL_PACKAGE_RELATIVE_PATH),
         PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("resources")
+            .join("..")
             .join(BUNDLED_STEEL_PACKAGE_RELATIVE_PATH),
     ]
 }

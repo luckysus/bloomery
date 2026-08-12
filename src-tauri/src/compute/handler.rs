@@ -263,6 +263,7 @@ fn run_task(
 
     let task_id = task.id.to_string();
     let checkpoint_context = context.clone();
+    let cancellation_context = context.clone();
     let submit = super::protocol::WorkerRequest::new(
         format!("{}-submit-{}", task.id, task.attempt),
         "submit",
@@ -272,41 +273,50 @@ fn run_task(
             "payload": payload.payload,
         }),
     );
-    let response = match client.request_with_progress(&submit, move |params| {
-        let progress = params
-            .get("progress")
-            .and_then(Value::as_u64)
-            .and_then(|value| u8::try_from(value).ok())
-            .filter(|value| *value <= 100)
-            .ok_or_else(|| {
-                WorkerSupervisorError::Protocol(super::protocol::FrameError::InvalidRequest(
-                    "worker progress must be an integer between 0 and 100".to_string(),
-                ))
-            })?;
-        if checkpoint_context
-            .cancellation_requested()
-            .map_err(|error| WorkerSupervisorError::Callback(error.to_string()))?
-        {
-            return Err(WorkerSupervisorError::Cancelled);
-        }
-        if checkpoint_context.shutdown_requested() {
-            return Err(WorkerSupervisorError::Cancelled);
-        }
-        let stage = params
-            .get("stage")
-            .and_then(Value::as_str)
-            .unwrap_or("running");
-        let checkpoint = json!({
-            "stage": stage,
-            "worker_progress": progress,
-        });
-        let checkpoint_json = serde_json::to_string(&checkpoint)
-            .map_err(|error| WorkerSupervisorError::Callback(error.to_string()))?;
-        checkpoint_context
-            .checkpoint(Some(&checkpoint_json), progress, None)
-            .map_err(|error| WorkerSupervisorError::Callback(error.to_string()))?;
-        Ok(())
-    }) {
+    let response = match client.request_with_progress_and_cancel(
+        &submit,
+        move |params| {
+            let progress = params
+                .get("progress")
+                .and_then(Value::as_u64)
+                .and_then(|value| u8::try_from(value).ok())
+                .filter(|value| *value <= 100)
+                .ok_or_else(|| {
+                    WorkerSupervisorError::Protocol(super::protocol::FrameError::InvalidRequest(
+                        "worker progress must be an integer between 0 and 100".to_string(),
+                    ))
+                })?;
+            if checkpoint_context
+                .cancellation_requested()
+                .map_err(|error| WorkerSupervisorError::Callback(error.to_string()))?
+            {
+                return Err(WorkerSupervisorError::Cancelled);
+            }
+            if checkpoint_context.shutdown_requested() {
+                return Err(WorkerSupervisorError::Cancelled);
+            }
+            let stage = params
+                .get("stage")
+                .and_then(Value::as_str)
+                .unwrap_or("running");
+            let checkpoint = json!({
+                "stage": stage,
+                "worker_progress": progress,
+            });
+            let checkpoint_json = serde_json::to_string(&checkpoint)
+                .map_err(|error| WorkerSupervisorError::Callback(error.to_string()))?;
+            checkpoint_context
+                .checkpoint(Some(&checkpoint_json), progress, None)
+                .map_err(|error| WorkerSupervisorError::Callback(error.to_string()))?;
+            Ok(())
+        },
+        move || {
+            cancellation_context
+                .cancellation_requested()
+                .unwrap_or(true)
+                || cancellation_context.shutdown_requested()
+        },
+    ) {
         Ok(response) => response,
         Err(WorkerSupervisorError::Cancelled) => return Ok(HandlerOutcome::Cancelled),
         Err(error) => return Err(map_worker_error(error, "compute_worker_failed")),

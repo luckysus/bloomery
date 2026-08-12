@@ -28,7 +28,7 @@
       "icons/icon.ico"
     ],
     "resources": {
-      "resources/domain-packs/steel": "domain-packs/steel",
+      "../domain-packs/steel": "domain-packs/steel",
       "resources/compute-worker": "compute-worker"
     }
   },
