@@ -420,7 +420,7 @@ Run `npm run test:boundaries` and expect cloud-oriented README copy to fail.
 
 - [x] **Step 3: Write the independent-product README skeleton**
 
-Document local-first positioning, current development commands, local data location, no-login behavior, user-owned providers, Non-goals, and the fact that incomplete development builds are not the public release. Remove cloud and authenticated diagnostic fields.
+Document local-first positioning, current development commands, local data location, no-login behavior, user-owned providers, product boundaries, and the fact that incomplete development builds are not the public release. Remove cloud and authenticated diagnostic fields.
 
 - [x] **Step 4: Run full Gate A verification**
 

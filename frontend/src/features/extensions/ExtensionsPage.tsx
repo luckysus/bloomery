@@ -17,7 +17,6 @@ import {
   desktop,
   type DomainPackageRecord,
   type SkillCatalog,
-  type SkillScope,
   type SkillSummary,
 } from "../../bridge/desktop";
 import { useLocale, type MessageKey } from "../../i18n/locale";
@@ -25,12 +24,6 @@ import McpServersPanel from "./McpServersPanel";
 
 const emptyCatalog: SkillCatalog = { skills: [], errors: [] };
 const emptyPackages: DomainPackageRecord[] = [];
-
-const scopeKeys: Record<SkillScope, MessageKey> = {
-  user: "extensionsScopeUser",
-  workspace: "extensionsScopeWorkspace",
-  domain: "extensionsScopeDomain",
-};
 
 function errorMessage(error: unknown, fallback: string) {
   return error instanceof Error ? error.message : fallback;
@@ -247,7 +240,7 @@ export default function ExtensionsPage() {
 
       <section className="bloomery-extensions-section" aria-labelledby="skills-heading">
         <div className="bloomery-extensions-section-heading">
-          <div><p className="bloomery-eyebrow">CLAUDE COMPATIBLE</p><h2 id="skills-heading">{t("extensionsSkillsTitle")}</h2></div>
+          <div><p className="bloomery-eyebrow">LOCAL INSTRUCTION PACKS</p><h2 id="skills-heading">{t("extensionsSkillsTitle")}</h2></div>
           <ShieldCheck size={19} aria-hidden="true" />
         </div>
         <p className="bloomery-extensions-copy">{t("extensionsSkillsCopy")}</p>
@@ -265,7 +258,7 @@ export default function ExtensionsPage() {
                     </div>
                     <dl className="bloomery-extension-details">
                       <div><dt>{t("extensionsVersion")}</dt><dd>{skill.version}</dd></div>
-                      <div><dt>{t("extensionsSource")}</dt><dd>{t(scopeKeys[skill.source.scope])}</dd></div>
+                      <div><dt>{t("extensionsSource")}</dt><dd>{t("extensionsScopeUser")}</dd></div>
                       <div><dt>{t("extensionsHash")}</dt><dd title={skill.content_sha256}>{shortHash(skill.content_sha256)}</dd></div>
                     </dl>
                     <div className="bloomery-extension-path"><FolderOpen size={14} aria-hidden="true" /><code>{skill.source.path}</code></div>

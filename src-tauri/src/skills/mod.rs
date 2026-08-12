@@ -14,18 +14,6 @@ pub const SKILLS_SETTING_KEY: &str = "extensions.skills.enabled";
 #[serde(rename_all = "snake_case")]
 pub enum SkillScope {
     User,
-    Workspace,
-    Domain,
-}
-
-impl SkillScope {
-    fn priority(self) -> u8 {
-        match self {
-            Self::User => 0,
-            Self::Workspace => 1,
-            Self::Domain => 2,
-        }
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -120,14 +108,9 @@ pub struct SkillContext {
 pub fn discover_skills(roots: &[SkillRoot], app_version: &str) -> SkillDiscoveryReport {
     let mut roots = roots.to_vec();
     roots.sort_by(|left, right| {
-        left.scope
-            .priority()
-            .cmp(&right.scope.priority())
-            .then_with(|| {
-                left.path
-                    .to_string_lossy()
-                    .cmp(&right.path.to_string_lossy())
-            })
+        left.path
+            .to_string_lossy()
+            .cmp(&right.path.to_string_lossy())
     });
 
     let mut report = SkillDiscoveryReport::default();
@@ -182,29 +165,7 @@ pub fn default_skill_roots() -> Vec<SkillRoot> {
         push_root(
             &mut roots,
             SkillScope::User,
-            home.join(".claude").join("skills"),
-        );
-    }
-    let workspace = std::env::var_os("BLOOMERY_WORKSPACE_PATH")
-        .map(PathBuf::from)
-        .filter(|path| !path.as_os_str().is_empty())
-        .or_else(|| std::env::current_dir().ok());
-    if let Some(workspace) = workspace {
-        push_root(
-            &mut roots,
-            SkillScope::Workspace,
-            workspace.join(".claude").join("skills"),
-        );
-    }
-    if let Some(data_dir) = dirs::data_local_dir() {
-        push_root(
-            &mut roots,
-            SkillScope::Domain,
-            data_dir
-                .join("Bloomery")
-                .join("domains")
-                .join("active")
-                .join("skills"),
+            home.join(".bloomery").join("skills"),
         );
     }
     roots
@@ -655,4 +616,23 @@ fn truncate_text(value: &str, limit: usize) -> String {
         result.push('\u{2026}');
     }
     result
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn default_skill_roots_only_include_the_bloomery_user_directory() {
+        let home = dirs::home_dir().expect("home directory");
+        let roots = default_skill_roots();
+
+        assert_eq!(
+            roots,
+            [SkillRoot::new(
+                SkillScope::User,
+                home.join(".bloomery").join("skills"),
+            )]
+        );
+    }
 }

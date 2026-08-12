@@ -29,7 +29,7 @@ Bloomery 不是第 N 个通用聊天客户端。它的核心价值是：
 - 希望构建化工、机械等其他领域包的开源贡献者。
 - 需要本地数据控制，但允许直接调用所选模型服务商的个人或团队。
 
-### 2.2 Non-goals
+### 2.2 产品边界
 
 正式版明确不做以下事情：
 
@@ -327,7 +327,7 @@ Windows 文件访问使用规范化绝对路径和授权根目录检查，拒绝
 
 ### 9.2 Skills
 
-兼容 `.claude/skills/<name>/SKILL.md`，同时支持用户级、工作区级和领域包级 Skills。Skill 解析结果包含名称、描述、正文、来源、优先级和兼容要求。
+Skills 从 `~/.bloomery/skills/<name>/SKILL.md` 加载。Skill 解析结果包含名称、描述、正文、来源和兼容要求。
 
 Skills 是提示和流程说明，不自动获得文件、Shell 或网络权限。冲突按明确优先级合并，并在运行详情中显示实际启用的 Skills。解析失败的 Skill 被隔离并显示错误，不影响其他 Skills。
 
@@ -508,7 +508,7 @@ SQLite 至少包含以下逻辑实体：
 正式发布前必须具备：
 
 - 中英文 README。
-- 产品定位和 Non-goals。
+- 产品定位和边界说明。
 - 架构文档和 `PROTOCOL.md`。
 - 安全策略、隐私说明和漏洞报告流程。
 - 贡献指南、行为准则和开发环境说明。
@@ -524,7 +524,7 @@ SQLite 至少包含以下逻辑实体：
 | --- | --- | --- |
 | Grok Build | typed tools、进度事件、权限和 workspace 边界 | xAI 内部 crate 多，编码代理假设重，Windows 仅 best-effort |
 | Pi | 简洁 Agent loop、工具调度、Provider 归一化 | TypeScript runtime，不适合作为 Rust 内核 |
-| DeepSeek-Reasonix | 配置、会话恢复、缓存、ACP、Non-goals 和社区文档 | Go 架构且产品侧重编码与研究工作流 |
+| DeepSeek-Reasonix | 配置、会话恢复、缓存、ACP 和社区文档 | Go 架构且产品侧重编码与研究工作流 |
 | OpenCode | Provider UX、Plan/Build 权限模式、桌面产品交互 | TypeScript/Bun 体系和代码代理产品模型 |
 | Goose | Rust MCP 集成和扩展管理 | 仍以通用开发智能体为中心，直接 fork 删除成本高 |
 
@@ -557,11 +557,11 @@ SQLite 至少包含以下逻辑实体：
 - MinerU、索引、Agent 和分析任务在异常退出后可恢复。
 - SiliconFlow 免费或 Pro 模型可以独立选择、测试和降级。
 - 10 万分块检索达到性能基线，模型切换可安全重建索引。
-- MCP 三种 transport、Claude 兼容 Skills 和权限规则通过契约测试。
+- MCP 三种 transport、Bloomery Skills 和权限规则通过契约测试。
 - 会话、知识库和完整数据备份可以导出、校验和恢复。
 - 官方钢铁包通过版本化领域评估集。
 - 安装包、更新清单、SBOM、校验和和签名齐全。
-- 中英文 README、Non-goals、安全、贡献、协议和扩展文档齐全。
+- 中英文 README、安全、贡献、协议和扩展文档齐全。
 - 发布案例的质量和性能数字可在公开环境复现。
 
 ## 21. 计划规模

@@ -623,7 +623,7 @@ export interface SecretStatus {
   configured: boolean;
 }
 
-export type SkillScope = "user" | "workspace" | "domain";
+export type SkillScope = "user";
 
 export interface SkillSource {
   scope: SkillScope;

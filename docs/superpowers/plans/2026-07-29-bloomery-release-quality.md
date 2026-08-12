@@ -189,7 +189,7 @@ coverage and sole-owner relicensing authority also remain open.
 
 ### Task 10: Complete bilingual open-source documentation
 
-**Files:** Rewrite README and create English counterpart, Non-goals, architecture, protocol, security, privacy, contributing, code of conduct, setup, MCP/Skills/domain/steel guides, troubleshooting, and release docs.
+**Files:** Rewrite README and create English counterpart, architecture, protocol, security, privacy, contributing, code of conduct, setup, MCP/Skills/domain/steel guides, troubleshooting, and release docs.
 
 - [ ] **Step 1: Add docs link/code/config validation** and UTF-8 checks.
 - [ ] **Step 2: Write Chinese and English docs** with the same product promises, Windows steps, no-login/no-private-server boundary, provider ownership, SmartScreen/signing expectations, and data locations.

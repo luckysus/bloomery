@@ -28,7 +28,7 @@
 | 2 | `2026-07-29-bloomery-storage-providers.md` | Migrations, repositories, OS secrets, providers, durable tasks | 1 |
 | 3 | `2026-07-29-bloomery-local-rag.md` | Ingest, parse, chunk, FTS5, vectors, fusion, rerank, citations | 2 |
 | 4 | `2026-07-29-bloomery-agent-protocol.md` | Modular agent loop, context, memory, repair, public protocol | 2, 3 |
-| 5 | `2026-07-29-bloomery-extensions-security.md` | Tools, permissions, MCP transports, Claude-compatible Skills, domain runtime | 4 |
+| 5 | `2026-07-29-bloomery-extensions-security.md` | Tools, permissions, MCP transports, Bloomery Skills, domain runtime | 4 |
 | 6 | `2026-07-29-bloomery-steel-compute.md` | Official steel package, datasets, ONNX, training and optimization worker | 3, 4, 5 |
 | 7 | `2026-07-29-bloomery-desktop-product.md` | Onboarding, workbench, chat, knowledge, analysis, extension and diagnostics UI | 2-6 |
 | 8 | `2026-07-29-bloomery-release-quality.md` | Security, performance, E2E, packaging, signing, updater, docs and case study | 1-7 |
@@ -94,7 +94,7 @@ passed on the current `main` worktree.
 
 - [x] Built-in and MCP tools share typed schemas and permission enforcement.
 - [x] stdio, Streamable HTTP, and legacy SSE MCP transports pass contract tests.
-- [x] Claude-compatible Skills load from user, workspace, and domain scopes.
+- [x] Bloomery Skills load from `~/.bloomery/skills`.
 - [x] Signed official and clearly marked unsigned third-party domain packages install safely.
 
 Evidence (2026-08-10): Gate E is closed. `ToolSpec::validate_schema` enforces
@@ -226,13 +226,12 @@ production build succeeds.
 - [ ] Windows 10 and 11 install, upgrade, uninstall, and data-preservation tests pass.
 - [ ] Security, dependency, secret, protocol, migration, performance, and steel evaluation gates pass.
 - [ ] Signed installers, portable package, updater metadata, SBOM, notices, and checksums exist.
-- [x] Chinese and English docs, Non-goals, security policy, contributor guide, extension guides, demo, and reproducible case study exist.
+- [x] Chinese and English docs, security policy, contributor guide, extension guides, demo, and reproducible case study exist.
 
 Evidence (2026-08-10): the documentation set is complete: bilingual README
 with status and gate table, `SECURITY.md` (reporting channel, secret,
 permission, backup, domain-package, and worker guarantees),
-`CONTRIBUTING.md` (setup, quality bar, commit rules), `docs/NON-GOALS.md`
-(six explicit non-goals), extension guides for MCP/Skills/domain packages,
+`CONTRIBUTING.md` (setup, quality bar, commit rules), extension guides for MCP/Skills/domain packages,
 release building/updater docs, and `docs/releases/case-study.md` reproducing
 the steel workflow end to end with the exact offline commands and expected
 thresholds.

@@ -39,7 +39,7 @@ describe("ExtensionsPage", () => {
         description: "Review steel evidence",
         version: "1.0.0",
         compatibility: ["bloomery>=0.1.0"],
-        source: { scope: "workspace", path: "C:/workspace/.claude/skills/steel-review/SKILL.md" },
+        source: { scope: "user", path: "C:/Users/example/.bloomery/skills/steel-review/SKILL.md" },
         content_sha256: "abc123",
         enabled: false,
       }],
@@ -51,7 +51,7 @@ describe("ExtensionsPage", () => {
         description: "Review steel evidence",
         version: "1.0.0",
         compatibility: ["bloomery>=0.1.0"],
-        source: { scope: "workspace", path: "C:/workspace/.claude/skills/steel-review/SKILL.md" },
+        source: { scope: "user", path: "C:/Users/example/.bloomery/skills/steel-review/SKILL.md" },
         content_sha256: "abc123",
         enabled: true,
       }],
@@ -65,8 +65,8 @@ describe("ExtensionsPage", () => {
     expect(await screen.findByRole("heading", { name: "extensionsTitle" })).toBeInTheDocument();
     expect(screen.getByText("steel-review")).toBeInTheDocument();
     expect(screen.getByText("1.0.0")).toBeInTheDocument();
-    expect(screen.getByText("extensionsScopeWorkspace")).toBeInTheDocument();
-    expect(screen.getByText(/C:\/workspace/)).toBeInTheDocument();
+    expect(screen.getByText("extensionsScopeUser")).toBeInTheDocument();
+    expect(screen.getByText(/C:\/Users\/example/)).toBeInTheDocument();
   });
 
   it("enables a Skill through the desktop bridge", async () => {

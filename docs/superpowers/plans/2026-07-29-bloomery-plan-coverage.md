@@ -4,7 +4,7 @@ This self-review maps every approved design section to implementation plans. It 
 
 | Design section | Implementing plan evidence |
 | --- | --- |
-| 1-2 Purpose, product, Non-goals | foundation Task 10; release-quality Tasks 10-12 |
+| 1-2 Purpose, product, boundaries | foundation Task 10; release-quality Tasks 10-12 |
 | 3 Architecture and stack | foundation Tasks 1-9; storage Tasks 1-6; release-quality Tasks 2 and 4 |
 | 4 Rust module boundaries | foundation Tasks 2-5; storage Task 2; agent Task 11; release-quality Task 2 |
 | 5 Config, secrets, SiliconFlow, MinerU | storage Tasks 3-8 and 11; desktop-management Task 4 |

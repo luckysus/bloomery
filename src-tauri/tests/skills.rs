@@ -52,7 +52,7 @@ fn discovers_frontmatter_and_preserves_markdown_body() {
         "# Review\n\nUse the local evidence before making a claim.",
     );
 
-    let report = discover_skills(&[root(SkillScope::Workspace, root_dir.path())], "0.1.0");
+    let report = discover_skills(&[root(SkillScope::User, root_dir.path())], "0.1.0");
 
     assert!(report.errors.is_empty());
     assert_eq!(report.skills.len(), 1);
@@ -63,16 +63,16 @@ fn discovers_frontmatter_and_preserves_markdown_body() {
         report.skills[0].body,
         "# Review\n\nUse the local evidence before making a claim."
     );
-    assert_eq!(report.skills[0].source.scope, SkillScope::Workspace);
+    assert_eq!(report.skills[0].source.scope, SkillScope::User);
 }
 
 #[test]
-fn accepts_claude_skill_frontmatter_without_optional_version() {
+fn accepts_skill_frontmatter_without_optional_version() {
     let root_dir = TempRoot::new();
     write_skill(
         root_dir.path(),
-        "claude-compatible",
-        "name: claude-compatible\ndescription: Compatible with Claude Skills",
+        "minimal-frontmatter",
+        "name: minimal-frontmatter\ndescription: A reusable Bloomery Skill",
         "Follow the local evidence policy.",
     );
 
@@ -80,6 +80,16 @@ fn accepts_claude_skill_frontmatter_without_optional_version() {
 
     assert!(report.errors.is_empty());
     assert_eq!(report.skills[0].version, "0.0.0");
+}
+
+#[test]
+fn only_user_skill_scope_is_deserializable() {
+    assert_eq!(
+        serde_json::from_str::<SkillScope>(r#""user""#).expect("user scope"),
+        SkillScope::User
+    );
+    assert!(serde_json::from_str::<SkillScope>(r#""workspace""#).is_err());
+    assert!(serde_json::from_str::<SkillScope>(r#""domain""#).is_err());
 }
 
 #[test]
@@ -126,30 +136,23 @@ fn isolates_malformed_and_non_utf8_skills() {
 }
 
 #[test]
-fn higher_precedence_scope_wins_and_incompatible_skill_is_rejected() {
-    let user = TempRoot::new();
-    let workspace = TempRoot::new();
-    let domain = TempRoot::new();
+fn duplicate_skill_is_isolated_and_incompatible_skill_is_rejected() {
+    let first = TempRoot::new();
+    let second = TempRoot::new();
     write_skill(
-        user.path(),
+        first.path(),
         "steel",
-        "name: steel\ndescription: User\nversion: 3.0.0",
-        "user",
+        "name: steel\ndescription: First\nversion: 3.0.0",
+        "first",
     );
     write_skill(
-        workspace.path(),
+        second.path(),
         "steel",
-        "name: steel\ndescription: Workspace\nversion: 2.0.0",
-        "workspace",
+        "name: steel\ndescription: Second\nversion: 2.0.0",
+        "second",
     );
     write_skill(
-        domain.path(),
-        "steel",
-        "name: steel\ndescription: Domain\nversion: 1.0.0",
-        "domain",
-    );
-    write_skill(
-        domain.path(),
+        second.path(),
         "future",
         "name: future\ndescription: Future\nversion: 1.0.0\ncompatibility: bloomery>=9.0.0",
         "future",
@@ -157,9 +160,8 @@ fn higher_precedence_scope_wins_and_incompatible_skill_is_rejected() {
 
     let report = discover_skills(
         &[
-            root(SkillScope::Domain, domain.path()),
-            root(SkillScope::User, user.path()),
-            root(SkillScope::Workspace, workspace.path()),
+            root(SkillScope::User, second.path()),
+            root(SkillScope::User, first.path()),
         ],
         "0.1.0",
     );
@@ -169,7 +171,6 @@ fn higher_precedence_scope_wins_and_incompatible_skill_is_rejected() {
         .iter()
         .find(|skill| skill.name == "steel")
         .expect("selected steel skill");
-    assert_eq!(steel.description, "User");
     assert_eq!(steel.source.scope, SkillScope::User);
     assert!(!report.skills.iter().any(|skill| skill.name == "future"));
     assert!(report
@@ -194,7 +195,7 @@ fn merged_skills_are_sorted_deterministically() {
         "a",
     );
 
-    let report = discover_skills(&[root(SkillScope::Domain, root_dir.path())], "0.1.0");
+    let report = discover_skills(&[root(SkillScope::User, root_dir.path())], "0.1.0");
 
     assert_eq!(
         report
@@ -215,8 +216,8 @@ fn enabled_skills_render_bounded_context_and_exact_versions() {
         compatibility: vec!["bloomery>=0.1.0".to_string()],
         body: "Use the source document.\n".repeat(4_000),
         source: SkillSource {
-            scope: SkillScope::Workspace,
-            path: PathBuf::from("workspace/.claude/skills/steel-review/SKILL.md"),
+            scope: SkillScope::User,
+            path: PathBuf::from("user/.bloomery/skills/steel-review/SKILL.md"),
         },
         content_sha256: "abc123".to_string(),
     };
@@ -240,7 +241,7 @@ fn skill_summaries_expose_state_without_skill_body() {
         body: "private prompt body".to_string(),
         source: SkillSource {
             scope: SkillScope::User,
-            path: PathBuf::from("user/.claude/skills/steel-review/SKILL.md"),
+            path: PathBuf::from("user/.bloomery/skills/steel-review/SKILL.md"),
         },
         content_sha256: "def456".to_string(),
     };

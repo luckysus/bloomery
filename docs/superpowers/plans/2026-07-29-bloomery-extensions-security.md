@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Deliver a typed tool ecosystem with enforceable permissions, MCP transports, Claude-compatible Skills, and safe declaration-only domain packages.
+**Goal:** Deliver a typed tool ecosystem with enforceable permissions, MCP transports, Bloomery Skills, and safe declaration-only domain packages.
 
 **Architecture:** Built-in and MCP tools normalize into one registry and pass through one permission engine. Skills contribute instructions only. Domain packages are validated manifests and resources; executable behavior is available solely through registered MCP tools or built-ins.
 
@@ -118,16 +118,16 @@ the already-published migration 0017. Local integration fixtures covered
 initialization, tool discovery, authentication, resume, and shutdown; the
 transport suite passed 10 tests and the dedicated SSE suite passed 2 tests.
 
-### Task 7: Load Claude-compatible Skills
+### Task 7: Load Bloomery Skills
 
 **Files:** Create skill modules and `tests/skills.rs`.
 
-- [x] **Step 1: Write tests** for `.claude/skills/<name>/SKILL.md`, frontmatter, UTF-8, malformed files, user/workspace/domain precedence, duplicate names, compatibility, and deterministic merge.
+- [x] **Step 1: Write tests** for `~/.bloomery/skills/<name>/SKILL.md`, frontmatter, UTF-8, malformed files, duplicate names, compatibility, and deterministic discovery.
 - [x] **Step 2: Run `cargo test --test skills`** and expect missing loader.
 - [x] **Step 3: Implement read-only Skill records.** Skills add instructions and metadata; they never grant file, Shell, network, MCP, or secret access. Record the exact enabled Skill versions in each run.
 - [x] **Step 4: Run Skills and context tests** and expect pass.
 
-**Execution record (2026-08-09):** Claude-compatible Skill discovery, strict
+**Execution record (2026-08-09):** Bloomery Skill discovery, strict
 frontmatter parsing, UTF-8 and size bounds, user/workspace/domain precedence,
 compatibility filtering, deterministic merge, bounded prompt rendering, and
 content-fingerprint summaries are implemented. Skill bodies remain outside the
@@ -159,7 +159,7 @@ Agent suite. Added the bilingual public guide at `docs/extensions/skills.md`.
 
 - [ ] **Step 1: Write command contract tests** for MCP CRUD/test/restart, Skills discovery/enable, domain install/activate/remove, tool listing, permission resolve/list/revoke, and impact previews.
 - [ ] **Step 2: Run focused command tests** and expect missing commands.
-- [ ] **Step 3: Implement thin commands and docs.** Documentation includes schemas, examples, permissions, trust indicators, signing, transport configuration, and Claude Skill compatibility.
+- [ ] **Step 3: Implement thin commands and docs.** Documentation includes schemas, examples, permissions, trust indicators, signing, transport configuration, and the Bloomery Skills directory.
 - [ ] **Step 4: Run Gate E verification:** tools, permissions, Windows paths, all MCP transports, Skills, domain packages, Agent integration, docs examples, `cargo check`, and frontend build.
 
 ## Completion evidence
@@ -167,5 +167,5 @@ Agent suite. Added the bilingual public guide at `docs/extensions/skills.md`.
 - Tool and permission tests proving every execution passes the same policy engine.
 - Windows path escape tests.
 - MCP contract outputs for all three transports.
-- Claude Skill fixtures and deterministic merge reports.
+- Bloomery Skill fixtures and deterministic discovery reports.
 - Signed/unsigned package install, rollback, and traversal-defense evidence.
