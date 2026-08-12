@@ -1,7 +1,9 @@
 // Secret lifecycle domain logic.
 use crate::providers::profiles::ProviderProfileRecord;
 use crate::storage::repositories::provider_profiles;
-use crate::storage::secrets::{status, SecretRef, SecretStatus, SecretStore, SecretValue};
+use crate::storage::secrets::{
+    status, SecretRef, SecretStatus, SecretStore, SecretValue, MAX_SECRET_GENERATION,
+};
 use rusqlite::Connection;
 use uuid::Uuid;
 
@@ -44,14 +46,29 @@ pub(crate) fn set_profile_secret(
     value: SecretValue,
 ) -> Result<SecretStatus, String> {
     let record = profile_record(connection, workspace_id, profile_id, credential_name)?;
+    if record.secret_generation >= MAX_SECRET_GENERATION {
+        return Err("provider secret generation is exhausted".to_string());
+    }
     let next_generation = record
         .secret_generation
         .checked_add(1)
         .ok_or_else(|| "provider secret generation is exhausted".to_string())?;
+    let current = profile_reference(&record, record.secret_generation)?;
     let next = profile_reference(&record, next_generation)?;
+    let previous = optional_secret(store, &current)?;
     store
         .set(&next, &value)
         .map_err(|error| error.to_string())?;
+    if let Err(error) = delete_optional_secret(store, &current) {
+        return Err(rollback_secret_transition(
+            store,
+            &next,
+            None,
+            &current,
+            previous.as_ref(),
+            error,
+        ));
+    }
     if let Err(error) = provider_profiles::activate_secret_generation(
         connection,
         workspace_id,
@@ -59,10 +76,15 @@ pub(crate) fn set_profile_secret(
         credential_name,
         record.secret_generation,
     ) {
-        let _ = store.delete(&next);
-        return Err(error);
+        return Err(rollback_secret_transition(
+            store,
+            &next,
+            None,
+            &current,
+            previous.as_ref(),
+            error,
+        ));
     }
-    let _ = store.delete(&profile_reference(&record, record.secret_generation)?);
     Ok(SecretStatus { configured: true })
 }
 
@@ -89,25 +111,105 @@ pub(crate) fn delete_profile_secret(
     credential_name: &str,
 ) -> Result<SecretStatus, String> {
     let record = profile_record(connection, workspace_id, profile_id, credential_name)?;
+    if record.secret_generation >= MAX_SECRET_GENERATION {
+        return Err("provider secret generation is exhausted".to_string());
+    }
     let next_generation = record
         .secret_generation
         .checked_add(1)
         .ok_or_else(|| "provider secret generation is exhausted".to_string())?;
+    let current = profile_reference(&record, record.secret_generation)?;
     let next = profile_reference(&record, next_generation)?;
-    match store.delete(&next) {
-        Ok(()) => {}
-        Err(error) if error.is_not_found() => {}
-        Err(error) => return Err(error.to_string()),
+    let stale_next = optional_secret(store, &next)?;
+    if let Err(error) = delete_optional_secret(store, &next) {
+        return Err(rollback_secret_transition(
+            store,
+            &next,
+            stale_next.as_ref(),
+            &current,
+            None,
+            error,
+        ));
     }
-    provider_profiles::activate_secret_generation(
+    let previous = optional_secret(store, &current)?;
+    if let Err(error) = delete_optional_secret(store, &current) {
+        return Err(rollback_secret_transition(
+            store,
+            &next,
+            stale_next.as_ref(),
+            &current,
+            previous.as_ref(),
+            error,
+        ));
+    }
+    if let Err(error) = provider_profiles::activate_secret_generation(
         connection,
         workspace_id,
         profile_id,
         credential_name,
         record.secret_generation,
-    )?;
-    let _ = store.delete(&profile_reference(&record, record.secret_generation)?);
+    ) {
+        return Err(rollback_secret_transition(
+            store,
+            &next,
+            stale_next.as_ref(),
+            &current,
+            previous.as_ref(),
+            error,
+        ));
+    }
     Ok(SecretStatus { configured: false })
+}
+
+fn optional_secret(
+    store: &dyn SecretStore,
+    reference: &SecretRef,
+) -> Result<Option<SecretValue>, String> {
+    match store.get(reference) {
+        Ok(value) => Ok(Some(value)),
+        Err(error) if error.is_not_found() => Ok(None),
+        Err(error) => Err(error.to_string()),
+    }
+}
+
+fn delete_optional_secret(store: &dyn SecretStore, reference: &SecretRef) -> Result<(), String> {
+    match store.delete(reference) {
+        Ok(()) => Ok(()),
+        Err(error) if error.is_not_found() => Ok(()),
+        Err(error) => Err(error.to_string()),
+    }
+}
+
+fn rollback_secret_transition(
+    store: &dyn SecretStore,
+    next: &SecretRef,
+    next_value: Option<&SecretValue>,
+    current: &SecretRef,
+    current_value: Option<&SecretValue>,
+    primary_error: String,
+) -> String {
+    let mut rollback_errors = Vec::new();
+    if let Err(error) = delete_optional_secret(store, next) {
+        rollback_errors.push(error);
+    }
+    if let Some(value) = next_value {
+        if let Err(error) = store.set(next, value) {
+            rollback_errors.push(error.to_string());
+        }
+    }
+    if let Some(value) = current_value {
+        if let Err(error) = store.set(current, value) {
+            rollback_errors.push(error.to_string());
+        }
+    }
+    if rollback_errors.is_empty() {
+        primary_error
+    } else {
+        format!(
+            "{primary_error}; credential rollback failed: {}",
+            rollback_errors.join("; ")
+        )
+    }
 }
 
 #[cfg(test)]
@@ -125,6 +227,8 @@ mod tests {
     struct MemorySecretStore {
         values: Mutex<HashMap<String, SecretValue>>,
         fail_set: bool,
+        fail_delete: bool,
+        fail_delete_account: Option<String>,
     }
 
     impl SecretStore for MemorySecretStore {
@@ -149,6 +253,14 @@ mod tests {
         }
 
         fn delete(&self, reference: &SecretRef) -> Result<(), SecretError> {
+            if self.fail_delete
+                || self
+                    .fail_delete_account
+                    .as_deref()
+                    .is_some_and(|account| account == reference.account())
+            {
+                return Err(SecretError::backend("injected delete failure"));
+            }
             self.values
                 .lock()
                 .unwrap()
@@ -263,6 +375,135 @@ mod tests {
                 .unwrap()
                 .secret_generation,
             0
+        );
+    }
+
+    #[test]
+    fn secret_replacement_rejects_exhausted_generation_before_writing() {
+        let (connection, id) = database();
+        connection
+            .execute(
+                "UPDATE provider_profiles SET secret_generation = ?1 WHERE id = ?2",
+                rusqlite::params![4096_i64, id.to_string()],
+            )
+            .unwrap();
+        let store = MemorySecretStore::default();
+
+        let error = set_profile_secret(
+            &connection,
+            "workspace-a",
+            &store,
+            id,
+            "api_key",
+            SecretValue::new("value").unwrap(),
+        )
+        .expect_err("exhausted secret generation must fail before keyring writes");
+
+        assert!(error.contains("provider secret generation is exhausted"));
+        assert!(store
+            .get(&SecretRef::at_generation(id, "api_key", 4097).unwrap())
+            .unwrap_err()
+            .is_not_found());
+        let generation: i64 = connection
+            .query_row(
+                "SELECT secret_generation FROM provider_profiles WHERE id = ?1",
+                [id.to_string()],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(generation, 4096);
+    }
+
+    #[test]
+    fn secret_replacement_does_not_advance_when_old_secret_cleanup_fails() {
+        let (connection, id) = database();
+        let store = MemorySecretStore::default();
+
+        set_profile_secret(
+            &connection,
+            "workspace-a",
+            &store,
+            id,
+            "api_key",
+            SecretValue::new("first").unwrap(),
+        )
+        .unwrap();
+        let failing = MemorySecretStore {
+            values: store.values,
+            fail_delete_account: Some(
+                SecretRef::at_generation(id, "api_key", 1)
+                    .unwrap()
+                    .account(),
+            ),
+            ..Default::default()
+        };
+
+        let error = set_profile_secret(
+            &connection,
+            "workspace-a",
+            &failing,
+            id,
+            "api_key",
+            SecretValue::new("second").unwrap(),
+        )
+        .expect_err("old secret cleanup failure must fail replacement");
+
+        assert!(error.contains("injected delete failure"));
+        assert_eq!(
+            provider_profiles::get_record(&connection, "workspace-a", id)
+                .unwrap()
+                .unwrap()
+                .secret_generation,
+            1
+        );
+        assert_eq!(
+            failing
+                .get(&SecretRef::at_generation(id, "api_key", 1).unwrap())
+                .unwrap(),
+            SecretValue::new("first").unwrap()
+        );
+        assert!(failing
+            .get(&SecretRef::at_generation(id, "api_key", 2).unwrap())
+            .unwrap_err()
+            .is_not_found());
+    }
+
+    #[test]
+    fn secret_deletion_does_not_advance_when_old_secret_cleanup_fails() {
+        let (connection, id) = database();
+        let store = MemorySecretStore::default();
+
+        set_profile_secret(
+            &connection,
+            "workspace-a",
+            &store,
+            id,
+            "api_key",
+            SecretValue::new("first").unwrap(),
+        )
+        .unwrap();
+        let failing = MemorySecretStore {
+            values: store.values,
+            fail_delete: true,
+            ..Default::default()
+        };
+
+        let error = delete_profile_secret(&connection, "workspace-a", &failing, id, "api_key")
+            .expect_err("old secret cleanup failure must fail deletion");
+
+        assert!(error.contains("injected delete failure"));
+        assert_eq!(
+            provider_profiles::get_record(&connection, "workspace-a", id)
+                .unwrap()
+                .unwrap()
+                .secret_generation,
+            1
+        );
+        assert_eq!(
+            failing
+                .get(&SecretRef::at_generation(id, "api_key", 1).unwrap())
+                .unwrap(),
+            SecretValue::new("first").unwrap()
         );
     }
 }

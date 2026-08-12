@@ -5,7 +5,7 @@ use crate::providers::profiles::{
     ProviderProfileRecord,
 };
 use crate::storage::repositories::provider_profiles;
-use crate::storage::secrets::{status, SecretRef, SecretStore, SecretValue};
+use crate::storage::secrets::{status, SecretRef, SecretStore, SecretValue, MAX_SECRET_GENERATION};
 use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
 use std::time::{Duration, Instant};
@@ -156,10 +156,18 @@ pub(crate) fn save_profile(
         .transaction()
         .map_err(|error| error.to_string())?;
     let saved = provider_profiles::save_record(&transaction, workspace_id, profile)?;
-    if let Some((profile_id, old_name, generation)) = old_secret {
-        delete_secret_generations(store, profile_id, &old_name, generation)?;
+    let deleted = if let Some((profile_id, old_name, generation)) = old_secret {
+        delete_secret_generations(store, profile_id, &old_name, generation)?
+    } else {
+        Vec::new()
+    };
+    if let Err(error) = transaction.commit() {
+        return Err(restore_deleted_generations(
+            store,
+            &deleted,
+            error.to_string(),
+        ));
     }
-    transaction.commit().map_err(|error| error.to_string())?;
     profile_response(saved, store)
 }
 
@@ -197,10 +205,16 @@ pub(crate) fn delete_profile(
 ) -> Result<(), String> {
     let record = provider_profiles::get_record(connection, workspace_id, id)?
         .ok_or_else(|| "provider profile not found".to_string())?;
-    if let Some(name) = record.profile.secret_ref.as_deref() {
-        delete_secret_generations(store, record.profile.id, name, record.secret_generation)?;
+    let deleted = match record.profile.secret_ref.as_deref() {
+        Some(name) => {
+            delete_secret_generations(store, record.profile.id, name, record.secret_generation)?
+        }
+        None => Vec::new(),
+    };
+    if let Err(error) = provider_profiles::delete(connection, workspace_id, id) {
+        return Err(restore_deleted_generations(store, &deleted, error));
     }
-    provider_profiles::delete(connection, workspace_id, id)
+    Ok(())
 }
 
 fn delete_secret_generations(
@@ -208,22 +222,70 @@ fn delete_secret_generations(
     profile_id: Uuid,
     credential_name: &str,
     maximum_generation: u64,
-) -> Result<(), String> {
+) -> Result<Vec<(SecretRef, SecretValue)>, String> {
+    if maximum_generation > MAX_SECRET_GENERATION {
+        return Err("provider secret generation is too large".to_string());
+    }
+    let mut deleted = Vec::new();
     let mut generation = 0_u64;
     loop {
         let reference = SecretRef::at_generation(profile_id, credential_name, generation)
             .map_err(|error| error.to_string())?;
+        let value = match store.get(&reference) {
+            Ok(value) => value,
+            Err(error) if error.is_not_found() => {
+                if generation == maximum_generation {
+                    break;
+                }
+                generation += 1;
+                continue;
+            }
+            Err(error) => {
+                return Err(restore_deleted_generations(
+                    store,
+                    &deleted,
+                    error.to_string(),
+                ))
+            }
+        };
         match store.delete(&reference) {
-            Ok(()) => {}
+            Ok(()) => deleted.push((reference, value)),
             Err(error) if error.is_not_found() => {}
-            Err(error) => return Err(error.to_string()),
+            Err(error) => {
+                return Err(restore_deleted_generations(
+                    store,
+                    &deleted,
+                    error.to_string(),
+                ))
+            }
         }
         if generation == maximum_generation {
             break;
         }
         generation += 1;
     }
-    Ok(())
+    Ok(deleted)
+}
+
+fn restore_deleted_generations(
+    store: &dyn SecretStore,
+    deleted: &[(SecretRef, SecretValue)],
+    primary_error: String,
+) -> String {
+    let mut restore_errors = Vec::new();
+    for (reference, value) in deleted {
+        if let Err(error) = store.set(reference, value) {
+            restore_errors.push(error.to_string());
+        }
+    }
+    if restore_errors.is_empty() {
+        primary_error
+    } else {
+        format!(
+            "{primary_error}; credential rollback failed: {}",
+            restore_errors.join("; ")
+        )
+    }
 }
 
 pub(crate) async fn probe_provider(
@@ -325,6 +387,8 @@ mod tests {
     struct MemorySecretStore {
         values: Mutex<HashMap<String, SecretValue>>,
         fail_delete: bool,
+        fail_delete_on_call: Option<usize>,
+        delete_calls: Mutex<usize>,
     }
 
     impl SecretStore for MemorySecretStore {
@@ -346,7 +410,17 @@ mod tests {
         }
 
         fn delete(&self, reference: &SecretRef) -> Result<(), SecretError> {
+            let mut calls = self
+                .delete_calls
+                .lock()
+                .map_err(|_| SecretError::backend("memory secret store poisoned"))?;
+            *calls += 1;
+            let call_number = *calls;
+            drop(calls);
             if self.fail_delete {
+                return Err(SecretError::backend("injected delete failure"));
+            }
+            if self.fail_delete_on_call == Some(call_number) {
                 return Err(SecretError::backend("injected delete failure"));
             }
             self.values
@@ -597,6 +671,91 @@ mod tests {
             .expect_err("credential cleanup failure must fail the save");
 
         assert!(error.contains("injected delete failure"));
+        let record = provider_profiles::get_record(&connection, "workspace-a", saved.id)
+            .unwrap()
+            .unwrap();
+        assert_eq!(record.profile.secret_ref.as_deref(), Some("api_key"));
+        assert_eq!(record.profile.base_url, "https://provider.example/v1");
+    }
+
+    #[test]
+    fn oversized_secret_generation_is_rejected_before_cleanup_loop() {
+        let mut connection = database();
+        let store = MemorySecretStore::default();
+        let saved = save_profile(
+            &mut connection,
+            "workspace-a",
+            &store,
+            input("https://provider.example/v1".to_string()),
+        )
+        .expect("save profile");
+        connection
+            .execute(
+                "UPDATE provider_profiles SET secret_generation = ?1 WHERE id = ?2",
+                rusqlite::params![4097_i64, saved.id.to_string()],
+            )
+            .unwrap();
+        let renamed = ProviderProfileInput {
+            id: Some(saved.id.to_string()),
+            credential_name: Some("token".to_string()),
+            ..input("https://provider.example/v2".to_string())
+        };
+
+        let error = save_profile(&mut connection, "workspace-a", &store, renamed)
+            .expect_err("corrupt secret generation must be rejected");
+
+        assert!(error.contains("provider secret generation is too large"));
+    }
+
+    #[test]
+    fn partial_old_credential_cleanup_restores_deleted_generations() {
+        let mut connection = database();
+        let store = MemorySecretStore::default();
+        let saved = save_profile(
+            &mut connection,
+            "workspace-a",
+            &store,
+            input("https://provider.example/v1".to_string()),
+        )
+        .expect("save profile");
+        let first = SecretRef::at_generation(saved.id, "api_key", 0).unwrap();
+        store
+            .set(&first, &SecretValue::new("old-generation-zero").unwrap())
+            .unwrap();
+        provider_profiles::activate_secret_generation(
+            &connection,
+            "workspace-a",
+            saved.id,
+            "api_key",
+            0,
+        )
+        .unwrap();
+        let second = SecretRef::at_generation(saved.id, "api_key", 1).unwrap();
+        store
+            .set(&second, &SecretValue::new("old-generation-one").unwrap())
+            .unwrap();
+
+        let failing_store = MemorySecretStore {
+            fail_delete_on_call: Some(2),
+            ..store
+        };
+        let renamed = ProviderProfileInput {
+            id: Some(saved.id.to_string()),
+            credential_name: Some("token".to_string()),
+            ..input("https://provider.example/v2".to_string())
+        };
+
+        save_profile(&mut connection, "workspace-a", &failing_store, renamed)
+            .expect_err("partial credential cleanup must fail the profile update");
+
+        assert_eq!(
+            failing_store.get(&first).unwrap(),
+            SecretValue::new("old-generation-zero").unwrap()
+        );
+        assert_eq!(
+            failing_store.get(&second).unwrap(),
+            SecretValue::new("old-generation-one").unwrap()
+        );
         let record = provider_profiles::get_record(&connection, "workspace-a", saved.id)
             .unwrap()
             .unwrap();

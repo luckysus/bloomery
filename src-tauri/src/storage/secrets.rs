@@ -3,6 +3,7 @@ use std::fmt;
 use uuid::Uuid;
 
 pub const KEYRING_SERVICE: &str = "io.bloomery.desktop";
+pub const MAX_SECRET_GENERATION: u64 = 4096;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SecretRef {
