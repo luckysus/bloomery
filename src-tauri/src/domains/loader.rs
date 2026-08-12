@@ -199,6 +199,11 @@ fn validate_manifest(manifest: &DomainManifest, app_version: &str) -> Result<(),
         .max_app_version
         .as_deref()
         .map(|value| parse_version(value).unwrap());
+    if maximum.is_some_and(|value| value < minimum) {
+        return Err(DomainError::InvalidManifest(
+            "compatibility maximum version must not be lower than minimum version".to_string(),
+        ));
+    }
     if current < minimum || maximum.is_some_and(|value| current > value) {
         return Err(DomainError::Incompatible(format!(
             "package requires Bloomery {}..{:?}",

@@ -185,6 +185,17 @@ fn validate_package_files(
 }
 
 fn copy_tree(source: &Path, destination: &Path) -> Result<(), DomainError> {
+    let mut file_count = 0_usize;
+    let mut total_bytes = 0_u64;
+    copy_tree_bounded(source, destination, &mut file_count, &mut total_bytes)
+}
+
+fn copy_tree_bounded(
+    source: &Path,
+    destination: &Path,
+    file_count: &mut usize,
+    total_bytes: &mut u64,
+) -> Result<(), DomainError> {
     for entry in fs::read_dir(source).map_err(|error| DomainError::Io(error.to_string()))? {
         let entry = entry.map_err(|error| DomainError::Io(error.to_string()))?;
         let source_path = entry.path();
@@ -197,10 +208,31 @@ fn copy_tree(source: &Path, destination: &Path) -> Result<(), DomainError> {
         if metadata.is_dir() {
             fs::create_dir_all(&destination_path)
                 .map_err(|error| DomainError::Io(error.to_string()))?;
-            copy_tree(&source_path, &destination_path)?;
+            copy_tree_bounded(&source_path, &destination_path, file_count, total_bytes)?;
         } else if metadata.is_file() {
+            reject_executable_extension(&source_path)?;
+            if *file_count >= MAX_PACKAGE_FILES {
+                return Err(DomainError::ResourceLimit(
+                    "too many package files".to_string(),
+                ));
+            }
+            if metadata.len() > MAX_FILE_BYTES {
+                return Err(DomainError::ResourceLimit(format!(
+                    "package file is too large: {}",
+                    source_path.display()
+                )));
+            }
+            *total_bytes = total_bytes
+                .checked_add(metadata.len())
+                .ok_or_else(|| DomainError::ResourceLimit("package size overflow".to_string()))?;
+            if *total_bytes > MAX_TOTAL_BYTES {
+                return Err(DomainError::ResourceLimit(
+                    "package is too large".to_string(),
+                ));
+            }
             fs::copy(&source_path, &destination_path)
                 .map_err(|error| DomainError::Io(error.to_string()))?;
+            *file_count += 1;
         } else {
             return Err(DomainError::InvalidResource(
                 "package contains a non-regular file".to_string(),
@@ -333,4 +365,31 @@ fn reject_executable_extension(path: &Path) -> Result<(), DomainError> {
         )));
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{copy_tree, DomainError, MAX_FILE_BYTES};
+    use std::fs;
+    use std::path::PathBuf;
+    use uuid::Uuid;
+
+    #[test]
+    fn bounded_directory_copy_rejects_oversized_file_before_copying() {
+        let root = std::env::temp_dir().join(format!("bloomery-copy-{}", Uuid::new_v4()));
+        let source = root.join("source");
+        let destination = root.join("destination");
+        fs::create_dir_all(&source).expect("create source");
+        fs::create_dir_all(&destination).expect("create destination");
+        let oversized = source.join("oversized.bin");
+        let file = fs::File::create(&oversized).expect("create oversized fixture");
+        file.set_len(MAX_FILE_BYTES + 1)
+            .expect("extend oversized fixture");
+
+        let result = copy_tree(&source, &destination);
+
+        assert!(matches!(result, Err(DomainError::ResourceLimit(_))));
+        assert!(!destination.join("oversized.bin").exists());
+        let _ = fs::remove_dir_all(PathBuf::from(root));
+    }
 }

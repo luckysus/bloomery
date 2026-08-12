@@ -120,6 +120,24 @@ fn rejects_incompatible_package_and_unsafe_assets() {
 }
 
 #[test]
+fn rejects_reversed_app_version_range() {
+    let package = TempPackage::new();
+    let mut manifest = valid_manifest();
+    manifest["compatibility"]["min_app_version"] = json!("2.0.0");
+    manifest["compatibility"]["max_app_version"] = json!("1.0.0");
+    package.write_manifest(manifest);
+
+    let error = load_package(package.path(), "1.5.0")
+        .expect_err("a reversed compatibility range must be rejected");
+
+    assert!(
+        error.to_string().contains("minimum")
+            || error.to_string().contains("maximum")
+            || error.to_string().contains("compatibility")
+    );
+}
+
+#[test]
 fn rejects_executable_asset_extensions() {
     let package = TempPackage::new();
     let mut manifest = valid_manifest();
