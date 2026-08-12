@@ -47,6 +47,60 @@ function Invoke-Checked {
     }
 }
 
+function Copy-RequiredFile {
+    param(
+        [Parameter(Mandatory = $true)][string]$Source,
+        [Parameter(Mandatory = $true)][string]$Destination
+    )
+
+    if (-not (Test-Path -LiteralPath $Source -PathType Leaf)) {
+        throw "Required release file is missing: $Source"
+    }
+    $destinationParent = Split-Path -Parent $Destination
+    if (-not [string]::IsNullOrWhiteSpace($destinationParent)) {
+        New-Item -ItemType Directory -Path $destinationParent -Force | Out-Null
+    }
+    Copy-Item -LiteralPath $Source -Destination $Destination -Force -ErrorAction Stop
+}
+
+function Copy-RequiredDirectory {
+    param(
+        [Parameter(Mandatory = $true)][string]$Source,
+        [Parameter(Mandatory = $true)][string]$Destination
+    )
+
+    if (-not (Test-Path -LiteralPath $Source -PathType Container)) {
+        throw "Required release directory is missing: $Source"
+    }
+    if (Test-Path -LiteralPath $Destination) {
+        Remove-Item -LiteralPath $Destination -Recurse -Force
+    }
+    $destinationParent = Split-Path -Parent $Destination
+    if (-not [string]::IsNullOrWhiteSpace($destinationParent)) {
+        New-Item -ItemType Directory -Path $destinationParent -Force | Out-Null
+    }
+    Copy-Item -LiteralPath $Source -Destination $Destination -Recurse -Force -ErrorAction Stop
+}
+
+function New-ZipFromDirectory {
+    param(
+        [Parameter(Mandatory = $true)][string]$SourceDirectory,
+        [Parameter(Mandatory = $true)][string]$DestinationPath
+    )
+
+    if (-not (Test-Path -LiteralPath $SourceDirectory -PathType Container)) {
+        throw "Zip source directory is missing: $SourceDirectory"
+    }
+    if (Test-Path -LiteralPath $DestinationPath) {
+        Remove-Item -LiteralPath $DestinationPath -Force
+    }
+    Compress-Archive -LiteralPath $SourceDirectory -DestinationPath $DestinationPath -CompressionLevel Optimal
+    $archive = Get-Item -LiteralPath $DestinationPath -ErrorAction Stop
+    if ($archive.Length -le 0) {
+        throw "Release archive is empty: $DestinationPath"
+    }
+}
+
 if (-not (Test-Path -LiteralPath $tauriConfigPath -PathType Leaf)) {
     throw "src-tauri/tauri.conf.json is missing"
 }
@@ -207,6 +261,12 @@ try {
     }
 }
 
+$portableBuildArguments = @("build", "--release")
+if ($Offline) {
+    $portableBuildArguments += "--offline"
+}
+Invoke-Checked "Portable application binary" "cargo" $portableBuildArguments $rustRoot
+
 $releaseArtifacts = @(
     foreach ($bundleDirectory in $bundleDirectories) {
         $bundlePath = Join-Path $bundleRoot $bundleDirectory
@@ -217,7 +277,7 @@ $releaseArtifacts = @(
         }
     }
 ) | Sort-Object Name
-if ($releaseArtifacts.Count -eq 0) {
+if (@($releaseArtifacts).Count -eq 0) {
     throw "Tauri completed without producing an MSI or NSIS artifact"
 }
 
@@ -228,6 +288,34 @@ foreach ($artifact in $releaseArtifacts) {
 foreach ($metadataFile in @("LICENSE", "NOTICE")) {
     Copy-Item -LiteralPath (Join-Path $repoRoot $metadataFile) -Destination (Join-Path $outputPath $metadataFile) -ErrorAction Stop
 }
+
+$runtimeRoot = Join-Path $rustRoot "target\release"
+$portableName = "Bloomery-$version-windows-x64-portable"
+$portableStage = Join-Path $env:TEMP ($portableName + "-" + [Guid]::NewGuid().ToString("N"))
+$portableRoot = Join-Path $portableStage $portableName
+$addonName = "Bloomery-$version-compute-worker-addon-windows-x64"
+$addonStage = Join-Path $env:TEMP ($addonName + "-" + [Guid]::NewGuid().ToString("N"))
+$addonRoot = Join-Path $addonStage $addonName
+try {
+    New-Item -ItemType Directory -Path $portableRoot, $addonRoot -Force | Out-Null
+    Copy-RequiredFile (Join-Path $runtimeRoot "bloomery.exe") (Join-Path $portableRoot "bloomery.exe")
+    Copy-RequiredDirectory (Join-Path $runtimeRoot "domain-packs") (Join-Path $portableRoot "domain-packs")
+    Copy-RequiredDirectory (Join-Path $runtimeRoot "compute-worker") (Join-Path $portableRoot "compute-worker")
+    foreach ($metadataFile in @("LICENSE", "NOTICE")) {
+        Copy-RequiredFile (Join-Path $repoRoot $metadataFile) (Join-Path $portableRoot $metadataFile)
+        Copy-RequiredFile (Join-Path $repoRoot $metadataFile) (Join-Path $addonRoot $metadataFile)
+    }
+    Copy-RequiredDirectory (Join-Path $runtimeRoot "compute-worker") (Join-Path $addonRoot "compute-worker")
+    New-ZipFromDirectory $portableRoot (Join-Path $outputPath ($portableName + ".zip"))
+    New-ZipFromDirectory $addonRoot (Join-Path $outputPath ($addonName + ".zip"))
+} finally {
+    foreach ($stage in @($portableStage, $addonStage)) {
+        if (Test-Path -LiteralPath $stage) {
+            Remove-Item -LiteralPath $stage -Recurse -Force -ErrorAction SilentlyContinue
+        }
+    }
+}
+
 if ($Signed) {
     $updaterManifestScript = Join-Path $PSScriptRoot "generate-updater-manifest.ps1"
     Invoke-Checked "Updater metadata" "powershell" @(

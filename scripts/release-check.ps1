@@ -192,6 +192,18 @@ if ($Package) {
     if ($null -eq $candidateInstaller) {
         throw "Packaged release does not contain an NSIS installer"
     }
+    $candidatePortable = Get-ChildItem -LiteralPath $packageOutputPath -Filter "*portable*.zip" -File -ErrorAction SilentlyContinue |
+        Sort-Object LastWriteTime |
+        Select-Object -Last 1
+    if ($null -eq $candidatePortable -or $candidatePortable.Length -le 0) {
+        throw "Packaged release does not contain a non-empty portable archive"
+    }
+    $candidateComputeAddon = Get-ChildItem -LiteralPath $packageOutputPath -Filter "*compute-worker-addon*.zip" -File -ErrorAction SilentlyContinue |
+        Sort-Object LastWriteTime |
+        Select-Object -Last 1
+    if ($null -eq $candidateComputeAddon -or $candidateComputeAddon.Length -le 0) {
+        throw "Packaged release does not contain a non-empty compute Worker add-on archive"
+    }
     $lifecycleArguments += @("-InstallerPath", $candidateInstaller.FullName)
     if (-not $RequireSigned) {
         $lifecycleArguments += "-AllowUnsigned"

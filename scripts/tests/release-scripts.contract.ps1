@@ -46,6 +46,9 @@ if ($buildReleaseContent -notmatch '\$bundleRoot' -or
     $buildReleaseContent -notmatch 'Remove-Item -LiteralPath \$staleBundlePath -Recurse -Force') {
     throw "build-release.ps1 must clear stale bundle outputs before collecting release artifacts"
 }
+if ($buildReleaseContent -notmatch '@\(\$releaseArtifacts\)\.Count') {
+    throw "build-release.ps1 must count collected release artifacts through an array wrapper for single-bundle builds"
+}
 
 $resourceProperties = @($tauriConfig.bundle.resources.PSObject.Properties.Name)
 if ($resourceProperties -notcontains "resources/compute-worker") {
@@ -63,6 +66,18 @@ foreach ($requiredWorkerText in @(
 )) {
     if ($buildReleaseContent -notmatch [regex]::Escape($requiredWorkerText)) {
         throw "scripts/build-release.ps1 is missing Worker release integration: $requiredWorkerText"
+    }
+}
+
+foreach ($requiredArtifactText in @(
+    "portable",
+    "compute-worker-addon",
+    "Portable application binary",
+    "Compress-Archive",
+    "Bloomery-"
+)) {
+    if ($buildReleaseContent -notmatch [regex]::Escape($requiredArtifactText)) {
+        throw "scripts/build-release.ps1 must produce portable and compute Worker add-on artifacts: $requiredArtifactText"
     }
 }
 
@@ -193,7 +208,9 @@ foreach ($requiredPackageIsolationText in @(
     '-OutputDirectory',
     'Get-ChildItem -LiteralPath $packageOutputPath',
     '-InstallerPath',
-    '$candidateInstaller.FullName'
+    '$candidateInstaller.FullName',
+    '*portable*.zip',
+    '*compute-worker-addon*.zip'
 )) {
     if ($releaseCheckContent -notmatch [regex]::Escape($requiredPackageIsolationText)) {
     throw "release-check.ps1 must isolate package output and lifecycle validation to the current run"
