@@ -3,7 +3,7 @@ use std::collections::HashSet;
 use std::io::{Cursor, Read};
 use zip::ZipArchive;
 
-pub(super) struct OfficeArchive<'a> {
+pub(crate) struct OfficeArchive<'a> {
     archive: ZipArchive<Cursor<&'a [u8]>>,
 }
 
@@ -75,16 +75,49 @@ impl<'a> OfficeArchive<'a> {
         })
     }
 
+    pub fn read_required_limited(
+        &mut self,
+        name: &str,
+        max_bytes: usize,
+    ) -> Result<Vec<u8>, ParseError> {
+        self.read_optional_limited(name, max_bytes)?.ok_or_else(|| {
+            ParseError::new(
+                "missing_archive_entry",
+                format!("Office archive is missing {name}"),
+            )
+        })
+    }
+
     pub fn read_optional(&mut self, name: &str) -> Result<Option<Vec<u8>>, ParseError> {
+        self.read_optional_limited(name, usize::MAX)
+    }
+
+    pub fn read_optional_limited(
+        &mut self,
+        name: &str,
+        max_bytes: usize,
+    ) -> Result<Option<Vec<u8>>, ParseError> {
         let Ok(mut entry) = self.archive.by_name(name) else {
             return Ok(None);
         };
         let capacity = usize::try_from(entry.size())
             .map_err(|_| ParseError::new("archive_expanded_too_large", "entry is too large"))?;
+        if capacity > max_bytes {
+            return Err(ParseError::new(
+                "archive_entry_too_large",
+                format!("Office archive entry exceeds the {max_bytes}-byte limit"),
+            ));
+        }
         let mut bytes = Vec::with_capacity(capacity);
         entry
             .read_to_end(&mut bytes)
             .map_err(|error| ParseError::new("invalid_archive", error.to_string()))?;
+        if bytes.len() > max_bytes {
+            return Err(ParseError::new(
+                "archive_entry_too_large",
+                format!("Office archive entry exceeds the {max_bytes}-byte limit"),
+            ));
+        }
         Ok(Some(bytes))
     }
 

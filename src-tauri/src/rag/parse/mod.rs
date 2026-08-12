@@ -1,4 +1,4 @@
-mod archive;
+pub(crate) mod archive;
 mod csv;
 mod docx;
 mod html;
@@ -7,7 +7,7 @@ mod mineru;
 mod pdf;
 mod text;
 mod xlsx;
-mod xml;
+pub(crate) mod xml;
 
 use crate::rag::ingest::SourceFormat;
 use crate::rag::model::SourceLocation;

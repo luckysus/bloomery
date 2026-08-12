@@ -3,7 +3,7 @@ use quick_xml::events::{BytesStart, BytesText};
 use quick_xml::Reader;
 use quick_xml::XmlVersion;
 
-pub(super) fn attribute(
+pub(crate) fn attribute(
     reader: &Reader<&[u8]>,
     element: &BytesStart<'_>,
     name: &[u8],
@@ -21,7 +21,7 @@ pub(super) fn attribute(
     Ok(None)
 }
 
-pub(super) fn text(event: &BytesText<'_>) -> Result<String, ParseError> {
+pub(crate) fn text(event: &BytesText<'_>) -> Result<String, ParseError> {
     let decoded = event
         .decode()
         .map_err(|error| ParseError::new("invalid_xml", error.to_string()))?;

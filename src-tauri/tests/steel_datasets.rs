@@ -3,6 +3,40 @@ use bloomery::storage::{migrations::migrate, repositories::steel};
 use rusqlite::Connection;
 use std::fs;
 use std::io::{BufWriter, Write};
+use std::path::{Path, PathBuf};
+use zip::write::SimpleFileOptions;
+
+struct GeneratedXlsx(PathBuf);
+
+impl GeneratedXlsx {
+    fn create(name: &str, entries: &[(&str, &[u8])]) -> Self {
+        let directory =
+            std::env::temp_dir().join(format!("bloomery-steel-xlsx-{}", uuid::Uuid::new_v4()));
+        fs::create_dir_all(&directory).expect("create XLSX fixture directory");
+        let path = directory.join(name);
+        let file = fs::File::create(&path).expect("create XLSX fixture");
+        let mut archive = zip::ZipWriter::new(file);
+        for (entry_name, bytes) in entries {
+            archive
+                .start_file(*entry_name, SimpleFileOptions::default())
+                .expect("start XLSX fixture entry");
+            archive.write_all(bytes).expect("write XLSX fixture entry");
+        }
+        archive.finish().expect("finish XLSX fixture");
+        Self(path)
+    }
+
+    fn path(&self) -> &Path {
+        &self.0
+    }
+}
+
+impl Drop for GeneratedXlsx {
+    fn drop(&mut self) {
+        fs::remove_dir_all(self.0.parent().expect("XLSX fixture parent"))
+            .expect("remove XLSX fixture directory");
+    }
+}
 
 fn database() -> Connection {
     let mut connection = Connection::open_in_memory().expect("open database");
@@ -35,6 +69,208 @@ fn bounds_csv_rows_in_memory_without_losing_the_source_row_count() {
     assert_eq!(preview.sample_rows.len(), 20);
 
     let _ = fs::remove_file(path);
+}
+
+#[test]
+fn bounds_xlsx_rows_in_memory_without_losing_the_source_row_count() {
+    let directory =
+        std::env::temp_dir().join(format!("bloomery-steel-xlsx-{}", uuid::Uuid::new_v4()));
+    fs::create_dir_all(&directory).expect("create large XLSX fixture directory");
+    let path = directory.join("large.xlsx");
+    let file = fs::File::create(&path).expect("create large XLSX fixture");
+    let mut archive = zip::ZipWriter::new(file);
+    archive
+        .start_file("xl/workbook.xml", SimpleFileOptions::default())
+        .expect("start workbook");
+    archive
+        .write_all(
+            br#"<workbook xmlns:r="r"><sheets><sheet name="Heat Data" r:id="rId1"/></sheets></workbook>"#,
+        )
+        .expect("write workbook");
+    archive
+        .start_file("xl/_rels/workbook.xml.rels", SimpleFileOptions::default())
+        .expect("start relationships");
+    archive
+        .write_all(
+            br#"<Relationships><Relationship Id="rId1" Target="worksheets/sheet1.xml"/></Relationships>"#,
+        )
+        .expect("write relationships");
+    archive
+        .start_file("xl/worksheets/sheet1.xml", SimpleFileOptions::default())
+        .expect("start worksheet");
+    archive
+        .write_all(br#"<worksheet><sheetData><row r="1"><c r="A1" t="inlineStr"><is><t>heat_id</t></is></c><c r="B1" t="inlineStr"><is><t>yield_strength</t></is></c></row>"#)
+        .expect("write worksheet header");
+    for row in 2..=100_002 {
+        write!(
+            archive,
+            r#"<row r="{row}"><c r="A{row}" t="inlineStr"><is><t>H-{row}</t></is></c><c r="B{row}"><v>355</v></c></row>"#
+        )
+        .expect("write worksheet row");
+    }
+    archive
+        .write_all(b"</sheetData></worksheet>")
+        .expect("finish worksheet XML");
+    archive.finish().expect("finish large XLSX fixture");
+
+    let request = DatasetPreviewRequest {
+        source_path: path.to_string_lossy().into_owned(),
+        sheet: None,
+    };
+    let table = read_dataset_table(&request).expect("read bounded XLSX dataset table");
+    let preview = preview_dataset(&request).expect("preview bounded XLSX dataset table");
+
+    assert_eq!(table.rows.len(), 100_000);
+    assert_eq!(preview.row_count, 100_001);
+    assert!(preview.truncated);
+    assert_eq!(preview.sample_rows.len(), 20);
+
+    fs::remove_dir_all(directory).expect("remove large XLSX fixture directory");
+}
+
+#[test]
+fn xlsx_dataset_parser_only_reads_the_requested_sheet() {
+    let workbook = br#"<workbook xmlns:r="r"><sheets><sheet name="Broken" r:id="rId1"/><sheet name="Heat Data" r:id="rId2"/></sheets></workbook>"#;
+    let relationships = br#"<Relationships><Relationship Id="rId1" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Target="worksheets/sheet2.xml"/></Relationships>"#;
+    let shared_strings =
+        br#"<sst><si><t>grade</t></si><si><t>temperature</t></si><si><t>Q355B</t></si></sst>"#;
+    let broken = br#"<worksheet><sheetData><row r="1"><c r="A1" t="s"><v>999</v></c></row></sheetData></worksheet>"#;
+    let heat_data = br#"<worksheet><sheetData><row r="1"><c r="A1" t="s"><v>0</v></c><c r="B1" t="s"><v>1</v></c></row><row r="2"><c r="A2" t="s"><v>2</v></c><c r="B2"><f>1650-800</f><v>850</v></c></row></sheetData></worksheet>"#;
+    let xlsx = GeneratedXlsx::create(
+        "selected.xlsx",
+        &[
+            ("xl/workbook.xml", workbook),
+            ("xl/_rels/workbook.xml.rels", relationships),
+            ("xl/sharedStrings.xml", shared_strings),
+            ("xl/worksheets/sheet1.xml", broken),
+            ("xl/worksheets/sheet2.xml", heat_data),
+        ],
+    );
+
+    let table = read_dataset_table(&DatasetPreviewRequest {
+        source_path: xlsx.path().to_string_lossy().into_owned(),
+        sheet: Some("Heat Data".to_string()),
+    })
+    .expect("read only the requested worksheet");
+
+    assert_eq!(table.sheets, ["Broken", "Heat Data"]);
+    assert_eq!(table.selected_sheet, "Heat Data");
+    assert_eq!(table.headers, ["grade", "temperature"]);
+    assert_eq!(table.rows, [["Q355B", "=1650-800"]]);
+}
+
+#[test]
+fn xlsx_dataset_parser_preserves_logical_row_gaps() {
+    let workbook = br#"<workbook xmlns:r="r"><sheets><sheet name="Heat Data" r:id="rId1"/></sheets></workbook>"#;
+    let relationships = br#"<Relationships><Relationship Id="rId1" Target="worksheets/sheet1.xml"/></Relationships>"#;
+    let worksheet = br#"<worksheet><sheetData><row r="1"><c r="A1" t="inlineStr"><is><t>grade</t></is></c></row><row r="3"><c r="A3" t="inlineStr"><is><t>Q355B</t></is></c></row></sheetData></worksheet>"#;
+    let xlsx = GeneratedXlsx::create(
+        "sparse.xlsx",
+        &[
+            ("xl/workbook.xml", workbook),
+            ("xl/_rels/workbook.xml.rels", relationships),
+            ("xl/worksheets/sheet1.xml", worksheet),
+        ],
+    );
+
+    let table = read_dataset_table(&DatasetPreviewRequest {
+        source_path: xlsx.path().to_string_lossy().into_owned(),
+        sheet: None,
+    })
+    .expect("read sparse worksheet");
+
+    assert_eq!(table.row_count, 2);
+    assert_eq!(table.rows, [[""], ["Q355B"]]);
+}
+
+#[test]
+fn xlsx_dataset_parser_skips_empty_sheets_when_no_sheet_is_requested() {
+    let workbook = br#"<workbook xmlns:r="r"><sheets><sheet name="Cover" r:id="rId1"/><sheet name="Heat Data" r:id="rId2"/></sheets></workbook>"#;
+    let relationships = br#"<Relationships><Relationship Id="rId1" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Target="worksheets/sheet2.xml"/></Relationships>"#;
+    let cover = br#"<worksheet><sheetData></sheetData></worksheet>"#;
+    let heat_data = br#"<worksheet><sheetData><row r="1"><c r="A1" t="inlineStr"><is><t>grade</t></is></c></row><row r="2"><c r="A2" t="inlineStr"><is><t>Q355B</t></is></c></row></sheetData></worksheet>"#;
+    let xlsx = GeneratedXlsx::create(
+        "with-cover.xlsx",
+        &[
+            ("xl/workbook.xml", workbook),
+            ("xl/_rels/workbook.xml.rels", relationships),
+            ("xl/worksheets/sheet1.xml", cover),
+            ("xl/worksheets/sheet2.xml", heat_data),
+        ],
+    );
+
+    let table = read_dataset_table(&DatasetPreviewRequest {
+        source_path: xlsx.path().to_string_lossy().into_owned(),
+        sheet: None,
+    })
+    .expect("select first non-empty worksheet by default");
+
+    assert_eq!(table.sheets, ["Heat Data"]);
+    assert_eq!(table.selected_sheet, "Heat Data");
+    assert_eq!(table.rows, [["Q355B"]]);
+}
+
+#[test]
+fn xlsx_dataset_parser_does_not_decode_values_after_the_preview_limit() {
+    let directory =
+        std::env::temp_dir().join(format!("bloomery-steel-xlsx-{}", uuid::Uuid::new_v4()));
+    fs::create_dir_all(&directory).expect("create capped XLSX fixture directory");
+    let path = directory.join("capped.xlsx");
+    let file = fs::File::create(&path).expect("create capped XLSX fixture");
+    let mut archive = zip::ZipWriter::new(file);
+    archive
+        .start_file("xl/workbook.xml", SimpleFileOptions::default())
+        .expect("start workbook");
+    archive
+        .write_all(
+            br#"<workbook xmlns:r="r"><sheets><sheet name="Heat Data" r:id="rId1"/></sheets></workbook>"#,
+        )
+        .expect("write workbook");
+    archive
+        .start_file("xl/_rels/workbook.xml.rels", SimpleFileOptions::default())
+        .expect("start relationships");
+    archive
+        .write_all(
+            br#"<Relationships><Relationship Id="rId1" Target="worksheets/sheet1.xml"/></Relationships>"#,
+        )
+        .expect("write relationships");
+    archive
+        .start_file("xl/sharedStrings.xml", SimpleFileOptions::default())
+        .expect("start shared strings");
+    archive
+        .write_all(br#"<sst><si><t>heat_id</t></si><si><t>H-1</t></si></sst>"#)
+        .expect("write shared strings");
+    archive
+        .start_file("xl/worksheets/sheet1.xml", SimpleFileOptions::default())
+        .expect("start worksheet");
+    archive
+        .write_all(br#"<worksheet><sheetData><row r="1"><c r="A1" t="s"><v>0</v></c></row>"#)
+        .expect("write worksheet header");
+    for row in 2..=100_001 {
+        write!(
+            archive,
+            r#"<row r="{row}"><c r="A{row}" t="s"><v>1</v></c></row>"#
+        )
+        .expect("write preview row");
+    }
+    archive
+        .write_all(
+            br#"<row r="100002"><c r="A100002" t="s"><v>999</v></c></row></sheetData></worksheet>"#,
+        )
+        .expect("write capped bad row");
+    archive.finish().expect("finish capped XLSX fixture");
+
+    let table = read_dataset_table(&DatasetPreviewRequest {
+        source_path: path.to_string_lossy().into_owned(),
+        sheet: None,
+    })
+    .expect("ignore bad shared string outside preview limit");
+
+    assert_eq!(table.rows.len(), 100_000);
+    assert_eq!(table.row_count, 100_001);
+    assert!(table.truncated);
+
+    fs::remove_dir_all(directory).expect("remove capped XLSX fixture directory");
 }
 
 #[test]

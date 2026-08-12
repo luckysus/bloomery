@@ -10,8 +10,10 @@ use ed25519_dalek::{Signer, SigningKey};
 use rusqlite::Connection;
 use serde_json::json;
 use std::fs;
+use std::io::Write;
 use std::path::{Path, PathBuf};
 use uuid::Uuid;
+use zip::write::SimpleFileOptions;
 
 struct TempPackage(PathBuf);
 
@@ -239,6 +241,38 @@ fn accepts_unsigned_package_as_explicit_third_party() {
     .expect("install unsigned package");
 
     assert_eq!(installed.trust, DomainTrust::ThirdPartyUnsigned);
+}
+
+#[test]
+fn rejects_zip_package_symlink_entries() {
+    let source = TempPackage::new();
+    let package_path = source.path().join("symlinked.zip");
+    let file = fs::File::create(&package_path).expect("create domain ZIP");
+    let mut archive = zip::ZipWriter::new(file);
+    archive
+        .start_file("manifest.json", SimpleFileOptions::default())
+        .expect("start manifest entry");
+    archive
+        .write_all(&serde_json::to_vec_pretty(&valid_manifest()).expect("serialize manifest"))
+        .expect("write manifest entry");
+    archive
+        .add_symlink(
+            "assets/steel.json",
+            "../../outside.json",
+            SimpleFileOptions::default(),
+        )
+        .expect("write symlink entry");
+    archive.finish().expect("finish domain ZIP");
+
+    let error = install_package(
+        &package_path,
+        TempPackage::new().path(),
+        "0.1.0",
+        &DomainTrustStore::default(),
+    )
+    .expect_err("ZIP symlink entry must be rejected");
+
+    assert!(error.to_string().contains("symlink") || error.to_string().contains("non-regular"));
 }
 
 #[test]

@@ -226,6 +226,12 @@ fn extract_archive(source: &Path, destination: &Path) -> Result<(), DomainError>
         let mut entry = archive
             .by_index(index)
             .map_err(|error| DomainError::InvalidResource(error.to_string()))?;
+        if entry.is_symlink() {
+            return Err(DomainError::InvalidResource(format!(
+                "archive symlink entry is not allowed: {}",
+                entry.name()
+            )));
+        }
         let raw_name = entry.name().to_string();
         let is_directory = entry.is_dir() || raw_name.ends_with('/') || raw_name.ends_with('\\');
         let (relative, path) =

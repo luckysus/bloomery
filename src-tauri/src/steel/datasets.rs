@@ -1,9 +1,8 @@
 mod csv;
+mod xlsx;
 
 use crate::permissions::path::authorize_existing_file;
 use crate::rag::ingest::SourceFormat;
-use crate::rag::model::SourceLocation;
-use crate::rag::parse::{parse_document, DocumentBlock, ParseLimits};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::collections::HashMap;
@@ -73,106 +72,11 @@ pub fn read_dataset_table(request: &DatasetPreviewRequest) -> Result<DatasetTabl
         .map_err(|error| format!("dataset source path is not authorized: {error}"))?;
     let path = path.canonical_path();
     let format = format_for_path(path)?;
-    if format == SourceFormat::Csv {
-        return csv::read_dataset_table(path, request.sheet.as_deref());
+    match format {
+        SourceFormat::Csv => csv::read_dataset_table(path, request.sheet.as_deref()),
+        SourceFormat::Xlsx => xlsx::read_dataset_table(path, request.sheet.as_deref()),
+        _ => Err(format!("unsupported dataset format: {}", format.as_str())),
     }
-    let parsed =
-        parse_document(path, format, ParseLimits::default()).map_err(|error| error.to_string())?;
-    let tables = parsed
-        .blocks
-        .iter()
-        .filter_map(|block| match block {
-            DocumentBlock::Table { location, rows } => Some((sheet_name(location), rows)),
-            _ => None,
-        })
-        .collect::<Vec<_>>();
-    if tables.is_empty() {
-        return Err("dataset does not contain a table".to_string());
-    }
-
-    let sheets = tables
-        .iter()
-        .map(|(sheet, _)| sheet.clone())
-        .collect::<Vec<_>>();
-    let selected_index = match request.sheet.as_deref() {
-        Some(requested) => sheets
-            .iter()
-            .position(|sheet| sheet == requested)
-            .ok_or_else(|| "requested dataset sheet was not found".to_string())?,
-        None => 0,
-    };
-    let selected_sheet = sheets[selected_index].clone();
-    let source_rows = tables[selected_index].1;
-    let width = source_rows.iter().map(Vec::len).max().unwrap_or(0);
-    if width > MAX_PREVIEW_COLUMNS {
-        return Err(format!(
-            "dataset has more than {MAX_PREVIEW_COLUMNS} columns"
-        ));
-    }
-    let headers = if source_rows.is_empty() || width == 0 {
-        Vec::new()
-    } else {
-        (0..width)
-            .map(|index| {
-                source_rows[0]
-                    .get(index)
-                    .map(String::as_str)
-                    .unwrap_or("")
-                    .trim()
-                    .to_string()
-            })
-            .enumerate()
-            .map(|(index, value)| {
-                if value.is_empty() {
-                    format!("column_{}", index + 1)
-                } else {
-                    value
-                }
-            })
-            .collect()
-    };
-    let row_count = source_rows.len().saturating_sub(1);
-    let rows = if source_rows.len() <= 1 {
-        Vec::new()
-    } else {
-        source_rows[1..]
-            .iter()
-            .take(MAX_PREVIEW_ROWS)
-            .map(|row| {
-                (0..width)
-                    .map(|index| row.get(index).cloned().unwrap_or_default())
-                    .collect()
-            })
-            .collect()
-    };
-    let truncated = row_count > rows.len();
-
-    let mut warnings = parsed
-        .warnings
-        .into_iter()
-        .map(|warning| warning.message)
-        .collect::<Vec<_>>();
-    if truncated {
-        warnings.push(format!(
-            "dataset preview is limited to the first {MAX_PREVIEW_ROWS} rows"
-        ));
-    }
-
-    Ok(DatasetTable {
-        source_name: path
-            .file_name()
-            .and_then(|name| name.to_str())
-            .unwrap_or("dataset")
-            .to_string(),
-        format: format.as_str().to_string(),
-        sheets,
-        selected_sheet,
-        headers,
-        rows,
-        row_count,
-        truncated,
-        warnings,
-    })
 }
 
 pub fn preview_dataset(request: &DatasetPreviewRequest) -> Result<DatasetPreview, String> {
@@ -313,13 +217,6 @@ fn format_for_path(path: &Path) -> Result<SourceFormat, String> {
         Some("xlsx") => Ok(SourceFormat::Xlsx),
         Some(extension) => Err(format!("unsupported dataset format: {extension}")),
         None => Err("dataset file extension is required".to_string()),
-    }
-}
-
-fn sheet_name(location: &SourceLocation) -> String {
-    match location {
-        SourceLocation::SheetRange { sheet, .. } => sheet.clone(),
-        _ => "DATA".to_string(),
     }
 }
 
