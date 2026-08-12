@@ -40,7 +40,7 @@ Bloomery is not another generic chat window. It helps users:
 
 The current development build includes:
 
-- a local `local` workspace without a Bloomery account, login page, or author-operated backend;
+- a local `local` workspace that does not depend on a Bloomery account or project-specific cloud service; users configure their own model, embedding, reranker, and document-parsing providers;
 - a Tauri 2 + Rust desktop agent host, with React using a single Tauri bridge;
 - SQLite persistence for conversations, messages, summaries, drafts, memories, settings, knowledge data, and background tasks;
 - OpenAI-compatible LLM and Ollama provider profiles;
@@ -55,7 +55,7 @@ The first complete public release additionally targets:
 - recoverable Agent Runs, context budgets, short- and long-term memory, cancellation, and failure recovery;
 - tool-call repair, a structured tool protocol, and automatic/confirmation/dangerous permission levels;
 - MCP stdio, Streamable HTTP, and SSE transports;
-- Skills compatible with `.claude/skills/<name>/SKILL.md`;
+- an extensible Markdown Skills system built around `SKILL.md` files;
 - verifiable domain packages and the official steel and materials package;
 - production-data import, deterministic calculations, model inference, prediction, and constrained optimization;
 - conversation export, full backup and restore, diagnostics, updates, and Windows release packaging.
@@ -88,9 +88,8 @@ Key boundaries:
 - React owns presentation and short-lived UI state;
 - Rust owns agent execution, context, providers, retrieval, permissions, tasks, and persistence;
 - SQLite is authoritative, while vector indexes are rebuildable derived data;
-- providers expose explicit capabilities instead of relying on provider-name heuristics;
-- domain packages cannot bypass the tool registry or permission system, and cannot ship arbitrary executable code;
-- the frontend must not call external providers directly or hold full API keys.
+- providers, tools, and domain packages connect through controlled interfaces;
+- the frontend does not call external providers directly or hold full API keys.
 
 ## Provider setup
 
@@ -150,7 +149,7 @@ bloomery/
 |   |-- src/storage/          SQLite, migrations, and secret references
 |   |-- src/tasks/            Recoverable background tasks
 |   +-- tests/                Rust integration and architecture tests
-|-- docs/                     Protocol, design specs, benchmarks, and release plans
+|-- docs/                     Protocol, extension guides, benchmarks, and release documentation
 |-- scripts/                  Development helper scripts
 |-- start-desktop.bat         Windows development entry point
 |-- LICENSE                   Apache License 2.0
@@ -158,7 +157,7 @@ bloomery/
 +-- README.en.md              English README
 ~~~
 
-The public event protocol is documented in [`docs/PROTOCOL.md`](docs/PROTOCOL.md). Design specs and implementation plans live under `docs/superpowers/`; current source code and tests are the authority for implementation status.
+The public event protocol is documented in [`docs/PROTOCOL.md`](docs/PROTOCOL.md).
 
 More docs: [`CONTRIBUTING.md`](CONTRIBUTING.md) contributing guide, [`docs/extensions/mcp.md`](docs/extensions/mcp.md) MCP extensions, [`docs/extensions/skills.md`](docs/extensions/skills.md) Skills, [`docs/extensions/domain-packages.md`](docs/extensions/domain-packages.md) domain packages, [`docs/releases/building.md`](docs/releases/building.md) release builds, and [`docs/releases/case-study.md`](docs/releases/case-study.md) reproducible steel case study.
 
@@ -177,7 +176,7 @@ These phases are engineering dependencies, not separate MVP, Alpha, or Pro editi
 
 ## Contributing
 
-Issues, documentation, tests, and code contributions are welcome. Please read `docs/PROTOCOL.md` and the relevant design specs first, preserve the single Tauri bridge boundary, declare provider capabilities and error types, route new tools through the registry and permission policy, and do not commit API keys, enterprise data, real user sessions, build artifacts, or generated directories.
+Issues, documentation, tests, and code contributions are welcome. Please read `docs/PROTOCOL.md` and the relevant extension guides first, preserve the single Tauri bridge boundary, follow the existing provider and tool interfaces, and do not commit API keys, enterprise data, real user sessions, build artifacts, or generated directories.
 
 ~~~powershell
 Set-Location frontend

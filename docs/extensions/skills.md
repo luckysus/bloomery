@@ -1,6 +1,10 @@
-# Claude-Compatible Skills
+# Skills 扩展
 
-Bloomery reads read-only instruction packs from the Claude-compatible layout:
+Bloomery 使用基于 Markdown 的 `SKILL.md` 文件描述可复用的提示词和流程说明。为兼容现有生态，当前加载器支持 Claude Code 常用的 `.claude/skills/<skill-name>/SKILL.md` 目录布局。
+
+Bloomery reads read-only instruction packs from a standard `SKILL.md`
+directory layout. For compatibility with existing ecosystems, the current
+loader accepts the commonly used Claude Code layout:
 
 ```text
 .claude/skills/<skill-name>/SKILL.md
@@ -40,7 +44,7 @@ bounded before they enter the Agent context, and each run records the exact
 `name@version#sha256` values that were enabled. The frontend receives summaries
 and content fingerprints, never the private prompt body.
 
-## Claude 兼容 Skills
+## 目录布局与兼容性
 
 Bloomery 支持 `.claude/skills/<name>/SKILL.md` 目录结构，并按用户、工作区、
 当前领域包三个范围加载。用户范围优先级最高，领域包范围最低；同名文件

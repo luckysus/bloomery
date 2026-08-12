@@ -40,7 +40,7 @@ Bloomery 不是又一个通用聊天窗口。它让用户能够：
 
 当前开发版已具备以下基础能力：
 
-- 本地 `local` 工作区，无需 Bloomery 账号、登录页或作者维护的后端；
+- 本地 `local` 工作区，不依赖 Bloomery 账号或项目专属云端服务；模型、Embedding、Reranker 和文档解析服务由用户自行配置；
 - Tauri 2 + Rust 驱动的桌面 Agent 主机，React 只通过单一 Tauri bridge 调用本地能力；
 - SQLite 本地持久化会话、消息、摘要、草稿、记忆、设置、知识库和后台任务；
 - OpenAI-compatible LLM 与 Ollama Provider 配置；
@@ -55,7 +55,7 @@ Bloomery 不是又一个通用聊天窗口。它让用户能够：
 - 可恢复的 Agent Run、上下文预算、短期与长期记忆、取消和异常恢复；
 - Tool-Call Repair、结构化工具协议和自动/确认/危险权限等级；
 - MCP stdio、Streamable HTTP 和 SSE 传输；
-- 兼容 `.claude/skills/<name>/SKILL.md` 的 Skills 体系；
+- 基于 Markdown `SKILL.md` 文件的可扩展 Skills 体系；
 - 可校验的领域包机制，以及官方钢铁与材料领域包；
 - 生产数据导入、确定性计算、模型推理、预测和受约束优化；
 - 会话导出、完整备份恢复、诊断页、更新和 Windows 安装发布流程。
@@ -88,9 +88,8 @@ flowchart LR
 - React 负责界面和短生命周期状态；
 - Rust 负责 Agent、上下文、Provider、检索、权限、任务和持久化；
 - SQLite 是权威数据源，向量索引是可重建的派生数据；
-- Provider 通过显式能力接口接入，Agent 不根据服务商名称猜测能力；
-- 领域包不能绕过工具注册表和权限系统，也不能携带任意可执行代码；
-- 前端不得直接调用外部 Provider，不得持有完整 API Key。
+- Provider、工具和领域包都通过受控接口接入；
+- 前端不直接调用外部 Provider，也不持有完整 API Key。
 
 ## Provider 配置
 
@@ -150,7 +149,7 @@ bloomery/
 |   |-- src/storage/          SQLite、迁移和凭据引用
 |   |-- src/tasks/            可恢复后台任务
 |   +-- tests/                Rust 集成与架构测试
-|-- docs/                     协议、设计规格、基准和发布计划
+|-- docs/                     协议、扩展指南、基准和发布文档
 |-- scripts/                  开发辅助脚本
 |-- start-desktop.bat         Windows 开发启动入口
 |-- LICENSE                   Apache License 2.0
@@ -158,7 +157,7 @@ bloomery/
 +-- README.en.md              English README
 ~~~
 
-公开事件协议位于 [`docs/PROTOCOL.md`](docs/PROTOCOL.md)。设计规格和实施计划位于 `docs/superpowers/`；当前代码与测试是实现状态的最终依据。
+公开事件协议位于 [`docs/PROTOCOL.md`](docs/PROTOCOL.md)。
 
 更多文档：[`CONTRIBUTING.md`](CONTRIBUTING.md) 贡献指南、[`docs/extensions/mcp.md`](docs/extensions/mcp.md) MCP 扩展、[`docs/extensions/skills.md`](docs/extensions/skills.md) Skills、[`docs/extensions/domain-packages.md`](docs/extensions/domain-packages.md) 领域包、[`docs/releases/building.md`](docs/releases/building.md) 发布构建、[`docs/releases/case-study.md`](docs/releases/case-study.md) 可复现钢铁案例研究。
 
@@ -177,7 +176,7 @@ bloomery/
 
 ## 贡献指南
 
-欢迎提交问题、文档、测试和代码贡献。请先阅读 `docs/PROTOCOL.md` 和相关设计规格，保持单一 Tauri bridge 边界，新 Provider 声明能力和错误类型，新工具通过注册表和权限策略，并且不要提交 API Key、企业数据、真实用户会话、构建产物或生成目录。
+欢迎提交问题、文档、测试和代码贡献。请先阅读 `docs/PROTOCOL.md` 及相关扩展文档，保持单一 Tauri bridge 边界，新 Provider 和工具遵循现有接口与权限策略，并且不要提交 API Key、企业数据、真实用户会话、构建产物或生成目录。
 
 ~~~powershell
 Set-Location frontend
