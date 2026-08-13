@@ -5,6 +5,7 @@ use std::fmt::{Display, Formatter};
 const SUPPORTED_ELEMENTS: &[&str] = &[
     "Al", "B", "C", "Cr", "Cu", "Fe", "Mn", "Mo", "Nb", "Ni", "P", "S", "Si", "Ti", "V",
 ];
+const COMPOSITION_TOTAL_TOLERANCE: f64 = 1e-9;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -81,6 +82,9 @@ pub enum SteelCalculationError {
         value: f64,
         unit: CompositionUnit,
     },
+    CompositionTotalOutOfRange {
+        total_percent_mass: f64,
+    },
 }
 
 impl Display for SteelCalculationError {
@@ -98,6 +102,10 @@ impl Display for SteelCalculationError {
             } => {
                 write!(formatter, "{element} value {value} is invalid for {unit:?}")
             }
+            Self::CompositionTotalOutOfRange { total_percent_mass } => write!(
+                formatter,
+                "composition total {total_percent_mass} exceeds 100 percent by mass"
+            ),
         }
     }
 }
@@ -134,6 +142,10 @@ pub fn calculate_carbon_equivalent(
             }
         };
         normalized_inputs.insert(element.clone(), normalized);
+    }
+    let total_percent_mass = normalized_inputs.values().sum::<f64>();
+    if total_percent_mass > 100.0 + COMPOSITION_TOTAL_TOLERANCE {
+        return Err(SteelCalculationError::CompositionTotalOutOfRange { total_percent_mass });
     }
     for element in formula.required_elements() {
         if !normalized_inputs.contains_key(*element) {

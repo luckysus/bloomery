@@ -130,6 +130,31 @@ fn calculator_rejects_invalid_values_without_silent_coercion() {
     ));
 }
 
+#[test]
+fn calculator_rejects_compositions_whose_total_exceeds_one_hundred_percent() {
+    let error = calculate_carbon_equivalent(
+        &composition(
+            &[
+                ("C", 90.0),
+                ("Mn", 20.0),
+                ("Cr", 0.0),
+                ("Mo", 0.0),
+                ("V", 0.0),
+                ("Ni", 0.0),
+                ("Cu", 0.0),
+            ],
+            CompositionUnit::PercentMass,
+        ),
+        CarbonEquivalentFormula::Iiw,
+    )
+    .expect_err("composition totals above 100% must be rejected");
+
+    assert!(matches!(
+        error,
+        SteelCalculationError::CompositionTotalOutOfRange { .. }
+    ));
+}
+
 #[tokio::test]
 async fn carbon_equivalent_tool_returns_an_audited_result() {
     let registration = carbon_equivalent_tool();
