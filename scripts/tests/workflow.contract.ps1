@@ -44,4 +44,22 @@ if ($releaseWorkflow -notmatch 'release-check\.ps1 -Signed -Package') {
     throw ".github\workflows\release.yml must run signed updater release checks"
 }
 
+$qualityWorkflow = Get-Content -LiteralPath (Join-Path $repoRoot ".github\workflows\quality.yml") -Raw
+foreach ($requiredBenchmark in @(
+    "benchmark-retrieval\.ps1",
+    "benchmark-dataset-import\.ps1",
+    "benchmark-agent-performance\.ps1",
+    "benchmark-startup\.ps1"
+)) {
+    if ($qualityWorkflow -notmatch $requiredBenchmark) {
+        throw ".github\workflows\quality.yml must run performance gate: $requiredBenchmark"
+    }
+}
+if ($releaseWorkflow -notmatch 'release-check\.ps1 -WithE2E -Package -Performance') {
+    throw ".github\workflows\release.yml must run performance gates for unsigned candidates"
+}
+if ($releaseWorkflow -notmatch 'release-check\.ps1 -Signed -Package -Performance') {
+    throw ".github\workflows\release.yml must run performance gates for signed candidates"
+}
+
 Write-Output "Workflow contract passed."

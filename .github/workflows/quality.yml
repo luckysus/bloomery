@@ -73,6 +73,22 @@ jobs:
         shell: pwsh
         run: .\scripts\test.ps1 -Stage rust
 
+      - name: Run retrieval performance benchmark
+        shell: pwsh
+        run: .\scripts\benchmark-retrieval.ps1
+
+      - name: Run dataset import performance benchmark
+        shell: pwsh
+        run: .\scripts\benchmark-dataset-import.ps1
+
+      - name: Run agent performance benchmark
+        shell: pwsh
+        run: .\scripts\benchmark-agent-performance.ps1
+
+      - name: Run startup and idle memory benchmark
+        shell: pwsh
+        run: .\scripts\benchmark-startup.ps1
+
       - name: Check whitespace
         shell: pwsh
         run: git diff --check

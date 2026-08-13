@@ -63,7 +63,7 @@ jobs:
 
       - name: Build and verify unsigned candidate
         shell: pwsh
-        run: .\scripts\release-check.ps1 -WithE2E -Package
+        run: .\scripts\release-check.ps1 -WithE2E -Package -Performance
 
       - name: Upload candidate artifacts
         uses: actions/upload-artifact@v4
@@ -123,7 +123,7 @@ jobs:
           BLOOMERY_UPDATER_PUBLIC_KEY: ${{ vars.BLOOMERY_UPDATER_PUBLIC_KEY }}
           BLOOMERY_UPDATER_ENDPOINT: https://github.com/luckysus/bloomery/releases/latest/download/latest.json
           BLOOMERY_RELEASE_ASSET_BASE_URL: https://github.com/luckysus/bloomery/releases/download/${{ github.ref_name }}
-        run: .\scripts\release-check.ps1 -Signed -Package
+        run: .\scripts\release-check.ps1 -Signed -Package -Performance
 
       - name: Upload signed candidate artifacts
         uses: actions/upload-artifact@v4
