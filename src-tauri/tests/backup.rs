@@ -1,5 +1,12 @@
 use bloomery::storage::backup::{create_backup, preview_backup, restore_backup};
 use bloomery::storage::migrations::migrate;
+use bloomery::{
+    domains::{install_package, DomainTrustStore},
+    storage::{
+        backup::restore_backup_with_domain_validation,
+        repositories::domains::upsert as upsert_domain_package,
+    },
+};
 use rusqlite::Connection;
 use serde_json::json;
 use std::fs;
@@ -9,6 +16,27 @@ use zip::write::SimpleFileOptions;
 
 fn fixture_root(label: &str) -> std::path::PathBuf {
     std::env::temp_dir().join(format!("bloomery-backup-{label}-{}", Uuid::new_v4()))
+}
+
+fn write_domain_package(root: &std::path::Path) {
+    fs::create_dir_all(root.join("assets")).expect("create domain package assets");
+    fs::write(root.join("assets/steel.json"), "{\"grade\":\"Q355B\"}")
+        .expect("write domain package asset");
+    fs::write(
+        root.join("manifest.json"),
+        serde_json::to_vec_pretty(&json!({
+            "id": "steel",
+            "version": "1.0.0",
+            "compatibility": {"min_app_version": "0.1.0", "max_app_version": null},
+            "author": "Bloomery contributors",
+            "license": "Apache-2.0",
+            "prompts": {"system": "Use steel terminology.", "workflow": "Cite sources."},
+            "retrieval": {"required_tags": ["steel"], "citation_required": true, "max_evidence_items": 12},
+            "assets": [{"path": "assets/steel.json", "kind": "terminology", "sha256": null}]
+        }))
+        .expect("serialize domain package manifest"),
+    )
+    .expect("write domain package manifest");
 }
 
 #[test]
@@ -140,6 +168,63 @@ fn restore_replaces_existing_database_and_content() {
 
     drop(restored);
     drop(source);
+    fs::remove_dir_all(root).expect("remove fixture");
+}
+
+#[test]
+fn restore_rejects_tampered_domain_package_without_touching_target() {
+    let root = fixture_root("tampered-domain");
+    let domain_source = root.join("domain-source");
+    let domains_root = root.join("domains");
+    write_domain_package(&domain_source);
+    let installed = install_package(
+        &domain_source,
+        &domains_root,
+        "1.0.0",
+        &DomainTrustStore::default(),
+    )
+    .expect("install domain package");
+
+    let source_database = root.join("source.sqlite3");
+    let mut source = Connection::open(&source_database).expect("open source database");
+    migrate(&mut source).expect("migrate source database");
+    upsert_domain_package(&mut source, "local", &installed).expect("persist domain package");
+    let archive = root.join("tampered-domain.bloomery-backup");
+    create_backup(
+        &source,
+        &source_database,
+        &root.join("source-content"),
+        &archive,
+    )
+    .expect("create backup");
+    drop(source);
+
+    fs::write(
+        domains_root.join("steel/1.0.0/assets/steel.json"),
+        "{\"grade\":\"tampered\"}",
+    )
+    .expect("tamper installed domain package");
+
+    let target_database = root.join("target.sqlite3");
+    let target_content = root.join("target-content");
+    seed_target(&target_database, &target_content);
+
+    let error = restore_backup_with_domain_validation(
+        &archive,
+        &target_database,
+        &target_content,
+        &domains_root,
+        "1.0.0",
+        &DomainTrustStore::default(),
+    )
+    .expect_err("tampered domain package must reject restore");
+    assert!(
+        error.contains("metadata does not match")
+            || error.contains("domain package verification failed"),
+        "unexpected error: {error}"
+    );
+    assert_target_intact(&target_database, &target_content);
+    assert_no_staging_leftovers(&root);
     fs::remove_dir_all(root).expect("remove fixture");
 }
 

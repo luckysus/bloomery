@@ -8,6 +8,10 @@ on:
         required: true
         default: false
         type: boolean
+      release_tag:
+        description: "Semantic release tag to verify and publish, for example v1.0.0"
+        required: true
+        type: string
   push:
     tags:
       - "v*"
@@ -68,29 +72,53 @@ jobs:
       - name: Upload candidate artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: bloomery-release-candidate-${{ github.sha }}
+          name: bloomery-release-candidate-${{ github.run_id }}
           path: artifacts/Bloomery-*/
           if-no-files-found: error
           retention-days: 14
 
   signed-windows-release:
     if: >-
-      github.ref_type == 'tag' &&
-      startsWith(github.ref_name, 'v') &&
-      (
-        github.event_name == 'push' ||
-        (github.event_name == 'workflow_dispatch' && inputs.signed == true)
-      )
+      github.event_name == 'workflow_dispatch' &&
+      github.ref == 'refs/heads/main' &&
+      inputs.signed == true
+    needs: windows-release-candidate
     runs-on: windows-latest
     timeout-minutes: 60
     environment: bloomery-release
     permissions:
       contents: read
     steps:
-      - name: Checkout
+      # Only the protected main branch is executed after release secrets are
+      # injected. The requested tag is fetched as metadata and never checked
+      # out or used as a script source.
+      - name: Checkout trusted main source
         uses: actions/checkout@v5
         with:
+          ref: main
           fetch-depth: 0
+
+      - name: Verify release tag points to trusted main
+        shell: pwsh
+        env:
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          $tag = [string]$env:RELEASE_TAG
+          if ($tag -notmatch '^v[0-9]+\.[0-9]+\.[0-9]+$') {
+            throw "Signed release requires a semantic version tag input, got $tag"
+          }
+          git fetch --force origin ("refs/tags/{0}:refs/tags/{0}" -f $tag)
+          if ($LASTEXITCODE -ne 0) {
+            throw "Unable to fetch release tag metadata: $tag"
+          }
+          $tagCommit = (git rev-list -n 1 ("refs/tags/{0}" -f $tag)).Trim()
+          if ($LASTEXITCODE -ne 0) {
+            throw "Unable to resolve release tag commit: $tag"
+          }
+          $trustedCommit = (git rev-parse "HEAD").Trim()
+          if ($LASTEXITCODE -ne 0 -or $tagCommit -ne $trustedCommit) {
+            throw "Release tag $tag does not point to trusted main commit $trustedCommit"
+          }
 
       - name: Set up Node.js
         uses: actions/setup-node@v5
@@ -136,25 +164,25 @@ jobs:
           BLOOMERY_OFFICIAL_PUBLIC_KEY_2026: ${{ vars.BLOOMERY_OFFICIAL_PUBLIC_KEY_2026 }}
           BLOOMERY_UPDATER_PUBLIC_KEY: ${{ vars.BLOOMERY_UPDATER_PUBLIC_KEY }}
           BLOOMERY_UPDATER_ENDPOINT: https://github.com/luckysus/bloomery/releases/latest/download/latest.json
-          BLOOMERY_RELEASE_ASSET_BASE_URL: https://github.com/luckysus/bloomery/releases/download/${{ github.ref_name }}
-        run: .\scripts\release-check.ps1 -WithE2E -Signed -RequireSigned -RequireTagVersion -Package -Performance -InstallerSmoke
+          BLOOMERY_RELEASE_ASSET_BASE_URL: https://github.com/luckysus/bloomery/releases/download/${{ inputs.release_tag }}
+          GITHUB_REF_TYPE: tag
+          GITHUB_REF_NAME: ${{ inputs.release_tag }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: .\scripts\release-check.ps1 -WithE2E -Signed -RequireSigned -RequireTagVersion -ReleaseTag $env:RELEASE_TAG -Package -Performance -InstallerSmoke
 
       - name: Upload signed candidate artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: bloomery-signed-candidate-${{ github.sha }}
+          name: bloomery-signed-candidate-${{ github.run_id }}
           path: artifacts/Bloomery-*/
           if-no-files-found: error
           retention-days: 14
 
   publish-release:
     if: >-
-      github.ref_type == 'tag' &&
-      startsWith(github.ref_name, 'v') &&
-      (
-        github.event_name == 'push' ||
-        (github.event_name == 'workflow_dispatch' && inputs.signed == true)
-      )
+      github.event_name == 'workflow_dispatch' &&
+      github.ref == 'refs/heads/main' &&
+      inputs.signed == true
     needs: signed-windows-release
     runs-on: windows-latest
     timeout-minutes: 15
@@ -162,27 +190,39 @@ jobs:
     permissions:
       contents: write
     steps:
-      - name: Checkout tag
+      - name: Checkout trusted main metadata
         uses: actions/checkout@v5
         with:
+          ref: main
           fetch-depth: 0
 
       - name: Verify release tag
         shell: pwsh
+        env:
+          RELEASE_TAG: ${{ inputs.release_tag }}
         run: |
-          $tag = $env:GITHUB_REF_NAME
-          if ($env:GITHUB_REF_TYPE -ne "tag" -or $tag -notmatch '^v[0-9]+\.[0-9]+\.[0-9]+$') {
+          $tag = [string]$env:RELEASE_TAG
+          if ($tag -notmatch '^v[0-9]+\.[0-9]+\.[0-9]+$') {
             throw "Publishing requires a semantic version tag, got $tag"
+          }
+          git fetch --force origin ("refs/tags/{0}:refs/tags/{0}" -f $tag)
+          if ($LASTEXITCODE -ne 0) {
+            throw "Git tag fetch failed for $tag"
           }
           git show-ref --verify --quiet "refs/tags/$tag"
           if ($LASTEXITCODE -ne 0) {
             throw "Git tag verification failed for $tag"
           }
+          $tagCommit = (git rev-list -n 1 "refs/tags/$tag").Trim()
+          $trustedCommit = (git rev-parse "HEAD").Trim()
+          if ($tagCommit -ne $trustedCommit) {
+            throw "Release tag $tag does not point to trusted main commit $trustedCommit"
+          }
 
       - name: Download verified signed artifacts
         uses: actions/download-artifact@v5
         with:
-          name: bloomery-signed-candidate-${{ github.sha }}
+          name: bloomery-signed-candidate-${{ github.run_id }}
           path: artifacts
 
       - name: Validate release artifact set
@@ -268,9 +308,10 @@ jobs:
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
         run: |
           $assets = @(Get-ChildItem -LiteralPath artifacts -File -Recurse | ForEach-Object { $_.FullName })
-          gh release create $env:GITHUB_REF_NAME @assets `
+          gh release create $env:RELEASE_TAG @assets `
             --verify-tag `
-            --title "Bloomery $env:GITHUB_REF_NAME" `
+            --title "Bloomery $env:RELEASE_TAG" `
             --generate-notes

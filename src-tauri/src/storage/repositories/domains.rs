@@ -79,6 +79,21 @@ pub fn list(
         .map_err(|error| error.to_string())
 }
 
+pub fn list_all(connection: &Connection) -> Result<Vec<DomainPackageRecord>, String> {
+    let mut statement = connection
+        .prepare(
+            "SELECT id, version, path, package_sha256, trust, manifest_json, installed_at, active
+             FROM domain_packages
+             ORDER BY workspace_id, id, version",
+        )
+        .map_err(|error| error.to_string())?;
+    let rows = statement
+        .query_map([], map_record)
+        .map_err(|error| error.to_string())?;
+    rows.collect::<Result<Vec<_>, _>>()
+        .map_err(|error| error.to_string())
+}
+
 /// Return all currently active domain package manifests for the workspace.
 ///
 /// Each package id has at most one active version, while different package ids may be active

@@ -119,10 +119,17 @@ try {
 }
 finally {
     if ($certificate -and $certificate.Thumbprint -and -not $certificateWasAlreadyPresent) {
-        Remove-Item -LiteralPath ("Cert:\CurrentUser\My\" + $certificate.Thumbprint) -Force -ErrorAction SilentlyContinue
+        $certificatePath = "Cert:\CurrentUser\My\" + $certificate.Thumbprint
+        Remove-Item -LiteralPath $certificatePath -Force
+        if (Test-Path -LiteralPath $certificatePath) {
+            throw "Failed to remove imported Authenticode certificate"
+        }
     }
     if (Test-Path -LiteralPath $temporaryRoot) {
-        Remove-Item -LiteralPath $temporaryRoot -Recurse -Force -ErrorAction SilentlyContinue
+        Remove-Item -LiteralPath $temporaryRoot -Recurse -Force
+        if (Test-Path -LiteralPath $temporaryRoot) {
+            throw "Failed to remove Authenticode PFX staging directory"
+        }
     }
     Remove-Variable pfxBytes, pfxPassword, securePassword -ErrorAction SilentlyContinue
 }

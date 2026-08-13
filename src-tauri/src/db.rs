@@ -167,7 +167,15 @@ pub fn restore_backup_archive(
 
     let database = database_path(&app)?;
     let content_root = content_root_for(&database)?;
-    let result = crate::storage::backup::restore_backup(&archive_path, &database, &content_root);
+    let domains_root = app_data_directory(&app)?.join("domains");
+    let result = crate::storage::backup::restore_backup_with_domain_validation(
+        &archive_path,
+        &database,
+        &content_root,
+        &domains_root,
+        env!("CARGO_PKG_VERSION"),
+        &crate::domains::official_trust_store(),
+    );
     let reinitialized = db_init(app, db, scheduler_state);
     match (result, reinitialized) {
         (Ok(summary), Ok(())) => Ok(summary),

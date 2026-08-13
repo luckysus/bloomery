@@ -34,9 +34,11 @@ const emptyDraft = (): Draft => ({
   args: [],
   working_directory: null,
   inherited_env: [],
+  replace_inherited_env: true,
   env_values: {},
   bearer_token: "",
   clear_bearer_token: false,
+  clear_environment_credentials: false,
   timeout_ms: 30000,
   enabled: true,
 });
@@ -122,8 +124,10 @@ export default function McpServersPanel() {
         executable: draft.transport === "stdio" ? draft.executable : null,
         args: parseLines(argsText),
         inherited_env: parseLines(inheritedText),
+        replace_inherited_env: true,
         env_values: environment,
         bearer_token: draft.bearer_token || undefined,
+        clear_environment_credentials: draft.clear_environment_credentials,
       };
       const saved = await desktop.saveMcpServer(payload);
       setServers((current) => updateServer(current, saved));
@@ -180,15 +184,17 @@ export default function McpServersPanel() {
       executable: server.executable,
       args: server.args,
       working_directory: server.working_directory,
-      inherited_env: [],
+      inherited_env: server.inherited_env,
+      replace_inherited_env: true,
       env_values: {},
       bearer_token: "",
       clear_bearer_token: false,
+      clear_environment_credentials: false,
       timeout_ms: server.timeout_ms,
       enabled: server.enabled,
     });
     setArgsText(server.args.join("\n"));
-    setInheritedText("");
+    setInheritedText(server.inherited_env.join("\n"));
     setEnvironmentText("");
     setNotice(t("extensionsMcpEditing"));
   };
@@ -228,7 +234,9 @@ export default function McpServersPanel() {
           <label><span>{t("extensionsMcpTimeout")}</span><input type="number" min="100" max="600000" step="100" value={draft.timeout_ms} onChange={(event) => setDraft({ ...draft, timeout_ms: Number(event.target.value) })} required /></label>
           <label><span>{t("extensionsMcpBearer")}</span><input type="password" value={draft.bearer_token} onChange={(event) => setDraft({ ...draft, bearer_token: event.target.value })} placeholder={t("extensionsMcpBearerPlaceholder")} autoComplete="new-password" /></label>
           <label className="bloomery-mcp-wide"><span>{t("extensionsMcpArguments")}</span><textarea value={argsText} onChange={(event) => setArgsText(event.target.value)} placeholder={t("extensionsMcpArgumentsPlaceholder")} /></label>
+          <label className="bloomery-mcp-wide"><span>{t("extensionsMcpInheritedEnvironment")}</span><textarea value={inheritedText} onChange={(event) => setInheritedText(event.target.value)} placeholder={t("extensionsMcpInheritedEnvironmentPlaceholder")} autoComplete="off" /></label>
           <label className="bloomery-mcp-wide"><span>{t("extensionsMcpEnvironment")}</span><textarea value={environmentText} onChange={(event) => setEnvironmentText(event.target.value)} placeholder={t("extensionsMcpEnvironmentPlaceholder")} autoComplete="off" /></label>
+          <label className="bloomery-mcp-checkbox bloomery-mcp-wide"><input type="checkbox" checked={draft.clear_environment_credentials} onChange={(event) => setDraft({ ...draft, clear_environment_credentials: event.target.checked })} /><span>{t("extensionsMcpClearEnvironment")}</span></label>
         </div>
         <div className="bloomery-mcp-form-actions"><button type="submit" className="bloomery-secondary-button" disabled={busy === "save"}><Save size={15} aria-hidden="true" />{busy === "save" ? t("extensionsMcpSaving") : t("extensionsMcpSave")}</button>{draft.id && <button type="button" className="bloomery-icon-button" onClick={() => setDraft(emptyDraft())} aria-label={t("extensionsMcpCancelEdit")} title={t("extensionsMcpCancelEdit")}><CircleX size={17} aria-hidden="true" /></button>}</div>
       </form>

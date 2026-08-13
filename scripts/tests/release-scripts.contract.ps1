@@ -50,7 +50,7 @@ if ($buildReleaseContent -notmatch "BLOOMERY_OFFICIAL_PRIVATE_KEY_2026" `
 if ($buildReleaseContent -notmatch "BLOOMERY_OFFICIAL_PRIVATE_KEY_2026.*64 hexadecimal characters") {
     throw "signed release must validate the official domain-package private seed"
 }
-if ($buildReleaseContent -notmatch 'Remove-Item Env:\\BLOOMERY_OFFICIAL_PRIVATE_KEY_2026') {
+if ($buildReleaseContent -notmatch 'Remove-EnvironmentVariable\s+"BLOOMERY_OFFICIAL_PRIVATE_KEY_2026"') {
     throw "build-release.ps1 must remove the official domain private seed before unrelated build steps"
 }
 if ($buildReleaseContent -notmatch '\$bundleRoot' -or
@@ -209,10 +209,24 @@ foreach ($requiredAuthenticodeText in @(
         throw "sign-authenticode.ps1 is missing required behavior: $requiredAuthenticodeText"
     }
 }
+if ($authenticodeContent -match 'Remove-Item -LiteralPath.*ErrorAction SilentlyContinue') {
+    throw "sign-authenticode.ps1 must fail closed when removing the certificate or PFX staging directory"
+}
+if ($authenticodeContent -notmatch 'Test-Path -LiteralPath \$temporaryRoot') {
+    throw "sign-authenticode.ps1 must verify removal of the PFX staging directory"
+}
 $buildScript = Join-Path $repoRoot "scripts\build-release.ps1"
 $buildReleaseContent = Get-Content -LiteralPath $buildScript -Raw
 if ($buildReleaseContent -notmatch "sign-authenticode\.ps1") {
     throw "build-release.ps1 must sign Windows release binaries before artifact finalization"
+}
+foreach ($stagingCleanupText in @(
+    'Remove-Item -LiteralPath $stage -Recurse -Force -ErrorAction SilentlyContinue',
+    'Remove-Item -LiteralPath $portableWorkerSource -Recurse -Force -ErrorAction SilentlyContinue'
+)) {
+    if ($buildReleaseContent.Contains($stagingCleanupText)) {
+        throw "build-release.ps1 must fail closed when release staging cleanup fails"
+    }
 }
 foreach ($requiredSignedArtifactText in @(
     'Authenticode compute Worker signature',
@@ -300,6 +314,17 @@ if ($releaseCheckContent -notmatch '\[switch\]\$Signed' -or
 }
 if ($releaseCheckContent -notmatch 'RequireSigned.*Signed|Signed.*RequireSigned') {
     throw "release-check.ps1 must require -Signed when -RequireSigned is requested"
+}
+$lifecycleCheckContent = Get-Content -LiteralPath (Join-Path $repoRoot "scripts\lifecycle-check.ps1") -Raw
+$lifecycleMatrixContent = Get-Content -LiteralPath (Join-Path $repoRoot "scripts\lifecycle-matrix.ps1") -Raw
+foreach ($lifecycleContent in @($lifecycleCheckContent, $lifecycleMatrixContent)) {
+    if ($lifecycleContent -match 'Remove-Item -LiteralPath \$tempRoot -Recurse -Force -ErrorAction SilentlyContinue') {
+        throw "lifecycle cleanup must fail closed when the temporary profile cannot be removed"
+    }
+}
+$sbomContentForCleanup = Get-Content -LiteralPath (Join-Path $repoRoot "scripts\generate-sbom.ps1") -Raw
+if ($sbomContentForCleanup -match 'Remove-Item -LiteralPath \$rustTempPath, \$npmErrorPath -Force -ErrorAction SilentlyContinue') {
+    throw "generate-sbom.ps1 must fail closed when temporary scan files cannot be removed"
 }
 foreach ($requiredPackageIsolationText in @(
     '$packageOutputPath',

@@ -125,6 +125,7 @@ describe("ExtensionsPage", () => {
       executable: "powershell.exe",
       args: ["-NoProfile"],
       working_directory: null,
+      inherited_env: ["SystemRoot"],
       env_names: ["STEEL_API_KEY"],
       timeout_ms: 30000,
       enabled: true,
@@ -154,5 +155,87 @@ describe("ExtensionsPage", () => {
     await waitFor(() => expect(desktop.checkMcpServer).toHaveBeenCalledWith("mcp-1"));
     expect(await screen.findByText("lookup")).toBeInTheDocument();
     expect(screen.getByText("extensionsMcpHealthy")).toBeInTheDocument();
+  });
+
+  it("repopulates inherited environment settings when editing an MCP server", async () => {
+    vi.mocked(desktop.listMcpServers).mockResolvedValue([{
+      id: "mcp-2",
+      display_name: "Steel MCP",
+      server_id: "steel-mcp",
+      transport: "stdio",
+      url: null,
+      executable: "powershell.exe",
+      args: ["-NoProfile"],
+      working_directory: null,
+      inherited_env: ["SystemRoot", "windir"],
+      env_names: ["STEEL_API_KEY"],
+      timeout_ms: 30000,
+      enabled: true,
+      secret_configured: true,
+      status: "unknown",
+      last_error: null,
+      last_checked_at: null,
+      tool_count: 0,
+    }]);
+
+    render(<ExtensionsPage />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "extensionsMcpEdit" }));
+
+    expect(screen.getByRole("textbox", { name: "extensionsMcpInheritedEnvironment" })).toHaveValue("SystemRoot\nwindir");
+  });
+
+  it("sends an explicit environment credential clear request", async () => {
+    vi.mocked(desktop.listMcpServers).mockResolvedValue([{
+      id: "mcp-3",
+      display_name: "Steel MCP",
+      server_id: "steel-mcp",
+      transport: "stdio",
+      url: null,
+      executable: "powershell.exe",
+      args: [],
+      working_directory: null,
+      inherited_env: [],
+      env_names: ["STEEL_API_KEY"],
+      timeout_ms: 30000,
+      enabled: true,
+      secret_configured: true,
+      status: "unknown",
+      last_error: null,
+      last_checked_at: null,
+      tool_count: 0,
+    }]);
+    vi.mocked(desktop.saveMcpServer).mockResolvedValue({
+      id: "mcp-3",
+      display_name: "Steel MCP",
+      server_id: "steel-mcp",
+      transport: "stdio",
+      url: null,
+      executable: "powershell.exe",
+      args: [],
+      working_directory: null,
+      inherited_env: [],
+      env_names: [],
+      timeout_ms: 30000,
+      enabled: true,
+      secret_configured: false,
+      status: "unknown",
+      last_error: null,
+      last_checked_at: null,
+      tool_count: 0,
+    });
+
+    render(<ExtensionsPage />);
+    fireEvent.click(await screen.findByRole("button", { name: "extensionsMcpEdit" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "extensionsMcpClearEnvironment" }));
+    fireEvent.click(screen.getByRole("button", { name: "extensionsMcpSave" }));
+
+    await waitFor(() =>
+      expect(desktop.saveMcpServer).toHaveBeenCalledWith(expect.objectContaining({
+        clear_environment_credentials: true,
+        env_values: {},
+        replace_inherited_env: true,
+      })),
+    );
   });
 });

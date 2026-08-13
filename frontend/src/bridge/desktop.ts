@@ -699,6 +699,7 @@ export interface McpServerSummary {
   executable: string | null;
   args: string[];
   working_directory: string | null;
+  inherited_env: string[];
   env_names: string[];
   timeout_ms: number;
   enabled: boolean;
@@ -719,9 +720,11 @@ export interface McpServerInput {
   args: string[];
   working_directory: string | null;
   inherited_env: string[];
+  replace_inherited_env?: boolean;
   env_values: Record<string, string>;
   bearer_token?: string;
   clear_bearer_token?: boolean;
+  clear_environment_credentials?: boolean;
   timeout_ms: number;
   enabled: boolean;
 }

@@ -10,6 +10,8 @@ use uuid::Uuid;
 use zip::write::SimpleFileOptions;
 use zip::{CompressionMethod, ZipArchive, ZipWriter};
 
+use crate::domains::{self, DomainTrustStore};
+
 const FORMAT_VERSION: u32 = 1;
 const DATABASE_ENTRY: &str = "bloomery.sqlite3";
 const CONTENT_PREFIX: &str = "content/";
@@ -183,6 +185,42 @@ pub fn restore_backup(
     database_path: &Path,
     content_root: &Path,
 ) -> Result<BackupSummary, String> {
+    restore_backup_internal(
+        archive_path,
+        database_path,
+        content_root,
+        None,
+        env!("CARGO_PKG_VERSION"),
+        &DomainTrustStore::default(),
+    )
+}
+
+pub fn restore_backup_with_domain_validation(
+    archive_path: &Path,
+    database_path: &Path,
+    content_root: &Path,
+    domains_root: &Path,
+    app_version: &str,
+    trust_store: &DomainTrustStore,
+) -> Result<BackupSummary, String> {
+    restore_backup_internal(
+        archive_path,
+        database_path,
+        content_root,
+        Some(domains_root),
+        app_version,
+        trust_store,
+    )
+}
+
+fn restore_backup_internal(
+    archive_path: &Path,
+    database_path: &Path,
+    content_root: &Path,
+    domains_root: Option<&Path>,
+    app_version: &str,
+    trust_store: &DomainTrustStore,
+) -> Result<BackupSummary, String> {
     let display_path = archive_path.to_path_buf();
     let authorized_archive = authorize_existing_file(archive_path)
         .map_err(|error| format!("backup archive path is not authorized: {error}"))?;
@@ -226,6 +264,9 @@ pub fn restore_backup(
         &staging_content,
         database_path,
         content_root,
+        domains_root,
+        app_version,
+        trust_store,
     );
     if result.is_err() {
         let _ = fs::remove_file(&staging_database);
@@ -299,6 +340,9 @@ fn extract_backup(
     staging_content: &Path,
     database_path: &Path,
     content_root: &Path,
+    domains_root: Option<&Path>,
+    app_version: &str,
+    trust_store: &DomainTrustStore,
 ) -> Result<(u64, u64), String> {
     let mut database_bytes = 0_u64;
     let mut content_bytes = 0_u64;
@@ -350,6 +394,9 @@ fn extract_backup(
     }
 
     validate_and_migrate_staged_database(staging_database)?;
+    if let Some(domains_root) = domains_root {
+        validate_staged_domain_packages(staging_database, domains_root, app_version, trust_store)?;
+    }
     install_restored_files(
         staging_database,
         staging_content,
@@ -357,6 +404,95 @@ fn extract_backup(
         content_root,
     )?;
     Ok((database_bytes, content_bytes))
+}
+
+fn validate_staged_domain_packages(
+    database_path: &Path,
+    domains_root: &Path,
+    app_version: &str,
+    trust_store: &DomainTrustStore,
+) -> Result<(), String> {
+    let connection = Connection::open(database_path)
+        .map_err(|error| format!("open restored database for domain validation failed: {error}"))?;
+    let records = crate::storage::repositories::domains::list_all(&connection)?;
+    let expected_root =
+        fs::canonicalize(domains_root).unwrap_or_else(|_| domains_root.to_path_buf());
+
+    for record in records {
+        for (field, value) in [
+            ("id", record.id.as_str()),
+            ("version", record.version.as_str()),
+        ] {
+            let path = Path::new(value);
+            if value.is_empty()
+                || path.components().count() != 1
+                || !matches!(path.components().next(), Some(Component::Normal(_)))
+            {
+                return Err(format!(
+                    "restored domain package {field} is unsafe: {value}"
+                ));
+            }
+        }
+        let stored_path = PathBuf::from(&record.path);
+        if !stored_path.is_absolute()
+            || stored_path
+                .components()
+                .any(|component| matches!(component, Component::ParentDir))
+        {
+            return Err(format!(
+                "restored domain package path is unsafe: {}",
+                record.path
+            ));
+        }
+        if !stored_path.is_dir() {
+            return Err(format!(
+                "restored domain package is missing: {}",
+                stored_path.display()
+            ));
+        }
+        let actual_path = fs::canonicalize(&stored_path).map_err(|error| {
+            format!(
+                "canonicalize restored domain package failed: {}: {error}",
+                stored_path.display()
+            )
+        })?;
+        let expected_path = fs::canonicalize(expected_root.join(&record.id).join(&record.version))
+            .map_err(|error| {
+                format!(
+                    "canonicalize expected domain package path failed: {}: {error}",
+                    record.path
+                )
+            })?;
+        if actual_path != expected_path {
+            return Err(format!(
+                "restored domain package path is outside the managed domain directory: {}",
+                record.path
+            ));
+        }
+        let (manifest, package_sha256, trust) =
+            domains::verify_installed_package(&actual_path, app_version, trust_store).map_err(
+                |error| {
+                    format!(
+                        "restored domain package verification failed: {}: {error}",
+                        actual_path.display()
+                    )
+                },
+            )?;
+        let manifest_matches = serde_json::to_value(&manifest)
+            .map_err(|error| format!("serialize restored domain manifest failed: {error}"))?
+            == serde_json::to_value(&record.manifest)
+                .map_err(|error| format!("serialize backup domain manifest failed: {error}"))?;
+        if !manifest_matches
+            || !package_sha256.eq_ignore_ascii_case(&record.package_sha256)
+            || trust != record.trust
+        {
+            return Err(format!(
+                "restored domain package metadata does not match installed contents: {}",
+                actual_path.display()
+            ));
+        }
+    }
+    Ok(())
 }
 
 fn validate_and_migrate_staged_database(path: &Path) -> Result<(), String> {

@@ -253,5 +253,12 @@ try {
     Write-Host ("SBOM and third-party notices written to " + $outputPath)
 }
 finally {
-    Remove-Item -LiteralPath $rustTempPath, $npmErrorPath -Force -ErrorAction SilentlyContinue
+    foreach ($temporaryPath in @($rustTempPath, $npmErrorPath)) {
+        if (Test-Path -LiteralPath $temporaryPath) {
+            Remove-Item -LiteralPath $temporaryPath -Force
+            if (Test-Path -LiteralPath $temporaryPath) {
+                throw "Failed to remove SBOM temporary file: $temporaryPath"
+            }
+        }
+    }
 }

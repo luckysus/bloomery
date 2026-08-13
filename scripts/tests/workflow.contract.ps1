@@ -40,6 +40,7 @@ foreach ($relativePath in $workflows) {
 }
 
 $releaseWorkflow = Get-Content -LiteralPath (Join-Path $repoRoot ".github\workflows\release.yml") -Raw
+$releaseWorkflowNormalized = $releaseWorkflow.Replace("\", "/")
 if ($releaseWorkflow -notmatch 'release-check\.ps1[^\r\n]*-Signed[^\r\n]*-Package') {
     throw ".github\workflows\release.yml must run signed updater release checks"
 }
@@ -57,8 +58,26 @@ foreach ($requiredSignedEnvironment in @(
 if ($releaseWorkflow -notmatch 'release-check\.ps1[^\r\n]*-Signed[^\r\n]*-RequireSigned[^\r\n]*-RequireTagVersion[^\r\n]*-Package') {
     throw ".github\workflows\release.yml must require signed artifacts and tag/version consistency"
 }
-if ($releaseWorkflow -notmatch 'github\.ref_type\s*==\s*''tag''|startsWith\(github\.ref,\s*''refs/tags/') {
-    throw ".github\workflows\release.yml must restrict signed releases to tag refs"
+if ($releaseWorkflow -notmatch 'github\.event_name\s*==\s*''workflow_dispatch''') {
+    throw ".github\workflows\release.yml must require an explicit protected manual dispatch for signed releases"
+}
+if ($releaseWorkflow -notmatch 'inputs\.signed\s*==\s*true') {
+    throw ".github\workflows\release.yml must require the signed confirmation input"
+}
+if ($releaseWorkflowNormalized -notmatch 'ref:\s*main') {
+    throw ".github\workflows\release.yml must check out the trusted main branch for signing"
+}
+if ($releaseWorkflow -match 'Checkout tag') {
+    throw ".github\workflows\release.yml must not check out the untrusted release tag in the signing job"
+}
+if ($releaseWorkflow -notmatch 'git\s+fetch[^\r\n]*refs/tags') {
+    throw ".github\workflows\release.yml must verify the requested release tag without executing tag source"
+}
+if ($releaseWorkflow -notmatch 'git\s+rev-list\s+-n\s+1') {
+    throw ".github\workflows\release.yml must compare the release tag commit with trusted main"
+}
+if ($releaseWorkflow -notmatch 'release_tag') {
+    throw ".github\workflows\release.yml must accept an explicit release tag input"
 }
 
 $qualityWorkflow = Get-Content -LiteralPath (Join-Path $repoRoot ".github\workflows\quality.yml") -Raw

@@ -58,6 +58,7 @@ pub(super) fn summary(
         working_directory: config
             .working_directory
             .map(|value| value.to_string_lossy().to_string()),
+        inherited_env: config.inherited_env,
         env_names,
         timeout_ms,
         enabled: config.enabled,
@@ -80,12 +81,19 @@ pub(super) fn input_config(
         .transpose()?
         .or_else(|| existing.map(|value| value.id))
         .unwrap_or_else(Uuid::new_v4);
-    let env_names = if input.env_values.is_empty() {
+    let env_names = if input.clear_environment_credentials || !input.env_values.is_empty() {
+        input.env_values.keys().cloned().collect()
+    } else {
         existing
             .map(|value| value.env_names.clone())
             .unwrap_or_default()
+    };
+    let inherited_env = if input.replace_inherited_env || existing.is_none() {
+        input.inherited_env
     } else {
-        input.env_values.keys().cloned().collect()
+        existing
+            .map(|value| value.inherited_env.clone())
+            .unwrap_or_default()
     };
     let timeout = Duration::from_millis(input.timeout_ms);
     let mut config = McpServerConfig {
@@ -97,7 +105,7 @@ pub(super) fn input_config(
         executable: input.executable.map(Into::into),
         args: input.args,
         working_directory: input.working_directory.map(Into::into),
-        inherited_env: input.inherited_env,
+        inherited_env,
         env_names,
         timeout,
         enabled: input.enabled,
@@ -428,7 +436,7 @@ fn desired_secrets(
 
     // An empty environment map means the UI did not reveal or edit secrets.
     // A non-empty map is an explicit replacement of the configured names.
-    if !input.env_values.is_empty() {
+    if input.clear_environment_credentials || !input.env_values.is_empty() {
         for name in names {
             if name != "bearer" {
                 desired.insert(name.clone(), None);
@@ -567,12 +575,14 @@ mod tests {
             args: vec!["-NoProfile".to_string()],
             working_directory: None,
             inherited_env: vec!["SystemRoot".to_string()],
+            replace_inherited_env: true,
             env_values: env_values
                 .iter()
                 .map(|(name, value)| ((*name).to_string(), (*value).to_string()))
                 .collect(),
             bearer_token: Some(bearer_token.to_string()),
             clear_bearer_token: false,
+            clear_environment_credentials: false,
             timeout_ms: 30_000,
             enabled: true,
         }
@@ -674,5 +684,79 @@ mod tests {
                 .as_deref(),
             Some("steel-key")
         );
+    }
+
+    #[test]
+    fn editing_without_environment_changes_preserves_existing_configuration() {
+        let id = Uuid::new_v4();
+        let previous = config(id, &["STEEL_KEY"]);
+        let input = McpServerInput {
+            id: Some(id.to_string()),
+            display_name: previous.display_name.clone(),
+            server_id: previous.server_id.clone(),
+            transport: previous.transport,
+            url: previous.url.clone(),
+            executable: previous
+                .executable
+                .as_ref()
+                .map(|value| value.to_string_lossy().to_string()),
+            args: previous.args.clone(),
+            working_directory: None,
+            inherited_env: Vec::new(),
+            replace_inherited_env: false,
+            env_values: BTreeMap::new(),
+            bearer_token: None,
+            clear_bearer_token: false,
+            clear_environment_credentials: false,
+            timeout_ms: previous.timeout.as_millis() as u64,
+            enabled: previous.enabled,
+        };
+
+        let next = input_config(input, Some(&previous)).expect("build edited config");
+
+        assert_eq!(next.inherited_env, previous.inherited_env);
+        assert_eq!(next.env_names, previous.env_names);
+    }
+
+    #[test]
+    fn explicitly_replaced_empty_inherited_environment_is_persisted() {
+        let id = Uuid::new_v4();
+        let previous = config(id, &["STEEL_KEY"]);
+        let mut input = input(id, &[], "bearer");
+        input.inherited_env = Vec::new();
+        input.replace_inherited_env = true;
+
+        let next = input_config(input, Some(&previous)).expect("build edited config");
+
+        assert!(next.inherited_env.is_empty());
+    }
+
+    #[test]
+    fn explicitly_cleared_environment_credentials_remove_configured_names() {
+        let id = Uuid::new_v4();
+        let previous = config(id, &["STEEL_KEY"]);
+        let mut input = input(id, &[], "new-bearer");
+        input.clear_environment_credentials = true;
+
+        let next = input_config(input, Some(&previous)).expect("build edited config");
+
+        assert!(next.env_names.is_empty());
+    }
+
+    #[test]
+    fn explicitly_empty_environment_values_remove_old_credentials() {
+        let id = Uuid::new_v4();
+        let previous = config(id, &["STEEL_KEY"]);
+        let mut input = input(id, &[], "new-bearer");
+        input.clear_environment_credentials = true;
+        let store = MemorySecretStore::default();
+        set_secret(&store, id, &env_credential_name("STEEL_KEY"), "old-key")
+            .expect("save previous environment credential");
+
+        let names = secret_names(&previous, None);
+        let desired = desired_secrets(&store, &previous, &input, &names)
+            .expect("build explicitly empty desired credentials");
+
+        assert_eq!(desired.get(&env_credential_name("STEEL_KEY")), Some(&None));
     }
 }

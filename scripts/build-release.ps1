@@ -48,6 +48,20 @@ function Invoke-Checked {
     }
 }
 
+function Remove-EnvironmentVariable {
+    param(
+        [Parameter(Mandatory = $true)][string]$Name
+    )
+
+    $path = "Env:\$Name"
+    if (Test-Path -LiteralPath $path) {
+        Remove-Item -LiteralPath $path -Force
+        if (Test-Path -LiteralPath $path) {
+            throw "Failed to remove sensitive environment variable: $Name"
+        }
+    }
+}
+
 function Copy-RequiredFile {
     param(
         [Parameter(Mandatory = $true)][string]$Source,
@@ -263,7 +277,7 @@ try {
             throw "Domain package signer completed without signature.json"
         }
         $domainSignatureCreated = $true
-        Remove-Item Env:\BLOOMERY_OFFICIAL_PRIVATE_KEY_2026 -ErrorAction SilentlyContinue
+        Remove-EnvironmentVariable "BLOOMERY_OFFICIAL_PRIVATE_KEY_2026"
     }
     if (-not (Test-Path -LiteralPath $workerBuildScript -PathType Leaf)) {
         throw "Compute worker build script is missing: $workerBuildScript"
@@ -364,14 +378,20 @@ try {
     } finally {
         if ($updaterConfigPath -and (Test-Path -LiteralPath $updaterConfigPath)) {
             Remove-Item -LiteralPath $updaterConfigPath -Force
+            if (Test-Path -LiteralPath $updaterConfigPath) {
+                throw "Failed to remove temporary updater configuration: $updaterConfigPath"
+            }
         }
     }
 } finally {
     if ($Signed) {
-        Remove-Item Env:\BLOOMERY_OFFICIAL_PRIVATE_KEY_2026 -ErrorAction SilentlyContinue
+        Remove-EnvironmentVariable "BLOOMERY_OFFICIAL_PRIVATE_KEY_2026"
     }
     if ($domainSignatureCreated -and (Test-Path -LiteralPath $domainSignaturePath -PathType Leaf)) {
         Remove-Item -LiteralPath $domainSignaturePath -Force
+        if (Test-Path -LiteralPath $domainSignaturePath -PathType Leaf) {
+            throw "Failed to remove temporary official domain package signature"
+        }
     }
     foreach ($artifactName in $workerArtifactNames) {
         $stagedArtifact = Join-Path $workerResourceRoot $artifactName
@@ -460,11 +480,17 @@ try {
 } finally {
     foreach ($stage in @($portableStage, $addonStage)) {
         if (Test-Path -LiteralPath $stage) {
-            Remove-Item -LiteralPath $stage -Recurse -Force -ErrorAction SilentlyContinue
+            Remove-Item -LiteralPath $stage -Recurse -Force
+            if (Test-Path -LiteralPath $stage) {
+                throw "Failed to remove release staging directory: $stage"
+            }
         }
     }
     if (Test-Path -LiteralPath $portableWorkerSource) {
-        Remove-Item -LiteralPath $portableWorkerSource -Recurse -Force -ErrorAction SilentlyContinue
+        Remove-Item -LiteralPath $portableWorkerSource -Recurse -Force
+        if (Test-Path -LiteralPath $portableWorkerSource) {
+            throw "Failed to remove staged Worker source: $portableWorkerSource"
+        }
     }
 }
 

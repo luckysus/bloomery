@@ -59,6 +59,17 @@ pub fn activate_package(
     load_package(&package_path, app_version)
 }
 
+pub fn verify_installed_package(
+    package_root: &Path,
+    app_version: &str,
+    trust_store: &DomainTrustStore,
+) -> Result<(super::manifest::DomainManifest, String, DomainTrust), DomainError> {
+    let loaded = load_package(package_root, app_version)?;
+    let package_sha256 = compute_package_digest(package_root)?;
+    let trust = verify_package_signature(package_root, &package_sha256, trust_store)?;
+    Ok((loaded.manifest, package_sha256, trust))
+}
+
 pub fn cleanup_staging(install_root: &Path) -> Result<usize, DomainError> {
     let staging_root = install_root.join(STAGING_DIR);
     if !staging_root.exists() {

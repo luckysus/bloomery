@@ -17,11 +17,15 @@ pub(crate) struct McpServerInput {
     #[serde(default)]
     pub inherited_env: Vec<String>,
     #[serde(default)]
+    pub replace_inherited_env: bool,
+    #[serde(default)]
     pub env_values: BTreeMap<String, String>,
     #[serde(default)]
     pub bearer_token: Option<String>,
     #[serde(default)]
     pub clear_bearer_token: bool,
+    #[serde(default)]
+    pub clear_environment_credentials: bool,
     pub timeout_ms: u64,
     pub enabled: bool,
 }
@@ -37,6 +41,7 @@ pub(crate) struct McpServerSummary {
     pub executable: Option<String>,
     pub args: Vec<String>,
     pub working_directory: Option<String>,
+    pub inherited_env: Vec<String>,
     pub env_names: Vec<String>,
     pub timeout_ms: u64,
     pub enabled: bool,

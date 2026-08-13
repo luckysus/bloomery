@@ -272,6 +272,9 @@ finally {
         $env:BLOOMERY_DATA_DIR = $oldBloomeryDataDir
     }
     if (Test-Path -LiteralPath $tempRoot) {
-        Remove-Item -LiteralPath $tempRoot -Recurse -Force -ErrorAction SilentlyContinue
+        Remove-Item -LiteralPath $tempRoot -Recurse -Force
+        if (Test-Path -LiteralPath $tempRoot) {
+            throw "Failed to remove lifecycle matrix temporary profile: $tempRoot"
+        }
     }
 }
