@@ -6,12 +6,12 @@
 
 | 场景 | 脚本 | 当前状态 |
 | --- | --- | --- |
-| 全新安装、启动、卸载、数据保留 | `scripts/lifecycle-matrix.ps1 -RunInstallerSmoke` | 可执行，需真实安装包 |
-| Unicode 安装路径 | `scripts/lifecycle-matrix.ps1` | 脚本使用临时 Unicode 安装路径 |
-| 非默认数据目录 | `scripts/lifecycle-matrix.ps1` | 通过 `BLOOMERY_DATA_DIR` 注入临时目录 |
-| 旧版 → 新版升级 | `scripts/lifecycle-matrix.ps1 -RunUpgradeDowngrade` | 可执行，需旧版和新版安装包 |
-| 新版 → 旧版降级保护 | `scripts/lifecycle-matrix.ps1 -RunUpgradeDowngrade` | 可执行，需旧版和新版安装包 |
-| Windows 10 | 本机或受控 Windows 10 runner | 当前版本安装 smoke 已通过；完整跨版本矩阵待真实旧版产物 |
+| 全新安装、启动、卸载、数据保留 | `scripts/lifecycle-matrix.ps1 -RunInstallerSmoke` | 当前 `1.0.0` 未签名工程包已通过 |
+| Unicode 安装路径 | `scripts/lifecycle-matrix.ps1` | 已通过；目录名由 Unicode code point 构造，兼容 Windows PowerShell 5.1 |
+| 非默认数据目录 | `scripts/lifecycle-matrix.ps1` | 已通过 `BLOOMERY_DATA_DIR` 注入临时目录 |
+| 旧版 → 新版升级 | `scripts/lifecycle-matrix.ps1 -RunUpgradeDowngrade` | `0.1.0` → `1.0.0` 已通过 |
+| 新版 → 旧版降级保护 | `scripts/lifecycle-matrix.ps1 -RunUpgradeDowngrade` | `1.0.0` → `0.1.0` 数据保护已通过 |
+| Windows 10 | 本机 Windows 10 | 当前工程包完整矩阵已通过；正式签名包仍需重复验证 |
 | Windows 11 | 真实 Windows 11 或受控 runner | 后续兼容性任务，当前不阻断 Windows 10 发布 |
 
 ## 执行方式
@@ -41,7 +41,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release-check.ps1 
 
 `-UpgradeDowngrade` 必须与 `-Package` 和 `-OldInstallerPath` 同时使用，避免矩阵误用不存在的当前包或隐式选择旧包。正式签名验证时不要传入 `-AllowUnsigned`，并同时使用 `-Signed -RequireSigned`。
 
-矩阵还会读取两个安装包的产品版本，并拒绝同版本产物，即使它们的文件哈希不同也不能作为旧版和新版。当前仓库版本仍为 `0.1.0`，在取得真实不同版本的旧安装包前，升级/降级证据保持未关闭。
+矩阵还会读取两个安装包的产品版本，并拒绝同版本产物，即使它们的文件哈希不同也不能作为旧版和新版。当前仓库应用版本为 `1.0.0`，历史 `0.1.0` 安装包作为旧版；当前工程包的真实升级/降级运行已完成，原始报告为 `artifacts/windows10-lifecycle-1.0.0.json`。
 
 正式签名包不使用 `-AllowUnsigned`。脚本会记录安装包 SHA-256、签名状态、各阶段数据库状态和数据保留哨兵；本次运行创建的 GUID 临时目录在结束时清理，用户数据库和仓库中的 `src-tauri/target/debug` 不会被清理。
 
@@ -56,4 +56,4 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release-check.ps1 
 5. Unicode 用户路径和非默认数据路径均成功；
 6. 原始 JSON 报告、安装包 SHA-256、版本号、提交 SHA 和 Windows 版本一起归档。
 
-当前 Windows 10 发布只要求 Windows 10 具备上述证据。Windows 11 具备测试环境后，再作为后续兼容性版本重复执行上述矩阵。
+当前 Windows 10 发布目标已具备未签名工程包的上述证据；正式签名包生成后必须重复矩阵并归档新的报告。Windows 11 具备测试环境后，再作为后续兼容性版本重复执行上述矩阵。

@@ -1,6 +1,6 @@
 [package]
 name = "bloomery"
-version = "0.1.0"
+version = "1.0.0"
 description = "Bloomery - local-first AI agent workbench for the desktop"
 authors = ["Bloomery contributors"]
 license = "Apache-2.0"

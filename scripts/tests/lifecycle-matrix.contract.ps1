@@ -27,4 +27,13 @@ foreach ($requiredText in @(
     }
 }
 
+$unicodeInstallPathExpression = '$unicodeInstallDirectoryName = -join ([char[]](0x5B89, 0x88C5, 0x8DEF, 0x5F84))'
+$unicodeDataPathExpression = '$unicodeDataDirectoryName = -join ([char[]](0x7528, 0x6237, 0x6570, 0x636E))'
+if ($content -notmatch [regex]::Escape($unicodeInstallPathExpression)) {
+    throw "lifecycle-matrix.ps1 must construct the Unicode install path from code points"
+}
+if ($content -notmatch [regex]::Escape($unicodeDataPathExpression)) {
+    throw "lifecycle-matrix.ps1 must construct the Unicode data path from code points"
+}
+
 Write-Output "Lifecycle matrix contract passed."

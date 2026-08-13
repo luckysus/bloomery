@@ -207,8 +207,10 @@ if ($RunUpgradeDowngrade -and $oldInstaller.ProductVersion -eq $newInstaller.Pro
 }
 $lifecycleRoot = Join-Path $repoRoot "artifacts\lifecycle-runs"
 $tempRoot = Join-Path $lifecycleRoot ("bloomery-lifecycle-matrix-" + [guid]::NewGuid().ToString("N"))
-$installRoot = Join-Path $tempRoot "安装路径"
-$dataRoot = Join-Path $tempRoot "用户数据"
+$unicodeInstallDirectoryName = -join ([char[]](0x5B89, 0x88C5, 0x8DEF, 0x5F84))
+$unicodeDataDirectoryName = -join ([char[]](0x7528, 0x6237, 0x6570, 0x636E))
+$installRoot = Join-Path $tempRoot $unicodeInstallDirectoryName
+$dataRoot = Join-Path $tempRoot $unicodeDataDirectoryName
 $oldBloomeryDataDir = $env:BLOOMERY_DATA_DIR
 $results = [System.Collections.Generic.List[object]]::new()
 

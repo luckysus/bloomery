@@ -22,6 +22,18 @@ if (-not (Test-Path -LiteralPath (Join-Path $rustRoot ([string]$windowsIcon)) -P
 
 $buildReleasePath = Join-Path $repoRoot "scripts\build-release.ps1"
 $buildReleaseContent = Get-Content -LiteralPath $buildReleasePath -Raw
+$sbomPath = Join-Path $repoRoot "scripts\generate-sbom.ps1"
+$sbomContent = Get-Content -LiteralPath $sbomPath -Raw
+if ($sbomContent -notmatch "pyproject\.toml") {
+    throw "generate-sbom.ps1 must read the Worker project version from pyproject.toml"
+}
+if ($sbomContent -notmatch 'project\.version|workerProjectVersion|workerVersion') {
+    throw "generate-sbom.ps1 must derive the Worker SBOM component version from project metadata"
+}
+if ($sbomContent -match 'version\s*=\s*"0\.1\.0"' -and
+    $sbomContent -match 'name\s*=\s*"bloomery-compute-worker"') {
+    throw "generate-sbom.ps1 must not hard-code the Worker SBOM version"
+}
 $missingOfficialKeyValidation = $buildReleaseContent -notmatch "BLOOMERY_OFFICIAL_PUBLIC_KEY_2026" `
     -or $buildReleaseContent -notmatch "64 hexadecimal characters"
 if ($missingOfficialKeyValidation) {

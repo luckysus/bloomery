@@ -38,8 +38,27 @@ function Invoke-Checked {
 function Write-PythonWorkerSbom {
     param(
         [Parameter(Mandatory = $true)][string]$LockPath,
+        [Parameter(Mandatory = $true)][string]$ProjectPath,
         [Parameter(Mandatory = $true)][string]$OutputPath
     )
+
+    $projectText = Get-Content -LiteralPath $ProjectPath -Raw
+    $projectMatch = [regex]::Match(
+        $projectText,
+        '(?ms)^\[project\]\s*(?<project>.*?)(?=^\[|\z)'
+    )
+    if (-not $projectMatch.Success) {
+        throw "Worker pyproject.toml is missing a [project] table"
+    }
+    $versionMatch = [regex]::Match(
+        $projectMatch.Groups["project"].Value,
+        '(?m)^version\s*=\s*"(?<version>[^"]+)"\s*$'
+    )
+    if (-not $versionMatch.Success -or
+        [string]::IsNullOrWhiteSpace($versionMatch.Groups["version"].Value)) {
+        throw "Worker pyproject.toml is missing a project version"
+    }
+    $workerProjectVersion = $versionMatch.Groups["version"].Value
 
     $components = New-Object System.Collections.Generic.List[object]
     $current = $null
@@ -118,8 +137,8 @@ function Write-PythonWorkerSbom {
     $metadataComponent = [ordered]@{
         type    = "application"
         name    = "bloomery-compute-worker"
-        version = "0.1.0"
-        purl    = "pkg:pypi/bloomery-compute-worker@0.1.0"
+        version = $workerProjectVersion
+        purl    = "pkg:pypi/bloomery-compute-worker@$workerProjectVersion"
     }
     $bom = [ordered]@{
         '$schema'    = "http://cyclonedx.org/schema/bom-1.5.schema.json"
@@ -208,6 +227,7 @@ try {
 
     Write-PythonWorkerSbom `
         -LockPath (Join-Path $workerRoot "uv.lock") `
+        -ProjectPath (Join-Path $workerRoot "pyproject.toml") `
         -OutputPath $pythonWorkerCyclonePath
 
     $aboutArguments = @(
