@@ -8,6 +8,8 @@ param(
     [switch]$RequireTagVersion,
     [switch]$Performance,
     [switch]$InstallerSmoke,
+    [switch]$UpgradeDowngrade,
+    [string]$OldInstallerPath,
     [switch]$AllowDirty
 )
 
@@ -50,6 +52,12 @@ if (-not $AllowDirty) {
 
 if ($InstallerSmoke -and -not $Package) {
     throw "-InstallerSmoke requires -Package so the smoke test uses the current build"
+}
+if ($UpgradeDowngrade -and -not $Package) {
+    throw "-UpgradeDowngrade requires -Package so the matrix uses the current build"
+}
+if ($UpgradeDowngrade -and [string]::IsNullOrWhiteSpace($OldInstallerPath)) {
+    throw "-UpgradeDowngrade requires -OldInstallerPath"
 }
 if ($Signed -and -not $Package) {
     throw "-Signed requires -Package so the signed artifact can be verified"
@@ -226,7 +234,11 @@ if ($Package) {
     Invoke-Checked "Windows release package" "powershell" $packageArguments $repoRoot
 }
 
-$lifecycleScript = Join-Path $PSScriptRoot "lifecycle-check.ps1"
+$lifecycleScript = if ($UpgradeDowngrade) {
+    Join-Path $PSScriptRoot "lifecycle-matrix.ps1"
+} else {
+    Join-Path $PSScriptRoot "lifecycle-check.ps1"
+}
 $lifecycleArguments = @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $lifecycleScript)
 if ($Package) {
     $candidateInstaller = Get-ChildItem -LiteralPath $packageOutputPath -Filter "*-setup.exe" -File -ErrorAction SilentlyContinue |
@@ -254,6 +266,13 @@ if ($Package) {
 }
 if ($InstallerSmoke) {
     $lifecycleArguments += "-RunInstallerSmoke"
+}
+if ($UpgradeDowngrade) {
+    $lifecycleArguments += @(
+        "-OldInstallerPath", $OldInstallerPath,
+        "-NewInstallerPath", $candidateInstaller.FullName,
+        "-RunUpgradeDowngrade"
+    )
 }
 Invoke-Checked "Windows data lifecycle checks" "powershell" $lifecycleArguments $repoRoot
 

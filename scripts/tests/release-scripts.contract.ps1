@@ -263,6 +263,16 @@ if ($releaseCheckContent -notmatch 'compute-worker' -or
 if ($releaseCheckContent -notmatch '\[switch\]\$InstallerSmoke' -or $releaseCheckContent -notmatch '-RunInstallerSmoke') {
     throw "release-check.ps1 must expose the Windows installer smoke gate"
 }
+if ($releaseCheckContent -notmatch '\[switch\]\$UpgradeDowngrade' -or
+    $releaseCheckContent -notmatch '\[string\]\$OldInstallerPath' -or
+    $releaseCheckContent -notmatch 'lifecycle-matrix\.ps1' -or
+    $releaseCheckContent -notmatch '-RunUpgradeDowngrade') {
+    throw "release-check.ps1 must expose the explicit old-to-new-to-old lifecycle matrix gate"
+}
+if ($releaseCheckContent -notmatch 'UpgradeDowngrade.*Package|Package.*UpgradeDowngrade' -or
+    $releaseCheckContent -notmatch 'OldInstallerPath') {
+    throw "release-check.ps1 must require a packaged current installer and an explicit old installer for the lifecycle matrix"
+}
 if ($releaseCheckContent -notmatch 'RequireSigned' -or
     $releaseCheckContent -notmatch '(?s)if\s*\(\-not\s+\$RequireSigned\).*?AllowUnsigned') {
     throw "release-check.ps1 must allow unsigned artifacts only when signed verification is not requested"

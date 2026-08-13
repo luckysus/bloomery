@@ -28,6 +28,19 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\lifecycle-matrix.p
   -ReportPath F:\release\windows-lifecycle-matrix.json
 ```
 
+发布检查也支持将跨版本矩阵作为显式门禁执行。它会先构建当前版本安装包，再把该安装包作为新版，与 `-OldInstallerPath` 指定的旧版执行旧版 → 新版 → 旧版流程：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release-check.ps1 `
+  -Package `
+  -UpgradeDowngrade `
+  -OldInstallerPath F:\release\Bloomery_old_setup.exe `
+  -AllowDirty `
+  -Offline
+```
+
+`-UpgradeDowngrade` 必须与 `-Package` 和 `-OldInstallerPath` 同时使用，避免矩阵误用不存在的当前包或隐式选择旧包。正式签名验证时不要传入 `-AllowUnsigned`，并同时使用 `-Signed -RequireSigned`。
+
 正式签名包不使用 `-AllowUnsigned`。脚本会记录安装包 SHA-256、签名状态、各阶段数据库状态和数据保留哨兵；本次运行创建的 GUID 临时目录在结束时清理，用户数据库和仓库中的 `src-tauri/target/debug` 不会被清理。
 
 ## 关闭条件
