@@ -170,6 +170,20 @@ append minimum throughput 25,909.82 events/s, and 10,000-message replay P95
 - [ ] **Step 3: Test upgrade and downgrade protection.** Upgrades preserve data and credentials; uninstall preserves or explicitly offers removal; older binaries open newer DBs read-only with a clear error.
 - [ ] **Step 4: Run backup/restore and index-rebuild verification** after each supported upgrade path.
 
+**Execution record (2026-08-13):** Added
+`scripts/lifecycle-matrix.ps1`,
+`scripts/tests/lifecycle-matrix.contract.ps1`, and
+`docs/releases/windows-matrix.md`. The matrix requires distinct installer
+SHA-256 values for upgrade/downgrade runs, records phase-level database
+hashes and data-preservation state, uses only the F-drive
+`artifacts/lifecycle-runs/` workspace, and fails closed when an installer is
+missing or unsigned without explicit engineering-only opt-in. Contracts and
+PowerShell parsing pass. A smoke using the older unsigned `a6c0e43`
+engineering installer passed fresh install, launch, Unicode install path,
+non-default data directory, uninstall, and data retention; full Windows 10/11
+profile, current-version, signed-artifact, and old-to-new-to-old evidence
+remain open.
+
 ### Task 7: Build and sign release artifacts
 
 **Files:** Modify Tauri config; create `scripts/build-release.ps1`, signing/checksum scripts, artifact manifests.

@@ -36,6 +36,7 @@ $frontendRoot = Join-Path $repoRoot "frontend"
 $rustRoot = Join-Path $repoRoot "src-tauri"
 $scriptContract = Join-Path $repoRoot "scripts\tests\release-scripts.contract.ps1"
 $lifecycleContract = Join-Path $repoRoot "scripts\tests\lifecycle.contract.ps1"
+$lifecycleMatrixContract = Join-Path $repoRoot "scripts\tests\lifecycle-matrix.contract.ps1"
 $updaterContract = Join-Path $repoRoot "scripts\tests\updater.contract.ps1"
 $workflowContract = Join-Path $repoRoot "scripts\tests\workflow.contract.ps1"
 $runContracts = $Stage -eq "all" -or $Stage -eq "contracts"
@@ -45,6 +46,7 @@ $runRust = $Stage -eq "all" -or $Stage -eq "rust"
 if ($runContracts) {
     Invoke-Checked "Release script contracts" "powershell" @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $scriptContract) $repoRoot
     Invoke-Checked "Lifecycle script contracts" "powershell" @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $lifecycleContract) $repoRoot
+    Invoke-Checked "Lifecycle matrix contract" "powershell" @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $lifecycleMatrixContract) $repoRoot
     Invoke-Checked "Updater contract" "powershell" @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $updaterContract) $repoRoot
     Invoke-Checked "Workflow contract" "powershell" @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $workflowContract) $repoRoot
 }
