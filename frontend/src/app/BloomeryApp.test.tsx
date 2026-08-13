@@ -46,6 +46,14 @@ describe("BloomeryApp", () => {
     expect(screen.getByRole("heading", { name: "工作台" })).toBeInTheDocument();
   });
 
+  it("shows the release version from the frontend build metadata", async () => {
+    render(<BloomeryApp />);
+
+    await screen.findByRole("heading", { name: "工作台" });
+
+    expect(screen.getByText("LOCAL / 1.0.0")).toBeInTheDocument();
+  });
+
   it("exposes the complete desktop navigation with a single active section", async () => {
     render(<BloomeryApp />);
 

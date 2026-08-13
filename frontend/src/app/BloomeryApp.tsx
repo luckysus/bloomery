@@ -13,6 +13,7 @@ import SectionPlaceholder from "./SectionPlaceholder";
 import WorkbenchHome from "./WorkbenchHome";
 import { getNavigationSection, navigationSections, type SectionId } from "./navigation";
 import { LocaleProvider, useLocale } from "../i18n/locale";
+import { BLOOMERY_VERSION } from "../version";
 
 type InitializationState = "loading" | "setup" | "ready" | "failed";
 
@@ -75,7 +76,7 @@ function BloomeryAppShell() {
             <span className="bloomery-state-dot" aria-hidden="true" />
             {t("localWorkspace")}
           </span>
-          <span className="bloomery-version-label">LOCAL / 0.1</span>
+          <span className="bloomery-version-label">LOCAL / {BLOOMERY_VERSION}</span>
           <LanguageSelect />
         </div>
       </header>
