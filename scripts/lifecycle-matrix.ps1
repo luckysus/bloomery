@@ -60,6 +60,7 @@ function Assert-Installer {
         Bytes = $resolved.Length
         Sha256 = (Get-FileHash -LiteralPath $resolved.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
         Signature = [string]$signature.Status
+        ProductVersion = [string]$resolved.VersionInfo.ProductVersion
     }
 }
 
@@ -195,6 +196,14 @@ $oldInstaller = Assert-Installer -Path $OldInstallerPath
 $newInstaller = Assert-Installer -Path $NewInstallerPath
 if ($RunUpgradeDowngrade -and $oldInstaller.Sha256 -eq $newInstaller.Sha256) {
     throw "Upgrade/downgrade matrix requires distinct old and new installer artifacts"
+}
+if ($RunUpgradeDowngrade -and (
+    [string]::IsNullOrWhiteSpace($oldInstaller.ProductVersion) -or
+    [string]::IsNullOrWhiteSpace($newInstaller.ProductVersion))) {
+    throw "Upgrade/downgrade matrix requires product versions on both installer artifacts"
+}
+if ($RunUpgradeDowngrade -and $oldInstaller.ProductVersion -eq $newInstaller.ProductVersion) {
+    throw "Upgrade/downgrade matrix requires distinct product versions"
 }
 $lifecycleRoot = Join-Path $repoRoot "artifacts\lifecycle-runs"
 $tempRoot = Join-Path $lifecycleRoot ("bloomery-lifecycle-matrix-" + [guid]::NewGuid().ToString("N"))

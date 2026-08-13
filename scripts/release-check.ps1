@@ -259,7 +259,9 @@ if ($Package) {
     if ($null -eq $candidateComputeAddon -or $candidateComputeAddon.Length -le 0) {
         throw "Packaged release does not contain a non-empty compute Worker add-on archive"
     }
-    $lifecycleArguments += @("-InstallerPath", $candidateInstaller.FullName)
+    if (-not $UpgradeDowngrade) {
+        $lifecycleArguments += @("-InstallerPath", $candidateInstaller.FullName)
+    }
     if (-not $RequireSigned) {
         $lifecycleArguments += "-AllowUnsigned"
     }

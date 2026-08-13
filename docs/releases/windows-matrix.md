@@ -41,6 +41,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release-check.ps1 
 
 `-UpgradeDowngrade` 必须与 `-Package` 和 `-OldInstallerPath` 同时使用，避免矩阵误用不存在的当前包或隐式选择旧包。正式签名验证时不要传入 `-AllowUnsigned`，并同时使用 `-Signed -RequireSigned`。
 
+矩阵还会读取两个安装包的产品版本，并拒绝同版本产物，即使它们的文件哈希不同也不能作为旧版和新版。当前仓库版本仍为 `0.1.0`，在取得真实不同版本的旧安装包前，升级/降级证据保持未关闭。
+
 正式签名包不使用 `-AllowUnsigned`。脚本会记录安装包 SHA-256、签名状态、各阶段数据库状态和数据保留哨兵；本次运行创建的 GUID 临时目录在结束时清理，用户数据库和仓库中的 `src-tauri/target/debug` 不会被清理。
 
 ## 关闭条件

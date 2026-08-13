@@ -273,6 +273,9 @@ if ($releaseCheckContent -notmatch 'UpgradeDowngrade.*Package|Package.*UpgradeDo
     $releaseCheckContent -notmatch 'OldInstallerPath') {
     throw "release-check.ps1 must require a packaged current installer and an explicit old installer for the lifecycle matrix"
 }
+if ($releaseCheckContent -notmatch '(?s)if\s*\(\-not\s+\$UpgradeDowngrade\)\s*\{\s*\$lifecycleArguments\s*\+=\s*@\("-InstallerPath",\s*\$candidateInstaller\.FullName\)') {
+    throw "release-check.ps1 must pass -InstallerPath only to the single-installer lifecycle check"
+}
 if ($releaseCheckContent -notmatch 'RequireSigned' -or
     $releaseCheckContent -notmatch '(?s)if\s*\(\-not\s+\$RequireSigned\).*?AllowUnsigned') {
     throw "release-check.ps1 must allow unsigned artifacts only when signed verification is not requested"

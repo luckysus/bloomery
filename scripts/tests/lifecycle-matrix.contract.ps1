@@ -18,6 +18,7 @@ foreach ($requiredText in @(
     "function Wait-For-ApplicationReady",
     "Process.HasExited",
     "did not stay alive",
+    "requires distinct product versions",
     "Unicode",
     "data-preservation"
 )) {
