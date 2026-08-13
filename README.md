@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="docs/assets/bloomery-banner.svg" alt="Bloomery" width="760">
+<img src="docs/assets/bloomery-banner.png" alt="Bloomery" width="760" height="150">
 
 <h1>Bloomery</h1>
 
