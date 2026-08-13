@@ -44,3 +44,5 @@ powershell -File scripts/benchmark-retrieval.ps1
 ```
 
 The script runs `cargo bench -j 1 --offline --bench retrieval`, writes the machine-readable result to `src-tauri/target/retrieval-benchmark.json`, and exits nonzero when minimum recall is below 0.95 or total local P95 exceeds one second.
+
+The release performance gate also runs the steel dataset import benchmark documented in `docs/benchmarks/dataset-import.md`.

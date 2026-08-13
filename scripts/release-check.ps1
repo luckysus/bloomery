@@ -162,6 +162,14 @@ if ($Performance) {
     Invoke-Checked "Local retrieval performance gate" "powershell" @(
         "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $benchmarkScript
     ) $repoRoot
+
+    $datasetBenchmarkScript = Join-Path $PSScriptRoot "benchmark-dataset-import.ps1"
+    if (-not (Test-Path -LiteralPath $datasetBenchmarkScript -PathType Leaf)) {
+        throw "Dataset import benchmark script is missing"
+    }
+    Invoke-Checked "Steel dataset import performance gate" "powershell" @(
+        "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $datasetBenchmarkScript
+    ) $repoRoot
 }
 
 if ($Package) {

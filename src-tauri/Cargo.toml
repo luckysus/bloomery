@@ -49,11 +49,16 @@ windows-sys = { version = "0.59", features = [
     "Win32_Security",
     "Win32_Storage_FileSystem",
     "Win32_System_JobObjects",
+    "Win32_System_ProcessStatus",
     "Win32_System_Threading",
 ] }
 
 [[bench]]
 name = "retrieval"
+harness = false
+
+[[bench]]
+name = "dataset_import"
 harness = false
 
 # 压缩 debug 构建的调试信息，显著减小 target/ 体积（仅保留行号表，
