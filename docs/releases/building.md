@@ -77,13 +77,17 @@ Authenticode 和 Tauri 更新签名私钥必须保存在受保护的发布环境
 
 `.github/workflows/quality.yml` runs the deterministic suite on Windows for pull
 requests and pushes to `main`. `.github/workflows/release.yml` runs the E2E and
-unsigned candidate package checks on manual dispatch or a `v*` tag, then uploads
-the candidate files as a workflow artifact. It does not create a public release
-or bypass signing and release audit requirements.
+unsigned candidate package checks on manual dispatch or a `v*` tag. On a
+semantic-version tag, its protected signed job runs only after the signing
+environment is approved; the publish job then downloads that exact signed
+artifact set and creates the GitHub Release. It never publishes an unsigned
+candidate as a public release.
 
 `quality.yml` 会在 Windows 上对 Pull Request 和 `main` 推送执行确定性测试。
 `release.yml` 会在手动触发或 `v*` 标签上执行 E2E 和未签名候选打包，并上传
-候选文件；它不会自动创建公开发行版，也不会绕过签名和发布审计要求。
+候选文件。在语义版本标签上，受保护的签名 job 只有在发布环境审批后才会
+运行；随后 publish job 下载同一批已验证的签名产物并创建 GitHub Release。
+未签名候选包不会被公开发布。
 
 ## Signed updater builds / 签名更新构建
 

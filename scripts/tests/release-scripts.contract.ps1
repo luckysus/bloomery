@@ -179,6 +179,54 @@ Remove-Item Function:\npm -ErrorAction SilentlyContinue
 
 $releaseCheckScript = Join-Path $repoRoot "scripts\release-check.ps1"
 $releaseCheckContent = Get-Content -LiteralPath $releaseCheckScript -Raw
+$authenticodeScript = Join-Path $repoRoot "scripts\sign-authenticode.ps1"
+if (-not (Test-Path -LiteralPath $authenticodeScript -PathType Leaf)) {
+    throw "Authenticode signing script is missing"
+}
+$authenticodeContent = Get-Content -LiteralPath $authenticodeScript -Raw
+foreach ($requiredAuthenticodeText in @(
+    "Set-StrictMode -Version Latest",
+    "BLOOMERY_AUTHENTICODE_PFX_BASE64",
+    "BLOOMERY_AUTHENTICODE_PFX_PASSWORD",
+    "Get-AuthenticodeSignature",
+    "signtool",
+    "Remove-Item"
+)) {
+    if ($authenticodeContent -notmatch [regex]::Escape($requiredAuthenticodeText)) {
+        throw "sign-authenticode.ps1 is missing required behavior: $requiredAuthenticodeText"
+    }
+}
+$buildScript = Join-Path $repoRoot "scripts\build-release.ps1"
+$buildReleaseContent = Get-Content -LiteralPath $buildScript -Raw
+if ($buildReleaseContent -notmatch "sign-authenticode\.ps1") {
+    throw "build-release.ps1 must sign Windows release binaries before artifact finalization"
+}
+foreach ($requiredSignedArtifactText in @(
+    'Authenticode compute Worker signature',
+    'Authenticode portable binaries',
+    'Get-AuthenticodeSignature',
+    'signature_note',
+    'authenticode'
+)) {
+    if ($buildReleaseContent -notmatch [regex]::Escape($requiredSignedArtifactText)) {
+        throw "build-release.ps1 must verify signed portable and compute Worker artifacts: $requiredSignedArtifactText"
+    }
+}
+foreach ($requiredCurrentWorkerText in @(
+    '$portableWorkerSource',
+    'Copy-RequiredDirectory $workerBuildOutput $portableWorkerSource',
+    'Copy-RequiredDirectory $portableWorkerSource (Join-Path $portableRoot "compute-worker")',
+    'Copy-RequiredDirectory $portableWorkerSource (Join-Path $addonRoot "compute-worker")'
+)) {
+    if ($buildReleaseContent -notmatch [regex]::Escape($requiredCurrentWorkerText)) {
+        throw "build-release.ps1 must package the current Worker build, not stale target output: $requiredCurrentWorkerText"
+    }
+}
+if ($releaseCheckContent -notmatch '\[switch\]\$RequireTagVersion' -or
+    $releaseCheckContent -notmatch 'GITHUB_REF_NAME' -or
+    $releaseCheckContent -notmatch '(?i)tag.*version|version.*tag') {
+    throw "release-check.ps1 must enforce tag/version consistency for release verification"
+}
 $lifecycleInvocation = $releaseCheckContent.IndexOf('Invoke-Checked "Windows data lifecycle checks"', [StringComparison]::Ordinal)
 $packageInvocation = $releaseCheckContent.IndexOf('Invoke-Checked "Windows release package"', [StringComparison]::Ordinal)
 if ($lifecycleInvocation -lt 0 -or $packageInvocation -lt 0 -or $packageInvocation -gt $lifecycleInvocation) {
@@ -198,6 +246,10 @@ if ($releaseCheckContent -notmatch 'compute-worker' -or
 }
 if ($releaseCheckContent -notmatch '\[switch\]\$InstallerSmoke' -or $releaseCheckContent -notmatch '-RunInstallerSmoke') {
     throw "release-check.ps1 must expose the Windows installer smoke gate"
+}
+if ($releaseCheckContent -notmatch 'RequireSigned' -or
+    $releaseCheckContent -notmatch '(?s)if\s*\(\-not\s+\$RequireSigned\).*?AllowUnsigned') {
+    throw "release-check.ps1 must allow unsigned artifacts only when signed verification is not requested"
 }
 if ($releaseCheckContent -notmatch '\[switch\]\$Signed' -or
     $releaseCheckContent -notmatch '\[switch\]\$RequireSigned' -or
@@ -226,7 +278,6 @@ function powershell {
 Assert-InjectedFailure -Name "release-check.ps1" -Invocation { & $releaseCheckScript -AllowDirty } -ExpectedMessage "Deterministic release test suite failed with exit code 37"
 Remove-Item Function:\powershell -ErrorAction SilentlyContinue
 
-$buildScript = Join-Path $repoRoot "scripts\build-release.ps1"
 function cargo {
     $global:LASTEXITCODE = 37
 }
@@ -244,7 +295,31 @@ function powershell {
         "worker-sbom.json",
         "bloomery-compute-worker.sha256"
     )) {
-        Set-Content -LiteralPath (Join-Path $workerOutputRoot $artifactName) -Value "contract fixture"
+        switch ($artifactName) {
+            "worker-artifact-manifest.json" {
+                Set-Content -LiteralPath (Join-Path $workerOutputRoot $artifactName) -Value (@{
+                    schema_version = "1.0.0"
+                    artifact = "bloomery-compute-worker"
+                    executable = "bloomery-compute-worker.exe"
+                    sha256 = ("0" * 64)
+                    signature = "unsigned-explicit"
+                    signature_note = "contract fixture"
+                } | ConvertTo-Json)
+            }
+            "worker-sbom.json" {
+                Set-Content -LiteralPath (Join-Path $workerOutputRoot $artifactName) -Value (@{
+                    schema_version = "1.0.0"
+                    component = "bloomery-compute-worker"
+                    components = @(@{
+                        name = "bloomery-compute-worker"
+                        sha256 = ("0" * 64)
+                    })
+                } | ConvertTo-Json)
+            }
+            default {
+                Set-Content -LiteralPath (Join-Path $workerOutputRoot $artifactName) -Value "contract fixture"
+            }
+        }
     }
     $global:LASTEXITCODE = 0
 }

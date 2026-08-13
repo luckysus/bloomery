@@ -5,6 +5,7 @@ param(
     [switch]$Package,
     [switch]$Signed,
     [switch]$RequireSigned,
+    [switch]$RequireTagVersion,
     [switch]$Performance,
     [switch]$InstallerSmoke,
     [switch]$AllowDirty
@@ -102,6 +103,24 @@ if (($tauriVersion -ne $frontendVersion) -or ($tauriVersion -ne $cargoVersionMat
 }
 if (-not $tauriConfig.bundle.active) {
     throw "Tauri bundling must be enabled for a release"
+}
+if ($RequireTagVersion) {
+    $releaseTag = [string]$env:GITHUB_REF_NAME
+    $refType = [string]$env:GITHUB_REF_TYPE
+    if ([string]::IsNullOrWhiteSpace($releaseTag)) {
+        $releaseTag = (git -C $repoRoot describe --exact-match --tags HEAD 2>$null)
+        if ($LASTEXITCODE -ne 0) {
+            $releaseTag = ""
+        }
+    }
+    $releaseTag = $releaseTag.Trim()
+    if (-not [string]::IsNullOrWhiteSpace($refType) -and $refType -ne "tag") {
+        throw "Release verification requires a tag ref, got GITHUB_REF_TYPE=$refType"
+    }
+    $expectedTag = "v" + $tauriVersion
+    if ($releaseTag -ne $expectedTag) {
+        throw "Release tag/version mismatch: expected $expectedTag, got $releaseTag"
+    }
 }
 
 $sourceRoots = @(

@@ -24,6 +24,7 @@ $workerArtifactNames = @(
     "worker-sbom.json",
     "bloomery-compute-worker.sha256"
 )
+$authenticodeScript = Join-Path $PSScriptRoot "sign-authenticode.ps1"
 
 function Invoke-Checked {
     param(
@@ -101,6 +102,92 @@ function New-ZipFromDirectory {
     }
 }
 
+function Invoke-Authenticode {
+    param(
+        [Parameter(Mandatory = $true)][string]$Name,
+        [Parameter(Mandatory = $true)][string[]]$Paths
+    )
+
+    if (-not $Signed) {
+        return
+    }
+    $signArguments = @(
+        "-NoProfile",
+        "-ExecutionPolicy", "Bypass",
+        "-File", $authenticodeScript,
+        "-Path"
+    ) + @($Paths)
+    Invoke-Checked $Name "powershell" $signArguments $repoRoot
+}
+
+function Assert-AuthenticodeValid {
+    param(
+        [Parameter(Mandatory = $true)][string]$Name,
+        [Parameter(Mandatory = $true)][string[]]$Paths
+    )
+
+    foreach ($path in $Paths) {
+        $file = Get-Item -LiteralPath $path -ErrorAction Stop
+        if ($file.Extension.ToLowerInvariant() -notin @(".exe", ".dll", ".msi")) {
+            throw "Authenticode verification requires an executable target: $path"
+        }
+        $signature = Get-AuthenticodeSignature -LiteralPath $file.FullName
+        if ($signature.Status -ne "Valid") {
+            throw "$Name failed for $($file.Name): $($signature.Status)"
+        }
+    }
+    Write-Output ("{0} passed for {1} file(s)." -f $Name, $Paths.Count)
+}
+
+function Update-WorkerArtifactMetadata {
+    param(
+        [Parameter(Mandatory = $true)][string]$WorkerRoot
+    )
+
+    $executable = Join-Path $WorkerRoot "bloomery-compute-worker.exe"
+    $manifestPath = Join-Path $WorkerRoot "worker-artifact-manifest.json"
+    $sbomPath = Join-Path $WorkerRoot "worker-sbom.json"
+    $checksumPath = Join-Path $WorkerRoot "bloomery-compute-worker.sha256"
+    foreach ($requiredPath in @($executable, $manifestPath, $sbomPath)) {
+        if (-not (Test-Path -LiteralPath $requiredPath -PathType Leaf)) {
+            throw "Worker metadata file is missing: $requiredPath"
+        }
+    }
+
+    $hash = (Get-FileHash -LiteralPath $executable -Algorithm SHA256).Hash.ToLowerInvariant()
+    $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
+    $manifest.sha256 = $hash
+    if ($Signed) {
+        $manifest.signature = "authenticode-valid"
+        $manifest.signature_note = "Authenticode signature was verified before this artifact entered the release package."
+    } else {
+        $manifest.signature = "unsigned-explicit"
+        $manifest.signature_note = "Artifact is intentionally unsigned in this build; release signing happens in the release-quality gate and unsigned artifacts must be clearly marked."
+    }
+    [System.IO.File]::WriteAllText(
+        $manifestPath,
+        ($manifest | ConvertTo-Json -Depth 20),
+        [System.Text.UTF8Encoding]::new($false)
+    )
+
+    $sbom = Get-Content -LiteralPath $sbomPath -Raw | ConvertFrom-Json
+    foreach ($component in @($sbom.components)) {
+        if ([string]$component.name -eq "bloomery-compute-worker") {
+            $component.sha256 = $hash
+        }
+    }
+    [System.IO.File]::WriteAllText(
+        $sbomPath,
+        ($sbom | ConvertTo-Json -Depth 20),
+        [System.Text.UTF8Encoding]::new($false)
+    )
+    [System.IO.File]::WriteAllText(
+        $checksumPath,
+        ("{0}  bloomery-compute-worker.exe" -f $hash),
+        [System.Text.UTF8Encoding]::new($false)
+    )
+}
+
 if (-not (Test-Path -LiteralPath $tauriConfigPath -PathType Leaf)) {
     throw "src-tauri/tauri.conf.json is missing"
 }
@@ -131,9 +218,22 @@ if (-not $SkipTests) {
 }
 
 $workerBuildOutput = Join-Path $env:TEMP ("bloomery-worker-" + [Guid]::NewGuid().ToString("N"))
+$portableWorkerSource = Join-Path $env:TEMP ("bloomery-worker-release-source-" + [Guid]::NewGuid().ToString("N"))
 $domainSignatureCreated = $false
 try {
     if ($Signed) {
+        if (-not (Test-Path -LiteralPath $authenticodeScript -PathType Leaf)) {
+            throw "Authenticode signing script is missing: $authenticodeScript"
+        }
+        foreach ($requiredAuthenticodeVariable in @(
+            "BLOOMERY_AUTHENTICODE_PFX_BASE64",
+            "BLOOMERY_AUTHENTICODE_PFX_PASSWORD",
+            "BLOOMERY_AUTHENTICODE_TIMESTAMP_URL"
+        )) {
+            if ([string]::IsNullOrWhiteSpace([string](Get-Item -Path ("Env:" + $requiredAuthenticodeVariable)).Value)) {
+                throw "$requiredAuthenticodeVariable is required for a signed release"
+            }
+        }
         if ([string]::IsNullOrWhiteSpace($env:BLOOMERY_OFFICIAL_PRIVATE_KEY_2026)) {
             throw "BLOOMERY_OFFICIAL_PRIVATE_KEY_2026 is required for a signed release"
         }
@@ -180,6 +280,14 @@ try {
         $workerBuildArguments += "-Offline"
     }
     Invoke-Checked "Compute Worker package" "powershell" $workerBuildArguments $repoRoot
+
+    $workerExecutable = Join-Path $workerBuildOutput "bloomery-compute-worker.exe"
+    if ($Signed) {
+        Invoke-Authenticode "Authenticode compute Worker signature" @($workerExecutable)
+        Assert-AuthenticodeValid "Authenticode compute Worker signature" @($workerExecutable)
+    }
+    Update-WorkerArtifactMetadata $workerBuildOutput
+    Copy-RequiredDirectory $workerBuildOutput $portableWorkerSource
 
     New-Item -ItemType Directory -Path $workerResourceRoot -Force | Out-Null
     foreach ($artifactName in $workerArtifactNames) {
@@ -238,6 +346,11 @@ try {
     try {
         $buildName = if ($Signed) { "Signed Windows package build" } else { "Unsigned Windows package build" }
         Invoke-Checked $buildName "cargo" $buildArguments $rustRoot
+        if ($Signed) {
+            Assert-AuthenticodeValid "Authenticode packaged Worker verification" @(
+                (Join-Path $workerResourceRoot "bloomery-compute-worker.exe")
+            )
+        }
     } finally {
         if ($updaterConfigPath -and (Test-Path -LiteralPath $updaterConfigPath)) {
             Remove-Item -LiteralPath $updaterConfigPath -Force
@@ -280,6 +393,17 @@ $releaseArtifacts = @(
 if (@($releaseArtifacts).Count -eq 0) {
     throw "Tauri completed without producing an MSI or NSIS artifact"
 }
+if ($Signed) {
+    $installerTargets = @(
+        $releaseArtifacts |
+            Where-Object { $_.Extension.ToLowerInvariant() -in @(".exe", ".msi") } |
+            ForEach-Object { $_.FullName }
+    )
+    if ($installerTargets.Count -eq 0) {
+        throw "Signed release produced no executable installer targets"
+    }
+    Assert-AuthenticodeValid "Authenticode packaged installers" $installerTargets
+}
 
 New-Item -ItemType Directory -Path $outputPath -Force | Out-Null
 foreach ($artifact in $releaseArtifacts) {
@@ -299,13 +423,28 @@ $addonRoot = Join-Path $addonStage $addonName
 try {
     New-Item -ItemType Directory -Path $portableRoot, $addonRoot -Force | Out-Null
     Copy-RequiredFile (Join-Path $runtimeRoot "bloomery.exe") (Join-Path $portableRoot "bloomery.exe")
+    if ($Signed) {
+        Invoke-Authenticode "Authenticode portable binaries" @(
+            (Join-Path $portableRoot "bloomery.exe")
+        )
+        Assert-AuthenticodeValid "Authenticode portable binaries" @(
+            (Join-Path $portableRoot "bloomery.exe")
+        )
+    }
     Copy-RequiredDirectory (Join-Path $runtimeRoot "domain-packs") (Join-Path $portableRoot "domain-packs")
-    Copy-RequiredDirectory (Join-Path $runtimeRoot "compute-worker") (Join-Path $portableRoot "compute-worker")
+    Copy-RequiredDirectory $portableWorkerSource (Join-Path $portableRoot "compute-worker")
     foreach ($metadataFile in @("LICENSE", "NOTICE")) {
         Copy-RequiredFile (Join-Path $repoRoot $metadataFile) (Join-Path $portableRoot $metadataFile)
         Copy-RequiredFile (Join-Path $repoRoot $metadataFile) (Join-Path $addonRoot $metadataFile)
     }
-    Copy-RequiredDirectory (Join-Path $runtimeRoot "compute-worker") (Join-Path $addonRoot "compute-worker")
+    Copy-RequiredDirectory $portableWorkerSource (Join-Path $addonRoot "compute-worker")
+    if ($Signed) {
+        Assert-AuthenticodeValid "Authenticode packaged Worker verification" @(
+            (Join-Path $portableWorkerSource "bloomery-compute-worker.exe"),
+            (Join-Path $portableRoot "compute-worker\bloomery-compute-worker.exe"),
+            (Join-Path $addonRoot "compute-worker\bloomery-compute-worker.exe")
+        )
+    }
     New-ZipFromDirectory $portableRoot (Join-Path $outputPath ($portableName + ".zip"))
     New-ZipFromDirectory $addonRoot (Join-Path $outputPath ($addonName + ".zip"))
 } finally {
@@ -313,6 +452,9 @@ try {
         if (Test-Path -LiteralPath $stage) {
             Remove-Item -LiteralPath $stage -Recurse -Force -ErrorAction SilentlyContinue
         }
+    }
+    if (Test-Path -LiteralPath $portableWorkerSource) {
+        Remove-Item -LiteralPath $portableWorkerSource -Recurse -Force -ErrorAction SilentlyContinue
     }
 }
 
