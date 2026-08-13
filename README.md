@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="docs/assets/bloomery-banner.png" alt="Bloomery" width="760" height="150">
+![Bloomery](docs/assets/bloomery-banner.png)
 
 <h1>Bloomery</h1>
 
