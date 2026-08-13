@@ -74,3 +74,15 @@ fn mcp_server_config_does_not_accept_secret_values_as_environment_names() {
     value.env_names = vec!["STEEL_API_KEY=secret".to_string()];
     assert!(value.validate().is_err());
 }
+
+#[test]
+fn mcp_server_config_rejects_unallowlisted_inherited_environment_names() {
+    for name in ["OPENAI_API_KEY", "GH_TOKEN", "CUSTOM_RUNTIME_SETTING"] {
+        let mut value = config();
+        value.inherited_env = vec![name.to_string()];
+        assert!(
+            value.validate().is_err(),
+            "inherited environment variable must be rejected: {name}"
+        );
+    }
+}

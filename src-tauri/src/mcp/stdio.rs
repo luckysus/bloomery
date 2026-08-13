@@ -21,6 +21,22 @@ pub struct McpStdioConfig {
     pub max_stderr_bytes: usize,
 }
 
+pub(crate) fn validate_inherited_env_name(name: &str) -> Result<(), McpError> {
+    if name.is_empty()
+        || name.contains('=')
+        || name.contains('\0')
+        || !matches!(
+            name,
+            "SystemRoot" | "windir" | "ComSpec" | "COMSPEC" | "PATHEXT" | "TEMP" | "TMP"
+        )
+    {
+        return Err(McpError::InvalidTransport(format!(
+            "stdio inherited environment variable is not allowed: {name}"
+        )));
+    }
+    Ok(())
+}
+
 impl McpStdioConfig {
     pub(crate) fn validate(&self) -> Result<(), McpError> {
         if self.executable.as_os_str().is_empty() {
@@ -42,11 +58,7 @@ impl McpStdioConfig {
             }
         }
         for name in &self.inherited_env {
-            if name.is_empty() || name.contains('=') || name.contains('\0') {
-                return Err(McpError::InvalidTransport(
-                    "stdio inherited environment names must be valid".to_string(),
-                ));
-            }
+            validate_inherited_env_name(name)?;
         }
         Ok(())
     }
@@ -187,4 +199,39 @@ where
     }
     capture.state.lock().await.finished = true;
     capture.complete.notify_waiters();
+}
+
+#[cfg(test)]
+mod tests {
+    use super::validate_inherited_env_name;
+
+    #[test]
+    fn inherited_environment_allows_only_runtime_variables() {
+        for name in [
+            "SystemRoot",
+            "windir",
+            "ComSpec",
+            "COMSPEC",
+            "PATHEXT",
+            "TEMP",
+            "TMP",
+        ] {
+            assert!(validate_inherited_env_name(name).is_ok(), "{name}");
+        }
+    }
+
+    #[test]
+    fn inherited_environment_rejects_credentials_and_unknown_names() {
+        for name in [
+            "OPENAI_API_KEY",
+            "GH_TOKEN",
+            "PATH",
+            "CUSTOM_RUNTIME_SETTING",
+        ] {
+            assert!(
+                validate_inherited_env_name(name).is_err(),
+                "{name} must not be inherited"
+            );
+        }
+    }
 }

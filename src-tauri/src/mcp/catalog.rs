@@ -1,4 +1,7 @@
-use super::{McpError, McpHttpConfig, McpLegacySseConfig, McpStdioConfig, McpTransportConfig};
+use super::{
+    stdio::validate_inherited_env_name, McpError, McpHttpConfig, McpLegacySseConfig,
+    McpStdioConfig, McpTransportConfig,
+};
 use serde::{Deserialize, Serialize};
 use std::{collections::BTreeSet, path::PathBuf, time::Duration};
 use uuid::Uuid;
@@ -65,8 +68,11 @@ impl McpServerConfig {
                 "MCP timeout must be between {MIN_TIMEOUT_MS}ms and {MAX_TIMEOUT_MS}ms"
             )));
         }
-        for name in self.env_names.iter().chain(self.inherited_env.iter()) {
+        for name in &self.env_names {
             validate_env_name(name)?;
+        }
+        for name in &self.inherited_env {
+            validate_inherited_env_name(name)?;
         }
         match self.transport {
             McpTransportKind::Stdio => {

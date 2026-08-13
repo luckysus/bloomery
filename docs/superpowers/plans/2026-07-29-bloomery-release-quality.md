@@ -66,10 +66,10 @@ now enforced at 250 lines when those directories are present.
 
 **Files:** Create security integration/fuzz tests and `docs/security-model.md`.
 
-- [ ] **Step 1: Add tests** for path/junction/device escape, archive bombs/traversal, malicious HTML/Markdown, remote resource loading, key leakage, redirect downgrade, MCP environment leakage, permission bypass, SQL/FTS injection, oversized tool/provider output, and corrupt backups.
-- [ ] **Step 2: Run the suite** and preserve failures.
-- [ ] **Step 3: Fix root causes** at parser, path, HTTP, permission, renderer, repository, and restore boundaries; do not add UI-only guards.
-- [ ] **Step 4: Run security tests plus secret scan** using synthetic known keys; SQLite, logs, crash errors, exports, diagnostics, and process arguments must contain none.
+- [x] **Step 1: Add tests** for path/junction/device escape, archive bombs/traversal, malicious HTML/Markdown, remote resource loading, key leakage, redirect downgrade, MCP environment leakage, permission bypass, SQL/FTS injection, oversized tool/provider output, and corrupt backups.
+- [x] **Step 2: Run the suite** and preserve failures.
+- [x] **Step 3: Fix root causes** at parser, path, HTTP, permission, renderer, repository, and restore boundaries; do not add UI-only guards.
+- [x] **Step 4: Run security tests plus secret scan** using synthetic known keys; SQLite, logs, crash errors, exports, diagnostics, and process arguments must contain none.
 
 **Execution record (2026-08-08):** Added `scripts/security-check.ps1` and
 `docs/security-model.md`. The gate scans production source for private
@@ -118,6 +118,16 @@ redacts the panic message, and the optional `std::backtrace::Backtrace` frames
 (enabled only under `cfg!(debug_assertions)` or `BLOOMERY_PANIC_BACKTRACE`) are
 also passed through the global `Redactor`, verified by the backtrace-branch
 assertion above.
+
+**Execution record (2026-08-13):** Closed the previously unproven MCP
+environment-inheritance case. Stdio MCP processes now start from an empty
+environment and accept only the fixed Windows runtime allowlist
+`SystemRoot`, `windir`, `ComSpec`, `COMSPEC`, `PATHEXT`, `TEMP`, and `TMP`;
+credential-like and arbitrary names such as `OPENAI_API_KEY`, `GH_TOKEN`, and
+`PATH` are rejected both by `McpServerConfig` and by the final stdio spawn
+validator. Regression coverage includes configuration, direct transport, and
+Windows child-process boundaries. The security gate and the complete offline
+Rust suite passed after the change.
 
 ### Task 4: Lock dependencies, licenses, and SBOM
 

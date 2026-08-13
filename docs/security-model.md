@@ -45,6 +45,10 @@ not treated as a security boundary.
 - Redirects that could move signed or credentialed requests to another origin
   are rejected.
 - Response bodies, retries, timeouts, and retry-after delays are bounded.
+- MCP stdio starts from an empty environment. Only the fixed runtime allowlist
+  `SystemRoot`, `windir`, `ComSpec`, `COMSPEC`, `PATHEXT`, `TEMP`, and `TMP`
+  can be inherited; credential-like or arbitrary names are rejected at both
+  configuration and process-spawn boundaries.
 
 ## Release gates
 

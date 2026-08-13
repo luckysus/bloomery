@@ -118,6 +118,14 @@ the already-published migration 0017. Local integration fixtures covered
 initialization, tool discovery, authentication, resume, and shutdown; the
 transport suite passed 10 tests and the dedicated SSE suite passed 2 tests.
 
+**Execution record (2026-08-13):** Hardened the stdio environment boundary
+after review found that `inherited_env` could otherwise copy arbitrary parent
+variables into an MCP child. The configuration and spawn layers now allow only
+the fixed Windows runtime names `SystemRoot`, `windir`, `ComSpec`, `COMSPEC`,
+`PATHEXT`, `TEMP`, and `TMP`; configured MCP secret values continue to use the
+Credential Manager path and remain explicit. MCP management and transport
+regressions pass with 5 and 11 tests respectively.
+
 ### Task 7: Load Bloomery Skills
 
 **Files:** Create skill modules and `tests/skills.rs`.

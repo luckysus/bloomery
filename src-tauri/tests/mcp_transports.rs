@@ -71,6 +71,20 @@ async fn stdio_environment_contains_only_explicit_values() {
         .expect("child should shut down");
 }
 
+#[cfg(windows)]
+#[test]
+fn stdio_rejects_inherited_credential_environment_names() {
+    let mut config = powershell_config("");
+    config.inherited_env = vec!["OPENAI_API_KEY".to_string()];
+
+    let error = match StdioTransport::spawn(config) {
+        Ok(_) => panic!("credential inheritance must fail"),
+        Err(error) => error,
+    };
+    assert!(matches!(error, McpError::InvalidTransport(_)));
+    assert!(error.to_string().contains("not allowed"));
+}
+
 #[test]
 fn http_config_requires_http_url_and_positive_event_limit() {
     let valid = McpHttpConfig::new("http://127.0.0.1:8080/mcp")

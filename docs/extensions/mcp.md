@@ -25,8 +25,11 @@ environment values. Secret values are never returned to the React frontend,
 written to logs, or included in exports.
 
 Use raw bearer tokens in the configuration field. Bloomery adds the `Bearer`
-scheme to the request header. For `stdio`, only explicitly selected inherited
-variables and configured values are passed to the child process.
+scheme to the request header. For `stdio`, the child process starts with a
+cleared environment. Only configured secret values and the fixed runtime
+allowlist `SystemRoot`, `windir`, `ComSpec`, `COMSPEC`, `PATHEXT`, `TEMP`, and
+`TMP` may be passed to it; arbitrary inherited names such as `PATH`,
+`OPENAI_API_KEY`, and `GH_TOKEN` are rejected.
 
 ## Reliability boundaries
 
@@ -50,5 +53,8 @@ Legacy SSE。Legacy SSE 只允许同源、无内嵌凭据的 endpoint，并会�
 endpoint 和覆盖协议头的自定义头。
 
 Bearer 令牌和环境变量值保存在 Windows Credential Manager。SQLite 只保存
-配置和环境变量名称，前端、日志和导出文件都不会获得密钥值。发现的 MCP
-工具统一进入 Bloomery 工具注册表，默认需要本地权限确认。
+配置和环境变量名称，前端、日志和导出文件都不会获得密钥值。`stdio`
+子进程启动前会清空环境，只允许固定的运行时白名单
+`SystemRoot`、`windir`、`ComSpec`、`COMSPEC`、`PATHEXT`、`TEMP` 和
+`TMP`；`PATH`、`OPENAI_API_KEY`、`GH_TOKEN` 等任意继承名称会被拒绝。
+发现的 MCP 工具统一进入 Bloomery 工具注册表，默认需要本地权限确认。
