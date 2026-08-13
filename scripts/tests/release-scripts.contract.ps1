@@ -53,6 +53,16 @@ if ($buildReleaseContent -notmatch "BLOOMERY_OFFICIAL_PRIVATE_KEY_2026.*64 hexad
 if ($buildReleaseContent -notmatch 'Remove-EnvironmentVariable\s+"BLOOMERY_OFFICIAL_PRIVATE_KEY_2026"') {
     throw "build-release.ps1 must remove the official domain private seed before unrelated build steps"
 }
+foreach ($sensitiveEnvironmentName in @(
+    "TAURI_SIGNING_PRIVATE_KEY",
+    "TAURI_SIGNING_PRIVATE_KEY_PASSWORD",
+    "BLOOMERY_AUTHENTICODE_PFX_BASE64",
+    "BLOOMERY_AUTHENTICODE_PFX_PASSWORD"
+)) {
+    if ($buildReleaseContent -notmatch ('Remove-EnvironmentVariable\s+"' + [regex]::Escape($sensitiveEnvironmentName) + '"')) {
+        throw "build-release.ps1 must remove signed-release secret environment variable: $sensitiveEnvironmentName"
+    }
+}
 if ($buildReleaseContent -notmatch '\$bundleRoot' -or
     $buildReleaseContent -notmatch '\$staleBundlePath' -or
     $buildReleaseContent -notmatch 'Remove-Item -LiteralPath \$staleBundlePath -Recurse -Force') {

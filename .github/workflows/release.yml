@@ -227,9 +227,14 @@ jobs:
 
       - name: Validate release artifact set
         shell: pwsh
+        env:
+          RELEASE_TAG: ${{ inputs.release_tag }}
         run: |
           $files = @(Get-ChildItem -LiteralPath artifacts -File -Recurse)
-          $tag = $env:GITHUB_REF_NAME
+          $tag = [string]$env:RELEASE_TAG
+          if ($tag -notmatch '^v[0-9]+\.[0-9]+\.[0-9]+$') {
+            throw "Release artifact validation requires a semantic version tag, got $tag"
+          }
           $expectedVersion = $tag.Substring(1)
           foreach ($required in @(
             "release-manifest.json",

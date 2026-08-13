@@ -130,7 +130,7 @@ foreach ($requiredArtifactVerificationText in @(
     "SHA256SUMS.txt",
     "release-manifest.json",
     "latest.json",
-    "GITHUB_REF_NAME",
+    "RELEASE_TAG",
     "manifest.artifacts",
     "[regex]::Match",
     "Release manifest checksum mismatch"
@@ -138,6 +138,12 @@ foreach ($requiredArtifactVerificationText in @(
     if ($releaseWorkflow -notmatch [regex]::Escape($requiredArtifactVerificationText)) {
         throw "publish job must verify signed artifact metadata and checksums: $requiredArtifactVerificationText"
     }
+}
+if ($releaseWorkflow -notmatch '(?s)Validate release artifact set.*?env:\s*\r?\n\s+RELEASE_TAG:\s*\$\{\{\s*inputs\.release_tag\s*\}\}.*?\$tag\s*=\s*\[string\]\$env:RELEASE_TAG') {
+    throw "publish job must validate artifacts against the explicit release_tag input"
+}
+if ($releaseWorkflow -match '(?s)Validate release artifact set.*?\$tag\s*=\s*\$env:GITHUB_REF_NAME') {
+    throw "publish job must not derive the release version from GITHUB_REF_NAME during manual dispatch"
 }
 
 Write-Output "Workflow contract passed."

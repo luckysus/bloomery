@@ -385,6 +385,11 @@ try {
     }
 } finally {
     if ($Signed) {
+        Remove-EnvironmentVariable "TAURI_SIGNING_PRIVATE_KEY"
+        Remove-EnvironmentVariable "TAURI_SIGNING_PRIVATE_KEY_PASSWORD"
+        Remove-EnvironmentVariable "BLOOMERY_AUTHENTICODE_PFX_BASE64"
+        Remove-EnvironmentVariable "BLOOMERY_AUTHENTICODE_PFX_PASSWORD"
+        Remove-EnvironmentVariable "BLOOMERY_AUTHENTICODE_TIMESTAMP_URL"
         Remove-EnvironmentVariable "BLOOMERY_OFFICIAL_PRIVATE_KEY_2026"
     }
     if ($domainSignatureCreated -and (Test-Path -LiteralPath $domainSignaturePath -PathType Leaf)) {
