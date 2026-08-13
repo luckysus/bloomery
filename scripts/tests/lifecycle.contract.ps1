@@ -11,7 +11,9 @@ if (-not (Test-Path -LiteralPath $scriptPath -PathType Leaf)) {
     throw "Lifecycle check script is missing"
 }
 
-$content = Get-Content -LiteralPath $scriptPath -Raw
+$content = Get-Content -LiteralPath $scriptPath -Raw -Encoding UTF8
+$unicodeInstallPath = -join ([char[]](0x5B89, 0x88C5, 0x8DEF, 0x5F84))
+$unicodeDataPath = -join ([char[]](0x7528, 0x6237, 0x6570, 0x636E))
 foreach ($requiredText in @(
     "Set-StrictMode -Version Latest",
     "ErrorActionPreference",
@@ -25,8 +27,8 @@ foreach ($requiredText in @(
     "BLOOMERY_DATA_DIR",
     "Wait-ForPath",
     "WaitForExit",
-    "安装路径",
-    "用户数据"
+    $unicodeInstallPath,
+    $unicodeDataPath
 )) {
     if ($content -notmatch [regex]::Escape($requiredText)) {
         throw "Lifecycle check is missing required behavior: $requiredText"
