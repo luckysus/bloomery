@@ -1,6 +1,6 @@
 # Windows 发布验收矩阵
 
-这份矩阵用于记录 Bloomery 在 Windows 10/11 上的真实安装生命周期证据。它不把源码测试或单次 smoke 当作完整兼容性证明。
+这份矩阵用于记录 Bloomery 当前 Windows 10 发布目标的真实安装生命周期证据。它不把源码测试或单次 smoke 当作完整兼容性证明。Windows 11 暂不属于当前发布阻断范围，待具备真实 Windows 11 环境后再执行同一套矩阵。
 
 ## 覆盖范围
 
@@ -11,8 +11,8 @@
 | 非默认数据目录 | `scripts/lifecycle-matrix.ps1` | 通过 `BLOOMERY_DATA_DIR` 注入临时目录 |
 | 旧版 → 新版升级 | `scripts/lifecycle-matrix.ps1 -RunUpgradeDowngrade` | 可执行，需旧版和新版安装包 |
 | 新版 → 旧版降级保护 | `scripts/lifecycle-matrix.ps1 -RunUpgradeDowngrade` | 可执行，需旧版和新版安装包 |
-| Windows 10 | 本机或受控 Windows 10 runner | 当前有基础 smoke，完整矩阵待真实产物 |
-| Windows 11 | 真实 Windows 11 或受控 runner | 尚无当前证据 |
+| Windows 10 | 本机或受控 Windows 10 runner | 当前版本安装 smoke 已通过；完整跨版本矩阵待真实旧版产物 |
+| Windows 11 | 真实 Windows 11 或受控 runner | 后续兼容性任务，当前不阻断 Windows 10 发布 |
 
 ## 执行方式
 
@@ -56,4 +56,4 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release-check.ps1 
 5. Unicode 用户路径和非默认数据路径均成功；
 6. 原始 JSON 报告、安装包 SHA-256、版本号、提交 SHA 和 Windows 版本一起归档。
 
-在 Windows 10 和 Windows 11 都具备上述证据前，Gate H 的 Windows 矩阵保持未完成。
+当前 Windows 10 发布只要求 Windows 10 具备上述证据。Windows 11 具备测试环境后，再作为后续兼容性版本重复执行上述矩阵。

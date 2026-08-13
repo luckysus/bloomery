@@ -166,7 +166,7 @@ append minimum throughput 25,909.82 events/s, and 10,000-message replay P95
 **Files:** Create Windows install/upgrade/uninstall scripts, migration fixtures, and release matrix docs.
 
 - [ ] **Step 1: Build fixtures** for empty, legacy initial commit, every migration version, current, future, corrupt, and restored databases.
-- [ ] **Step 2: Test install/launch/uninstall** on fresh Windows 10 and 11 profiles with Unicode usernames and non-default data paths.
+- [ ] **Step 2: Test install/launch/uninstall** on a fresh Windows 10 profile with Unicode usernames and non-default data paths. Repeat on Windows 11 later when a test environment is available.
 - [ ] **Step 3: Test upgrade and downgrade protection.** Upgrades preserve data and credentials; uninstall preserves or explicitly offers removal; older binaries open newer DBs read-only with a clear error.
 - [ ] **Step 4: Run backup/restore and index-rebuild verification** after each supported upgrade path.
 
@@ -180,9 +180,10 @@ hashes and data-preservation state, uses only the F-drive
 missing or unsigned without explicit engineering-only opt-in. Contracts and
 PowerShell parsing pass. A smoke using the older unsigned `a6c0e43`
 engineering installer passed fresh install, launch, Unicode install path,
-non-default data directory, uninstall, and data retention; full Windows 10/11
-profile, current-version, signed-artifact, and old-to-new-to-old evidence
-remain open.
+non-default data directory, uninstall, and data retention; current Windows 10
+profile, signed-artifact, and old-to-new-to-old evidence remain open.
+Windows 11 validation is deferred until a real Windows 11 test environment is
+available and does not block the current Windows 10 release target.
 
 ### Task 7: Build and sign release artifacts
 
@@ -200,7 +201,7 @@ remain open.
 - [ ] **Step 1: Write tests** for valid update, bad signature, wrong platform, interrupted download, proxy/offline, worker/domain compatibility, and database preflight failure.
 - [ ] **Step 2: Run tests** and expect updater integration incomplete.
 - [ ] **Step 3: Implement opt-in stable update checks** against a public signed release source. Download, signature/hash verify, data preflight, and explicit user installation occur before restart.
-- [ ] **Step 4: Test old-to-new update on Windows 10/11** and verify data, credentials, packages, worker, and rollback guidance.
+- [ ] **Step 4: Test old-to-new update on Windows 10** and verify data, credentials, packages, worker, and rollback guidance. Repeat on Windows 11 later when a test environment is available.
 
 ### Task 9: Build blocking CI/CD
 

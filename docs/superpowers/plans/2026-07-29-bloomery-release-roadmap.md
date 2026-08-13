@@ -223,7 +223,7 @@ production build succeeds.
 
 ### Gate H: public release
 
-- [ ] Windows 10 and 11 install, upgrade, uninstall, and data-preservation tests pass.
+- [ ] Windows 10 install, upgrade, uninstall, and data-preservation tests pass for the current release target. Windows 11 compatibility validation is a deferred follow-up and does not block this target.
 - [ ] Security, dependency, secret, protocol, migration, performance, and steel evaluation gates pass.
 - [ ] Signed installers, portable package, updater metadata, SBOM, notices, and checksums exist.
 - [x] Chinese and English docs, security policy, contributor guide, extension guides, demo, and reproducible case study exist.
