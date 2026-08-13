@@ -59,20 +59,49 @@ foreach ($requiredText in @(
 $manifestFixtureRoot = Join-Path $env:TEMP ("bloomery-updater-manifest-" + [Guid]::NewGuid().ToString("N"))
 $manifestFixture = Join-Path $manifestFixtureRoot "Bloomery_0.1.0_x64-setup.exe"
 $manifestFixtureSignature = $manifestFixture + ".sig"
+$msiManifestFixture = Join-Path $manifestFixtureRoot "Bloomery_0.1.0_x64.msi"
+$msiManifestFixtureSignature = $msiManifestFixture + ".sig"
+$legacyManifestFixture = Join-Path $manifestFixtureRoot "Bloomery_0.1.0_x64.nsis.zip"
+$legacyManifestFixtureSignature = $legacyManifestFixture + ".sig"
+$legacyMsiManifestFixture = Join-Path $manifestFixtureRoot "Bloomery_0.1.0_x64.msi.zip"
+$legacyMsiManifestFixtureSignature = $legacyMsiManifestFixture + ".sig"
 $manifestFixtureOutput = Join-Path $manifestFixtureRoot "latest.json"
 try {
     New-Item -ItemType Directory -Path $manifestFixtureRoot -Force | Out-Null
     Set-Content -LiteralPath $manifestFixture -Value "candidate" -Encoding ASCII
     Set-Content -LiteralPath $manifestFixtureSignature -Value "test-signature" -Encoding ASCII
+    Set-Content -LiteralPath $msiManifestFixture -Value "msi-candidate" -Encoding ASCII
+    Set-Content -LiteralPath $msiManifestFixtureSignature -Value "msi-test-signature" -Encoding ASCII
+    Set-Content -LiteralPath $legacyManifestFixture -Value "legacy-candidate" -Encoding ASCII
+    Set-Content -LiteralPath $legacyManifestFixtureSignature -Value "legacy-test-signature" -Encoding ASCII
+    Set-Content -LiteralPath $legacyMsiManifestFixture -Value "legacy-msi-candidate" -Encoding ASCII
+    Set-Content -LiteralPath $legacyMsiManifestFixtureSignature -Value "legacy-msi-test-signature" -Encoding ASCII
     $global:LASTEXITCODE = 0
     & $manifestScript -ArtifactDirectory $manifestFixtureRoot -Version "0.1.0" -ReleaseBaseUrl "https://github.com/luckysus/bloomery/releases/download/v0.1.0-test" -OutputPath $manifestFixtureOutput
     if ($LASTEXITCODE -ne 0) {
         throw "Updater manifest fixture failed with exit code $LASTEXITCODE"
     }
     $manifest = Get-Content -LiteralPath $manifestFixtureOutput -Raw | ConvertFrom-Json
-    $platform = $manifest.platforms.'windows-x86_64-nsis'
-    if ($platform.url -notmatch 'Bloomery_0\.1\.0_x64-setup\.exe$' -or $platform.signature -ne 'test-signature') {
-        throw "Updater manifest fixture did not select the signed NSIS installer"
+    $nsisProperty = $manifest.platforms.PSObject.Properties | Where-Object Name -eq "windows-x86_64-nsis" | Select-Object -First 1
+    $msiProperty = $manifest.platforms.PSObject.Properties | Where-Object Name -eq "windows-x86_64-msi" | Select-Object -First 1
+    $genericProperty = $manifest.platforms.PSObject.Properties | Where-Object Name -eq "windows-x86_64" | Select-Object -First 1
+    $nsisPlatform = if ($null -eq $nsisProperty) { $null } else { $nsisProperty.Value }
+    $msiPlatform = if ($null -eq $msiProperty) { $null } else { $msiProperty.Value }
+    $genericPlatform = if ($null -eq $genericProperty) { $null } else { $genericProperty.Value }
+    if ($null -eq $nsisPlatform -or $null -eq $msiPlatform) {
+        throw "Updater manifest fixture is missing the installer-specific Windows platform keys"
+    }
+    if ($null -eq $genericPlatform) {
+        throw "Updater manifest fixture is missing the portable Windows platform fallback"
+    }
+    if ($nsisPlatform.url -notmatch 'Bloomery_0\.1\.0_x64-setup\.exe$' -or $nsisPlatform.signature -ne 'test-signature') {
+        throw "Updater manifest fixture did not prefer the signed NSIS installer"
+    }
+    if ($msiPlatform.url -notmatch 'Bloomery_0\.1\.0_x64\.msi$' -or $msiPlatform.signature -ne 'msi-test-signature') {
+        throw "Updater manifest fixture did not select the signed MSI installer"
+    }
+    if ($genericPlatform.url -notmatch 'Bloomery_0\.1\.0_x64-setup\.exe$' -or $genericPlatform.signature -ne 'test-signature') {
+        throw "Updater manifest fixture did not use the signed NSIS installer for portable fallback"
     }
 }
 finally {

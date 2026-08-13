@@ -11,6 +11,23 @@ $ErrorActionPreference = "Stop"
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $rustRoot = Join-Path $repoRoot "src-tauri"
+$tauriConfigPath = Join-Path $rustRoot "tauri.conf.json"
+
+function Wait-ForPath {
+    param(
+        [Parameter(Mandatory = $true)][string]$Path,
+        [int]$TimeoutSeconds = 30
+    )
+
+    $deadline = [DateTime]::UtcNow.AddSeconds($TimeoutSeconds)
+    while (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
+        if ([DateTime]::UtcNow -ge $deadline) {
+            return $false
+        }
+        Start-Sleep -Milliseconds 250
+    }
+    return $true
+}
 
 function Invoke-Checked {
     param(
@@ -74,12 +91,20 @@ if ($signature.Status -eq "NotSigned" -and -not $AllowUnsigned) {
 }
 
 $tempRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("bloomery-lifecycle-" + [guid]::NewGuid().ToString("N"))
-$installRoot = Join-Path $tempRoot "install"
-$dataRoot = Join-Path $tempRoot "data"
-$oldAppData = $env:APPDATA
-$oldLocalAppData = $env:LOCALAPPDATA
+$installRoot = Join-Path $tempRoot "安装路径"
+$dataRoot = Join-Path $tempRoot "用户数据"
+$oldBloomeryDataDir = $env:BLOOMERY_DATA_DIR
 
 try {
+    if (-not (Test-Path -LiteralPath $tauriConfigPath -PathType Leaf)) {
+        throw "Tauri configuration is missing: $tauriConfigPath"
+    }
+    $tauriConfig = Get-Content -LiteralPath $tauriConfigPath -Raw | ConvertFrom-Json
+    $identifier = [string]$tauriConfig.identifier
+    if ([string]::IsNullOrWhiteSpace($identifier)) {
+        throw "Tauri application identifier is missing"
+    }
+
     New-Item -ItemType Directory -Path $installRoot, $dataRoot -Force | Out-Null
     $installProcess = Start-Process -FilePath $installer.FullName -ArgumentList @("/S", "/D=$installRoot") -Wait -PassThru
     if ($installProcess.ExitCode -ne 0) {
@@ -91,14 +116,26 @@ try {
         throw "Installed Bloomery.exe was not found under $installRoot"
     }
 
-    $env:APPDATA = $dataRoot
-    $env:LOCALAPPDATA = $dataRoot
+    $env:BLOOMERY_DATA_DIR = $dataRoot
     $applicationProcess = Start-Process -FilePath $application.FullName -WorkingDirectory $installRoot -PassThru
-    Start-Sleep -Seconds 5
+    $applicationDataDirectory = $dataRoot
+    $databasePath = Join-Path $applicationDataDirectory "bloomery.sqlite3"
+    if (-not (Wait-ForPath -Path $databasePath)) {
+        if (-not $applicationProcess.HasExited) {
+            Stop-Process -Id $applicationProcess.Id -Force
+            $applicationProcess.WaitForExit(10000)
+        }
+        $exitCode = if ($applicationProcess.HasExited) { $applicationProcess.ExitCode } else { "unknown" }
+        throw "Bloomery did not create its app-data database at $databasePath (exit code $exitCode)"
+    }
     if (-not $applicationProcess.HasExited) {
         Stop-Process -Id $applicationProcess.Id -Force
+        if (-not $applicationProcess.WaitForExit(10000)) {
+            throw "Bloomery process did not exit after the lifecycle smoke stop request"
+        }
     }
-    Set-Content -LiteralPath (Join-Path $dataRoot "retention-sentinel.txt") -Value "installer smoke" -Encoding UTF8
+    $sentinelPath = Join-Path $applicationDataDirectory "retention-sentinel.txt"
+    Set-Content -LiteralPath $sentinelPath -Value "installer smoke" -Encoding UTF8
 
     $uninstaller = Get-ChildItem -LiteralPath $installRoot -Filter "uninstall*.exe" -File -Recurse | Select-Object -First 1
     if ($null -eq $uninstaller) {
@@ -111,14 +148,20 @@ try {
     if (Test-Path -LiteralPath $application.FullName) {
         throw "Installed application still exists after uninstall"
     }
-    if (-not (Test-Path -LiteralPath (Join-Path $dataRoot "retention-sentinel.txt"))) {
+    if (-not (Test-Path -LiteralPath $databasePath -PathType Leaf)) {
+        throw "Application database was removed by uninstall"
+    }
+    if (-not (Test-Path -LiteralPath $sentinelPath -PathType Leaf)) {
         throw "Application data was removed by uninstall"
     }
-    Write-Output "Installer smoke passed: install, launch, uninstall, and data retention."
+    Write-Output "Installer smoke passed: install, launch, app-data database creation, uninstall, Unicode path, and data retention."
 }
 finally {
-    $env:APPDATA = $oldAppData
-    $env:LOCALAPPDATA = $oldLocalAppData
+    if ($null -eq $oldBloomeryDataDir) {
+        Remove-Item Env:\BLOOMERY_DATA_DIR -ErrorAction SilentlyContinue
+    } else {
+        $env:BLOOMERY_DATA_DIR = $oldBloomeryDataDir
+    }
     if (Test-Path -LiteralPath $tempRoot) {
         Remove-Item -LiteralPath $tempRoot -Recurse -Force -ErrorAction SilentlyContinue
     }

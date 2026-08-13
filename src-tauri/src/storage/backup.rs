@@ -349,15 +349,7 @@ fn extract_backup(
         return Err("backup database is empty".to_string());
     }
 
-    let restored = Connection::open(staging_database)
-        .map_err(|error| format!("open restored database failed: {error}"))?;
-    let quick_check: String = restored
-        .query_row("PRAGMA quick_check(1)", [], |row| row.get(0))
-        .map_err(|error| format!("restored database check failed: {error}"))?;
-    if quick_check != "ok" {
-        return Err("restored database failed integrity check".to_string());
-    }
-    drop(restored);
+    validate_and_migrate_staged_database(staging_database)?;
     install_restored_files(
         staging_database,
         staging_content,
@@ -365,6 +357,59 @@ fn extract_backup(
         content_root,
     )?;
     Ok((database_bytes, content_bytes))
+}
+
+fn validate_and_migrate_staged_database(path: &Path) -> Result<(), String> {
+    let connection = Connection::open(path)
+        .map_err(|error| format!("open restored database failed: {error}"))?;
+    let quick_check: String = connection
+        .query_row("PRAGMA quick_check(1)", [], |row| row.get(0))
+        .map_err(|error| format!("restored database check failed: {error}"))?;
+    if quick_check != "ok" {
+        return Err("restored database failed integrity check".to_string());
+    }
+    let core_table_count: i64 = connection
+        .query_row(
+            "SELECT COUNT(*)
+             FROM sqlite_schema
+             WHERE type = 'table'
+               AND name IN ('schema_migrations', 'conversations', 'settings')",
+            [],
+            |row| row.get(0),
+        )
+        .map_err(|error| format!("inspect restored database schema failed: {error}"))?;
+    if core_table_count != 3 {
+        return Err("restored database is not a Bloomery database".to_string());
+    }
+    let migration_table_count: i64 = connection
+        .query_row(
+            "SELECT COUNT(*)
+             FROM sqlite_schema
+             WHERE type = 'table' AND name = 'schema_migrations'",
+            [],
+            |row| row.get(0),
+        )
+        .map_err(|error| format!("inspect restored database schema failed: {error}"))?;
+    if migration_table_count != 1 {
+        return Err("restored database is not a Bloomery database".to_string());
+    }
+    let migration_count: i64 = connection
+        .query_row("SELECT COUNT(*) FROM schema_migrations", [], |row| {
+            row.get(0)
+        })
+        .map_err(|error| format!("inspect restored database migrations failed: {error}"))?;
+    if migration_count == 0 {
+        return Err("restored database is not a Bloomery database".to_string());
+    }
+    drop(connection);
+
+    let (migrated, _) = crate::storage::database::open(path)
+        .map_err(|error| format!("migrate restored Bloomery database failed: {error}"))?;
+    migrated
+        .execute_batch("PRAGMA wal_checkpoint(TRUNCATE)")
+        .map_err(|error| format!("checkpoint restored database failed: {error}"))?;
+    drop(migrated);
+    remove_database_sidecars(path)
 }
 
 fn install_restored_files(
@@ -465,6 +510,22 @@ fn database_sidecars(database_path: &Path) -> [PathBuf; 3] {
         PathBuf::from(format!("{}-shm", database_path.display())),
         PathBuf::from(format!("{}-journal", database_path.display())),
     ]
+}
+
+fn remove_database_sidecars(database_path: &Path) -> Result<(), String> {
+    for sidecar in database_sidecars(database_path) {
+        match fs::remove_file(&sidecar) {
+            Ok(()) => {}
+            Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+            Err(error) => {
+                return Err(format!(
+                    "remove restored database sidecar failed: {}: {error}",
+                    sidecar.display()
+                ))
+            }
+        }
+    }
+    Ok(())
 }
 
 fn read_manifest(archive: &mut ZipArchive<File>) -> Result<BackupManifest, String> {

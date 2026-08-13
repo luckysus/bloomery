@@ -234,6 +234,29 @@ fn tauri_frontend_hooks_run_from_the_frontend_directory() {
         "beforeBuildCommand must address the frontend package from Tauri's repository working directory"
     );
 }
+
+#[test]
+fn release_build_declares_tauri_custom_protocol_feature() {
+    let cargo_manifest = source(manifest_dir().join("Cargo.toml"));
+    assert!(
+        cargo_manifest.contains("[features]"),
+        "Cargo.toml must declare the Tauri release feature table"
+    );
+    assert!(
+        cargo_manifest.contains(r#"custom-protocol = ["tauri/custom-protocol"]"#),
+        "release builds must enable Tauri's custom protocol so they embed frontend assets"
+    );
+}
+
+#[test]
+fn tauri_package_declares_bloomery_as_default_run_binary() {
+    let cargo_manifest = source(manifest_dir().join("Cargo.toml"));
+    assert!(
+        cargo_manifest.contains("default-run = \"bloomery\""),
+        "Cargo.toml must select bloomery as the Tauri application binary when helper binaries exist"
+    );
+}
+
 #[test]
 fn database_runtime_uses_ordered_workspace_migrations() {
     let source_root = manifest_dir().join("src");

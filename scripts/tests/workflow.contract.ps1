@@ -62,6 +62,9 @@ if ($releaseWorkflow -notmatch 'github\.ref_type\s*==\s*''tag''|startsWith\(gith
 }
 
 $qualityWorkflow = Get-Content -LiteralPath (Join-Path $repoRoot ".github\workflows\quality.yml") -Raw
+if ($qualityWorkflow -notmatch 'timeout-minutes:\s*(?:9[0-9]|[1-9][0-9]{2,})') {
+    throw ".github/workflows/quality.yml must allow the full performance gate to finish within a 90-minute job timeout"
+}
 foreach ($requiredBenchmark in @(
     "benchmark-retrieval\.ps1",
     "benchmark-dataset-import\.ps1",

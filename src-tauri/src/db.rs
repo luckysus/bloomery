@@ -45,14 +45,34 @@ pub(crate) fn with_conn_mut<T>(
     operation(conn)
 }
 
-pub(crate) fn database_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
-    let directory = app
+pub(crate) fn configured_data_directory(
+    default: PathBuf,
+    override_path: Option<PathBuf>,
+) -> Result<PathBuf, String> {
+    let directory = override_path.unwrap_or(default);
+    if directory.as_os_str().is_empty() {
+        return Err("BLOOMERY_DATA_DIR must not be empty".to_string());
+    }
+    if !directory.is_absolute() {
+        return Err("BLOOMERY_DATA_DIR must be an absolute path".to_string());
+    }
+    Ok(directory)
+}
+
+pub(crate) fn app_data_directory(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+    let default = app
         .path()
         .app_data_dir()
         .map_err(|error| format!("resolve app data dir failed: {error}"))?;
+    let override_path = std::env::var_os("BLOOMERY_DATA_DIR").map(PathBuf::from);
+    let directory = configured_data_directory(default, override_path)?;
     fs::create_dir_all(&directory)
         .map_err(|error| format!("create app data dir failed: {error}"))?;
-    Ok(directory.join("bloomery.sqlite3"))
+    Ok(directory)
+}
+
+pub(crate) fn database_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+    Ok(app_data_directory(app)?.join("bloomery.sqlite3"))
 }
 
 fn content_root_for(database: &PathBuf) -> Result<PathBuf, String> {
@@ -272,6 +292,27 @@ mod tests {
     #[test]
     fn local_workspace_is_stable() {
         assert_eq!(current_workspace_id(), "local");
+    }
+
+    #[test]
+    fn configured_data_directory_prefers_absolute_override() {
+        let default = std::env::temp_dir().join("bloomery-default-data");
+        let override_path = std::env::temp_dir().join("bloomery-override-data");
+
+        let resolved = configured_data_directory(default, Some(override_path.clone()))
+            .expect("absolute data directory override should be accepted");
+
+        assert_eq!(resolved, override_path);
+    }
+
+    #[test]
+    fn configured_data_directory_rejects_relative_override() {
+        let result = configured_data_directory(
+            std::env::temp_dir().join("bloomery-default-data"),
+            Some(PathBuf::from("relative-data")),
+        );
+
+        assert!(result.is_err());
     }
 
     #[test]

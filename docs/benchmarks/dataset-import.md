@@ -9,8 +9,8 @@ Gate F/H dataset import passed on 2026-08-13.
 | Source rows | 100,000 | 100,000 |
 | Source columns | 12 | reported |
 | Source size | 7,528,510 bytes | reported |
-| Preview P95 | 409.06 ms | <= 5,000 ms |
-| Peak working set | 66.68 MB | <= 300 MB |
+| Preview P95 | 396.7488 ms | <= 5,000 ms |
+| Peak working set | 66.7422 MB | <= 300 MB |
 
 The runner creates a deterministic steel production CSV and exercises the same `preview_dataset` path used by the desktop analysis workbench. It scans the full source, records the real row count, keeps the bounded preview rows in memory, infers column quality, and writes machine-readable raw timings.
 
@@ -28,7 +28,7 @@ The generated CSV contains heat ID, grade, process, chemistry, temperature, mech
 - Source SHA-256: `5a66efb6b2e54369b0ab09c7c388f5e87e1b3a5d2ffb29ba9887c071db2f542f`
 - Warm-up rounds: 1
 - Measured rounds: 5
-- Raw preview timings: 278.44 ms, 332.54 ms, 348.57 ms, 398.60 ms, 409.06 ms
+- Raw preview timings: 279.1758 ms, 283.5109 ms, 288.2637 ms, 292.4145 ms, 396.7488 ms
 - Warnings: none
 
 ## Reproduce

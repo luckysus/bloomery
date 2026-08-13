@@ -5,7 +5,6 @@ use crate::storage::repositories::domains::{
 };
 use serde::Serialize;
 use std::path::{Path, PathBuf};
-use tauri::Manager;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct DomainInstallResult {
@@ -14,11 +13,7 @@ pub struct DomainInstallResult {
 }
 
 fn domains_root(app: &tauri::AppHandle) -> Result<PathBuf, String> {
-    let directory = app
-        .path()
-        .app_data_dir()
-        .map_err(|error| format!("resolve app data dir failed: {error}"))?
-        .join("domains");
+    let directory = crate::db::app_data_directory(app)?.join("domains");
     std::fs::create_dir_all(&directory)
         .map_err(|error| format!("create domain package directory failed: {error}"))?;
     Ok(directory)

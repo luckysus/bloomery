@@ -22,20 +22,61 @@ if ($baseUri.Host -match "^(localhost|127\.|10\.|192\.168\.|169\.254\.|172\.(1[6
     throw "ReleaseBaseUrl must not target a local or private host"
 }
 
-$zipPackages = @(Get-ChildItem -LiteralPath $artifactRoot -File -Filter "*.nsis.zip")
-$installerPackages = @(Get-ChildItem -LiteralPath $artifactRoot -File -Filter "*-setup.exe")
-$packages = @($zipPackages) + @($installerPackages)
-if ($packages.Count -ne 1) {
-    throw "Expected exactly one NSIS updater package (*.nsis.zip or *-setup.exe), found $($packages.Count)"
+function Select-SignedPackage {
+    param(
+        [Parameter(Mandatory = $true)][string]$Label,
+        [Parameter(Mandatory = $true)][System.IO.FileInfo[]]$PrimaryPackages,
+        [Parameter(Mandatory = $true)][System.IO.FileInfo[]]$FallbackPackages
+    )
+
+    $primary = @($PrimaryPackages)
+    $fallback = @($FallbackPackages)
+    $packages = @(if ($primary.Count -gt 0) { $primary } else { $fallback })
+    if ($packages.Count -gt 1) {
+        throw "Expected at most one $Label updater package, found $($packages.Count)"
+    }
+    if ($packages.Count -eq 0) {
+        return $null
+    }
+
+    $package = $packages[0]
+    $signaturePath = $package.FullName + ".sig"
+    if (-not (Test-Path -LiteralPath $signaturePath -PathType Leaf)) {
+        throw "Updater signature is missing for $($package.Name)"
+    }
+    $signature = (Get-Content -LiteralPath $signaturePath -Raw).Trim()
+    if ([string]::IsNullOrWhiteSpace($signature)) {
+        throw "Updater signature is empty for $($package.Name)"
+    }
+
+    return [ordered]@{
+        package = $package
+        signature = $signature
+    }
 }
-$package = $packages[0]
-$signaturePath = $package.FullName + ".sig"
-if (-not (Test-Path -LiteralPath $signaturePath -PathType Leaf)) {
-    throw "Updater signature is missing for $($package.Name)"
+
+function New-PlatformEntry {
+    param(
+        [Parameter(Mandatory = $true)][System.Collections.IDictionary]$SelectedPackage,
+        [Parameter(Mandatory = $true)][string]$ReleaseBase
+    )
+
+    return [ordered]@{
+        signature = [string]$SelectedPackage.signature
+        url = $ReleaseBase.TrimEnd("/") + "/" + $SelectedPackage.package.Name
+    }
 }
-$signature = (Get-Content -LiteralPath $signaturePath -Raw).Trim()
-if ([string]::IsNullOrWhiteSpace($signature)) {
-    throw "Updater signature is empty for $($package.Name)"
+
+$nsisPackage = Select-SignedPackage `
+    -Label "NSIS" `
+    -PrimaryPackages @(Get-ChildItem -LiteralPath $artifactRoot -File -Filter "*-setup.exe") `
+    -FallbackPackages @(Get-ChildItem -LiteralPath $artifactRoot -File -Filter "*.nsis.zip")
+$msiPackage = Select-SignedPackage `
+    -Label "MSI" `
+    -PrimaryPackages @(Get-ChildItem -LiteralPath $artifactRoot -File -Filter "*.msi") `
+    -FallbackPackages @(Get-ChildItem -LiteralPath $artifactRoot -File -Filter "*.msi.zip")
+if ($null -eq $nsisPackage -and $null -eq $msiPackage) {
+    throw "No signed Windows updater package found"
 }
 
 if ([string]::IsNullOrWhiteSpace($OutputPath)) {
@@ -46,11 +87,16 @@ $manifest = [ordered]@{
     version = $Version
     notes = $Notes
     pub_date = [DateTime]::UtcNow.ToString("o")
-    platforms = [ordered]@{
-        "windows-x86_64-nsis" = [ordered]@{
-            signature = $signature
-            url = $ReleaseBaseUrl.TrimEnd("/") + "/" + $package.Name
-        }
+    platforms = [ordered]@{}
+}
+if ($null -ne $nsisPackage) {
+    $manifest.platforms."windows-x86_64-nsis" = New-PlatformEntry -SelectedPackage $nsisPackage -ReleaseBase $ReleaseBaseUrl
+    $manifest.platforms."windows-x86_64" = New-PlatformEntry -SelectedPackage $nsisPackage -ReleaseBase $ReleaseBaseUrl
+}
+if ($null -ne $msiPackage) {
+    $manifest.platforms."windows-x86_64-msi" = New-PlatformEntry -SelectedPackage $msiPackage -ReleaseBase $ReleaseBaseUrl
+    if ($null -eq $nsisPackage) {
+        $manifest.platforms."windows-x86_64" = New-PlatformEntry -SelectedPackage $msiPackage -ReleaseBase $ReleaseBaseUrl
     }
 }
 [System.IO.File]::WriteAllText(

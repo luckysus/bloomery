@@ -17,7 +17,16 @@ foreach ($requiredText in @(
     "ErrorActionPreference",
     "migrations",
     "InstallerPath",
-    "Get-FileHash"
+    "Get-FileHash",
+    "tauri.conf.json",
+    "identifier",
+    "applicationDataDirectory",
+    "bloomery.sqlite3",
+    "BLOOMERY_DATA_DIR",
+    "Wait-ForPath",
+    "WaitForExit",
+    "安装路径",
+    "用户数据"
 )) {
     if ($content -notmatch [regex]::Escape($requiredText)) {
         throw "Lifecycle check is missing required behavior: $requiredText"

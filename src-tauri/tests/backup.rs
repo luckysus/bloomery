@@ -373,3 +373,37 @@ fn restore_rejects_corrupt_database_header_without_touching_target() {
     assert_no_staging_leftovers(&root);
     fs::remove_dir_all(root).expect("remove fixture");
 }
+
+#[test]
+fn restore_rejects_a_valid_non_bloomery_database_without_touching_target() {
+    let root = fixture_root("foreign-database");
+    fs::create_dir_all(&root).expect("create root");
+
+    let foreign_database = root.join("foreign.sqlite3");
+    let foreign = Connection::open(&foreign_database).expect("open foreign database");
+    foreign
+        .execute(
+            "CREATE TABLE unrelated_records (id INTEGER PRIMARY KEY, value TEXT NOT NULL)",
+            [],
+        )
+        .expect("create foreign schema");
+    drop(foreign);
+    let foreign_bytes = fs::read(&foreign_database).expect("read foreign database");
+
+    let archive = root.join("foreign.bloomery-backup");
+    build_archive(&archive, &manifest_bytes(1, 0), &foreign_bytes, &[]);
+
+    let target_database = root.join("target.sqlite3");
+    let target_content = root.join("target-content");
+    seed_target(&target_database, &target_content);
+
+    let error = restore_backup(&archive, &target_database, &target_content)
+        .expect_err("a valid non-Bloomery database must be rejected");
+    assert!(
+        error.contains("Bloomery database"),
+        "unexpected error: {error}"
+    );
+    assert_target_intact(&target_database, &target_content);
+    assert_no_staging_leftovers(&root);
+    fs::remove_dir_all(root).expect("remove fixture");
+}

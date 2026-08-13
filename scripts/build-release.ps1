@@ -172,7 +172,8 @@ function Update-WorkerArtifactMetadata {
 
     $sbom = Get-Content -LiteralPath $sbomPath -Raw | ConvertFrom-Json
     foreach ($component in @($sbom.components)) {
-        if ([string]$component.name -eq "bloomery-compute-worker") {
+        if ([string]$component.name -eq "bloomery-compute-worker" -and
+            $null -ne $component.PSObject.Properties["sha256"]) {
             $component.sha256 = $hash
         }
     }
@@ -309,7 +310,15 @@ try {
             Remove-Item -LiteralPath $staleBundlePath -Recurse -Force
         }
     }
-    $buildArguments = @("tauri", "build", "--ci", "--bundles", $bundleValue)
+    $buildArguments = @(
+        "tauri",
+        "build",
+        "--ci",
+        "--features",
+        "custom-protocol",
+        "--bundles",
+        $bundleValue
+    )
     $updaterConfigPath = $null
     if ($Signed) {
         if ([string]::IsNullOrWhiteSpace($env:TAURI_SIGNING_PRIVATE_KEY)) {
@@ -343,6 +352,7 @@ try {
     if ($Offline) {
         $buildArguments = @("--offline") + $buildArguments
     }
+    $buildArguments += @("--", "--bin", "bloomery")
     try {
         $buildName = if ($Signed) { "Signed Windows package build" } else { "Unsigned Windows package build" }
         Invoke-Checked $buildName "cargo" $buildArguments $rustRoot
@@ -374,7 +384,7 @@ try {
     }
 }
 
-$portableBuildArguments = @("build", "--release")
+$portableBuildArguments = @("build", "--release", "--features", "custom-protocol", "--bin", "bloomery")
 if ($Offline) {
     $portableBuildArguments += "--offline"
 }

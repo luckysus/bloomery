@@ -7,10 +7,10 @@ Agent event persistence and large-conversation replay passed on 2026-08-13.
 | Metric | Result | Gate |
 | --- | ---: | ---: |
 | Conversation messages replayed | 10,000 | exactly 10,000 |
-| Event append minimum throughput | 19,558 events/s | >= 250 events/s |
-| Event append median throughput | 20,673 events/s | reported |
-| Conversation replay P95 | 11.43 ms | <= 3,000 ms |
-| Peak working set | 20.49 MB | <= 300 MB |
+| Event append minimum throughput | 25,909.82 events/s | >= 250 events/s |
+| Event append median throughput | 29,449.18 events/s | reported |
+| Conversation replay P95 | 8.8217 ms | <= 3,000 ms |
+| Peak working set | 20.7773 MB | <= 300 MB |
 
 The benchmark uses the real SQLite migration and repository paths used by
 the local agent runtime. It persists 5,000 ordered agent events across five

@@ -231,10 +231,20 @@ jobs:
           if ([string]$latest.version -ne $expectedVersion) {
             throw "Updater manifest version does not match tag"
           }
-          $platform = $latest.platforms.'windows-x86_64-nsis'
-          if ($null -eq $platform -or [string]::IsNullOrWhiteSpace([string]$platform.signature) -or
-              [string]$platform.url -notmatch [regex]::Escape("/$tag/")) {
-            throw "Updater manifest is missing the signed NSIS asset for $tag"
+          $nsisPlatform = $latest.platforms.'windows-x86_64-nsis'
+          $msiPlatform = $latest.platforms.'windows-x86_64-msi'
+          $genericPlatform = $latest.platforms.'windows-x86_64'
+          foreach ($platformCheck in @(
+            @{ Name = "NSIS"; Value = $nsisPlatform; Pattern = '-setup\.exe$' },
+            @{ Name = "MSI"; Value = $msiPlatform; Pattern = '\.msi$' },
+            @{ Name = "portable fallback"; Value = $genericPlatform; Pattern = '-setup\.exe$' }
+          )) {
+            $platform = $platformCheck.Value
+            if ($null -eq $platform -or [string]::IsNullOrWhiteSpace([string]$platform.signature) -or
+                [string]$platform.url -notmatch [regex]::Escape("/$tag/") -or
+                [string]$platform.url -notmatch $platformCheck.Pattern) {
+              throw "Updater manifest is missing the signed $($platformCheck.Name) asset for $tag"
+            }
           }
           $checksumFile = $files | Where-Object Name -eq "SHA256SUMS.txt" | Select-Object -First 1
           foreach ($line in Get-Content -LiteralPath $checksumFile.FullName) {

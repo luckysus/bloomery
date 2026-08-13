@@ -153,13 +153,13 @@ coverage and sole-owner relicensing authority also remain open.
 
 **Execution record (2026-08-13):** Added deterministic release gates for cold
 start, idle working set, agent event persistence, and large conversation
-replay. The Windows 10 reference run passed all six measured dimensions:
-startup P95 405.62 ms, idle working-set P95 28.79 MB, 100,000-chunk
-retrieval P95 21.36 ms with minimum recall 1.0, 100,000-row import P95
-409.06 ms with 66.68 MB peak working set, event append minimum throughput
-19,558 events/s, and 10,000-message replay P95 11.43 ms with 20.49 MB peak
-working set. Raw JSON is written under `src-tauri/target/` and the reproducible
-reports are in `docs/benchmarks/`.
+replay. The Windows 10 reference run passed all six measured dimensions across
+four benchmark scripts: startup P95 339.3318 ms, idle working-set P95
+28.4570 MB, 100,000-chunk retrieval P95 10.7422 ms with minimum recall 1.0,
+100,000-row import P95 396.7488 ms with 66.7422 MB peak working set, event
+append minimum throughput 25,909.82 events/s, and 10,000-message replay P95
+8.8217 ms with 20.7773 MB peak working set. Raw JSON is written under
+`src-tauri/target/` and the reproducible reports are in `docs/benchmarks/`.
 
 ### Task 6: Test Windows data lifecycle
 

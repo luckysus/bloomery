@@ -222,6 +222,22 @@ foreach ($requiredCurrentWorkerText in @(
         throw "build-release.ps1 must package the current Worker build, not stale target output: $requiredCurrentWorkerText"
     }
 }
+if ($buildReleaseContent -notmatch '\$buildArguments \+= @\("--", "--bin", "bloomery"\)') {
+    throw "build-release.ps1 must restrict the Tauri package build to the bloomery application binary"
+}
+if ($buildReleaseContent -notmatch '\$portableBuildArguments = @\("build", "--release", "--features", "custom-protocol", "--bin", "bloomery"\)') {
+    throw "build-release.ps1 must restrict the portable build to the bloomery application binary"
+}
+$portableWorkerCleanup = $buildReleaseContent.LastIndexOf('if (Test-Path -LiteralPath $portableWorkerSource)', [StringComparison]::Ordinal)
+$addonCopy = $buildReleaseContent.IndexOf('Copy-RequiredDirectory $portableWorkerSource (Join-Path $addonRoot "compute-worker")', [StringComparison]::Ordinal)
+$portableZip = $buildReleaseContent.IndexOf('New-ZipFromDirectory $portableRoot', [StringComparison]::Ordinal)
+$addonZip = $buildReleaseContent.IndexOf('New-ZipFromDirectory $addonRoot', [StringComparison]::Ordinal)
+if ($portableWorkerCleanup -lt 0 -or $addonCopy -lt 0 -or $portableZip -lt 0 -or $addonZip -lt 0) {
+    throw "build-release.ps1 must define Worker packaging and staged-source cleanup"
+}
+if ($portableWorkerCleanup -lt $addonCopy -or $portableWorkerCleanup -lt $portableZip -or $portableWorkerCleanup -lt $addonZip) {
+    throw "build-release.ps1 must not delete the staged Worker source before portable and add-on packaging completes"
+}
 if ($releaseCheckContent -notmatch '\[switch\]\$RequireTagVersion' -or
     $releaseCheckContent -notmatch 'GITHUB_REF_NAME' -or
     $releaseCheckContent -notmatch '(?i)tag.*version|version.*tag') {
@@ -313,6 +329,8 @@ function powershell {
                     components = @(@{
                         name = "bloomery-compute-worker"
                         sha256 = ("0" * 64)
+                    }, @{
+                        name = "bloomery-compute-worker"
                     })
                 } | ConvertTo-Json)
             }

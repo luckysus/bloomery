@@ -5,6 +5,11 @@ description = "Bloomery - local-first AI agent workbench for the desktop"
 authors = ["Bloomery contributors"]
 license = "Apache-2.0"
 edition = "2021"
+default-run = "bloomery"
+
+[features]
+default = []
+custom-protocol = ["tauri/custom-protocol"]
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }

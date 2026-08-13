@@ -42,8 +42,10 @@ never written to the package, installer, logs, or repository.
 Every public release must publish a Tauri-compatible `latest.json` beside the
 signed Windows updater artifact. With the current Tauri 2 configuration, the
 NSIS updater artifact is `*-setup.exe` with a matching `*.exe.sig`; legacy
-`*.nsis.zip` artifacts are also accepted by the manifest generator. Its
-platform key must match the bundle type, for example
-`windows-x86_64-nsis`, and its URL must point to the same release asset. The
-metadata, installer signature, checksum, SBOM, and notices are one release
-set and must be verified together.
+`*.nsis.zip` and `*.msi.zip` artifacts are also accepted by the manifest
+generator when the corresponding current installer is absent. The generated
+manifest contains `windows-x86_64-nsis` for installed NSIS clients,
+`windows-x86_64-msi` for installed MSI clients, and the generic
+`windows-x86_64` fallback for portable clients. The portable fallback points
+to the signed NSIS installer. The metadata, installer signatures, checksum,
+SBOM, and notices are one release set and must be verified together.

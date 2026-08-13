@@ -2,17 +2,17 @@
 
 ## Result
 
-Gate C retrieval passed on 2026-08-09.
+Gate C retrieval passed on 2026-08-13.
 
 | Metric | Result | Gate |
 | --- | ---: | ---: |
 | Recall minimum | 1.000 | >= 0.950 |
-| FTS P95 | 4.34 ms | reported |
-| HNSW P95 | 11.87 ms | reported |
-| RRF fusion P95 | 0.09 ms | reported |
-| Total local candidate retrieval P95 | 21.36 ms | <= 1000 ms |
+| FTS P95 | 2.6752 ms | reported |
+| HNSW P95 | 6.5405 ms | reported |
+| RRF fusion P95 | 0.0346 ms | reported |
+| Total local candidate retrieval P95 | 10.7422 ms | <= 1000 ms |
 
-The maximum measured total latency was 27.23 ms. Network reranking was disabled and excluded from every latency value.
+The maximum measured total latency was 11.8298 ms. Network reranking was disabled and excluded from every latency value.
 
 ## Reference Machine
 
@@ -20,7 +20,7 @@ The maximum measured total latency was 27.23 ms. Network reranking was disabled 
 - CPU: Intel64 Family 6 Model 165 Stepping 2, GenuineIntel
 - Logical CPUs: 8
 - Build: Cargo release benchmark, offline dependencies
-- Setup time: 280.22 seconds for SQLite corpus creation, snapshot validation, HNSW build, atomic activation, reopen, and checksum validation
+- Setup time: 104.0567 seconds for SQLite corpus creation, snapshot validation, HNSW build, atomic activation, reopen, and checksum validation
 
 ## Corpus
 
