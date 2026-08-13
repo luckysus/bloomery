@@ -62,6 +62,7 @@ if ($releaseWorkflow -notmatch 'github\.ref_type\s*==\s*''tag''|startsWith\(gith
 }
 
 $qualityWorkflow = Get-Content -LiteralPath (Join-Path $repoRoot ".github\workflows\quality.yml") -Raw
+$normalizedQualityWorkflow = $qualityWorkflow.Replace("\", "/")
 if ($qualityWorkflow -notmatch 'timeout-minutes:\s*(?:9[0-9]|[1-9][0-9]{2,})') {
     throw ".github/workflows/quality.yml must allow the full performance gate to finish within a 90-minute job timeout"
 }
@@ -74,6 +75,11 @@ foreach ($requiredBenchmark in @(
     if ($qualityWorkflow -notmatch $requiredBenchmark) {
         throw ".github\workflows\quality.yml must run performance gate: $requiredBenchmark"
     }
+}
+if ($normalizedQualityWorkflow -notmatch 'scripts/case-study\.ps1' -or
+    $normalizedQualityWorkflow -notmatch 'bloomery-steel-case-study-' -or
+    $normalizedQualityWorkflow -notmatch 'artifacts/case-study/steel-case-study\.json') {
+    throw ".github/workflows/quality.yml must run and retain the reproducible steel case-study report"
 }
 if ($releaseWorkflow -notmatch 'release-check\.ps1[^\r\n]*-WithE2E[^\r\n]*-Package[^\r\n]*-Performance') {
     throw ".github\workflows\release.yml must run performance gates for unsigned candidates"

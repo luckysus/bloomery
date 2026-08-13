@@ -40,6 +40,15 @@ and checks data retention for the newly built NSIS installer, add
 `-Package -InstallerSmoke -AllowDirty` to `release-check.ps1`. The smoke gate
 uses a temporary directory and does not represent a signed public release.
 
+Run the reproducible steel case study independently when validating the domain
+workflow or its report:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/case-study.ps1 -Offline
+```
+
+The report is written under `artifacts/case-study/` and is ignored by Git.
+
 `-Offline` 只影响 Cargo。第一次打包时，Tauri 仍可能需要下载 NSIS 等平台
 打包工具；这一步需要可用网络，但不要求修改系统代理配置。
 

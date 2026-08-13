@@ -174,6 +174,17 @@ if (-not (Test-Path -LiteralPath $workerPython -PathType Leaf)) {
 }
 Invoke-Checked "Python Worker test suite" $workerPython $workerTestArguments $workerRoot
 
+$caseStudyScript = Join-Path $PSScriptRoot "case-study.ps1"
+$caseStudyArguments = @(
+    "-NoProfile",
+    "-ExecutionPolicy", "Bypass",
+    "-File", $caseStudyScript
+)
+if ($Offline) {
+    $caseStudyArguments += "-Offline"
+}
+Invoke-Checked "Reproducible steel case study" "powershell" $caseStudyArguments $repoRoot
+
 $steelEvaluationArguments = @("test")
 if ($Offline) {
     $steelEvaluationArguments += "--offline"

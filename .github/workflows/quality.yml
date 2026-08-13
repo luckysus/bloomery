@@ -73,6 +73,18 @@ jobs:
         shell: pwsh
         run: .\scripts\test.ps1 -Stage rust
 
+      - name: Run reproducible steel case study
+        shell: pwsh
+        run: .\scripts\case-study.ps1
+
+      - name: Upload steel case study report
+        uses: actions/upload-artifact@v4
+        with:
+          name: bloomery-steel-case-study-${{ github.sha }}
+          path: artifacts/case-study/steel-case-study.json
+          if-no-files-found: error
+          retention-days: 14
+
       - name: Run retrieval performance benchmark
         shell: pwsh
         run: .\scripts\benchmark-retrieval.ps1

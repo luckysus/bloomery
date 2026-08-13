@@ -1,13 +1,25 @@
 # Reproducible steel case study / 可复现钢铁案例研究
 
-This case study reproduces the full steel workflow with deterministic, offline
-commands. Every step below is executed by the test suites on each push, so the
-numbers are reproducible from a clean checkout.
-本案例研究用确定性、离线命令复现完整钢铁工作流。以下每一步都在每次推送时由测试套件执行，因此可从干净检出复现。
+This case study reproduces the deterministic steel workflow through one
+repository-owned release entry point. The release check invokes that entry
+point from the repository root and writes a redacted JSON execution report.
+本案例研究通过仓库内统一的发布入口复现确定性钢铁工作流。发布检查会从
+仓库根目录调用该入口，并写出不含密钥的 JSON 执行报告。
+
+Run from the repository root in PowerShell / 在仓库根目录使用 PowerShell 运行：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/case-study.ps1 -Offline
+```
+
+The report is written to `artifacts/case-study/steel-case-study.json` by
+default. The directory is ignored by Git and contains no credentials.
+报告默认写入 `artifacts/case-study/steel-case-study.json`。该目录已被 Git
+忽略，报告不包含凭据。
 
 ## 1. Production data import / 生产数据导入
 
-Command / 命令: `cargo test --test steel_datasets`
+Command / 命令: `cargo test --offline --test steel_datasets -- --test-threads=1`
 A CSV/XLSX fixture with duplicate headers, missing values, and invalid numbers
 is previewed, mapped to canonical fields (`heat_id`, `temperature_c`,
 `carbon_pct`, ...), and activated atomically. Expected: preview reports
@@ -17,7 +29,8 @@ canonical field.
 
 ## 2. Deterministic training / 确定性训练
 
-Command / 命令: `python -m pytest tests/test_training.py tests/test_sklearn_training.py -q`
+Command / 命令（工作目录：`compute-worker/`）:
+`compute-worker/.venv/Scripts/python.exe -m pytest tests/test_training.py tests/test_sklearn_training.py -q`
 A linear artifact (`linear-regression.v1`) and scikit-learn artifacts
 (`sklearn-pickle.v1`: ElasticNet, Random Forest, HistGradientBoosting) are
 trained with train-only preprocessing, deterministic seeds, and an environment
@@ -27,7 +40,7 @@ for identical seeds; validation metrics recorded per split.
 
 ## 3. Prediction with applicability / 带适用范围的预测
 
-Command / 命令: `cargo test --test compute_task scheduler_runs_prediction`
+Command / 命令: `cargo test --offline --test compute_task scheduler_runs_prediction -- --test-threads=1`
 The persisted linear artifact predicts `[[125.0]]` → `25.0` style outputs and
 flags inputs outside the recorded applicability range. Expected: applicability
 warning for out-of-range features; confidence null for linear artifacts.
@@ -35,8 +48,9 @@ warning for out-of-range features; confidence null for linear artifacts.
 
 ## 4. Constrained optimization / 约束优化
 
-Command / 命令: `python -m pytest tests/test_optimization.py -q` and
-`cargo test --test compute_task scheduler_runs_optimization`
+Command / 命令（分别在 `compute-worker/` 和 `src-tauri/`）:
+`compute-worker/.venv/Scripts/python.exe -m pytest tests/test_optimization.py -q`；
+`cargo test --offline --test compute_task scheduler_runs_optimization -- --test-threads=1`
 Seeded TPE search minimizes the trained model under `temperature >= 4`; every
 recommendation is re-evaluated through the model and hard constraints.
 Expected: all recommendations feasible and at or above the constraint; same
@@ -46,8 +60,9 @@ seed reproduces the same recommendation set. Infeasible problems raise
 
 ## 5. ONNX export and parity / ONNX 导出与一致性
 
-Command / 命令: `python -m pytest tests/test_onnx_export.py -q` and
-`cargo test --test compute_task scheduler_exports_onnx`
+Command / 命令（分别在 `compute-worker/` 和 `src-tauri/`）:
+`compute-worker/.venv/Scripts/python.exe -m pytest tests/test_onnx_export.py -q`；
+`cargo test --offline --test compute_task scheduler_exports_onnx -- --test-threads=1`
 The linear artifact is exported as a whitelisted ONNX graph (opset 13,
 ir_version 10, operators within the inference whitelist). The exported model is
 re-imported through `predict_onnx` and compared with the source artifact.
@@ -56,8 +71,9 @@ Expected: parity within 1e-4; operator whitelist and opset window enforced.
 
 ## 6. Evaluation thresholds / 评测门槛
 
-Command / 命令: `python -m pytest tests/test_evaluations.py -q` and
-`cargo test --test steel_evaluations`
+Command / 命令（分别在 `compute-worker/` 和 `src-tauri/`）:
+`compute-worker/.venv/Scripts/python.exe -m pytest tests/test_evaluations.py -q`；
+`cargo test --offline --test steel_evaluations`
 The versioned suite `domain-packs/steel/evaluations/steel-evaluations-v1.json`
 runs calculators (IIW/Pcm reference vectors), dataset mapping, profiling,
 terminology, inference, training reproducibility, and optimization feasibility
