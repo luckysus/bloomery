@@ -170,6 +170,22 @@ if ($Performance) {
     Invoke-Checked "Steel dataset import performance gate" "powershell" @(
         "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $datasetBenchmarkScript
     ) $repoRoot
+
+    $agentBenchmarkScript = Join-Path $PSScriptRoot "benchmark-agent-performance.ps1"
+    if (-not (Test-Path -LiteralPath $agentBenchmarkScript -PathType Leaf)) {
+        throw "Agent performance benchmark script is missing"
+    }
+    Invoke-Checked "Agent event and conversation performance gate" "powershell" @(
+        "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $agentBenchmarkScript
+    ) $repoRoot
+
+    $startupBenchmarkScript = Join-Path $PSScriptRoot "benchmark-startup.ps1"
+    if (-not (Test-Path -LiteralPath $startupBenchmarkScript -PathType Leaf)) {
+        throw "Startup performance benchmark script is missing"
+    }
+    Invoke-Checked "Windows cold-start and idle-memory performance gate" "powershell" @(
+        "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $startupBenchmarkScript
+    ) $repoRoot
 }
 
 if ($Package) {

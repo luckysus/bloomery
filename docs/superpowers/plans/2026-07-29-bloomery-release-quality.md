@@ -146,10 +146,20 @@ coverage and sole-owner relicensing authority also remain open.
 
 **Files:** Create startup/memory/import/agent benchmarks and `docs/benchmarks/` reports.
 
-- [ ] **Step 1: Measure baseline** on the documented Windows reference machine: cold start, idle memory, 100k chunks, 100k-row import, event throughput, and large conversation replay.
-- [ ] **Step 2: Add machine-readable thresholds:** cold start P95 <= 3s, idle memory target <= 300MB, local retrieval P95 <= 1s, no unconditional full index scan, and responsive UI during import.
-- [ ] **Step 3: Optimize measured bottlenecks only** and preserve correctness/recall checks.
-- [ ] **Step 4: Run each benchmark multiple times** and publish median/P95, hardware, dataset seed, software versions, and raw JSON.
+- [x] **Step 1: Measure baseline** on the documented Windows reference machine: cold start, idle memory, 100k chunks, 100k-row import, event throughput, and large conversation replay.
+- [x] **Step 2: Add machine-readable thresholds:** cold start P95 <= 3s, idle memory target <= 300MB, local retrieval P95 <= 1s, no unconditional full index scan, and responsive UI during import.
+- [x] **Step 3: Optimize measured bottlenecks only** and preserve correctness/recall checks.
+- [x] **Step 4: Run each benchmark multiple times** and publish median/P95, hardware, dataset seed, software versions, and raw JSON.
+
+**Execution record (2026-08-13):** Added deterministic release gates for cold
+start, idle working set, agent event persistence, and large conversation
+replay. The Windows 10 reference run passed all six measured dimensions:
+startup P95 405.62 ms, idle working-set P95 28.79 MB, 100,000-chunk
+retrieval P95 21.36 ms with minimum recall 1.0, 100,000-row import P95
+409.06 ms with 66.68 MB peak working set, event append minimum throughput
+19,558 events/s, and 10,000-message replay P95 11.43 ms with 20.49 MB peak
+working set. Raw JSON is written under `src-tauri/target/` and the reproducible
+reports are in `docs/benchmarks/`.
 
 ### Task 6: Test Windows data lifecycle
 

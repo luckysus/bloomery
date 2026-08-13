@@ -186,7 +186,9 @@ if ($lifecycleInvocation -lt 0 -or $packageInvocation -lt 0 -or $packageInvocati
 }
 if ($releaseCheckContent -notmatch '\[switch\]\$Performance' -or
     $releaseCheckContent -notmatch 'benchmark-retrieval\.ps1' -or
-    $releaseCheckContent -notmatch 'benchmark-dataset-import\.ps1') {
+    $releaseCheckContent -notmatch 'benchmark-dataset-import\.ps1' -or
+    $releaseCheckContent -notmatch 'benchmark-agent-performance\.ps1' -or
+    $releaseCheckContent -notmatch 'benchmark-startup\.ps1') {
     throw "release-check.ps1 must expose the deterministic performance gate"
 }
 if ($releaseCheckContent -notmatch 'compute-worker' -or
