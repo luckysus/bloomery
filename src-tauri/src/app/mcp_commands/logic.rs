@@ -1,11 +1,17 @@
 use crate::{
     app::mcp_runtime::McpRuntimeState,
-    db::{current_workspace_id, with_conn, with_conn_mut, DbState},
+    db::{current_workspace_id, with_conn, DbState},
     mcp::{McpError, McpServerConfig, McpSupervisor, McpTool, McpTransportKind},
-    storage::{repositories::mcp as mcp_repository, secrets::SecretState},
+    storage::{
+        repositories::mcp as mcp_repository,
+        secrets::{SecretRef, SecretState, SecretStore, SecretValue},
+    },
 };
 use chrono::Utc;
-use std::{collections::BTreeMap, time::Duration};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    time::Duration,
+};
 use uuid::Uuid;
 
 use super::types::{McpHealth, McpServerInput, McpServerSummary, McpToolSummary};
@@ -28,10 +34,10 @@ pub(super) fn summary(
     config: McpServerConfig,
     secrets: &SecretState,
 ) -> Result<McpServerSummary, String> {
-    let bearer_configured = read_secret(secrets, config.id, "bearer")?.is_some();
+    let bearer_configured = read_secret(secrets.store(), config.id, "bearer")?.is_some();
     let mut all_environment_secrets_configured = !config.env_names.is_empty();
     for name in &config.env_names {
-        if read_secret(secrets, config.id, &env_credential_name(name))?.is_none() {
+        if read_secret(secrets.store(), config.id, &env_credential_name(name))?.is_none() {
             all_environment_secrets_configured = false;
             break;
         }
@@ -100,42 +106,14 @@ pub(super) fn input_config(
     Ok(config)
 }
 
-pub(super) fn save_secret_updates(
-    secrets: &SecretState,
-    id: Uuid,
-    input: &McpServerInput,
-) -> Result<(), String> {
-    if input.clear_bearer_token || input.bearer_token.as_deref() == Some("") {
-        delete_secret(secrets, id, "bearer")?;
-    } else if let Some(value) = input.bearer_token.as_deref() {
-        set_secret(secrets, id, "bearer", value)?;
-    }
-    for (name, value) in &input.env_values {
-        set_secret(secrets, id, &env_credential_name(name), value)?;
-    }
-    Ok(())
-}
-
-pub(super) fn delete_secrets(
-    secrets: &SecretState,
-    id: Uuid,
-    env_names: &[String],
-) -> Result<(), String> {
-    delete_secret(secrets, id, "bearer")?;
-    for name in env_names {
-        delete_secret(secrets, id, &env_credential_name(name))?;
-    }
-    Ok(())
-}
-
 pub(super) fn credentials(
     secrets: &SecretState,
     config: &McpServerConfig,
 ) -> Result<(Option<String>, BTreeMap<String, String>), String> {
-    let bearer = read_secret(secrets, config.id, "bearer")?;
+    let bearer = read_secret(secrets.store(), config.id, "bearer")?;
     let mut env = BTreeMap::new();
     for name in &config.env_names {
-        match read_secret(secrets, config.id, &env_credential_name(name))? {
+        match read_secret(secrets.store(), config.id, &env_credential_name(name))? {
             Some(value) => {
                 env.insert(name.clone(), value);
             }
@@ -276,31 +254,37 @@ fn env_credential_name(name: &str) -> String {
     format!("mcp_env_{name}")
 }
 
-fn set_secret(secrets: &SecretState, id: Uuid, name: &str, value: &str) -> Result<(), String> {
-    let value =
-        crate::storage::secrets::SecretValue::new(value).map_err(|error| error.to_string())?;
-    let reference =
-        crate::storage::secrets::SecretRef::new(id, name).map_err(|error| error.to_string())?;
-    secrets
-        .store()
+fn set_secret(store: &dyn SecretStore, id: Uuid, name: &str, value: &str) -> Result<(), String> {
+    let value = SecretValue::new(value).map_err(|error| error.to_string())?;
+    let reference = SecretRef::new(id, name).map_err(|error| error.to_string())?;
+    store
         .set(&reference, &value)
         .map_err(|error| error.to_string())
 }
 
-fn read_secret(secrets: &SecretState, id: Uuid, name: &str) -> Result<Option<String>, String> {
-    let reference =
-        crate::storage::secrets::SecretRef::new(id, name).map_err(|error| error.to_string())?;
-    match secrets.store().get(&reference) {
-        Ok(value) => Ok(Some(value.expose().to_string())),
+fn read_secret_value(
+    store: &dyn SecretStore,
+    id: Uuid,
+    name: &str,
+) -> Result<Option<SecretValue>, String> {
+    let reference = SecretRef::new(id, name).map_err(|error| error.to_string())?;
+    match store.get(&reference) {
+        Ok(value) => Ok(Some(value)),
         Err(error) if error.is_not_found() => Ok(None),
         Err(error) => Err(error.to_string()),
     }
 }
 
-fn delete_secret(secrets: &SecretState, id: Uuid, name: &str) -> Result<(), String> {
-    let reference =
-        crate::storage::secrets::SecretRef::new(id, name).map_err(|error| error.to_string())?;
-    match secrets.store().delete(&reference) {
+fn read_secret(store: &dyn SecretStore, id: Uuid, name: &str) -> Result<Option<String>, String> {
+    match read_secret_value(store, id, name)? {
+        Some(value) => Ok(Some(value.expose().to_string())),
+        None => Ok(None),
+    }
+}
+
+fn delete_secret(store: &dyn SecretStore, id: Uuid, name: &str) -> Result<(), String> {
+    let reference = SecretRef::new(id, name).map_err(|error| error.to_string())?;
+    match store.delete(&reference) {
         Ok(()) => Ok(()),
         Err(error) if error.is_not_found() => Ok(()),
         Err(error) => Err(error.to_string()),
@@ -351,17 +335,344 @@ pub(super) async fn shutdown_active(runtime: &McpRuntimeState, id: Uuid) -> Resu
     result
 }
 
-pub(super) fn save_config(
-    db: &tauri::State<'_, DbState>,
+pub(super) fn save_config_and_secrets(
+    connection: &mut rusqlite::Connection,
+    workspace_id: &str,
+    store: &dyn SecretStore,
     config: &McpServerConfig,
+    input: &McpServerInput,
+    existing: Option<&McpServerConfig>,
 ) -> Result<(), String> {
-    with_conn_mut(db, |connection| {
-        mcp_repository::save(connection, current_workspace_id(), config)
-    })
+    let names = secret_names(config, existing);
+    let snapshot = snapshot_secrets(store, config.id, &names)?;
+    let desired = desired_secrets(store, config, input, &names)?;
+
+    if let Err(error) = apply_secrets(store, config.id, &desired) {
+        return Err(with_rollback(store, config.id, &snapshot, error));
+    }
+    if let Err(error) = mcp_repository::save(connection, workspace_id, config) {
+        return Err(with_rollback(store, config.id, &snapshot, error));
+    }
+    Ok(())
 }
 
-pub(super) fn delete_config(db: &tauri::State<'_, DbState>, id: Uuid) -> Result<(), String> {
-    with_conn_mut(db, |connection| {
-        mcp_repository::delete(connection, current_workspace_id(), id)
-    })
+pub(super) fn delete_config_and_secrets(
+    connection: &mut rusqlite::Connection,
+    workspace_id: &str,
+    store: &dyn SecretStore,
+    id: Uuid,
+    config: &McpServerConfig,
+) -> Result<(), String> {
+    let names = secret_names(config, None);
+    let snapshot = snapshot_secrets(store, id, &names)?;
+    let desired = names
+        .iter()
+        .map(|name| (name.clone(), None))
+        .collect::<BTreeMap<_, _>>();
+
+    if let Err(error) = apply_secrets(store, id, &desired) {
+        return Err(with_rollback(store, id, &snapshot, error));
+    }
+    if let Err(error) = mcp_repository::delete(connection, workspace_id, id) {
+        return Err(with_rollback(store, id, &snapshot, error));
+    }
+    Ok(())
+}
+
+fn secret_names(config: &McpServerConfig, existing: Option<&McpServerConfig>) -> BTreeSet<String> {
+    let mut names = BTreeSet::from(["bearer".to_string()]);
+    names.extend(
+        config
+            .env_names
+            .iter()
+            .map(|name| env_credential_name(name)),
+    );
+    if let Some(existing) = existing {
+        names.extend(
+            existing
+                .env_names
+                .iter()
+                .map(|name| env_credential_name(name)),
+        );
+    }
+    names
+}
+
+fn snapshot_secrets(
+    store: &dyn SecretStore,
+    id: Uuid,
+    names: &BTreeSet<String>,
+) -> Result<BTreeMap<String, Option<SecretValue>>, String> {
+    names
+        .iter()
+        .map(|name| Ok((name.clone(), read_secret_value(store, id, name)?)))
+        .collect()
+}
+
+fn desired_secrets(
+    store: &dyn SecretStore,
+    config: &McpServerConfig,
+    input: &McpServerInput,
+    names: &BTreeSet<String>,
+) -> Result<BTreeMap<String, Option<SecretValue>>, String> {
+    let mut desired = snapshot_secrets(store, config.id, names)?;
+
+    if input.clear_bearer_token || input.bearer_token.as_deref() == Some("") {
+        desired.insert("bearer".to_string(), None);
+    } else if let Some(value) = input.bearer_token.as_deref() {
+        desired.insert(
+            "bearer".to_string(),
+            Some(SecretValue::new(value).map_err(|error| error.to_string())?),
+        );
+    }
+
+    // An empty environment map means the UI did not reveal or edit secrets.
+    // A non-empty map is an explicit replacement of the configured names.
+    if !input.env_values.is_empty() {
+        for name in names {
+            if name != "bearer" {
+                desired.insert(name.clone(), None);
+            }
+        }
+        for (name, value) in &input.env_values {
+            desired.insert(
+                env_credential_name(name),
+                Some(SecretValue::new(value).map_err(|error| error.to_string())?),
+            );
+        }
+    }
+    Ok(desired)
+}
+
+fn apply_secrets(
+    store: &dyn SecretStore,
+    id: Uuid,
+    desired: &BTreeMap<String, Option<SecretValue>>,
+) -> Result<(), String> {
+    for (name, value) in desired {
+        let current = read_secret_value(store, id, name)?;
+        if current == *value {
+            continue;
+        }
+        match value {
+            Some(value) => set_secret(store, id, name, value.expose())?,
+            None => delete_secret(store, id, name)?,
+        }
+    }
+    Ok(())
+}
+
+fn with_rollback(
+    store: &dyn SecretStore,
+    id: Uuid,
+    snapshot: &BTreeMap<String, Option<SecretValue>>,
+    primary_error: String,
+) -> String {
+    match apply_secrets(store, id, snapshot) {
+        Ok(()) => primary_error,
+        Err(rollback_error) => {
+            format!("{primary_error}; MCP credential rollback failed: {rollback_error}")
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        mcp::McpTransportKind,
+        storage::{migrations, secrets::SecretError},
+    };
+    use rusqlite::Connection;
+    use std::{
+        collections::HashMap,
+        path::PathBuf,
+        sync::{Arc, Mutex},
+    };
+
+    #[derive(Clone, Default)]
+    struct MemorySecretStore {
+        values: Arc<Mutex<HashMap<String, SecretValue>>>,
+        set_calls: Arc<Mutex<usize>>,
+        fail_set_on_call: Arc<Mutex<Option<usize>>>,
+        fail_delete: Arc<Mutex<bool>>,
+    }
+
+    impl SecretStore for MemorySecretStore {
+        fn set(&self, reference: &SecretRef, value: &SecretValue) -> Result<(), SecretError> {
+            let mut calls = self.set_calls.lock().expect("set call counter");
+            *calls += 1;
+            if self
+                .fail_set_on_call
+                .lock()
+                .expect("set failure flag")
+                .is_some_and(|call| call == *calls)
+            {
+                return Err(SecretError::backend("injected MCP secret write failure"));
+            }
+            self.values
+                .lock()
+                .expect("secret values")
+                .insert(reference.account(), value.clone());
+            Ok(())
+        }
+
+        fn get(&self, reference: &SecretRef) -> Result<SecretValue, SecretError> {
+            self.values
+                .lock()
+                .expect("secret values")
+                .get(&reference.account())
+                .cloned()
+                .ok_or_else(SecretError::not_found)
+        }
+
+        fn delete(&self, reference: &SecretRef) -> Result<(), SecretError> {
+            if *self.fail_delete.lock().expect("delete failure flag") {
+                return Err(SecretError::backend("injected MCP secret delete failure"));
+            }
+            self.values
+                .lock()
+                .expect("secret values")
+                .remove(&reference.account())
+                .map(|_| ())
+                .ok_or_else(SecretError::not_found)
+        }
+    }
+
+    fn config(id: Uuid, env_names: &[&str]) -> McpServerConfig {
+        McpServerConfig {
+            id,
+            display_name: "Steel standards".to_string(),
+            server_id: "steel-standards".to_string(),
+            transport: McpTransportKind::Stdio,
+            url: None,
+            executable: Some(PathBuf::from("powershell.exe")),
+            args: vec!["-NoProfile".to_string()],
+            working_directory: None,
+            inherited_env: vec!["SystemRoot".to_string()],
+            env_names: env_names.iter().map(|name| (*name).to_string()).collect(),
+            timeout: Duration::from_secs(30),
+            enabled: true,
+        }
+    }
+
+    fn input(id: Uuid, env_values: &[(&str, &str)], bearer_token: &str) -> McpServerInput {
+        McpServerInput {
+            id: Some(id.to_string()),
+            display_name: "Steel standards v2".to_string(),
+            server_id: "steel-standards-v2".to_string(),
+            transport: McpTransportKind::Stdio,
+            url: None,
+            executable: Some("powershell.exe".to_string()),
+            args: vec!["-NoProfile".to_string()],
+            working_directory: None,
+            inherited_env: vec!["SystemRoot".to_string()],
+            env_values: env_values
+                .iter()
+                .map(|(name, value)| ((*name).to_string(), (*value).to_string()))
+                .collect(),
+            bearer_token: Some(bearer_token.to_string()),
+            clear_bearer_token: false,
+            timeout_ms: 30_000,
+            enabled: true,
+        }
+    }
+
+    fn database() -> Connection {
+        let mut connection = Connection::open_in_memory().expect("open SQLite");
+        migrations::migrate(&mut connection).expect("migrate SQLite");
+        connection
+    }
+
+    #[test]
+    fn failed_secret_update_restores_config_and_all_previous_credentials() {
+        let mut connection = database();
+        let id = Uuid::new_v4();
+        let previous = config(id, &["OLD_KEY"]);
+        mcp_repository::save(&mut connection, "local", &previous).expect("save previous config");
+        let store = MemorySecretStore::default();
+        set_secret(&store, id, "bearer", "old-bearer").expect("save previous bearer");
+        set_secret(&store, id, &env_credential_name("OLD_KEY"), "old-env")
+            .expect("save previous environment credential");
+        *store.set_calls.lock().expect("reset set call counter") = 0;
+        *store
+            .fail_set_on_call
+            .lock()
+            .expect("configure set failure") = Some(2);
+
+        let next_input = input(id, &[("NEW_KEY", "new-env")], "new-bearer");
+        let next = input_config(next_input.clone(), Some(&previous)).expect("build next config");
+
+        let error = save_config_and_secrets(
+            &mut connection,
+            "local",
+            &store,
+            &next,
+            &next_input,
+            Some(&previous),
+        )
+        .expect_err("partial secret write must fail");
+
+        assert!(error.contains("injected MCP secret write failure"));
+        assert_eq!(
+            mcp_repository::get(&connection, "local", id)
+                .expect("load config")
+                .expect("previous config remains"),
+            previous
+        );
+        assert_eq!(
+            read_secret(&store, id, "bearer")
+                .expect("read bearer")
+                .as_deref(),
+            Some("old-bearer")
+        );
+        assert_eq!(
+            read_secret(&store, id, &env_credential_name("OLD_KEY"))
+                .expect("read old environment credential")
+                .as_deref(),
+            Some("old-env")
+        );
+        assert!(read_secret(&store, id, &env_credential_name("NEW_KEY"))
+            .expect("read new environment credential")
+            .is_none());
+    }
+
+    #[test]
+    fn failed_config_delete_restores_all_deleted_credentials() {
+        let mut connection = database();
+        let id = Uuid::new_v4();
+        let previous = config(id, &["STEEL_KEY"]);
+        mcp_repository::save(&mut connection, "local", &previous).expect("save config");
+        connection
+            .execute_batch(
+                "CREATE TRIGGER fail_mcp_delete
+                 BEFORE DELETE ON mcp_servers
+                 BEGIN SELECT RAISE(ABORT, 'injected MCP database delete failure'); END;",
+            )
+            .expect("create failure trigger");
+        let store = MemorySecretStore::default();
+        set_secret(&store, id, "bearer", "bearer").expect("save bearer");
+        set_secret(&store, id, &env_credential_name("STEEL_KEY"), "steel-key")
+            .expect("save environment credential");
+
+        let error = delete_config_and_secrets(&mut connection, "local", &store, id, &previous)
+            .expect_err("database delete failure must fail deletion");
+
+        assert!(error.contains("injected MCP database delete failure"));
+        assert!(mcp_repository::get(&connection, "local", id)
+            .expect("load config")
+            .is_some());
+        assert_eq!(
+            read_secret(&store, id, "bearer")
+                .expect("read bearer")
+                .as_deref(),
+            Some("bearer")
+        );
+        assert_eq!(
+            read_secret(&store, id, &env_credential_name("STEEL_KEY"))
+                .expect("read environment credential")
+                .as_deref(),
+            Some("steel-key")
+        );
+    }
 }

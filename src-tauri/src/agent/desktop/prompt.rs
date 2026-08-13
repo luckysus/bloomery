@@ -26,12 +26,17 @@ pub fn conversation_title(message: &str) -> String {
     }
 }
 
-pub fn build_desktop_context_prompt(packet: &Value, domain: Option<&DomainManifest>) -> String {
+pub fn build_desktop_context_prompt_for_domains(
+    packet: &Value,
+    domains: &[DomainManifest],
+) -> String {
     let mut sections = vec![
         "You are Bloomery, a local-first steel research desktop agent. Prefer the local context, long-term memory, conversation history, and session summary before making claims.".to_string(),
         "Answer directly and professionally. State uncertainty when evidence is missing; never invent sources or measurements.".to_string(),
     ];
-    push_domain_sections(&mut sections, domain);
+    for domain in domains {
+        push_domain_sections(&mut sections, domain);
+    }
     push_json_section(
         &mut sections,
         "conversation_summary",
@@ -58,10 +63,7 @@ pub fn build_desktop_context_prompt(packet: &Value, domain: Option<&DomainManife
 ///
 /// Ordered immediately after the base system sections so the domain guidance carries
 /// system-level priority in the assembled prompt.
-fn push_domain_sections(sections: &mut Vec<String>, domain: Option<&DomainManifest>) {
-    let Some(manifest) = domain else {
-        return;
-    };
+fn push_domain_sections(sections: &mut Vec<String>, manifest: &DomainManifest) {
     let system = manifest.prompts.system.trim();
     if !system.is_empty() {
         sections.push(format!("domain_system:\n{system}"));

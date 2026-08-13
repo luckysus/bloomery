@@ -3,7 +3,7 @@ use super::{
     assistant_content_for_stream_result,
     cancellation::LocalAgentState,
     model::{DesktopIntentKind, LocalAgentChatRequest, StreamedLlmAnswer},
-    prompt::{build_desktop_context_prompt, build_local_ask_prompt},
+    prompt::{build_desktop_context_prompt_for_domains, build_local_ask_prompt},
     routing::classify_desktop_intent,
 };
 use serde_json::json;
@@ -95,7 +95,7 @@ fn chat_request_accepts_evidence_pack_reference() {
 
 #[test]
 fn desktop_prompt_includes_bounded_evidence_context() {
-    let prompt = build_desktop_context_prompt(
+    let prompt = build_desktop_context_prompt_for_domains(
         &json!({
             "evidence_pack": {
                 "id": "audit-1",
@@ -109,7 +109,7 @@ fn desktop_prompt_includes_bounded_evidence_context() {
                 }]
             }
         }),
-        None,
+        &[],
     );
 
     assert!(prompt.contains("evidence_pack:"));
@@ -118,14 +118,14 @@ fn desktop_prompt_includes_bounded_evidence_context() {
 
 #[test]
 fn desktop_prompt_includes_enabled_skills() {
-    let prompt = build_desktop_context_prompt(
+    let prompt = build_desktop_context_prompt_for_domains(
         &json!({
             "skills": {
                 "enabled_versions": ["steel-review@1.0.0#abc123"],
                 "prompt": "enabled_skills:\n\n## steel-review (v1.0.0)\nUse source evidence."
             }
         }),
-        None,
+        &[],
     );
 
     assert!(prompt.contains("skills:"));
@@ -147,7 +147,8 @@ fn desktop_prompt_injects_active_domain_manifest() {
     }))
     .expect("deserialize manifest");
 
-    let prompt = build_desktop_context_prompt(&json!({}), Some(&manifest));
+    let prompt =
+        build_desktop_context_prompt_for_domains(&json!({}), std::slice::from_ref(&manifest));
 
     assert!(prompt.contains("domain_system:\nUse steel terminology."));
     assert!(prompt.contains("domain_workflow:\nCite the source."));
@@ -157,8 +158,42 @@ fn desktop_prompt_injects_active_domain_manifest() {
 }
 
 #[test]
+fn desktop_prompt_includes_all_active_domain_manifests() {
+    let steel: crate::domains::DomainManifest = serde_json::from_value(json!({
+        "id": "steel",
+        "version": "1.0.0",
+        "compatibility": {"min_app_version": "0.1.0", "max_app_version": null},
+        "author": "Bloomery contributors",
+        "license": "Apache-2.0",
+        "prompts": {"system": "Use steel terminology.", "workflow": "Cite steel sources."},
+        "terminology": {"Q355B": "Structural steel grade"},
+        "retrieval": {"required_tags": [], "citation_required": true, "max_evidence_items": 8}
+    }))
+    .expect("deserialize steel manifest");
+    let materials: crate::domains::DomainManifest = serde_json::from_value(json!({
+        "id": "materials",
+        "version": "1.0.0",
+        "compatibility": {"min_app_version": "0.1.0", "max_app_version": null},
+        "author": "Bloomery contributors",
+        "license": "Apache-2.0",
+        "prompts": {"system": "Use materials terminology.", "workflow": "Cite materials sources."},
+        "terminology": {"YS": "Yield strength"},
+        "retrieval": {"required_tags": [], "citation_required": true, "max_evidence_items": 6}
+    }))
+    .expect("deserialize materials manifest");
+
+    let prompt =
+        super::prompt::build_desktop_context_prompt_for_domains(&json!({}), &[steel, materials]);
+
+    assert!(prompt.contains("Use steel terminology."));
+    assert!(prompt.contains("Use materials terminology."));
+    assert!(prompt.contains("Q355B: Structural steel grade"));
+    assert!(prompt.contains("YS: Yield strength"));
+}
+
+#[test]
 fn desktop_prompt_omits_domain_sections_without_active_package() {
-    let prompt = build_desktop_context_prompt(&json!({}), None);
+    let prompt = build_desktop_context_prompt_for_domains(&json!({}), &[]);
 
     assert!(!prompt.contains("domain_system:"));
     assert!(!prompt.contains("domain_terminology:"));

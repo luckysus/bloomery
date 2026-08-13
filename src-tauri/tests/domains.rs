@@ -4,7 +4,7 @@ use bloomery::domains::{
 };
 use bloomery::storage::migrations::migrate;
 use bloomery::storage::repositories::domains::{
-    activate, impact, list, remove, upsert, DomainPackageImpact,
+    activate, active_manifest, active_manifests, impact, list, remove, upsert, DomainPackageImpact,
 };
 use ed25519_dalek::{Signer, SigningKey};
 use rusqlite::Connection;
@@ -483,6 +483,56 @@ fn persists_domain_versions_with_one_active_version_per_package() {
     assert!(records
         .iter()
         .any(|record| record.version == "2.0.0" && record.active));
+}
+
+#[test]
+fn rejects_ambiguous_legacy_active_manifest_when_multiple_domain_ids_are_active() {
+    let first = TempPackage::new();
+    fs::write(first.path().join("assets/steel.json"), "{}").expect("write first asset");
+    first.write_manifest(valid_manifest());
+
+    let second = TempPackage::new();
+    fs::write(second.path().join("assets/steel.json"), "{}").expect("write second asset");
+    let mut second_manifest = valid_manifest();
+    second_manifest["id"] = json!("materials");
+    second.write_manifest(second_manifest);
+
+    let install_root = TempPackage::new();
+    let first = install_package(
+        first.path(),
+        install_root.path(),
+        "0.1.0",
+        &DomainTrustStore::default(),
+    )
+    .expect("install first package");
+    let second = install_package(
+        second.path(),
+        install_root.path(),
+        "0.1.0",
+        &DomainTrustStore::default(),
+    )
+    .expect("install second package");
+    let mut connection = Connection::open_in_memory().expect("open database");
+    migrate(&mut connection).expect("migrate database");
+    upsert(&mut connection, "local", &first).expect("persist first package");
+    upsert(&mut connection, "local", &second).expect("persist second package");
+    activate(&mut connection, "local", "steel", "1.0.0").expect("activate steel package");
+    activate(&mut connection, "local", "materials", "1.0.0").expect("activate materials package");
+
+    let manifests = active_manifests(&connection, "local").expect("load active manifests");
+    assert_eq!(
+        manifests
+            .iter()
+            .map(|manifest| manifest.id.as_str())
+            .collect::<Vec<_>>(),
+        vec!["materials", "steel"]
+    );
+    let error = active_manifest(&connection, "local")
+        .expect_err("legacy single-manifest lookup must reject ambiguous state");
+    assert!(
+        error.contains("multiple active domain packages"),
+        "unexpected ambiguity error: {error}"
+    );
 }
 
 #[test]

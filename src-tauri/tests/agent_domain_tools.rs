@@ -72,6 +72,20 @@ fn steel_manifest() -> bloomery::domains::DomainManifest {
     .expect("valid domain manifest")
 }
 
+fn materials_manifest() -> bloomery::domains::DomainManifest {
+    serde_json::from_value(json!({
+        "id": "materials",
+        "version": "1.0.0",
+        "compatibility": {"min_app_version": "0.1.0", "max_app_version": null},
+        "author": "Bloomery contributors",
+        "license": "Apache-2.0",
+        "prompts": {"system": "Use materials terminology.", "workflow": "Cite materials sources."},
+        "retrieval": {"required_tags": [], "citation_required": true, "max_evidence_items": 12},
+        "builtin_tool_allowlist": ["steel.carbon_equivalent"]
+    }))
+    .expect("valid materials manifest")
+}
+
 #[test]
 fn domain_executor_exposes_only_allowlisted_tools() {
     let inner = TestTools {
@@ -86,6 +100,28 @@ fn domain_executor_exposes_only_allowlisted_tools() {
     assert_eq!(scoped.registrations().len(), 2);
     assert_eq!(scoped.registrations()[0].spec.id, "knowledge.query");
     assert_eq!(scoped.registrations()[1].spec.id, "mcp.steel.lookup");
+}
+
+#[test]
+fn domain_executor_unions_allowlists_from_all_active_domains() {
+    let inner = TestTools {
+        registrations: vec![
+            tool("knowledge.query", "knowledge_query"),
+            tool("steel.carbon_equivalent", "carbon_equivalent"),
+            tool("file.write", "file_write"),
+        ],
+    };
+    let domains = vec![steel_manifest(), materials_manifest()];
+    let scoped = DomainToolExecutor::new_for_domains(&inner, &domains);
+
+    assert_eq!(
+        scoped
+            .registrations()
+            .iter()
+            .map(|registration| registration.spec.id.as_str())
+            .collect::<Vec<_>>(),
+        vec!["knowledge.query", "steel.carbon_equivalent"]
+    );
 }
 
 #[tokio::test]

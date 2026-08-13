@@ -24,7 +24,7 @@ pub struct ChatPreparation {
     pub config: LocalLlmConfig,
     pub evidence_pack: Option<EvidencePack>,
     pub skills: SkillContext,
-    pub active_domain: Option<crate::domains::DomainManifest>,
+    pub active_domains: Vec<crate::domains::DomainManifest>,
     pub unavailable_response: Option<Value>,
 }
 
@@ -119,15 +119,16 @@ pub fn prepare_chat(
             &skills.rendered.enabled_versions,
         )
     });
-    let (config, prompt, active_domain) = if unavailable_response.is_some() {
-        (LocalLlmConfig::default(), String::new(), None)
+    let (config, prompt, active_domains) = if unavailable_response.is_some() {
+        (LocalLlmConfig::default(), String::new(), Vec::new())
     } else {
         let config = super::provider::load_local_llm_config(conn, workspace_id, secrets)?;
         super::provider::validate_local_llm_config(&config)?;
-        let active_domain =
-            crate::storage::repositories::domains::active_manifest(conn, workspace_id)?;
-        let prompt = super::prompt::build_desktop_context_prompt(&packet, active_domain.as_ref());
-        (config, prompt, active_domain)
+        let active_domains =
+            crate::storage::repositories::domains::active_manifests(conn, workspace_id)?;
+        let prompt =
+            super::prompt::build_desktop_context_prompt_for_domains(&packet, &active_domains);
+        (config, prompt, active_domains)
     };
     Ok(ChatPreparation {
         run_id,
@@ -138,7 +139,7 @@ pub fn prepare_chat(
         config,
         evidence_pack,
         skills,
-        active_domain,
+        active_domains,
         unavailable_response,
     })
 }

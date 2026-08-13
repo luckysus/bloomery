@@ -57,7 +57,8 @@ pub(crate) async fn run_standard_agent(
     let mcp_tools = load_enabled_tools(app, mcp_configs).await?;
     let combined_tools = CompositeToolExecutor::try_new(vec![&steel_tools, &mcp_tools])
         .map_err(|error| format!("combine Agent tools failed: {error}"))?;
-    let domain_tools = DomainToolExecutor::new(&combined_tools, preparation.active_domain.as_ref());
+    let domain_tools =
+        DomainToolExecutor::new_for_domains(&combined_tools, &preparation.active_domains);
     let permissions = agent_state.permission_resolver();
     let assistant_message_id = Uuid::new_v4();
     let request = crate::agent::desktop::build_agent_loop_request(

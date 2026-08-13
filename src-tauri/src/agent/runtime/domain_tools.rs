@@ -13,17 +13,24 @@ pub struct DomainToolExecutor<'a, T: ?Sized> {
 
 impl<'a, T: ToolExecutor + ?Sized> DomainToolExecutor<'a, T> {
     pub fn new(inner: &'a T, domain: Option<&DomainManifest>) -> Self {
+        let domains = domain.into_iter().cloned().collect::<Vec<_>>();
+        Self::new_for_domains(inner, &domains)
+    }
+
+    pub fn new_for_domains(inner: &'a T, domains: &[DomainManifest]) -> Self {
         let registrations = inner
             .registrations()
             .iter()
             .filter(|registration| {
-                domain.map_or(true, |manifest| {
+                domains.is_empty() || {
                     registration.spec.id.starts_with("mcp.")
-                        || manifest
-                            .builtin_tool_allowlist
-                            .iter()
-                            .any(|id| id == &registration.spec.id)
-                })
+                        || domains.iter().any(|manifest| {
+                            manifest
+                                .builtin_tool_allowlist
+                                .iter()
+                                .any(|id| id == &registration.spec.id)
+                        })
+                }
             })
             .cloned()
             .collect();

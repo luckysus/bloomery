@@ -36,8 +36,16 @@ pub(crate) async fn save_mcp_server(
         .map(|id| logic::load_config(&db, id))
         .transpose()?;
     let config = logic::input_config(input.clone(), existing.as_ref())?;
-    logic::save_config(&db, &config)?;
-    logic::save_secret_updates(&secrets, config.id, &input)?;
+    crate::db::with_conn_mut(&db, |connection| {
+        logic::save_config_and_secrets(
+            connection,
+            crate::db::current_workspace_id(),
+            secrets.store(),
+            &config,
+            &input,
+            existing.as_ref(),
+        )
+    })?;
     logic::shutdown_active(&runtime, config.id).await?;
     logic::summary(config, &secrets)
 }
@@ -52,6 +60,13 @@ pub(crate) async fn delete_mcp_server(
     let id = logic::parse_id(&id)?;
     let config = logic::load_config(&db, id)?;
     logic::shutdown_active(&runtime, id).await?;
-    logic::delete_secrets(&secrets, id, &config.env_names)?;
-    logic::delete_config(&db, id)
+    crate::db::with_conn_mut(&db, |connection| {
+        logic::delete_config_and_secrets(
+            connection,
+            crate::db::current_workspace_id(),
+            secrets.store(),
+            id,
+            &config,
+        )
+    })
 }

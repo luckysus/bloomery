@@ -224,18 +224,18 @@ pub(crate) async fn query_local_knowledge(
     mut request: LocalKnowledgeQueryRequest,
 ) -> Result<EvidencePack, String> {
     request.validate()?;
-    // Apply the active domain package's retrieval policy: cap local evidence to the
-    // domain's max_evidence_items so retrieval never returns more candidates than the
-    // domain allows. required_tags tag filtering is intentionally deferred because the
-    // current retrieval layer has no chunk-tag index; citation_required is surfaced to
-    // the agent through the desktop prompt rather than here.
-    if let Some(manifest) = with_conn(&db, |connection| {
-        domains::active_manifest(connection, current_workspace_id())
-    })? {
-        let max_items = manifest.retrieval.max_evidence_items;
-        if max_items > 0 {
-            request.candidate_limit = request.candidate_limit.min(max_items);
-        }
+    // Apply all active domain packages' retrieval policies. The strictest evidence cap
+    // wins so no package receives more candidates than it declares.
+    let active_domains = with_conn(&db, |connection| {
+        domains::active_manifests(connection, current_workspace_id())
+    })?;
+    if let Some(max_items) = active_domains
+        .iter()
+        .map(|manifest| manifest.retrieval.max_evidence_items)
+        .filter(|value| *value > 0)
+        .min()
+    {
+        request.candidate_limit = request.candidate_limit.min(max_items);
     }
     let (embedding_record, rerank_record, retrieval_plan) = with_conn(&db, |connection| {
         let embedding = provider_profiles::get_default_record(

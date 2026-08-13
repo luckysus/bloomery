@@ -79,18 +79,34 @@ pub fn list(
         .map_err(|error| error.to_string())
 }
 
-/// Return the manifest of the currently active domain package for the workspace, if any.
+/// Return all currently active domain package manifests for the workspace.
 ///
-/// Reuses [`list`] and selects the single record whose `active` flag is set; activation
-/// guarantees at most one active version per package id.
+/// Each package id has at most one active version, while different package ids may be active
+/// together.
+pub fn active_manifests(
+    connection: &Connection,
+    workspace_id: &str,
+) -> Result<Vec<DomainManifest>, String> {
+    Ok(list(connection, workspace_id)?
+        .into_iter()
+        .filter(|record| record.active)
+        .map(|record| record.manifest)
+        .collect())
+}
+
+/// Return the only active domain manifest, if the workspace has at most one active package.
+///
+/// Callers that support multiple package ids must use [`active_manifests`] instead.
 pub fn active_manifest(
     connection: &Connection,
     workspace_id: &str,
 ) -> Result<Option<DomainManifest>, String> {
-    Ok(list(connection, workspace_id)?
-        .into_iter()
-        .find(|record| record.active)
-        .map(|record| record.manifest))
+    let manifests = active_manifests(connection, workspace_id)?;
+    match manifests.len() {
+        0 => Ok(None),
+        1 => Ok(manifests.into_iter().next()),
+        _ => Err("multiple active domain packages require plural loading".to_string()),
+    }
 }
 
 pub fn get(

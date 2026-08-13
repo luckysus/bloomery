@@ -369,7 +369,7 @@ fn mineru_handler_cancels_locally_when_remote_cancel_is_unsupported() {
     drive_until(
         "cancellation",
         &mut scheduler,
-        || workspace.task(task.id).state == TaskState::Cancelled,
+        || workspace.task(task.id).state == TaskState::Cancelled && remote.counts().cancel == 1,
         || task_diagnostic(&workspace, task.id, &remote),
     );
 
