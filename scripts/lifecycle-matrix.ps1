@@ -85,18 +85,34 @@ function Find-Uninstaller {
     $uninstaller
 }
 
-function Wait-ForFile {
+function Wait-For-ApplicationReady {
     param(
-        [Parameter(Mandatory = $true)][string]$Path,
+        [Parameter(Mandatory = $true)][System.Diagnostics.Process]$Process,
+        [Parameter(Mandatory = $true)][string]$DatabasePath,
+        [Parameter(Mandatory = $true)][string]$Phase,
         [int]$TimeoutSeconds = 30
     )
 
     $deadline = [DateTime]::UtcNow.AddSeconds($TimeoutSeconds)
-    while (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
+    while (-not (Test-Path -LiteralPath $DatabasePath -PathType Leaf)) {
+        $Process.Refresh()
+        if ($Process.HasExited) {
+            throw "$Phase exited before creating its app-data database (exit code $($Process.ExitCode))"
+        }
         if ([DateTime]::UtcNow -ge $deadline) {
             return $false
         }
         Start-Sleep -Milliseconds 250
+    }
+
+    $Process.Refresh()
+    if ($Process.HasExited) {
+        throw "$Phase did not stay alive after creating its app-data database (exit code $($Process.ExitCode))"
+    }
+    Start-Sleep -Milliseconds 250
+    $Process.Refresh()
+    if ($Process.HasExited) {
+        throw "$Phase did not stay alive after creating its app-data database (exit code $($Process.ExitCode))"
     }
     $true
 }
@@ -129,7 +145,7 @@ function Install-And-Launch {
     $env:BLOOMERY_DATA_DIR = $DataRoot
     $applicationProcess = Start-Process -FilePath $application.FullName -WorkingDirectory $InstallRoot -PassThru
     $databasePath = Join-Path $DataRoot "bloomery.sqlite3"
-    if (-not (Wait-ForFile -Path $databasePath)) {
+    if (-not (Wait-For-ApplicationReady -Process $applicationProcess -DatabasePath $databasePath -Phase $Phase)) {
         Stop-Application -Process $applicationProcess
         $exitCode = if ($applicationProcess.HasExited) { $applicationProcess.ExitCode } else { "unknown" }
         throw "$Phase did not create its app-data database at $databasePath (exit code $exitCode)"

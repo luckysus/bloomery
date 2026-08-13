@@ -25,7 +25,9 @@ foreach ($requiredText in @(
     "applicationDataDirectory",
     "bloomery.sqlite3",
     "BLOOMERY_DATA_DIR",
-    "Wait-ForPath",
+    "function Wait-For-ApplicationReady",
+    "Process.HasExited",
+    "did not stay alive",
     "WaitForExit",
     $unicodeInstallPath,
     $unicodeDataPath

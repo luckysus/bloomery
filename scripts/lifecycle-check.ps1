@@ -13,18 +13,34 @@ $repoRoot = Split-Path -Parent $PSScriptRoot
 $rustRoot = Join-Path $repoRoot "src-tauri"
 $tauriConfigPath = Join-Path $rustRoot "tauri.conf.json"
 
-function Wait-ForPath {
+function Wait-For-ApplicationReady {
     param(
-        [Parameter(Mandatory = $true)][string]$Path,
+        [Parameter(Mandatory = $true)][System.Diagnostics.Process]$Process,
+        [Parameter(Mandatory = $true)][string]$DatabasePath,
+        [Parameter(Mandatory = $true)][string]$Phase,
         [int]$TimeoutSeconds = 30
     )
 
     $deadline = [DateTime]::UtcNow.AddSeconds($TimeoutSeconds)
-    while (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
+    while (-not (Test-Path -LiteralPath $DatabasePath -PathType Leaf)) {
+        $Process.Refresh()
+        if ($Process.HasExited) {
+            throw "$Phase exited before creating its app-data database (exit code $($Process.ExitCode))"
+        }
         if ([DateTime]::UtcNow -ge $deadline) {
             return $false
         }
         Start-Sleep -Milliseconds 250
+    }
+
+    $Process.Refresh()
+    if ($Process.HasExited) {
+        throw "$Phase did not stay alive after creating its app-data database (exit code $($Process.ExitCode))"
+    }
+    Start-Sleep -Milliseconds 250
+    $Process.Refresh()
+    if ($Process.HasExited) {
+        throw "$Phase did not stay alive after creating its app-data database (exit code $($Process.ExitCode))"
     }
     return $true
 }
@@ -120,7 +136,7 @@ try {
     $applicationProcess = Start-Process -FilePath $application.FullName -WorkingDirectory $installRoot -PassThru
     $applicationDataDirectory = $dataRoot
     $databasePath = Join-Path $applicationDataDirectory "bloomery.sqlite3"
-    if (-not (Wait-ForPath -Path $databasePath)) {
+    if (-not (Wait-For-ApplicationReady -Process $applicationProcess -DatabasePath $databasePath -Phase "Installer smoke")) {
         if (-not $applicationProcess.HasExited) {
             Stop-Process -Id $applicationProcess.Id -Force
             $applicationProcess.WaitForExit(10000)

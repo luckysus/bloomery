@@ -15,6 +15,9 @@ foreach ($requiredText in @(
     "downgrade",
     "results.Add((Install-And-Launch",
     "retention-sentinel.txt",
+    "function Wait-For-ApplicationReady",
+    "Process.HasExited",
+    "did not stay alive",
     "Unicode",
     "data-preservation"
 )) {
