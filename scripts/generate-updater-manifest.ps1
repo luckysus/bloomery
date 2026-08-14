@@ -14,12 +14,19 @@ $artifactRoot = [System.IO.Path]::GetFullPath($ArtifactDirectory)
 if (-not (Test-Path -LiteralPath $artifactRoot -PathType Container)) {
     throw "Updater artifact directory is missing: $artifactRoot"
 }
+if ([string]::IsNullOrWhiteSpace($Version) -or $Version -notmatch '^[0-9]+\.[0-9]+\.[0-9]+$') {
+    throw "Version must be a semantic release version in MAJOR.MINOR.PATCH form"
+}
 $baseUri = $null
 if (-not [Uri]::TryCreate($ReleaseBaseUrl, [UriKind]::Absolute, [ref]$baseUri) -or $baseUri.Scheme -ne "https") {
     throw "ReleaseBaseUrl must be an absolute HTTPS URL"
 }
 if ($baseUri.Host -match "^(localhost|127\.|10\.|192\.168\.|169\.254\.|172\.(1[6-9]|2[0-9]|3[0-1])\.|47\.93\.203\.36|43\.155\.210\.216$)") {
     throw "ReleaseBaseUrl must not target a local or private host"
+}
+$releasePath = $baseUri.AbsolutePath.TrimEnd("/")
+if (-not $releasePath.EndsWith("/v" + $Version, [System.StringComparison]::OrdinalIgnoreCase)) {
+    throw "ReleaseBaseUrl version must match the semantic release version"
 }
 
 function Select-SignedPackage {

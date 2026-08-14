@@ -143,7 +143,7 @@ try {
     Set-Content -LiteralPath $legacyMsiManifestFixture -Value "legacy-msi-candidate" -Encoding ASCII
     Set-Content -LiteralPath $legacyMsiManifestFixtureSignature -Value "legacy-msi-test-signature" -Encoding ASCII
     $global:LASTEXITCODE = 0
-    & $manifestScript -ArtifactDirectory $manifestFixtureRoot -Version "0.1.0" -ReleaseBaseUrl "https://github.com/luckysus/bloomery/releases/download/v0.1.0-test" -OutputPath $manifestFixtureOutput
+    & $manifestScript -ArtifactDirectory $manifestFixtureRoot -Version "0.1.0" -ReleaseBaseUrl "https://github.com/luckysus/bloomery/releases/download/v0.1.0" -OutputPath $manifestFixtureOutput
     if ($LASTEXITCODE -ne 0) {
         throw "Updater manifest fixture failed with exit code $LASTEXITCODE"
     }
@@ -168,6 +168,46 @@ try {
     }
     if ($genericPlatform.url -notmatch 'Bloomery_0\.1\.0_x64-setup\.exe$' -or $genericPlatform.signature -ne 'test-signature') {
         throw "Updater manifest fixture did not use the signed NSIS installer for portable fallback"
+    }
+
+    $invalidVersionOutput = Join-Path $manifestFixtureRoot "invalid-version.json"
+    $invalidVersionError = ""
+    $invalidVersionAccepted = $false
+    try {
+        & $manifestScript `
+            -ArtifactDirectory $manifestFixtureRoot `
+            -Version "1.0" `
+            -ReleaseBaseUrl "https://github.com/luckysus/bloomery/releases/download/v1.0.0-test" `
+            -OutputPath $invalidVersionOutput
+        if ($LASTEXITCODE -eq 0) {
+            $invalidVersionAccepted = $true
+        }
+    } catch {
+        $invalidVersionError = $_.Exception.Message
+    }
+    if ($invalidVersionAccepted) {
+        throw "generate-updater-manifest.ps1 accepted a non-semantic release version"
+    }
+    if ($invalidVersionError -notmatch "semantic") {
+        throw "generate-updater-manifest.ps1 must reject non-semantic release versions"
+    }
+
+    $mismatchedBaseError = ""
+    $mismatchedBaseAccepted = $false
+    try {
+        & $manifestScript `
+            -ArtifactDirectory $manifestFixtureRoot `
+            -Version "0.1.0" `
+            -ReleaseBaseUrl "https://github.com/luckysus/bloomery/releases/download/v9.9.9" `
+            -OutputPath (Join-Path $manifestFixtureRoot "mismatched-base.json")
+        if ($LASTEXITCODE -eq 0) {
+            $mismatchedBaseAccepted = $true
+        }
+    } catch {
+        $mismatchedBaseError = $_.Exception.Message
+    }
+    if ($mismatchedBaseAccepted -or $mismatchedBaseError -notmatch "version") {
+        throw "generate-updater-manifest.ps1 must reject a release URL whose tag does not match the version"
     }
 }
 finally {

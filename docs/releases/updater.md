@@ -29,6 +29,9 @@ overlay. It rejects missing keys, non-HTTPS endpoints, and local/private hosts.
 The Authenticode timestamp URL is independently validated by
 `scripts/sign-authenticode.ps1` and must also use HTTPS.
 The overlay and private key are never committed or copied into the installer.
+`scripts/generate-updater-manifest.ps1` accepts only `MAJOR.MINOR.PATCH`
+versions and requires the release asset base URL to end in the matching
+`/v<version>` tag path.
 
 The public key and its rotation policy must be published with the release
 documentation. Keep the private key in the approved signing system, not in a
