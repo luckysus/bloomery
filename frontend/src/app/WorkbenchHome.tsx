@@ -154,7 +154,8 @@ export default function WorkbenchHome({ initializationState, onOpenSection }: Wo
         </div>
       )}
 
-      <section className="bloomery-status-section" aria-labelledby="status-heading" aria-busy={overview.loading}>
+      <div className="bloomery-workbench-grid">
+        <section className="bloomery-status-section" aria-labelledby="status-heading" aria-busy={overview.loading}>
         <div className="bloomery-section-heading">
           <div>
             <p className="bloomery-eyebrow">RUNTIME STATUS</p>
@@ -185,7 +186,7 @@ export default function WorkbenchHome({ initializationState, onOpenSection }: Wo
         </div>
       </section>
 
-      <section className="bloomery-empty-section" aria-labelledby="recent-heading" aria-busy={overview.loading}>
+        <section className="bloomery-empty-section" aria-labelledby="recent-heading" aria-busy={overview.loading}>
         <div className="bloomery-section-heading">
           <div>
             <p className="bloomery-eyebrow">RECENT WORK</p>
@@ -227,7 +228,8 @@ export default function WorkbenchHome({ initializationState, onOpenSection }: Wo
             )}
           </div>
         )}
-      </section>
+        </section>
+      </div>
     </div>
   );
 }

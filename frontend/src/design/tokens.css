@@ -18,9 +18,13 @@
   --bloomery-red: #c64545;
   --bloomery-red-soft: #fff4f0;
   --bloomery-accent: #557684;
-  --bloomery-sidebar-width: 240px;
+  --bloomery-sidebar-width: 216px;
   --bloomery-sidebar-collapsed-width: 72px;
-  --bloomery-topbar-height: 72px;
+  --bloomery-topbar-height: 64px;
+  --bloomery-chat-session-width: 220px;
+  --bloomery-chat-inspector-width: 286px;
+  --bloomery-chat-session-compact-width: 204px;
+  --bloomery-chat-inspector-compact-width: 252px;
   --bloomery-radius: 12px;
   --bloomery-radius-small: 8px;
   --bloomery-shadow: 0 16px 36px rgba(72, 52, 38, 0.1);

@@ -55,6 +55,8 @@ describe("Bloomery desktop layout", () => {
 
       expect(await screen.findByRole("heading", { name: "工作台" })).toBeInTheDocument();
       expect(screen.getByRole("navigation", { name: "主导航" })).toBeInTheDocument();
+      expect(screen.getByRole("main")).toBeInTheDocument();
+      expect(screen.getByRole("region", { name: "常用操作" })).toBeInTheDocument();
       for (const label of ["工作台", "对话", "知识库", "数据分析", "扩展", "设置", "诊断"]) {
         const button = screen.getByRole("button", { name: label });
         expect(button).toBeInTheDocument();

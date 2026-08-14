@@ -33,3 +33,11 @@ stacks below the conversation; below 640px, all columns become one flow.
   messages → composer → inspector actions.
 - Do not introduce a new provider, API call, or Web dependency to implement a
   visual change.
+
+## Workbench home
+
+- Keep the hero and primary actions above the operational data.
+- Present runtime status and recent work as two aligned cards from 761px
+  upward.
+- Stack those cards into one readable flow below 760px; do not allow the
+  recent-work list to force horizontal scrolling.

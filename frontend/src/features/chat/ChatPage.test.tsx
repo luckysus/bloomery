@@ -116,6 +116,8 @@ describe("ChatPage", () => {
     render(<ChatPage />);
 
     expect(await screen.findByRole("button", { name: "Q355B 标准" })).toBeInTheDocument();
+    expect(screen.getByRole("complementary", { name: "运行状态" })).toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "输入消息" })).toBeInTheDocument();
     expect(await screen.findByText("Q355B 的屈服强度是多少？")).toBeInTheDocument();
   });
 
