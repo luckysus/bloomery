@@ -1,7 +1,13 @@
 import type { FormEvent } from "react";
 import {
+  Activity,
+  BookOpen,
   Bot,
   Check,
+  CheckCircle2,
+  CircleAlert,
+  Clock3,
+  Cpu,
   Download,
   FileJson,
   LoaderCircle,
@@ -11,6 +17,7 @@ import {
   Send,
   Sparkles,
   Square,
+  Wrench,
   X,
 } from "lucide-react";
 import AIAnswerRenderer from "../../components/answer/AnswerRenderer";
@@ -81,6 +88,12 @@ function messageEvidence(message: Message) {
   }
 }
 
+function toolTone(status: string) {
+  if (status === "succeeded" || status === "completed" || status.startsWith("allow_")) return "is-good";
+  if (status === "failed" || status === "cancelled" || status === "interrupted" || status === "deny") return "is-danger";
+  return "is-pending";
+}
+
 function PermissionPanel({
   permissions,
   onResolvePermission,
@@ -128,6 +141,107 @@ function PermissionPanel({
         </section>
       ))}
     </div>
+  );
+}
+
+function RunInspector({
+  agentRun,
+  onResolvePermission,
+}: {
+  agentRun: AgentRunView | null;
+  onResolvePermission: (permissionId: string, decision: PermissionDecision) => void;
+}) {
+  const { t } = useLocale();
+  const pendingPermissions = agentRun?.permissions.filter((permission) => permission.decision === null) ?? [];
+
+  return (
+    <aside className="bloomery-chat-inspector" aria-label={t("runtimeStatus")} data-testid="chat-inspector">
+      <div className="bloomery-chat-inspector-header">
+        <div>
+          <p className="bloomery-eyebrow">{t("steelRuntime")}</p>
+          <h3>{t("runtimeStatus")}</h3>
+        </div>
+        <span className={`bloomery-chat-inspector-state ${agentRun ? toolTone(agentRun.state) : "is-neutral"}`}>
+          <Activity size={14} aria-hidden="true" />
+          {agentRun ? agentStateLabel(agentRun.state, t) : t("localAgent")}
+        </span>
+      </div>
+
+      {!agentRun ? (
+        <div className="bloomery-chat-inspector-empty">
+          <span className="bloomery-chat-inspector-empty-icon" aria-hidden="true"><Cpu size={20} /></span>
+          <strong>{t("localAgent")}</strong>
+          <p>{t("localRuntime")}</p>
+        </div>
+      ) : (
+        <>
+          <div className="bloomery-chat-inspector-metrics" aria-label={t("runtimeStatus")}>
+            <div>
+              <span><Wrench size={14} aria-hidden="true" />{t("agentToolCount", { count: agentRun.toolCalls.length })}</span>
+              <strong>{agentRun.toolCalls.length}</strong>
+            </div>
+            <div>
+              <span><BookOpen size={14} aria-hidden="true" />{t("citationSection")}</span>
+              <strong>{agentRun.citationNumbers.length}</strong>
+            </div>
+          </div>
+
+          {agentRun.toolCalls.length > 0 && (
+            <section className="bloomery-chat-inspector-section" aria-labelledby="chat-tools-heading">
+              <div className="bloomery-chat-inspector-section-heading">
+                <h4 id="chat-tools-heading"><Wrench size={15} aria-hidden="true" />{t("agentToolCount", { count: agentRun.toolCalls.length })}</h4>
+              </div>
+              <div className="bloomery-chat-inspector-tool-list">
+                {agentRun.toolCalls.map((tool) => (
+                  <div className="bloomery-chat-inspector-tool" key={tool.toolCallId}>
+                    <span className={`bloomery-chat-inspector-tool-icon ${toolTone(tool.status)}`} aria-hidden="true">
+                      {tool.status === "succeeded" ? <CheckCircle2 size={14} /> : tool.status === "failed" ? <CircleAlert size={14} /> : <Clock3 size={14} />}
+                    </span>
+                    <div>
+                      <strong>{tool.name}</strong>
+                      <span>{t("agentToolProgress", { name: tool.status, progress: tool.progress })}</span>
+                      {tool.message && <small>{tool.message}</small>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {pendingPermissions.length > 0 && (
+            <section className="bloomery-chat-inspector-section bloomery-chat-inspector-permissions" aria-labelledby="chat-permissions-heading">
+              <div className="bloomery-chat-inspector-section-heading">
+                <h4 id="chat-permissions-heading"><ShieldAlert size={15} aria-hidden="true" />{t("permissionRequired")}</h4>
+              </div>
+              <PermissionPanel permissions={agentRun.permissions} onResolvePermission={onResolvePermission} />
+            </section>
+          )}
+
+          {agentRun.taskProgress && (
+            <section className="bloomery-chat-inspector-section" aria-labelledby="chat-task-heading">
+              <div className="bloomery-chat-inspector-section-heading">
+                <h4 id="chat-task-heading"><Clock3 size={15} aria-hidden="true" />{t("backgroundTasks")}</h4>
+                <span>{agentRun.taskProgress.progress}%</span>
+              </div>
+              <div className="bloomery-chat-inspector-progress" aria-label={`${agentRun.taskProgress.progress}%`}>
+                <span style={{ width: `${Math.max(0, Math.min(100, agentRun.taskProgress.progress))}%` }} />
+              </div>
+            </section>
+          )}
+
+          {agentRun.citationNumbers.length > 0 && (
+            <section className="bloomery-chat-inspector-section" aria-labelledby="chat-evidence-heading">
+              <div className="bloomery-chat-inspector-section-heading">
+                <h4 id="chat-evidence-heading"><BookOpen size={15} aria-hidden="true" />{t("citationSection")}</h4>
+              </div>
+              <div className="bloomery-chat-inspector-citations">
+                {agentRun.citationNumbers.map((number) => <span key={number}>[{number}]</span>)}
+              </div>
+            </section>
+          )}
+        </>
+      )}
+    </aside>
   );
 }
 
@@ -220,7 +334,7 @@ export default function ChatView({
               ))}
               {pendingQuestion && <>
                 <article className="bloomery-chat-message is-user is-pending"><div className="bloomery-chat-message-meta"><span>{t("me")}</span><span>{t("question")}</span></div><p>{pendingQuestion}</p></article>
-                <article className="bloomery-chat-message is-assistant is-streaming"><div className="bloomery-chat-message-meta"><Bot size={15} aria-hidden="true" /><span>Bloomery 路 {t("generating")}</span></div><div className="bloomery-chat-answer ai-markdown-body"><AIAnswerRenderer answer={agentRun?.assistantText || t("contextPreparing")} literatureResults={[]} /></div>{agentRun && agentRun.toolCalls.length > 0 && <div className="bloomery-chat-tool-trace" aria-label="Agent tools">{agentRun.toolCalls.map((tool) => <span key={tool.toolCallId}>{t("agentToolProgress", { name: tool.name, progress: tool.progress })}</span>)}</div>}{agentRun && <PermissionPanel permissions={agentRun.permissions} onResolvePermission={onResolvePermission} />}</article>
+                <article className="bloomery-chat-message is-assistant is-streaming"><div className="bloomery-chat-message-meta"><Bot size={15} aria-hidden="true" /><span>Bloomery 路 {t("generating")}</span></div><div className="bloomery-chat-answer ai-markdown-body"><AIAnswerRenderer answer={agentRun?.assistantText || t("contextPreparing")} literatureResults={[]} /></div>{agentRun && agentRun.toolCalls.length > 0 && <div className="bloomery-chat-tool-trace" aria-label="Agent tools">{agentRun.toolCalls.map((tool) => <span key={tool.toolCallId}>{t("agentToolProgress", { name: tool.name, progress: tool.progress })}</span>)}</div>}</article>
               </>}
             </>
           )}
@@ -231,6 +345,7 @@ export default function ChatView({
           <div className="bloomery-chat-composer-footer"><span>{t("enterSend")}</span>{pendingQuestion ? <button type="button" className="bloomery-action-secondary" onClick={onCancel}><Square size={15} />{t("stopGenerating")}</button> : <button type="submit" className="bloomery-action-primary" disabled={!draft.trim()}><Send size={16} />{t("send")}</button>}</div>
         </form>
       </div>
+      <RunInspector agentRun={agentRun && agentRun.conversationId === selectedId ? agentRun : null} onResolvePermission={onResolvePermission} />
       <span className="bloomery-chat-mobile-icon" aria-hidden="true"><PanelLeft size={17} /></span>
     </section>
   );

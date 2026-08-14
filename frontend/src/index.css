@@ -1,5 +1,6 @@
 @import "./design/tokens.css";
 @import "./design/theme.css";
+@import "./design/polish.css";
 
 @tailwind base;
 @tailwind components;
