@@ -121,7 +121,7 @@ describe("OnboardingPage", () => {
     expect(screen.getByRole("heading", { name: "连接 LLM" })).toBeInTheDocument();
   });
 
-  it("installs the bundled steel package before entering the workbench", async () => {
+  it("initializes the bundled steel package before entering the workbench", async () => {
     const onComplete = vi.fn();
     render(<OnboardingPage onComplete={onComplete} />);
 
@@ -135,10 +135,14 @@ describe("OnboardingPage", () => {
 
     const mockedDesktop = desktop as unknown as { installBundledSteelPackage: ReturnType<typeof vi.fn> };
     await waitFor(() => expect(mockedDesktop.installBundledSteelPackage).toHaveBeenCalledOnce());
+    expect(desktop.setSetting).toHaveBeenCalledWith(
+      "onboarding.completed",
+      expect.stringContaining('"steel_package_status":"ready"'),
+    );
     expect(onComplete).toHaveBeenCalledOnce();
   });
 
-  it("keeps onboarding incomplete when the bundled steel package cannot be installed", async () => {
+  it("lets the user enter the workbench and records a bundled package failure for diagnostics", async () => {
     const mockedDesktop = desktop as unknown as { installBundledSteelPackage: ReturnType<typeof vi.fn> };
     mockedDesktop.installBundledSteelPackage.mockRejectedValueOnce(new Error("steel package unavailable"));
     const onComplete = vi.fn();
@@ -153,7 +157,33 @@ describe("OnboardingPage", () => {
     fireEvent.click(screen.getAllByRole("button")[0]);
 
     await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("steel package unavailable"));
-    expect(desktop.setSetting).not.toHaveBeenCalledWith("onboarding.completed", expect.any(String));
-    expect(onComplete).not.toHaveBeenCalled();
+    expect(desktop.setSetting).toHaveBeenCalledWith(
+      "onboarding.completed",
+      expect.stringContaining('"steel_package_status":"error"'),
+    );
+    expect(desktop.setSetting).toHaveBeenCalledWith(
+      "onboarding.completed",
+      expect.stringContaining('"steel_package_error":"steel package unavailable"'),
+    );
+    expect(onComplete).toHaveBeenCalledOnce();
+  });
+
+  it("shows string errors returned by the Tauri command instead of hiding the cause", async () => {
+    const mockedDesktop = desktop as unknown as { installBundledSteelPackage: ReturnType<typeof vi.fn> };
+    mockedDesktop.installBundledSteelPackage.mockRejectedValueOnce("bundled steel domain package resource is missing");
+
+    render(<OnboardingPage onComplete={vi.fn()} />);
+
+    fireEvent.click(screen.getAllByRole("button")[0]);
+    fireEvent.change(screen.getByLabelText("API Key"), { target: { value: "sk-test-value" } });
+    fireEvent.click(screen.getAllByRole("button")[0]);
+    await screen.findByRole("heading", { level: 2 });
+    fireEvent.click(screen.getAllByRole("button")[0]);
+    await screen.findByRole("heading", { level: 2 });
+    fireEvent.click(screen.getAllByRole("button")[0]);
+
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent(
+      "bundled steel domain package resource is missing",
+    ));
   });
 });

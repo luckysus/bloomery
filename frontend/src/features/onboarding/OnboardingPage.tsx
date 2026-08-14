@@ -66,7 +66,13 @@ function providerError(errorCode: string | null | undefined, translate: (key: "c
 }
 
 function errorMessage(error: unknown, fallback: string) {
-  return error instanceof Error ? error.message : fallback;
+  if (error instanceof Error && error.message.trim()) return error.message;
+  if (typeof error === "string" && error.trim()) return error;
+  if (error && typeof error === "object" && "message" in error) {
+    const message = (error as { message?: unknown }).message;
+    if (typeof message === "string" && message.trim()) return message;
+  }
+  return fallback;
 }
 
 export default function OnboardingPage({ onComplete }: OnboardingPageProps) {
@@ -202,10 +208,26 @@ export default function OnboardingPage({ onComplete }: OnboardingPageProps) {
     setBusy(true);
     setError(null);
     setSteelPackageState("installing");
+    let steelPackageStatus: "ready" | "error" = "ready";
+    let steelPackageError: string | null = null;
     try {
-      await desktop.installBundledSteelPackage();
-      setSteelPackageState("installed");
-      await desktop.setSetting("onboarding.completed", JSON.stringify({ version: 1, completed: true, llm_profile_id: llmProfileId ?? llmProfile?.id ?? null, retrieval_state: retrievalState }));
+      try {
+        await desktop.installBundledSteelPackage();
+        setSteelPackageState("installed");
+      } catch (cause) {
+        steelPackageStatus = "error";
+        steelPackageError = errorMessage(cause, t("steelPackageInstallError"));
+        setSteelPackageState("error");
+        setError(steelPackageError);
+      }
+      await desktop.setSetting("onboarding.completed", JSON.stringify({
+        version: 1,
+        completed: true,
+        llm_profile_id: llmProfileId ?? llmProfile?.id ?? null,
+        retrieval_state: retrievalState,
+        steel_package_status: steelPackageStatus,
+        ...(steelPackageError ? { steel_package_error: steelPackageError } : {}),
+      }));
       await persistProgress({ step: "done", llmProfileId: llmProfileId ?? llmProfile?.id ?? null, retrievalState, mineruConfigured });
       onComplete();
     } catch (cause) {

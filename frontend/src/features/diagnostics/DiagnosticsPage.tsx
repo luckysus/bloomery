@@ -2,11 +2,7 @@ import { useEffect, useState } from "react";
 import {
   AlertCircle,
   Check,
-  Database,
-  HardDrive,
   LoaderCircle,
-  RotateCcw,
-  SearchCheck,
 } from "lucide-react";
 import {
   desktop,
@@ -17,28 +13,25 @@ import {
 } from "../../bridge/desktop";
 import { useLocale, type MessageKey } from "../../i18n/locale";
 import DiagnosticsHeader from "./DiagnosticsHeader";
+import DiagnosticsHealthGrid from "./DiagnosticsHealthGrid";
+import DiagnosticsTaskList from "./DiagnosticsTaskList";
+import { formatBytes } from "./diagnosticsModel";
 
 interface DiagnosticsSnapshot {
   storage: StorageHealth | null;
   index: IndexHealthReport | null;
   tasks: BackgroundTask[];
+  steelPackage: {
+    status: "ready" | "error" | "unknown";
+    error: string | null;
+  };
 }
 
 const emptySnapshot: DiagnosticsSnapshot = {
   storage: null,
   index: null,
   tasks: [],
-};
-
-const taskStateKeys: Record<BackgroundTask["state"], MessageKey> = {
-  queued: "diagnosticsTaskQueued",
-  running: "diagnosticsTaskRunning",
-  waiting_external: "diagnosticsTaskWaitingExternal",
-  paused: "diagnosticsTaskPaused",
-  completed: "diagnosticsTaskCompleted",
-  failed: "diagnosticsTaskFailed",
-  cancelled: "diagnosticsTaskCancelled",
-  interrupted: "diagnosticsTaskInterrupted",
+  steelPackage: { status: "unknown", error: null },
 };
 
 function parseObject(value: string | null) {
@@ -55,27 +48,14 @@ function stringValue(value: unknown) {
   return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 
-function formatBytes(value: number | null | undefined) {
-  if (value === null || value === undefined) return "--";
-  if (value < 1024) return `${value} B`;
-  const units = ["KB", "MB", "GB", "TB"];
-  let amount = value;
-  let unit = -1;
-  while (amount >= 1024 && unit < units.length - 1) {
-    amount /= 1024;
-    unit += 1;
-  }
-  return `${amount.toFixed(amount >= 10 ? 0 : 1)} ${units[unit]}`;
-}
-
 function errorMessage(error: unknown, fallback: string) {
-  return error instanceof Error ? error.message : fallback;
-}
-
-function taskLabel(kind: string, translate: (key: MessageKey) => string) {
-  if (kind === "mineru_parse") return translate("taskLiteratureParse");
-  if (kind === "rag_index_rebuild") return translate("taskIndexRebuild");
-  return kind || translate("taskBackground");
+  if (error instanceof Error && error.message.trim()) return error.message;
+  if (typeof error === "string" && error.trim()) return error;
+  if (error && typeof error === "object" && "message" in error) {
+    const message = (error as { message?: unknown }).message;
+    if (typeof message === "string" && message.trim()) return message;
+  }
+  return fallback;
 }
 
 export default function DiagnosticsPage() {
@@ -85,6 +65,7 @@ export default function DiagnosticsPage() {
   const [indexError, setIndexError] = useState(false);
   const [busyTask, setBusyTask] = useState<string | null>(null);
   const [busyBackup, setBusyBackup] = useState(false);
+  const [busySteelPackage, setBusySteelPackage] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -94,13 +75,19 @@ export default function DiagnosticsPage() {
     setNotice(null);
     setIndexError(false);
     try {
-      const [storage, retrievalValue, profiles, tasks] = await Promise.all([
+      const [storage, retrievalValue, completedValue, profiles, tasks] = await Promise.all([
         desktop.getStorageHealth(),
         desktop.getSetting("onboarding.retrieval"),
+        desktop.getSetting("onboarding.completed"),
         desktop.listProviderProfiles(),
         desktop.listBackgroundTasks(),
       ]);
       const retrieval = parseObject(retrievalValue);
+      const completed = parseObject(completedValue);
+      const steelPackageStatus = completed.steel_package_status === "ready"
+        ? "ready"
+        : completed.steel_package_status === "error" ? "error" : "unknown";
+      const steelPackageError = stringValue(completed.steel_package_error);
       const embeddingId = stringValue(retrieval.embedding_profile_id);
       const embedding = profiles.find((profile: ProviderProfileResponse) => profile.id === embeddingId);
       let index: IndexHealthReport | null = null;
@@ -115,9 +102,16 @@ export default function DiagnosticsPage() {
           setIndexError(true);
         }
       }
-      setSnapshot({ storage, index, tasks });
+      setSnapshot({
+        storage,
+        index,
+        tasks,
+        steelPackage: { status: steelPackageStatus, error: steelPackageError },
+      });
+      return true;
     } catch (cause) {
       setError(errorMessage(cause, t("diagnosticsLoadError")));
+      return false;
     } finally {
       setLoading(false);
     }
@@ -126,6 +120,32 @@ export default function DiagnosticsPage() {
   useEffect(() => {
     void load();
   }, []);
+
+  const retrySteelPackage = async () => {
+    setBusySteelPackage(true);
+    setError(null);
+    setNotice(null);
+    try {
+      await desktop.installBundledSteelPackage();
+      const completed = parseObject(await desktop.getSetting("onboarding.completed"));
+      await desktop.setSetting("onboarding.completed", JSON.stringify({
+        ...completed,
+        steel_package_status: "ready",
+        steel_package_error: null,
+      }));
+      const refreshed = await load();
+      if (!refreshed) return;
+      setSnapshot((current) => ({
+        ...current,
+        steelPackage: { status: "ready", error: null },
+      }));
+      setNotice(t("diagnosticsSteelPackageRepaired"));
+    } catch (cause) {
+      setError(errorMessage(cause, t("diagnosticsSteelPackageRepairError")));
+    } finally {
+      setBusySteelPackage(false);
+    }
+  };
 
   const retryTask = async (task: BackgroundTask) => {
     setBusyTask(task.id);
@@ -214,12 +234,7 @@ export default function DiagnosticsPage() {
     }
   };
 
-  const failedTasks = snapshot.tasks.filter((task) =>
-    Boolean(task.error_code) || task.state === "failed" || task.state === "interrupted",
-  );
   const storage = snapshot.storage;
-  const databaseHealthy = Boolean(storage?.database_ok);
-  const indexHealthy = snapshot.index?.state === "healthy";
 
   return (
     <section className="bloomery-diagnostics" aria-labelledby="diagnostics-heading" aria-busy={loading}>
@@ -239,53 +254,20 @@ export default function DiagnosticsPage() {
         <div className="bloomery-diagnostics-loading"><LoaderCircle size={18} className="bloomery-spin" />{t("loading")}</div>
       ) : (
         <>
-          <div className="bloomery-diagnostics-grid">
-            <article className="bloomery-diagnostics-card">
-              <div className="bloomery-diagnostics-card-heading">
-                <span className="bloomery-diagnostics-card-icon"><Database size={17} aria-hidden="true" /></span>
-                <div><p className="bloomery-eyebrow">SQLITE</p><h2>{t("diagnosticsDatabase")}</h2></div>
-                <span className={`bloomery-diagnostics-status ${databaseHealthy ? "is-healthy" : "is-warning"}`}>
-                  {databaseHealthy ? t("diagnosticsDatabaseHealthy") : t("diagnosticsDatabaseAttention")}
-                </span>
-              </div>
-              <dl className="bloomery-diagnostics-details">
-                <div><dt>{t("diagnosticsMigration")}</dt><dd>{storage ? `${storage.current_migration_version} / ${storage.latest_migration_version}` : "--"}</dd></div>
-                <div><dt>{t("diagnosticsStorageSize")}</dt><dd>{formatBytes(storage?.database_size_bytes)}</dd></div>
-                <div><dt>{t("diagnosticsReclaimable")}</dt><dd>{formatBytes(storage?.reclaimable_bytes)}</dd></div>
-                <div><dt>{t("diagnosticsAvailableDisk")}</dt><dd>{formatBytes(storage?.available_disk_bytes)}</dd></div>
-              </dl>
-            </article>
+          <DiagnosticsHealthGrid
+            storage={storage}
+            index={snapshot.index}
+            indexError={indexError}
+            steelPackage={snapshot.steelPackage}
+            busySteelPackage={busySteelPackage}
+            onRetrySteelPackage={() => void retrySteelPackage()}
+          />
 
-            <article className="bloomery-diagnostics-card">
-              <div className="bloomery-diagnostics-card-heading">
-                <span className="bloomery-diagnostics-card-icon"><SearchCheck size={17} aria-hidden="true" /></span>
-                <div><p className="bloomery-eyebrow">RAG INDEX</p><h2>{t("diagnosticsIndex")}</h2></div>
-                <span className={`bloomery-diagnostics-status ${indexHealthy ? "is-healthy" : "is-warning"}`}>
-                  {indexHealthy ? t("diagnosticsIndexHealthy") : t(indexError ? "diagnosticsIndexUnavailable" : "diagnosticsIndexAttention")}
-                </span>
-              </div>
-              <dl className="bloomery-diagnostics-details">
-                <div><dt>{t("diagnosticsServingMode")}</dt><dd>{snapshot.index?.serving_mode ?? (snapshot.index ? t("diagnosticsUnknown") : t("diagnosticsIndexUnconfigured"))}</dd></div>
-                <div><dt>{t("diagnosticsChunkCount")}</dt><dd>{snapshot.index?.chunk_count ?? "--"}</dd></div>
-                <div><dt>{t("diagnosticsRebuildSpace")}</dt><dd>{formatBytes(snapshot.index?.required_rebuild_bytes)}</dd></div>
-                <div><dt>{t("diagnosticsStaleTemporary")}</dt><dd>{snapshot.index?.stale_temporary_count ?? "--"}</dd></div>
-              </dl>
-            </article>
-          </div>
-
-          <section className="bloomery-diagnostics-tasks" aria-labelledby="diagnostics-tasks-heading">
-            <div className="bloomery-diagnostics-section-heading"><div><p className="bloomery-eyebrow">RECOVERY QUEUE</p><h2 id="diagnostics-tasks-heading">{t("diagnosticsTaskErrors")}</h2></div><HardDrive size={18} aria-hidden="true" /></div>
-            {failedTasks.length === 0 ? <p className="bloomery-diagnostics-empty">{t("diagnosticsNoTaskErrors")}</p> : (
-              <div className="bloomery-diagnostics-task-list">
-                {failedTasks.map((task) => (
-                  <div className="bloomery-diagnostics-task" key={task.id}>
-                    <div><strong>{taskLabel(task.kind, t)}</strong><span>{task.error_code ?? t(taskStateKeys[task.state])}</span></div>
-                    <div className="bloomery-diagnostics-task-meta"><span>{t(taskStateKeys[task.state])}</span><button type="button" className="bloomery-action-secondary" onClick={() => void retryTask(task)} disabled={!task.can_retry || busyTask === task.id}><RotateCcw size={15} aria-hidden="true" />{busyTask === task.id ? t("loading") : t("diagnosticsRetryTask")}</button></div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </section>
+          <DiagnosticsTaskList
+            tasks={snapshot.tasks}
+            busyTask={busyTask}
+            onRetry={(task) => void retryTask(task)}
+          />
 
           <aside className="bloomery-diagnostics-privacy"><Check size={17} aria-hidden="true" /><div><strong>{t("diagnosticsPrivacyTitle")}</strong><span>{t("diagnosticsPrivacyCopy")}</span></div></aside>
         </>

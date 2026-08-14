@@ -356,3 +356,25 @@ fn install_package_blocks_path_traversal_and_marks_unsigned_third_party() {
         "install must reject a source that does not exist"
     );
 }
+
+#[test]
+fn bundled_steel_source_can_be_installed_as_an_unsigned_package() {
+    let source = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("..")
+        .join("domain-packs")
+        .join("steel");
+    let install_root = TempPackage::new();
+
+    let installed = install_package(
+        &source,
+        install_root.path(),
+        "1.0.0",
+        &DomainTrustStore::default(),
+    )
+    .expect("the bundled steel package must install before it is activated");
+
+    assert_eq!(installed.manifest.id, "steel");
+    assert_eq!(installed.manifest.version, "1.0.0");
+    assert_eq!(installed.trust, DomainTrust::ThirdPartyUnsigned);
+    assert!(installed.path.join("manifest.json").is_file());
+}

@@ -15,6 +15,8 @@ vi.mock("../../bridge/desktop", () => ({
     getStorageHealth: vi.fn(),
     getIndexHealth: vi.fn(),
     getSetting: vi.fn(),
+    setSetting: vi.fn(),
+    installBundledSteelPackage: vi.fn(),
     listProviderProfiles: vi.fn(),
     listBackgroundTasks: vi.fn(),
     cancelBackgroundTask: vi.fn(),
@@ -118,6 +120,71 @@ describe("DiagnosticsPage", () => {
     expect(screen.getByText("diagnosticsIndexHealthy")).toBeInTheDocument();
     expect(screen.getByText("42")).toBeInTheDocument();
     expect(screen.getByText("provider_timeout")).toBeInTheDocument();
+  });
+
+  it("shows and repairs a bundled steel package initialization failure", async () => {
+    vi.mocked(desktop.getSetting).mockImplementation(async (key) => {
+      if (key === "onboarding.completed") {
+        return JSON.stringify({
+          version: 1,
+          completed: true,
+          steel_package_status: "error",
+          steel_package_error: "bundled resource is missing",
+        });
+      }
+      return JSON.stringify({
+        embedding_profile_id: "embedding-1",
+        reranker_profile_id: "reranker-1",
+      });
+    });
+    vi.mocked(desktop.installBundledSteelPackage).mockResolvedValue({} as never);
+
+    render(<DiagnosticsPage />);
+
+    expect(await screen.findByText("bundled resource is missing")).toBeInTheDocument();
+    fireEvent.click(await screen.findByRole("button", { name: "diagnosticsRetrySteelPackage" }));
+
+    await waitFor(() => expect(desktop.installBundledSteelPackage).toHaveBeenCalledOnce());
+    expect(desktop.setSetting).toHaveBeenCalledWith(
+      "onboarding.completed",
+      expect.stringContaining('"steel_package_status":"ready"'),
+    );
+    expect(await screen.findByText("diagnosticsSteelPackageRepaired")).toBeInTheDocument();
+  });
+
+  it("does not report a repair when the follow-up diagnostics refresh fails", async () => {
+    vi.mocked(desktop.getSetting).mockImplementation(async (key) => {
+      if (key === "onboarding.completed") {
+        return JSON.stringify({
+          version: 1,
+          completed: true,
+          steel_package_status: "error",
+          steel_package_error: "bundled resource is missing",
+        });
+      }
+      return JSON.stringify({
+        embedding_profile_id: "embedding-1",
+        reranker_profile_id: "reranker-1",
+      });
+    });
+    vi.mocked(desktop.installBundledSteelPackage).mockResolvedValue({} as never);
+    vi.mocked(desktop.getStorageHealth)
+      .mockResolvedValueOnce({
+        database_ok: true,
+        current_migration_version: 7,
+        latest_migration_version: 7,
+        database_size_bytes: 2_048,
+        reclaimable_bytes: 512,
+        available_disk_bytes: 50 * 1024 * 1024 * 1024,
+      })
+      .mockRejectedValueOnce(new Error("diagnostics unavailable"));
+
+    render(<DiagnosticsPage />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "diagnosticsRetrySteelPackage" }));
+
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("diagnostics unavailable"));
+    expect(screen.queryByText("diagnosticsSteelPackageRepaired")).not.toBeInTheDocument();
   });
 
   it("retries a failed task through the task bridge", async () => {

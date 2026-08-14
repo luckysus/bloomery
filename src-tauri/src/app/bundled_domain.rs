@@ -19,9 +19,12 @@ fn domains_root(app: &tauri::AppHandle) -> Result<PathBuf, String> {
     Ok(directory)
 }
 
-fn bundled_steel_package_candidates(resource_dir: &Path) -> [PathBuf; 2] {
+fn bundled_steel_package_candidates(resource_dir: &Path) -> [PathBuf; 3] {
     [
         resource_dir.join(BUNDLED_STEEL_PACKAGE_RELATIVE_PATH),
+        resource_dir
+            .join("resources")
+            .join(BUNDLED_STEEL_PACKAGE_RELATIVE_PATH),
         PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("..")
             .join(BUNDLED_STEEL_PACKAGE_RELATIVE_PATH),
@@ -33,7 +36,14 @@ fn select_existing_directory(candidates: &[PathBuf]) -> Result<PathBuf, String> 
         .iter()
         .find(|candidate| candidate.is_dir())
         .cloned()
-        .ok_or_else(|| "bundled steel domain package resource is missing".to_string())
+        .ok_or_else(|| {
+            let checked = candidates
+                .iter()
+                .map(|candidate| candidate.display().to_string())
+                .collect::<Vec<_>>()
+                .join("; ");
+            format!("bundled steel domain package resource is missing; checked: {checked}")
+        })
 }
 
 fn bundled_steel_package_source(app: &tauri::AppHandle) -> Result<PathBuf, String> {
@@ -201,6 +211,30 @@ mod tests {
             bundled
         );
         assert!(select_existing_directory(&[PathBuf::from("missing")]).is_err());
+
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn bundled_package_path_supports_nested_windows_resource_layout() {
+        let root =
+            std::env::temp_dir().join(format!("bloomery-bundled-domain-nested-{}", Uuid::new_v4()));
+        let resource_dir = root.join("resource");
+        let nested = resource_dir
+            .join("resources")
+            .join("domain-packs")
+            .join("steel");
+        fs::create_dir_all(&nested).expect("create nested bundled resource");
+
+        let candidates = bundled_steel_package_candidates(&resource_dir);
+        assert!(
+            candidates.iter().any(|candidate| candidate == &nested),
+            "nested Tauri resource layout must be searched"
+        );
+        assert_eq!(
+            select_existing_directory(&candidates).expect("select nested resource"),
+            nested
+        );
 
         let _ = fs::remove_dir_all(root);
     }
