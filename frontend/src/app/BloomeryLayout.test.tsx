@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import BloomeryApp from "./BloomeryApp";
 import { desktop } from "../bridge/desktop";
 import themeCss from "../design/theme.css?raw";
+import polishCss from "../design/polish.css?raw";
 
 vi.mock("../bridge/desktop", () => ({
   isDesktopRuntime: vi.fn().mockReturnValue(true),
@@ -83,6 +84,15 @@ describe("Bloomery desktop layout", () => {
       expect(theme).toContain(`max-width: ${breakpoint}`);
     }
     expect(theme).toContain("prefers-reduced-motion");
+  });
+
+  it("keeps the desktop shell quiet and the chat workbench three-column", () => {
+    expect(polishCss).not.toContain("backdrop-filter: blur(18px)");
+    expect(polishCss).not.toContain("background: linear-gradient(120deg, rgba(255, 255, 255, 0.98), rgba(235, 244, 248, 0.92))");
+    expect(polishCss).not.toContain("background: linear-gradient(90deg, #e5f0f5, #f6fafc)");
+    expect(polishCss).toContain("@media (max-width: 980px)");
+    expect(polishCss).toContain("var(--bloomery-chat-session-width)");
+    expect(polishCss).toContain("var(--bloomery-chat-inspector-width)");
   });
 
   it("shows the degraded provider state when no chat provider is configured", async () => {
