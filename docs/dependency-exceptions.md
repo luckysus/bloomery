@@ -14,7 +14,7 @@
 | 扫描项 | 命令 | 结果 | 结论 |
 | --- | --- | --- | --- |
 | cargo-deny（全量） | `cargo deny check` | exit 0：`advisories ok, bans ok, licenses ok, sources ok` | 通过 |
-| cargo-audit | `cargo audit` | exit 0；vulnerabilities = 0；19 条 allowed warnings（17 unmaintained + 2 informational unsound） | 通过 |
+| cargo-audit | `cargo audit` | exit 0；vulnerabilities = 0；18 条 allowed warnings（17 unmaintained + 1 informational unsound） | 通过 |
 | npm audit（frontend） | `npm audit` | high = 0，critical = 0，moderate = 0，low = 0 | 通过；`@babel/core` 已通过 `npm audit fix --package-lock-only` 更新锁定版本 |
 
 ## 2. 漏洞 remediation（已从根源清零）
@@ -90,7 +90,7 @@ rust-unic 整体不再维护，作为 URL pattern 解析的间接依赖被引入
 
 ### 3.5 关于 cargo-audit 的额外告警
 
-`cargo audit` 除上述 17 条 unmaintained 外，另报告 2 条 informational 级 **unsound** 公告：RUSTSEC-2024-0429（`glib` 的 `VariantStrIter` 迭代器实现）和 RUSTSEC-2026-0221（`event-listener` 的 `StackSlot` 跨线程标记）。共计 19 条 allowed warnings。这些为“提示（informational）”而非已知可利用漏洞，cargo audit 的 `vulnerabilities = 0`、exit 0；`cargo deny` 的 advisories 检查同样判定为 ok。无需登记为漏洞例外，但保留在审计记录中，后续上游有兼容升级时复审。
+`cargo audit` 除上述 17 条 unmaintained 外，目前只报告 1 条 informational 级 **unsound** 公告：RUSTSEC-2024-0429（`glib` 的 `VariantStrIter` 迭代器实现）。此前的 RUSTSEC-2026-0221（`event-listener` 的 `StackSlot` 跨线程标记）已通过将传递依赖从 5.4.1 升级到 5.4.2 移除。当前共计 18 条 allowed warnings；`cargo audit` 的 `vulnerabilities = 0`、exit 0，`cargo deny` 的 advisories 检查同样判定为 ok。`scripts/tests/dependency.contract.ps1` 将 5.4.2 设为安全下限，防止后续锁文件回退。
 
 ## 4. 重复版本例外（bans）
 

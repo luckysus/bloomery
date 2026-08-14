@@ -40,6 +40,7 @@ $lifecycleMatrixContract = Join-Path $repoRoot "scripts\tests\lifecycle-matrix.c
 $updaterContract = Join-Path $repoRoot "scripts\tests\updater.contract.ps1"
 $workflowContract = Join-Path $repoRoot "scripts\tests\workflow.contract.ps1"
 $caseStudyContract = Join-Path $repoRoot "scripts\tests\case-study.contract.ps1"
+$dependencyContract = Join-Path $repoRoot "scripts\tests\dependency.contract.ps1"
 $runContracts = $Stage -eq "all" -or $Stage -eq "contracts"
 $runFrontend = $Stage -eq "all" -or $Stage -eq "frontend"
 $runRust = $Stage -eq "all" -or $Stage -eq "rust"
@@ -51,6 +52,7 @@ if ($runContracts) {
     Invoke-Checked "Updater contract" "powershell" @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $updaterContract) $repoRoot
     Invoke-Checked "Workflow contract" "powershell" @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $workflowContract) $repoRoot
     Invoke-Checked "Case-study contract" "powershell" @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $caseStudyContract) $repoRoot
+    Invoke-Checked "Dependency contract" "powershell" @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $dependencyContract) $repoRoot
 }
 
 if ($runFrontend) {

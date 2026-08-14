@@ -41,6 +41,18 @@ jobs:
       - name: Set up uv
         uses: astral-sh/setup-uv@v9.0.0
 
+      - name: Run Rust dependency policy scan
+        run: cargo deny check
+        working-directory: src-tauri
+
+      - name: Run Rust advisory scan
+        run: cargo audit
+        working-directory: src-tauri
+
+      - name: Run frontend dependency audit
+        run: npm audit
+        working-directory: frontend
+
       - name: Install locked compute worker environment
         run: uv sync --frozen --extra test
         working-directory: compute-worker
@@ -72,6 +84,10 @@ jobs:
       - name: Run deterministic Rust suite
         shell: pwsh
         run: .\scripts\test.ps1 -Stage rust
+
+      - name: Run application security suite
+        shell: pwsh
+        run: .\scripts\security-check.ps1 -Offline
 
       - name: Run reproducible steel case study
         shell: pwsh

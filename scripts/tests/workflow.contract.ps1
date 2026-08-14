@@ -85,6 +85,16 @@ $normalizedQualityWorkflow = $qualityWorkflow.Replace("\", "/")
 if ($qualityWorkflow -notmatch 'timeout-minutes:\s*(?:9[0-9]|[1-9][0-9]{2,})') {
     throw ".github/workflows/quality.yml must allow the full performance gate to finish within a 90-minute job timeout"
 }
+foreach ($requiredQualitySecurityCheck in @(
+    "cargo deny check",
+    "cargo audit",
+    "npm audit",
+    "scripts/security-check.ps1"
+)) {
+    if ($normalizedQualityWorkflow -notmatch [regex]::Escape($requiredQualitySecurityCheck)) {
+        throw ".github/workflows/quality.yml must run the security gate: $requiredQualitySecurityCheck"
+    }
+}
 foreach ($requiredBenchmark in @(
     "benchmark-retrieval\.ps1",
     "benchmark-dataset-import\.ps1",
