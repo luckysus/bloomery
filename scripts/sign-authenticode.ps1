@@ -22,8 +22,8 @@ if ([string]::IsNullOrWhiteSpace($timestampUrl)) {
 
 $timestampUri = $null
 if (-not [Uri]::TryCreate($timestampUrl, [UriKind]::Absolute, [ref]$timestampUri) -or
-    $timestampUri.Scheme -notin @("http", "https")) {
-    throw "BLOOMERY_AUTHENTICODE_TIMESTAMP_URL must be an absolute HTTP(S) URL"
+    $timestampUri.Scheme -ne "https") {
+    throw "BLOOMERY_AUTHENTICODE_TIMESTAMP_URL must be an absolute HTTPS URL"
 }
 
 try {

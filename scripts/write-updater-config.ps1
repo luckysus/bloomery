@@ -43,8 +43,8 @@ if ($uri.Host -match "^(localhost|127\.|10\.|192\.168\.|169\.254\.|172\.(1[6-9]|
 }
 $timestampUri = $null
 if (-not [Uri]::TryCreate($authenticodeTimestamp, [UriKind]::Absolute, [ref]$timestampUri) -or
-    $timestampUri.Scheme -notin @("http", "https")) {
-    throw "BLOOMERY_AUTHENTICODE_TIMESTAMP_URL must be an absolute HTTP(S) URL"
+    $timestampUri.Scheme -ne "https") {
+    throw "BLOOMERY_AUTHENTICODE_TIMESTAMP_URL must be an absolute HTTPS URL"
 }
 
 $output = [System.IO.Path]::GetFullPath($OutputPath)

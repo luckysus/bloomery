@@ -26,6 +26,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-release.ps1 -S
 
 `scripts/write-updater-config.ps1` creates a temporary Tauri configuration
 overlay. It rejects missing keys, non-HTTPS endpoints, and local/private hosts.
+The Authenticode timestamp URL is independently validated by
+`scripts/sign-authenticode.ps1` and must also use HTTPS.
 The overlay and private key are never committed or copied into the installer.
 
 The public key and its rotation policy must be published with the release

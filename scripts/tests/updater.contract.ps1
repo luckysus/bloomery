@@ -11,9 +11,10 @@ $packagePath = Join-Path $repoRoot "frontend\package.json"
 $buildPath = Join-Path $repoRoot "scripts\build-release.ps1"
 $workflowPath = Join-Path $repoRoot ".github\workflows\release.yml"
 $configScript = Join-Path $repoRoot "scripts\write-updater-config.ps1"
+$authenticodeScript = Join-Path $repoRoot "scripts\sign-authenticode.ps1"
 $manifestScript = Join-Path $repoRoot "scripts\generate-updater-manifest.ps1"
 
-foreach ($path in @($configPath, $cargoPath, $packagePath, $buildPath, $workflowPath, $configScript, $manifestScript)) {
+foreach ($path in @($configPath, $cargoPath, $packagePath, $buildPath, $workflowPath, $configScript, $authenticodeScript, $manifestScript)) {
     if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
         throw "Updater release file is missing: $path"
     }
@@ -53,6 +54,71 @@ foreach ($requiredText in @(
 )) {
     if ($build -notmatch [regex]::Escape($requiredText) -and $workflow -notmatch [regex]::Escape($requiredText)) {
         throw "Updater release wiring is missing: $requiredText"
+    }
+}
+
+$configFixtureRoot = Join-Path $env:TEMP ("bloomery-updater-config-" + [Guid]::NewGuid().ToString("N"))
+$configFixturePath = Join-Path $configFixtureRoot "overlay.json"
+$configEnvironmentNames = @(
+    "BLOOMERY_UPDATER_PUBLIC_KEY",
+    "BLOOMERY_UPDATER_ENDPOINT",
+    "BLOOMERY_AUTHENTICODE_PFX_BASE64",
+    "BLOOMERY_AUTHENTICODE_PFX_PASSWORD",
+    "BLOOMERY_AUTHENTICODE_TIMESTAMP_URL"
+)
+$configEnvironmentSnapshot = @{}
+foreach ($name in $configEnvironmentNames) {
+    $configEnvironmentSnapshot[$name] = if (Test-Path -LiteralPath ("Env:" + $name)) {
+        [string](Get-Item -LiteralPath ("Env:" + $name)).Value
+    } else {
+        $null
+    }
+}
+try {
+    New-Item -ItemType Directory -Path $configFixtureRoot -Force | Out-Null
+    $env:BLOOMERY_UPDATER_PUBLIC_KEY = "test-public-key"
+    $env:BLOOMERY_UPDATER_ENDPOINT = "https://github.com/luckysus/bloomery/releases/latest/download/latest.json"
+    $env:BLOOMERY_AUTHENTICODE_PFX_BASE64 = "ZmFrZQ=="
+    $env:BLOOMERY_AUTHENTICODE_PFX_PASSWORD = "test-password"
+    $env:BLOOMERY_AUTHENTICODE_TIMESTAMP_URL = "http://timestamp.example.test"
+    $timestampError = ""
+    try {
+        & $configScript -OutputPath $configFixturePath
+        if ($LASTEXITCODE -eq 0) {
+            throw "write-updater-config.ps1 accepted an insecure HTTP timestamp URL"
+        }
+    } catch {
+        $timestampError = $_.Exception.Message
+    }
+    if ($timestampError -notmatch "HTTPS") {
+        throw "write-updater-config.ps1 must reject non-HTTPS timestamp URLs"
+    }
+
+    $timestampFixturePath = Join-Path $configFixtureRoot "candidate.txt"
+    Set-Content -LiteralPath $timestampFixturePath -Value "candidate" -Encoding ASCII
+    $signTimestampError = ""
+    try {
+        & $authenticodeScript -Path $timestampFixturePath
+        if ($LASTEXITCODE -eq 0) {
+            throw "sign-authenticode.ps1 accepted an insecure HTTP timestamp URL"
+        }
+    } catch {
+        $signTimestampError = $_.Exception.Message
+    }
+    if ($signTimestampError -notmatch "HTTPS") {
+        throw "sign-authenticode.ps1 must reject non-HTTPS timestamp URLs"
+    }
+} finally {
+    foreach ($name in $configEnvironmentNames) {
+        $path = "Env:" + $name
+        if ($null -eq $configEnvironmentSnapshot[$name]) {
+            Remove-Item -LiteralPath $path -ErrorAction SilentlyContinue
+        } else {
+            Set-Item -LiteralPath $path -Value $configEnvironmentSnapshot[$name]
+        }
+    }
+    if (Test-Path -LiteralPath $configFixtureRoot) {
+        Remove-Item -LiteralPath $configFixtureRoot -Recurse -Force
     }
 }
 
