@@ -130,6 +130,8 @@ export default function DiagnosticsPage() {
       const completed = parseObject(await desktop.getSetting("onboarding.completed"));
       await desktop.setSetting("onboarding.completed", JSON.stringify({
         ...completed,
+        version: typeof completed.version === "number" ? completed.version : 1,
+        completed: true,
         steel_package_status: "ready",
         steel_package_error: null,
       }));

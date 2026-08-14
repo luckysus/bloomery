@@ -187,6 +187,28 @@ describe("DiagnosticsPage", () => {
     expect(screen.queryByText("diagnosticsSteelPackageRepaired")).not.toBeInTheDocument();
   });
 
+  it("preserves completion when repairing a package from an incomplete setting", async () => {
+    vi.mocked(desktop.getSetting).mockImplementation(async (key) => {
+      if (key === "onboarding.completed") {
+        return JSON.stringify({ steel_package_status: "error", steel_package_error: "bundled resource is missing" });
+      }
+      return JSON.stringify({
+        embedding_profile_id: "embedding-1",
+        reranker_profile_id: "reranker-1",
+      });
+    });
+    vi.mocked(desktop.installBundledSteelPackage).mockResolvedValue({} as never);
+
+    render(<DiagnosticsPage />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "diagnosticsRetrySteelPackage" }));
+
+    await waitFor(() => expect(desktop.setSetting).toHaveBeenCalledWith(
+      "onboarding.completed",
+      expect.stringContaining('"completed":true'),
+    ));
+  });
+
   it("retries a failed task through the task bridge", async () => {
     render(<DiagnosticsPage />);
 
