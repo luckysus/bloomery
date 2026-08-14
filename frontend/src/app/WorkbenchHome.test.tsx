@@ -70,4 +70,17 @@ describe("WorkbenchHome", () => {
     expect(screen.getByText("Q355B 质量分析")).toBeInTheDocument();
     expect(screen.getByTestId("workbench-knowledge-status")).toHaveTextContent("需要检查");
   });
+
+  it("does not mark background tasks as failed when only knowledge health is unavailable", async () => {
+    vi.mocked(desktop.listConversations).mockResolvedValue([]);
+    vi.mocked(desktop.listKnowledgeBases).mockResolvedValue([]);
+    vi.mocked(desktop.listBackgroundTasks).mockResolvedValue([]);
+    vi.mocked(desktop.getKnowledgeHealth).mockRejectedValue(new Error("health store unavailable"));
+
+    render(<WorkbenchHome initializationState="ready" onOpenSection={() => undefined} />);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("本地工作台数据读取不完整");
+    expect(screen.getByTestId("workbench-knowledge-status")).toHaveTextContent("需要检查");
+    expect(screen.getByTestId("workbench-task-status")).toHaveTextContent("无活动任务");
+  });
 });

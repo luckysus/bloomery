@@ -58,7 +58,7 @@ export default function WorkbenchHome({ initializationState, onOpenSection }: Wo
   const activeTasks = overview.backgroundTasks.filter(isActiveTask).slice(0, 5);
   const health = overview.health;
   const knowledgeFailed = overview.failedSources.includes("knowledgeBases") || overview.failedSources.includes("knowledgeHealth");
-  const tasksFailed = overview.failedSources.includes("backgroundTasks") || overview.failedSources.includes("knowledgeHealth");
+  const tasksFailed = overview.failedSources.includes("backgroundTasks");
   const knowledgeStatus = overview.loading
     ? t("loading")
     : knowledgeFailed
@@ -158,7 +158,7 @@ export default function WorkbenchHome({ initializationState, onOpenSection }: Wo
         <section className="bloomery-status-section" aria-labelledby="status-heading" aria-busy={overview.loading}>
         <div className="bloomery-section-heading">
           <div>
-            <p className="bloomery-eyebrow">RUNTIME STATUS</p>
+            <p className="bloomery-eyebrow">{t("runtimeStatusEyebrow")}</p>
             <h2 id="status-heading">{t("runtimeStatus")}</h2>
           </div>
           <div className="bloomery-section-heading-actions">
@@ -189,7 +189,7 @@ export default function WorkbenchHome({ initializationState, onOpenSection }: Wo
         <section className="bloomery-empty-section" aria-labelledby="recent-heading" aria-busy={overview.loading}>
         <div className="bloomery-section-heading">
           <div>
-            <p className="bloomery-eyebrow">RECENT WORK</p>
+            <p className="bloomery-eyebrow">{t("recentWorkEyebrow")}</p>
             <h2 id="recent-heading">{t("recentWork")}</h2>
           </div>
           <span className="bloomery-muted-label" data-testid="workbench-record-count">{t("records", { count: conversations.length })}</span>
