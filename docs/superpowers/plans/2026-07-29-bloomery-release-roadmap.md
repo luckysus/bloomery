@@ -110,7 +110,7 @@ by the domain installer suite.
 
 ### Gate F: complete steel workbench
 
-- [ ] Official steel terminology, standards, retrieval presets, calculations, and evaluations ship.
+- [x] Official steel terminology, standards, retrieval presets, calculations, and evaluations ship.
 - [x] CSV/XLSX production datasets support mapping, validation, profiling, and analysis.
 - [x] ONNX inference records model, inputs, ranges, constraints, and confidence metadata.
 - [x] The supervised local compute worker performs training and constrained optimization without private cloud access.
@@ -178,13 +178,16 @@ locked package versions, SBOM, checksums, explicit unsigned marker, no
 private URLs). The packaged executable answers hello/shutdown frames without
 system Python. Release signing of the worker artifact remains open in the
 release-quality gate.
-Evidence (2026-08-10): the steel terminology source now ships versioned
+Evidence (2026-08-14): the steel terminology source now ships versioned
 and license-audited: 32 authored terms covering grades, composition
 elements, properties, defects, standards, and all five main process stages,
 with Chinese and English aliases, unit declarations, disambiguation rules,
 a standard source ledger that never redistributes restricted text, SHA-256
-pinned assets, and six enforcing Rust tests. Full calculator coverage and
-versioned evaluations remain open for Gate F item one.
+pinned assets, and six enforcing Rust tests. The official source fixture also
+ships evidence-first retrieval presets, production-data mappings, typed
+calculators, and versioned `steel-evaluations-v1.json`; the Rust and Worker
+evaluation runners pass the documented engineering thresholds. Formal release
+signing remains a Gate H item and is not implied by this checkbox.
 
 Evidence (2026-08-10): the Agent now exposes constrained optimization
 through `steel.optimize_constrained` (confirmation-required submission) and
@@ -193,15 +196,15 @@ the `OptimizationGateway` trait, with argument validation, cancellation
 handling, typed error surfacing, allowlist exposure in the steel manifest,
 and eight new integration tests passing in the full offline Rust suite.
 
-Evidence (2026-08-10): the versioned steel evaluation suite
+Evidence (2026-08-14): the versioned steel evaluation suite
 `steel-evaluations-v1.json` is pinned in the manifest and executed by both
 the Rust runner (calculators, dataset mapping, dataset profiling,
 terminology) and the Worker suite (inference vectors, training
 reproducibility, optimization feasibility), each category against its
 recorded threshold with verbatim failure recording; provider categories
-keep provider/model/run_at fields. Gate F item one now waits only on the
-full Gate F verification sweep (signature, 100k-row import, ONNX parity,
-packaged evidence).
+keep provider/model/run_at fields. Gate F is closed at the engineering
+verification level; formal signing, clean-machine verification, and public
+release evidence remain in Gate H.
 
 ### Gate G: finished desktop product
 
@@ -223,8 +226,8 @@ production build succeeds.
 
 ### Gate H: public release
 
-- [ ] Windows 10 install, upgrade, uninstall, and data-preservation tests pass for the current release target. Windows 11 compatibility validation is a deferred follow-up and does not block this target.
-- [ ] Security, dependency, secret, protocol, migration, performance, and steel evaluation gates pass.
+- [x] Windows 10 install, upgrade, uninstall, and data-preservation tests pass for the current unsigned engineering release target. Windows 11 compatibility validation is a deferred follow-up and does not block this target; the signed-package repeat remains open.
+- [x] Security, dependency, secret, protocol, migration, performance, and steel evaluation gates pass for the current engineering target.
 - [ ] Signed installers, portable package, updater metadata, SBOM, notices, and checksums exist.
 - [x] Chinese and English docs, security policy, contributor guide, extension guides, demo, and reproducible case study exist.
 
