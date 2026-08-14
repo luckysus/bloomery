@@ -95,6 +95,14 @@ foreach ($requiredQualitySecurityCheck in @(
         throw ".github/workflows/quality.yml must run the security gate: $requiredQualitySecurityCheck"
     }
 }
+foreach ($requiredQualityToolInstall in @(
+    "cargo install cargo-deny --locked --version 0.20.2",
+    "cargo install cargo-audit --locked --version 0.22.2"
+)) {
+    if ($normalizedQualityWorkflow -notmatch [regex]::Escape($requiredQualityToolInstall)) {
+        throw ".github/workflows/quality.yml must install the pinned security tool: $requiredQualityToolInstall"
+    }
+}
 foreach ($requiredBenchmark in @(
     "benchmark-retrieval\.ps1",
     "benchmark-dataset-import\.ps1",
