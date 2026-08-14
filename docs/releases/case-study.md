@@ -14,6 +14,21 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/case-study.ps1 -Offl
 
 The report is written to `artifacts/case-study/steel-case-study.json` by
 default. The directory is ignored by Git and contains no credentials.
+
+## Public input and provenance
+
+The repository-owned input package is under
+`case-studies/steel-release/`. Its CSV is synthetic demonstration data,
+licensed under Apache-2.0, and contains no production measurements,
+restricted standards text, personal data, or credentials.
+
+`case-studies/steel-release/provenance.json` records the policy and SHA-256
+digest. The manifest points to the repository's source ledger; the script
+verifies that the ledger stays inside the repository, uses the same license
+policy, and contains no redistributed restricted text. The verified dataset
+and ledger digests are included in the redacted report. The case study is
+therefore a software and release reproducibility demonstration, not evidence
+about any real mill or production process.
 报告默认写入 `artifacts/case-study/steel-case-study.json`。该目录已被 Git
 忽略，报告不包含凭据。
 

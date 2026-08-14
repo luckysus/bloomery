@@ -26,6 +26,12 @@ foreach ($requiredText in @(
     'test_optimization.py',
     'test_onnx_export.py',
     'test_evaluations.py',
+    'case-studies\steel-release',
+    'provenance.json',
+    'source_ledger',
+    'source ledger must remain inside the repository',
+    'restricted_text_redistributed',
+    'data_provenance',
     'Invoke-Checked',
     'LASTEXITCODE'
 )) {

@@ -1,0 +1,16 @@
+{
+  "schema_version": "1.0.0",
+  "case_study": "steel-release",
+  "license": "Apache-2.0",
+  "synthetic": true,
+  "restricted_text_redistributed": false,
+  "provenance": {
+    "kind": "repository-authored-synthetic",
+    "description": "Synthetic demonstration rows authored for deterministic Bloomery release verification.",
+    "source_ledger": "../../domain-packs/steel/assets/source-ledger.json"
+  },
+  "dataset": {
+    "path": "data/steel-demo.csv",
+    "sha256": "0e58797e5ae429bb57a8e2650643075fa75cdf7063c39718b0644321e251b0cb"
+  }
+}
