@@ -86,7 +86,7 @@ pub struct WorkerClient {
     child: Arc<Mutex<Child>>,
     stdin: ChildStdin,
     stdout: BufReader<ChildStdout>,
-    _process_group: Option<WorkerProcessGroup>,
+    _process_group: Option<Arc<WorkerProcessGroup>>,
     _stderr_drain: Option<JoinHandle<usize>>,
 }
 
@@ -128,7 +128,7 @@ impl WorkerClient {
             .map_err(|error| WorkerSupervisorError::Io(error.to_string()))?;
         let process_group = if config.isolate_process_tree {
             match WorkerProcessGroup::attach(&child) {
-                Ok(group) => Some(group),
+                Ok(group) => Some(Arc::new(group)),
                 Err(error) => {
                     let _ = child.kill();
                     let _ = child.wait();
@@ -210,12 +210,16 @@ impl WorkerClient {
         let stopped = Arc::new(AtomicBool::new(false));
         let cancelled = Arc::new(AtomicBool::new(false));
         let child = Arc::clone(&self.child);
+        let process_group = self._process_group.as_ref().map(Arc::clone);
         let monitor_stopped = Arc::clone(&stopped);
         let monitor_cancelled = Arc::clone(&cancelled);
         let monitor = std::thread::spawn(move || {
             while !monitor_stopped.load(Ordering::SeqCst) {
                 if should_cancel() {
                     monitor_cancelled.store(true, Ordering::SeqCst);
+                    if let Some(process_group) = &process_group {
+                        process_group.terminate();
+                    }
                     if let Ok(mut child) = child.lock() {
                         let _ = child.kill();
                     }
@@ -336,7 +340,7 @@ fn drain_worker_stderr<R: Read>(mut reader: R) -> usize {
 #[cfg(windows)]
 #[derive(Debug)]
 struct WorkerProcessGroup {
-    handle: windows_sys::Win32::Foundation::HANDLE,
+    handle: usize,
 }
 
 #[cfg(not(windows))]
@@ -414,7 +418,9 @@ impl WorkerProcessGroup {
                     "assign worker process to job object failed with Windows error {error}"
                 )));
             }
-            Ok(Self { handle: job })
+            Ok(Self {
+                handle: job as usize,
+            })
         }
 
         #[cfg(not(windows))]
@@ -428,7 +434,10 @@ impl WorkerProcessGroup {
         #[cfg(windows)]
         {
             unsafe {
-                windows_sys::Win32::System::JobObjects::TerminateJobObject(self.handle, 1);
+                windows_sys::Win32::System::JobObjects::TerminateJobObject(
+                    self.handle as windows_sys::Win32::Foundation::HANDLE,
+                    1,
+                );
             }
         }
     }
@@ -437,9 +446,11 @@ impl WorkerProcessGroup {
 #[cfg(windows)]
 impl Drop for WorkerProcessGroup {
     fn drop(&mut self) {
-        if !self.handle.is_null() {
+        if self.handle != 0 {
             unsafe {
-                windows_sys::Win32::Foundation::CloseHandle(self.handle);
+                windows_sys::Win32::Foundation::CloseHandle(
+                    self.handle as windows_sys::Win32::Foundation::HANDLE,
+                );
             }
         }
     }

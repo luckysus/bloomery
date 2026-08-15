@@ -1,6 +1,7 @@
 use bloomery::compute::protocol::{encode_frame, WorkerRequest};
 use bloomery::compute::worker::{read_response, WorkerClient, WorkerConfig};
 use serde_json::json;
+use std::fs;
 use std::io::Cursor;
 use std::path::PathBuf;
 use std::process::Command;
@@ -162,6 +163,85 @@ time.sleep(30)
         started.elapsed() < Duration::from_secs(5),
         "blocked worker cancellation took too long"
     );
+}
+
+#[cfg(windows)]
+#[test]
+fn supervisor_cancellation_terminates_worker_descendants() {
+    let python = Command::new("where.exe")
+        .arg("python")
+        .output()
+        .expect("Windows Python lookup must be available");
+    assert!(python.status.success());
+    let executable = String::from_utf8_lossy(&python.stdout)
+        .lines()
+        .map(str::trim)
+        .find(|line| !line.is_empty())
+        .map(PathBuf::from)
+        .expect("Python lookup must return an executable");
+    let marker = std::env::temp_dir().join(format!(
+        "bloomery-worker-descendant-{}.marker",
+        uuid::Uuid::new_v4()
+    ));
+    let script = r#"
+import pathlib
+import subprocess
+import sys
+import time
+
+marker = pathlib.Path(sys.argv[1])
+child_code = (
+    "import pathlib,sys,time;"
+    "time.sleep(1.0);"
+    "pathlib.Path(sys.argv[1]).write_text('survived', encoding='utf-8')"
+)
+
+header = bytearray()
+while not header.endswith(b"\r\n\r\n"):
+    byte = sys.stdin.buffer.read(1)
+    if not byte:
+        raise SystemExit(0)
+    header.extend(byte)
+length = int(next(
+    line for line in header.decode("ascii").split("\r\n")
+    if line.startswith("Content-Length:")
+).split(":", 1)[1])
+sys.stdin.buffer.read(length)
+subprocess.Popen([sys.executable, "-c", child_code, str(marker)])
+time.sleep(30)
+"#;
+    let mut config = WorkerConfig::new(executable).with_process_tree_isolation();
+    config.args = vec![
+        "-c".into(),
+        script.into(),
+        marker.to_string_lossy().to_string().into(),
+    ];
+    let mut client = WorkerClient::spawn(config).expect("spawn descendant worker fixture");
+    let cancelled = Arc::new(AtomicBool::new(false));
+    let signal = Arc::clone(&cancelled);
+    std::thread::spawn(move || {
+        std::thread::sleep(Duration::from_millis(150));
+        signal.store(true, Ordering::SeqCst);
+    });
+
+    let error = client
+        .request_with_progress_and_cancel(
+            &WorkerRequest::new("descendant-1", "submit", json!({"payload": {}})),
+            |_| Ok(()),
+            move || cancelled.load(Ordering::SeqCst),
+        )
+        .expect_err("cancellation must terminate the worker tree");
+
+    assert!(matches!(
+        error,
+        bloomery::compute::worker::WorkerSupervisorError::Cancelled
+    ));
+    std::thread::sleep(Duration::from_secs(2));
+    assert!(
+        !marker.exists(),
+        "a worker descendant survived cancellation and wrote its marker"
+    );
+    let _ = fs::remove_file(marker);
 }
 
 #[test]
