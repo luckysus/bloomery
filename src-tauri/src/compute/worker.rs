@@ -15,6 +15,8 @@ use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
 
 pub const MAX_STDERR_BYTES: usize = 64 * 1024;
+pub const DEFAULT_WORKER_MEMORY_LIMIT_BYTES: u64 = 1024 * 1024 * 1024;
+const MIN_WORKER_MEMORY_LIMIT_BYTES: u64 = 64 * 1024 * 1024;
 const DEFAULT_SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(2);
 
 #[derive(Debug, Clone)]
@@ -24,6 +26,7 @@ pub struct WorkerConfig {
     pub working_directory: Option<PathBuf>,
     pub artifact_manifest: Option<PathBuf>,
     pub isolate_process_tree: bool,
+    pub memory_limit_bytes: u64,
 }
 
 impl WorkerConfig {
@@ -34,6 +37,7 @@ impl WorkerConfig {
             working_directory: None,
             artifact_manifest: None,
             isolate_process_tree: false,
+            memory_limit_bytes: DEFAULT_WORKER_MEMORY_LIMIT_BYTES,
         }
     }
 
@@ -44,6 +48,11 @@ impl WorkerConfig {
 
     pub fn with_process_tree_isolation(mut self) -> Self {
         self.isolate_process_tree = true;
+        self
+    }
+
+    pub fn with_memory_limit_bytes(mut self, bytes: u64) -> Self {
+        self.memory_limit_bytes = bytes;
         self
     }
 }
@@ -104,6 +113,13 @@ impl WorkerClient {
                 ));
             }
         }
+        if config.memory_limit_bytes < MIN_WORKER_MEMORY_LIMIT_BYTES
+            || config.memory_limit_bytes > usize::MAX as u64
+        {
+            return Err(WorkerSupervisorError::InvalidConfig(
+                "worker memory limit is outside the supported range".to_string(),
+            ));
+        }
         if let Some(manifest) = &config.artifact_manifest {
             verify_worker_manifest(&config.executable, manifest)?;
         }
@@ -127,7 +143,7 @@ impl WorkerClient {
             .spawn()
             .map_err(|error| WorkerSupervisorError::Io(error.to_string()))?;
         let process_group = if config.isolate_process_tree {
-            match WorkerProcessGroup::attach(&child) {
+            match WorkerProcessGroup::attach(&child, config.memory_limit_bytes) {
                 Ok(group) => Some(Arc::new(group)),
                 Err(error) => {
                     let _ = child.kill();
@@ -348,7 +364,7 @@ struct WorkerProcessGroup {
 struct WorkerProcessGroup;
 
 impl WorkerProcessGroup {
-    fn attach(child: &Child) -> Result<Self, WorkerSupervisorError> {
+    fn attach(child: &Child, memory_limit_bytes: u64) -> Result<Self, WorkerSupervisorError> {
         #[cfg(windows)]
         {
             use std::mem::{size_of, zeroed};
@@ -356,7 +372,7 @@ impl WorkerProcessGroup {
             use windows_sys::Win32::System::JobObjects::{
                 AssignProcessToJobObject, CreateJobObjectW, JobObjectExtendedLimitInformation,
                 SetInformationJobObject, JOBOBJECT_EXTENDED_LIMIT_INFORMATION,
-                JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
+                JOB_OBJECT_LIMIT_JOB_MEMORY, JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
             };
             use windows_sys::Win32::System::Threading::{
                 OpenProcess, PROCESS_SET_QUOTA, PROCESS_TERMINATE,
@@ -371,7 +387,9 @@ impl WorkerProcessGroup {
             }
 
             let mut limits: JOBOBJECT_EXTENDED_LIMIT_INFORMATION = unsafe { zeroed() };
-            limits.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+            limits.BasicLimitInformation.LimitFlags =
+                JOB_OBJECT_LIMIT_JOB_MEMORY | JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+            limits.JobMemoryLimit = memory_limit_bytes as usize;
             let configured = unsafe {
                 SetInformationJobObject(
                     job,
@@ -426,6 +444,7 @@ impl WorkerProcessGroup {
         #[cfg(not(windows))]
         {
             let _ = child;
+            let _ = memory_limit_bytes;
             Ok(Self)
         }
     }
@@ -607,7 +626,10 @@ impl Drop for WorkerClient {
 
 #[cfg(test)]
 mod tests {
-    use super::{drain_worker_stderr, verify_worker_manifest, WorkerConfig, MAX_STDERR_BYTES};
+    use super::{
+        drain_worker_stderr, verify_worker_manifest, WorkerConfig,
+        DEFAULT_WORKER_MEMORY_LIMIT_BYTES, MAX_STDERR_BYTES,
+    };
     use sha2::{Digest, Sha256};
     use std::fs;
     use std::path::Path;
@@ -671,6 +693,18 @@ mod tests {
     }
 
     #[test]
+    fn worker_configs_have_a_bounded_memory_limit_by_default() {
+        let config = WorkerConfig::new(std::path::PathBuf::from("worker.exe"));
+        assert_eq!(config.memory_limit_bytes, DEFAULT_WORKER_MEMORY_LIMIT_BYTES);
+        assert_eq!(
+            WorkerConfig::new(std::path::PathBuf::from("worker.exe"))
+                .with_memory_limit_bytes(256 * 1024 * 1024)
+                .memory_limit_bytes,
+            256 * 1024 * 1024
+        );
+    }
+
+    #[test]
     fn worker_stderr_drain_keeps_only_the_bounded_prefix() {
         use std::io::Cursor;
 
@@ -694,7 +728,8 @@ mod tests {
             ])
             .spawn()
             .expect("spawn worker child fixture");
-        let guard = WorkerProcessGroup::attach(&child).expect("attach worker child to job");
+        let guard = WorkerProcessGroup::attach(&child, DEFAULT_WORKER_MEMORY_LIMIT_BYTES)
+            .expect("attach worker child to job");
         drop(guard);
 
         for _ in 0..50 {
