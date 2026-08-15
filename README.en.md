@@ -31,7 +31,7 @@ It is not a generic chat shell. Use your own providers, keep conversations, know
 
 ## Core capabilities
 
-- **Local workspace**: configure and start using it on first launch, without registering a Bloomery account.
+- **Local workspace**: open the client directly into the workbench; configure models and retrieval services in Settings when needed, without registering a Bloomery account.
 - **Your choice of models**: OpenAI-compatible APIs and Ollama are supported; embedding, reranking, and parsing services are configured by the user.
 - **Local knowledge base**: import PDF, Markdown, TXT, HTML, DOCX, CSV, and XLSX to build local retrieval and evidence citations.
 - **Context and memory**: organize the agent's work around conversations, tasks, summaries, drafts, and long-term memory.

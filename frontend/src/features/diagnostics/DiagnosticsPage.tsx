@@ -75,16 +75,20 @@ export default function DiagnosticsPage() {
     setNotice(null);
     setIndexError(false);
     try {
-      const [storage, retrievalValue, completedValue, profiles, tasks] = await Promise.all([
+      const [storage, retrievalValue, completedValue, profiles, tasks, domainPackages] = await Promise.all([
         desktop.getStorageHealth(),
         desktop.getSetting("onboarding.retrieval"),
         desktop.getSetting("onboarding.completed"),
         desktop.listProviderProfiles(),
         desktop.listBackgroundTasks(),
+        desktop.listDomainPackages().catch(() => []),
       ]);
       const retrieval = parseObject(retrievalValue);
       const completed = parseObject(completedValue);
-      const steelPackageStatus = completed.steel_package_status === "ready"
+      const installedSteelPackage = domainPackages.find((item) => item.id === "steel");
+      const steelPackageStatus = installedSteelPackage?.active
+        ? "ready"
+        : completed.steel_package_status === "ready"
         ? "ready"
         : completed.steel_package_status === "error" ? "error" : "unknown";
       const steelPackageError = stringValue(completed.steel_package_error);

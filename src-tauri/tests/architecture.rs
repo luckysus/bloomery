@@ -572,6 +572,13 @@ fn scheduler_is_tauri_independent_and_registered_after_migration() {
         migration < scheduler_start,
         "scheduler must start only after database migration"
     );
+    let bundled_package = database
+        .find("bundled_domain::ensure_bundled_steel_package")
+        .expect("db_init must ensure the bundled steel package");
+    assert!(
+        bundled_package < scheduler_start,
+        "bundled steel package must be ensured before the scheduler starts"
+    );
     assert!(
         database.contains("TauriEventSink::new") && !database.contains("NoopEventSink"),
         "production scheduler must emit progress through the Tauri event sink"
