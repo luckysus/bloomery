@@ -12,7 +12,7 @@
 
 [![质量检查](https://github.com/luckysus/bloomery/actions/workflows/quality.yml/badge.svg)](https://github.com/luckysus/bloomery/actions/workflows/quality.yml)
 ![许可证](https://img.shields.io/badge/license-Apache--2.0-blue)
-![平台](https://img.shields.io/badge/platform-Windows%2010%2B-0078D4)
+![平台](https://img.shields.io/badge/platform-Windows%2010-0078D4)
 ![桌面框架](https://img.shields.io/badge/Tauri-2-FFC131)
 ![语言](https://img.shields.io/badge/Rust-stable-b7410e)
 ![状态](https://img.shields.io/badge/status-开发中-orange)
@@ -51,7 +51,7 @@ SiliconFlow 的免费版和 Pro 版由用户自行选择。API Key 通过设置�
 
 ## 快速开始
 
-开发环境需要 Windows 10+、Node.js 20/22/24、Rust stable、Visual Studio Build Tools（`Desktop development with C++`）、WebView2 Runtime、Git 与 Tauri 2 的 Windows 前置依赖。
+开发环境需要 Windows 10、Node.js 20/22/24、Rust stable、Visual Studio Build Tools（`Desktop development with C++`）、WebView2 Runtime、Git 与 Tauri 2 的 Windows 前置依赖。
 
 ```powershell
 git clone https://github.com/luckysus/bloomery.git
@@ -75,7 +75,7 @@ cargo install tauri-cli --version "^2"
 
 Bloomery 将 `bloomery.sqlite3` 存放在操作系统应用数据目录，而不是仓库目录。会话、消息、摘要、记忆、设置、知识库元数据和任务状态默认保留在本机。
 
-“本地优先”不等于自动离线：当你启用云端 LLM、SiliconFlow、MinerU、MCP 或更新检查时，相应请求会发送到你配置或启用的服务。
+“本地优先”不等于自动离线：当你启用云端 LLM、SiliconFlow、MinerU 或 MCP 时，相应请求会发送到你配置或启用的服务。当前版本不包含应用内自动更新；应用升级由用户手动安装新的 Windows 10 构建包。
 
 ## 扩展与文档
 

@@ -12,7 +12,7 @@
 
 [![Quality checks](https://github.com/luckysus/bloomery/actions/workflows/quality.yml/badge.svg)](https://github.com/luckysus/bloomery/actions/workflows/quality.yml)
 ![License](https://img.shields.io/badge/license-Apache--2.0-blue)
-![Platform](https://img.shields.io/badge/platform-Windows%2010%2B-0078D4)
+![Platform](https://img.shields.io/badge/platform-Windows%2010-0078D4)
 ![Desktop framework](https://img.shields.io/badge/Tauri-2-FFC131)
 ![Language](https://img.shields.io/badge/Rust-stable-b7410e)
 ![Status](https://img.shields.io/badge/status-in%20development-orange)
@@ -51,7 +51,7 @@ Users choose SiliconFlow Free or Pro themselves. API keys are entered in Setting
 
 ## Quick start
 
-The development environment requires Windows 10+, Node.js 20/22/24, Rust stable, Visual Studio Build Tools with `Desktop development with C++`, WebView2 Runtime, Git, and the Tauri 2 Windows prerequisites.
+The development environment requires Windows 10, Node.js 20/22/24, Rust stable, Visual Studio Build Tools with `Desktop development with C++`, WebView2 Runtime, Git, and the Tauri 2 Windows prerequisites.
 
 ```powershell
 git clone https://github.com/luckysus/bloomery.git
@@ -75,7 +75,7 @@ You can also run `./start-desktop.bat` from the repository root to start the dev
 
 Bloomery stores `bloomery.sqlite3` in the operating system application-data directory rather than in the repository. Conversations, messages, summaries, memories, settings, knowledge metadata, and task state remain local by default.
 
-Local-first does not mean automatically offline. When you enable a cloud LLM, SiliconFlow, MinerU, MCP, or update checks, related requests are sent to the service you configured or enabled.
+Local-first does not mean automatically offline. When you enable a cloud LLM, SiliconFlow, MinerU, or MCP, related requests are sent to the service you configured or enabled. The current version does not include in-app automatic updates; users install newer Windows 10 builds manually.
 
 ## Extensions and documentation
 
