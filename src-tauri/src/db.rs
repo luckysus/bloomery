@@ -97,7 +97,27 @@ pub fn db_init(
         .recover_active(&HashSet::new(), Utc::now())
         .map_err(|error| format!("recover agent runs failed: {error}"))?;
     *db.conn.lock().map_err(|_| "db state poisoned")? = Some(connection);
-    if let Err(error) = crate::app::bundled_domain::ensure_bundled_steel_package(&app, &db) {
+    let bundled_result = crate::app::bundled_domain::ensure_bundled_steel_package(&app, &db);
+    let status_result = with_conn_mut(&db, |connection| {
+        let existing = crate::storage::repositories::settings::get(
+            connection,
+            current_workspace_id(),
+            "onboarding.completed",
+        )?;
+        let status = bundled_result.as_ref().map(|_| ()).map_err(String::as_str);
+        let value =
+            crate::app::bundled_domain::merge_bundled_steel_status(existing.as_deref(), status)?;
+        crate::storage::repositories::settings::set(
+            connection,
+            current_workspace_id(),
+            "onboarding.completed",
+            &value,
+        )
+    });
+    if let Err(error) = status_result {
+        eprintln!("persist bundled steel domain status failed: {error}");
+    }
+    if let Err(error) = bundled_result {
         eprintln!("ensure bundled steel domain package failed: {error}");
     }
     // Start scheduler with Tauri event sink for real progress updates

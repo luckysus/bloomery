@@ -8,6 +8,36 @@ use tauri::Manager;
 const BUNDLED_STEEL_PACKAGE_ID: &str = "steel";
 const BUNDLED_STEEL_PACKAGE_RELATIVE_PATH: &str = "domain-packs/steel";
 
+pub(crate) fn merge_bundled_steel_status(
+    existing: Option<&str>,
+    result: Result<(), &str>,
+) -> Result<String, String> {
+    let mut object = match existing.and_then(|value| serde_json::from_str(value).ok()) {
+        Some(serde_json::Value::Object(object)) => object,
+        _ => serde_json::Map::new(),
+    };
+    object.entry("version").or_insert(serde_json::json!(1));
+    object.insert("completed".to_string(), serde_json::json!(true));
+    match result {
+        Ok(()) => {
+            object.insert(
+                "steel_package_status".to_string(),
+                serde_json::json!("ready"),
+            );
+            object.remove("steel_package_error");
+        }
+        Err(error) => {
+            object.insert(
+                "steel_package_status".to_string(),
+                serde_json::json!("error"),
+            );
+            object.insert("steel_package_error".to_string(), serde_json::json!(error));
+        }
+    }
+    serde_json::to_string(&serde_json::Value::Object(object))
+        .map_err(|error| format!("serialize bundled steel status failed: {error}"))
+}
+
 fn trust_store() -> DomainTrustStore {
     official_trust_store()
 }
@@ -212,9 +242,10 @@ pub(crate) fn install_steel_package(
 #[cfg(test)]
 mod tests {
     use super::{
-        bundled_steel_package_candidates, select_existing_directory,
+        bundled_steel_package_candidates, merge_bundled_steel_status, select_existing_directory,
         should_ensure_bundled_steel_package, BUNDLED_STEEL_PACKAGE_ID,
     };
+    use serde_json::Value;
     use std::fs;
     use std::path::PathBuf;
     use uuid::Uuid;
@@ -233,6 +264,37 @@ mod tests {
             BUNDLED_STEEL_PACKAGE_ID.to_string(),
             false,
         )]));
+    }
+
+    #[test]
+    fn bundled_steel_failure_preserves_completion_and_records_diagnostic_state() {
+        let value = merge_bundled_steel_status(
+            Some(r#"{"version":1,"completed":true,"llm_profile_id":"llm-1"}"#),
+            Err("bundled resource is missing"),
+        )
+        .expect("status should serialize");
+        let value: Value = serde_json::from_str(&value).expect("status should be JSON");
+
+        assert_eq!(value["completed"], true);
+        assert_eq!(value["llm_profile_id"], "llm-1");
+        assert_eq!(value["steel_package_status"], "error");
+        assert_eq!(value["steel_package_error"], "bundled resource is missing");
+    }
+
+    #[test]
+    fn bundled_steel_success_clears_a_previous_diagnostic_error() {
+        let value = merge_bundled_steel_status(
+            Some(
+                r#"{"version":1,"completed":true,"steel_package_status":"error","steel_package_error":"old"}"#,
+            ),
+            Ok(()),
+        )
+        .expect("status should serialize");
+        let value: Value = serde_json::from_str(&value).expect("status should be JSON");
+
+        assert_eq!(value["completed"], true);
+        assert_eq!(value["steel_package_status"], "ready");
+        assert!(value.get("steel_package_error").is_none());
     }
 
     #[test]
