@@ -13,6 +13,7 @@ vi.mock("../bridge/desktop", () => ({
         : JSON.stringify({ completed: true }),
     )),
     setSetting: vi.fn().mockResolvedValue(undefined),
+    installBundledSteelPackage: vi.fn().mockResolvedValue({}),
     listKnowledgeBases: vi.fn().mockResolvedValue([]),
     listKnowledgeDocuments: vi.fn().mockResolvedValue([]),
     listBackgroundTasks: vi.fn().mockResolvedValue([]),
@@ -44,6 +45,17 @@ describe("BloomeryApp", () => {
     await waitFor(() => expect(desktop.initialize).toHaveBeenCalledOnce());
     expect(await screen.findByRole("main", { name: "工作台" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "工作台" })).toBeInTheDocument();
+  });
+
+  it("enters the workbench when no first-run configuration exists", async () => {
+    vi.mocked(desktop.getSetting).mockImplementation((key) => Promise.resolve(
+      key === "ui.locale" ? JSON.stringify({ preference: "zh-CN" }) : null,
+    ));
+
+    render(<BloomeryApp />);
+
+    expect(await screen.findByRole("main", { name: "工作台" })).toBeInTheDocument();
+    expect(screen.queryByRole("main", { name: "首次启动配置" })).not.toBeInTheDocument();
   });
 
   it("shows the release version from the frontend build metadata", async () => {

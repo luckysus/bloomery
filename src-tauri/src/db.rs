@@ -97,6 +97,9 @@ pub fn db_init(
         .recover_active(&HashSet::new(), Utc::now())
         .map_err(|error| format!("recover agent runs failed: {error}"))?;
     *db.conn.lock().map_err(|_| "db state poisoned")? = Some(connection);
+    if let Err(error) = crate::app::bundled_domain::ensure_bundled_steel_package(&app, &db) {
+        eprintln!("ensure bundled steel domain package failed: {error}");
+    }
     // Start scheduler with Tauri event sink for real progress updates
     use crate::app::event_sink::TauriEventSink;
     use crate::tasks::scheduler::{Scheduler, SchedulerConfig, SystemClock};

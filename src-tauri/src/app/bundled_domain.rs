@@ -65,6 +65,15 @@ fn active_version(
         .map(|record| record.version))
 }
 
+fn should_ensure_bundled_steel_package<I>(packages: I) -> bool
+where
+    I: IntoIterator<Item = (String, bool)>,
+{
+    !packages
+        .into_iter()
+        .any(|(package_id, active)| package_id == BUNDLED_STEEL_PACKAGE_ID && active)
+}
+
 fn rollback_installed_package(
     db: &tauri::State<'_, DbState>,
     package: &domains::InstalledDomainPackage,
@@ -78,6 +87,23 @@ fn rollback_installed_package(
         )
     });
     let _ = std::fs::remove_dir_all(&package.path);
+}
+
+pub(crate) fn ensure_bundled_steel_package(
+    app: &tauri::AppHandle,
+    db: &tauri::State<'_, DbState>,
+) -> Result<(), String> {
+    let should_ensure = with_conn(db, |connection| {
+        Ok(should_ensure_bundled_steel_package(
+            domain_repository::list(connection, current_workspace_id())?
+                .into_iter()
+                .map(|package| (package.id, package.active)),
+        ))
+    })?;
+    if should_ensure {
+        install_steel_package(app, db).map(|_| ())?;
+    }
+    Ok(())
 }
 
 pub(crate) fn install_steel_package(
@@ -185,10 +211,29 @@ pub(crate) fn install_steel_package(
 
 #[cfg(test)]
 mod tests {
-    use super::{bundled_steel_package_candidates, select_existing_directory};
+    use super::{
+        bundled_steel_package_candidates, select_existing_directory,
+        should_ensure_bundled_steel_package, BUNDLED_STEEL_PACKAGE_ID,
+    };
     use std::fs;
     use std::path::PathBuf;
     use uuid::Uuid;
+
+    #[test]
+    fn startup_does_not_replace_an_active_steel_domain_package() {
+        assert!(!should_ensure_bundled_steel_package(vec![(
+            BUNDLED_STEEL_PACKAGE_ID.to_string(),
+            true,
+        )]));
+        assert!(should_ensure_bundled_steel_package(vec![(
+            "other-domain".to_string(),
+            true,
+        )]));
+        assert!(should_ensure_bundled_steel_package(vec![(
+            BUNDLED_STEEL_PACKAGE_ID.to_string(),
+            false,
+        )]));
+    }
 
     #[test]
     fn bundled_package_path_prefers_resource_and_reports_missing_resources() {

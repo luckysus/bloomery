@@ -1,11 +1,11 @@
 import { expect, test } from "@playwright/test";
 
-test("new user can configure chat, skip optional retrieval, and enter the workbench", async ({ page }) => {
+test("new user enters the workbench directly and can start a local conversation", async ({ page }) => {
   await page.addInitScript(() => {
     const settings = new Map<string, string>();
     const callbacks = new Map<number, (payload: unknown) => void>();
     let nextCallbackId = 1;
-    let providerConfigured = false;
+    let providerConfigured = true;
     let conversationCreated = false;
     let assistantReady = false;
 
@@ -145,18 +145,6 @@ test("new user can configure chat, skip optional retrieval, and enter the workbe
 
   const startedAt = Date.now();
   await page.goto("/");
-
-  await expect(page.getByRole("main", { name: "首次启动配置" })).toBeVisible();
-  await page.getByRole("button", { name: "开始配置" }).click();
-  await expect(page.getByRole("heading", { name: "连接 LLM" })).toBeVisible();
-
-  await page.getByLabel("API Key").fill("test-secret-value");
-  await page.getByRole("button", { name: "测试 LLM 并继续" }).click();
-  await expect(page.getByRole("heading", { name: "检索服务" })).toBeVisible();
-
-  await page.getByRole("button", { name: "暂时跳过" }).click();
-  await expect(page.getByRole("heading", { name: "完成配置" })).toBeVisible();
-  await page.getByRole("button", { name: "进入工作台" }).click();
 
   await expect(page.getByRole("heading", { name: "工作台" })).toBeVisible();
   await expect(page.getByTestId("workbench-provider-status")).toHaveText("OpenAI Compatible");

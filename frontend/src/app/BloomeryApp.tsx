@@ -7,7 +7,6 @@ import AnalysisPage from "../features/analysis/AnalysisPage";
 import DiagnosticsPage from "../features/diagnostics/DiagnosticsPage";
 import ExtensionsPage from "../features/extensions/ExtensionsPage";
 import KnowledgePage from "../features/knowledge/KnowledgePage";
-import OnboardingPage from "../features/onboarding/OnboardingPage";
 import SettingsPage from "../features/settings/SettingsPage";
 import SectionPlaceholder from "./SectionPlaceholder";
 import WorkbenchHome from "./WorkbenchHome";
@@ -15,7 +14,7 @@ import { getNavigationSection, navigationSections, type SectionId } from "./navi
 import { LocaleProvider, useLocale } from "../i18n/locale";
 import { BLOOMERY_VERSION } from "../version";
 
-type InitializationState = "loading" | "setup" | "ready" | "failed";
+type InitializationState = "loading" | "ready" | "failed";
 
 export default function BloomeryApp() {
   return (
@@ -41,9 +40,7 @@ function BloomeryAppShell() {
         return;
       }
       try {
-        const value = await desktop.getSetting("onboarding.completed");
-        const complete = value ? JSON.parse(value).completed === true : false;
-        if (mounted) setInitializationState(complete ? "ready" : "setup");
+        if (mounted) setInitializationState("ready");
       } catch {
         if (mounted) setInitializationState("failed");
       }
@@ -52,10 +49,6 @@ function BloomeryAppShell() {
       mounted = false;
     };
   }, []);
-
-  if (initializationState === "setup") {
-    return <OnboardingPage onComplete={() => setInitializationState("ready")} />;
-  }
 
   return (
     <div className={`bloomery-app ${collapsed ? "is-collapsed" : ""}`}>

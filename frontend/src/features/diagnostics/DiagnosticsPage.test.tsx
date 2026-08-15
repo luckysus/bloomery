@@ -17,6 +17,7 @@ vi.mock("../../bridge/desktop", () => ({
     getSetting: vi.fn(),
     setSetting: vi.fn(),
     installBundledSteelPackage: vi.fn(),
+    listDomainPackages: vi.fn(),
     listProviderProfiles: vi.fn(),
     listBackgroundTasks: vi.fn(),
     cancelBackgroundTask: vi.fn(),
@@ -82,6 +83,7 @@ describe("DiagnosticsPage", () => {
       rebuild_task_id: null,
     });
     vi.mocked(desktop.listBackgroundTasks).mockResolvedValue([task]);
+    vi.mocked(desktop.listDomainPackages).mockResolvedValue([]);
     vi.mocked(desktop.retryBackgroundTask).mockResolvedValue({ ...task, state: "queued", can_retry: false });
     vi.mocked(desktop.exportDiagnostics).mockResolvedValue({
       privacy: { contains_provider_secret: false, contains_message_content: false },
@@ -120,6 +122,36 @@ describe("DiagnosticsPage", () => {
     expect(screen.getByText("diagnosticsIndexHealthy")).toBeInTheDocument();
     expect(screen.getByText("42")).toBeInTheDocument();
     expect(screen.getByText("provider_timeout")).toBeInTheDocument();
+  });
+
+  it("reports the bundled steel package from the local package registry", async () => {
+    vi.mocked(desktop.getSetting).mockImplementation(async (key) => (
+      key === "onboarding.retrieval"
+        ? JSON.stringify({ embedding_profile_id: "embedding-1" })
+        : null
+    ));
+    vi.mocked(desktop.listDomainPackages).mockResolvedValue([{
+      id: "steel",
+      version: "1.0.0",
+      path: "F:/Bloomery/domains/steel/1.0.0",
+      package_sha256: "sha256",
+      trust: "official_signed",
+      manifest: {
+        id: "steel",
+        version: "1.0.0",
+        author: "Bloomery",
+        license: "Apache-2.0",
+        builtin_tool_allowlist: [],
+        mcp_recommendations: [],
+        assets: [],
+      },
+      installed_at: "2026-08-15T00:00:00Z",
+      active: true,
+    }]);
+
+    render(<DiagnosticsPage />);
+
+    expect((await screen.findAllByText("diagnosticsSteelPackageHealthy")).length).toBe(2);
   });
 
   it("shows and repairs a bundled steel package initialization failure", async () => {
