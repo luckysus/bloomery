@@ -52,4 +52,26 @@ describe("agent event reducer", () => {
     expect(accepted.assistantText).toBe("A");
     expect(accepted.sequence).toBe(1);
   });
+
+  it("buffers a future event until the missing sequence arrives", () => {
+    const initial = createAgentRunView(runId, conversationId);
+    const future = reduceAgentEvent(
+      initial,
+      event(2, { type: "message_delta", data: { message_id: "message-2", role: "assistant", delta: "B" } }),
+    );
+
+    expect(future.sequence).toBe(0);
+    expect(future.assistantText).toBe("");
+    expect(future.pendingEvents).toHaveLength(1);
+
+    const completed = reduceAgentEvent(
+      future,
+      event(1, { type: "message_delta", data: { message_id: "message-2", role: "assistant", delta: "A" } }),
+    );
+
+    expect(completed.sequence).toBe(2);
+    expect(completed.assistantText).toBe("AB");
+    expect(completed.pendingEvents).toHaveLength(0);
+    expect(future.pendingEvents).toHaveLength(1);
+  });
 });

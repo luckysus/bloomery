@@ -41,6 +41,7 @@ export interface AgentRunView {
   runId: string;
   conversationId: string;
   sequence: number;
+  pendingEvents: AgentEventEnvelope[];
   state: AgentRunState;
   assistantMessageId: string | null;
   assistantText: string;
@@ -60,6 +61,7 @@ export function createAgentRunView(runId: string, conversationId: string): Agent
     runId,
     conversationId,
     sequence: 0,
+    pendingEvents: [],
     state: "created",
     assistantMessageId: null,
     assistantText: "",
@@ -84,7 +86,39 @@ export function reduceAgentEvent(state: AgentRunView, event: AgentEventEnvelope)
     return state;
   }
 
-  const next = { ...state, sequence: event.sequence };
+  if (event.sequence > state.sequence + 1) {
+    if (state.pendingEvents.some((pending) => pending.event_id === event.event_id || pending.sequence === event.sequence)) {
+      return state;
+    }
+    return {
+      ...state,
+      pendingEvents: [...state.pendingEvents, event]
+        .sort((left, right) => left.sequence - right.sequence)
+        .slice(0, 512),
+    };
+  }
+
+  return drainPendingEvents(applyAgentEvent({ ...state, sequence: event.sequence }, event));
+}
+
+function drainPendingEvents(state: AgentRunView): AgentRunView {
+  let next = state;
+  while (true) {
+    const pendingIndex = next.pendingEvents.findIndex(
+      (pending) => pending.sequence === next.sequence + 1,
+    );
+    if (pendingIndex < 0) return next;
+    const pending = next.pendingEvents[pendingIndex];
+    const remaining = next.pendingEvents.filter((_, index) => index !== pendingIndex);
+    next = applyAgentEvent(
+      { ...next, pendingEvents: remaining, sequence: pending.sequence },
+      pending,
+    );
+  }
+}
+
+function applyAgentEvent(state: AgentRunView, event: AgentEventEnvelope): AgentRunView {
+  const next = { ...state };
   switch (event.type) {
     case "run_created":
       next.state = event.data.state;
