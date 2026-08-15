@@ -20,6 +20,7 @@ dist/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
+compute-worker/.uv-cache/
 .ipynb_checkpoints/
 .coverage
 .coverage.*
@@ -39,6 +40,7 @@ frontend/dist/
 frontend/build/
 frontend/.vite/
 frontend/.cache/
+.bloomery-temp/
 frontend/.env
 frontend/.env.*
 !frontend/.env.example

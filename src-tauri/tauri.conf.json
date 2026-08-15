@@ -31,13 +31,5 @@
       "../domain-packs/steel": "domain-packs/steel",
       "resources/compute-worker": "compute-worker"
     }
-  },
-  "plugins": {
-    "updater": {
-      "endpoints": [
-        "https://github.com/luckysus/bloomery/releases/latest/download/latest.json"
-      ],
-      "pubkey": ""
-    }
   }
 }

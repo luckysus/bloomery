@@ -10,7 +10,10 @@ $ErrorActionPreference = "Stop"
 
 $workerRoot = $PSScriptRoot
 $distRoot = if ($OutputDirectory) { $OutputDirectory } else { Join-Path $workerRoot "dist" }
+$uvCacheRoot = Join-Path $workerRoot ".uv-cache"
 New-Item -ItemType Directory -Force -Path $distRoot | Out-Null
+New-Item -ItemType Directory -Force -Path $uvCacheRoot | Out-Null
+$env:UV_CACHE_DIR = $uvCacheRoot
 
 function Invoke-Checked {
     param([string]$Name, [scriptblock]$Invocation)

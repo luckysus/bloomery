@@ -6,17 +6,7 @@ import {
   type OpenDialogOptions,
   type SaveDialogOptions,
 } from "@tauri-apps/plugin-dialog";
-import { relaunch } from "@tauri-apps/plugin-process";
-import { check } from "@tauri-apps/plugin-updater";
 import type { AgentEventEnvelope, AgentRunState, PermissionDecision } from "./generated/protocol";
-
-export interface UpdateInfo {
-  version: string;
-  date: string | null;
-  body: string | null;
-}
-
-let pendingUpdate: Awaited<ReturnType<typeof check>> = null;
 
 export interface Conversation {
   id: string;
@@ -759,22 +749,6 @@ export const desktop = {
   async initialize() {
     if (!isDesktopRuntime()) return;
     await invoke<void>("db_init");
-  },
-  checkForUpdate: async (): Promise<UpdateInfo | null> => {
-    if (!isDesktopRuntime()) return null;
-    pendingUpdate = await check();
-    if (!pendingUpdate) return null;
-    return {
-      version: pendingUpdate.version,
-      date: pendingUpdate.date ?? null,
-      body: pendingUpdate.body ?? null,
-    };
-  },
-  installUpdate: async () => {
-    if (!isDesktopRuntime()) return;
-    if (!pendingUpdate) throw new Error("No update is ready to install");
-    await pendingUpdate.downloadAndInstall();
-    await relaunch();
   },
   getSetting: (key: string) => call<string | null>("get_setting", { key }),
   openFileDialog: (options?: FileDialogOptions) => openNativeDialog(options),

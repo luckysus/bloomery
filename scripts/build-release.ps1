@@ -17,13 +17,9 @@ $workerRoot = Join-Path $repoRoot "compute-worker"
 $workerBuildScript = Join-Path $workerRoot "build.ps1"
 $domainPackageRoot = Join-Path $repoRoot "domain-packs\steel"
 $domainSignaturePath = Join-Path $domainPackageRoot "signature.json"
-$workerResourceRoot = Join-Path $rustRoot "resources\compute-worker"
-$workerArtifactNames = @(
-    "bloomery-compute-worker.exe",
-    "worker-artifact-manifest.json",
-    "worker-sbom.json",
-    "bloomery-compute-worker.sha256"
-)
+$buildTempRoot = Join-Path $repoRoot ".bloomery-temp"
+$workerResourceRoot = Join-Path $buildTempRoot ("worker-resource-" + [Guid]::NewGuid().ToString("N"))
+$releaseConfigPath = Join-Path $buildTempRoot ("tauri-config-" + [Guid]::NewGuid().ToString("N") + ".json")
 $authenticodeScript = Join-Path $PSScriptRoot "sign-authenticode.ps1"
 
 function Invoke-Checked {
@@ -95,6 +91,75 @@ function Copy-RequiredDirectory {
         New-Item -ItemType Directory -Path $destinationParent -Force | Out-Null
     }
     Copy-Item -LiteralPath $Source -Destination $Destination -Recurse -Force -ErrorAction Stop
+}
+
+function Get-TauriRelativeResourcePath {
+    param(
+        [Parameter(Mandatory = $true)][string]$BaseDirectory,
+        [Parameter(Mandatory = $true)][string]$TargetPath
+    )
+
+    $basePath = [System.IO.Path]::GetFullPath($BaseDirectory).TrimEnd([char[]]@("\", "/")) + [System.IO.Path]::DirectorySeparatorChar
+    $targetPath = [System.IO.Path]::GetFullPath($TargetPath)
+    $relativePathMethod = [System.IO.Path].GetMethod("GetRelativePath", [Type[]]@([string], [string]))
+    if ($null -ne $relativePathMethod) {
+        return [System.IO.Path]::GetRelativePath($basePath, $targetPath).Replace("\", "/")
+    }
+
+    $baseUri = [System.Uri]::new($basePath)
+    $targetUri = [System.Uri]::new($targetPath)
+    return [System.Uri]::UnescapeDataString($baseUri.MakeRelativeUri($targetUri).ToString()).Replace("\", "/")
+}
+
+function Write-WorkerResourceConfig {
+    param(
+        [Parameter(Mandatory = $true)][string]$Path,
+        [Parameter(Mandatory = $true)][string]$WorkerResourcePath
+    )
+
+    $resources = [ordered]@{
+        "../domain-packs/steel" = "domain-packs/steel"
+    }
+    $relativeWorkerResourcePath = Get-TauriRelativeResourcePath -BaseDirectory $rustRoot -TargetPath $WorkerResourcePath
+    $resources[$relativeWorkerResourcePath] = "compute-worker"
+    $config = [ordered]@{
+        bundle = [ordered]@{
+            resources = $resources
+        }
+    }
+    [System.IO.File]::WriteAllText(
+        $Path,
+        ($config | ConvertTo-Json -Depth 10),
+        [System.Text.UTF8Encoding]::new($false)
+    )
+}
+
+function Remove-PathWithRetry {
+    param(
+        [Parameter(Mandatory = $true)][string]$Path
+    )
+
+    $lastError = $null
+    for ($attempt = 1; $attempt -le 8; $attempt++) {
+        if (-not (Test-Path -LiteralPath $Path)) {
+            return
+        }
+        try {
+            Remove-Item -LiteralPath $Path -Recurse -Force -ErrorAction Stop
+            if (-not (Test-Path -LiteralPath $Path)) {
+                return
+            }
+        } catch {
+            $lastError = $_
+        }
+        if ($attempt -lt 8) {
+            Start-Sleep -Milliseconds 250
+        }
+    }
+    if ($null -ne $lastError) {
+        throw "Failed to remove temporary path after retries: $Path. $($lastError.Exception.Message)"
+    }
+    throw "Failed to remove temporary path after retries: $Path"
 }
 
 function New-ZipFromDirectory {
@@ -232,8 +297,8 @@ if (-not $SkipTests) {
     Invoke-Checked "Deterministic test suite" "powershell" $testArguments $repoRoot
 }
 
-$workerBuildOutput = Join-Path $env:TEMP ("bloomery-worker-" + [Guid]::NewGuid().ToString("N"))
-$portableWorkerSource = Join-Path $env:TEMP ("bloomery-worker-release-source-" + [Guid]::NewGuid().ToString("N"))
+$workerBuildOutput = Join-Path $buildTempRoot ("worker-" + [Guid]::NewGuid().ToString("N"))
+$portableWorkerSource = Join-Path $buildTempRoot ("worker-release-source-" + [Guid]::NewGuid().ToString("N"))
 $domainSignatureCreated = $false
 try {
     if ($Signed) {
@@ -303,19 +368,8 @@ try {
     }
     Update-WorkerArtifactMetadata $workerBuildOutput
     Copy-RequiredDirectory $workerBuildOutput $portableWorkerSource
-
-    New-Item -ItemType Directory -Path $workerResourceRoot -Force | Out-Null
-    foreach ($artifactName in $workerArtifactNames) {
-        $sourcePath = Join-Path $workerBuildOutput $artifactName
-        if (-not (Test-Path -LiteralPath $sourcePath -PathType Leaf)) {
-            throw "Compute worker artifact is missing: $sourcePath"
-        }
-        $destinationPath = Join-Path $workerResourceRoot $artifactName
-        if (Test-Path -LiteralPath $destinationPath) {
-            Remove-Item -LiteralPath $destinationPath -Force
-        }
-        Copy-Item -LiteralPath $sourcePath -Destination $destinationPath -Force
-    }
+    Copy-RequiredDirectory $workerBuildOutput $workerResourceRoot
+    Write-WorkerResourceConfig -Path $releaseConfigPath -WorkerResourcePath $workerResourceRoot
 
     $bundleValue = if ($Bundles -eq "all") { "msi,nsis" } else { $Bundles }
     foreach ($bundleDirectory in $bundleDirectories) {
@@ -333,6 +387,7 @@ try {
         "--bundles",
         $bundleValue
     )
+    $buildArguments += @("--config", $releaseConfigPath)
     $updaterConfigPath = $null
     if ($Signed) {
         if ([string]::IsNullOrWhiteSpace($env:TAURI_SIGNING_PRIVATE_KEY)) {
@@ -398,14 +453,14 @@ try {
             throw "Failed to remove temporary official domain package signature"
         }
     }
-    foreach ($artifactName in $workerArtifactNames) {
-        $stagedArtifact = Join-Path $workerResourceRoot $artifactName
-        if (Test-Path -LiteralPath $stagedArtifact) {
-            Remove-Item -LiteralPath $stagedArtifact -Force
-        }
+    if (Test-Path -LiteralPath $releaseConfigPath) {
+        Remove-PathWithRetry $releaseConfigPath
+    }
+    if (Test-Path -LiteralPath $workerResourceRoot) {
+        Remove-PathWithRetry $workerResourceRoot
     }
     if (Test-Path -LiteralPath $workerBuildOutput) {
-        Remove-Item -LiteralPath $workerBuildOutput -Recurse -Force
+        Remove-PathWithRetry $workerBuildOutput
     }
 }
 
@@ -450,10 +505,10 @@ foreach ($metadataFile in @("LICENSE", "NOTICE")) {
 
 $runtimeRoot = Join-Path $rustRoot "target\release"
 $portableName = "Bloomery-$version-windows-x64-portable"
-$portableStage = Join-Path $env:TEMP ($portableName + "-" + [Guid]::NewGuid().ToString("N"))
+$portableStage = Join-Path $buildTempRoot ($portableName + "-" + [Guid]::NewGuid().ToString("N"))
 $portableRoot = Join-Path $portableStage $portableName
 $addonName = "Bloomery-$version-compute-worker-addon-windows-x64"
-$addonStage = Join-Path $env:TEMP ($addonName + "-" + [Guid]::NewGuid().ToString("N"))
+$addonStage = Join-Path $buildTempRoot ($addonName + "-" + [Guid]::NewGuid().ToString("N"))
 $addonRoot = Join-Path $addonStage $addonName
 try {
     New-Item -ItemType Directory -Path $portableRoot, $addonRoot -Force | Out-Null
@@ -496,6 +551,9 @@ try {
         if (Test-Path -LiteralPath $portableWorkerSource) {
             throw "Failed to remove staged Worker source: $portableWorkerSource"
         }
+    }
+    if (Test-Path -LiteralPath $buildTempRoot) {
+        Remove-PathWithRetry $buildTempRoot
     }
 }
 

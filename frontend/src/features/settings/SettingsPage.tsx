@@ -11,7 +11,6 @@ import { desktop, type PermissionRuleRecord, type ProviderCapability, type Provi
 import { useLocale } from "../../i18n/locale";
 import SettingsProviderCard from "./SettingsProviderCard";
 import PermissionRulesPanel from "./PermissionRulesPanel";
-import UpdatePanel from "./UpdatePanel";
 import {
   defaultRetrievalIds,
   defaults,
@@ -231,8 +230,6 @@ export default function SettingsPage() {
         <KeyRound size={18} aria-hidden="true" />
         <div><strong>{t("settingsSecretTitle")}</strong><span>{t("settingsSecretCopy")}</span></div>
       </div>
-
-      <UpdatePanel />
 
       <PermissionRulesPanel
         rules={permissionRules}

@@ -22,6 +22,8 @@ if (-not (Test-Path -LiteralPath (Join-Path $rustRoot ([string]$windowsIcon)) -P
 
 $buildReleasePath = Join-Path $repoRoot "scripts\build-release.ps1"
 $buildReleaseContent = Get-Content -LiteralPath $buildReleasePath -Raw
+$workerBuildPath = Join-Path $repoRoot "compute-worker\build.ps1"
+$workerBuildContent = Get-Content -LiteralPath $workerBuildPath -Raw
 $sbomPath = Join-Path $repoRoot "scripts\generate-sbom.ps1"
 $sbomContent = Get-Content -LiteralPath $sbomPath -Raw
 if ($sbomContent -notmatch "pyproject\.toml") {
@@ -79,16 +81,41 @@ if ($resourceProperties -notcontains "resources/compute-worker") {
 if ($buildReleaseContent -notmatch "bloomery-python-worker-sbom.cdx.json") {
     throw "release artifacts must include the Python Worker SBOM generated from uv.lock"
 }
+if ($workerBuildContent -notmatch '\$uvCacheRoot\s*=\s*Join-Path\s+\$workerRoot') {
+    throw "compute-worker/build.ps1 must keep its uv cache on the F: workspace instead of the user profile"
+}
+if ($workerBuildContent -notmatch '\$env:UV_CACHE_DIR\s*=\s*\$uvCacheRoot') {
+    throw "compute-worker/build.ps1 must pass its workspace-local uv cache explicitly"
+}
 
 foreach ($requiredWorkerText in @(
     '$workerBuildScript',
     '$workerResourceRoot',
+    '$buildTempRoot',
+    '$workerResourceRoot = Join-Path $buildTempRoot',
+    '$releaseConfigPath',
     "bloomery-compute-worker.exe",
     'Join-Path $workerRoot "build.ps1"'
 )) {
     if ($buildReleaseContent -notmatch [regex]::Escape($requiredWorkerText)) {
         throw "scripts/build-release.ps1 is missing Worker release integration: $requiredWorkerText"
     }
+}
+if ($buildReleaseContent -notmatch '\$buildTempRoot\s*=\s*Join-Path\s+\$repoRoot') {
+    throw "build-release.ps1 must keep release staging on the F: workspace"
+}
+if ($buildReleaseContent -notmatch '\[System\.IO\.Path\]::GetRelativePath' -or
+    $buildReleaseContent -notmatch 'MakeRelativeUri') {
+    throw "build-release.ps1 must use a PowerShell-compatible Tauri-relative resource path for Windows overlays"
+}
+if ($buildReleaseContent -notmatch '\$resources\s*=\s*(?:\[ordered\])?@\{') {
+    throw "build-release.ps1 must create a temporary Tauri resource overlay for the current Worker build"
+}
+if ($buildReleaseContent -notmatch '(?s)releaseConfigPath.*?ConvertTo-Json') {
+    throw "build-release.ps1 must write the temporary Tauri resource overlay before packaging"
+}
+if ($buildReleaseContent -notmatch '(?s)releaseConfigPath.*?Remove-PathWithRetry|Remove-PathWithRetry.*?releaseConfigPath') {
+    throw "build-release.ps1 must clean the temporary Tauri resource overlay"
 }
 
 foreach ($requiredArtifactText in @(
