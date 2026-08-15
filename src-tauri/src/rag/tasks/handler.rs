@@ -8,7 +8,8 @@ use super::handler_support::{
 use super::store::ContentStore;
 use super::{decode_mineru_checkpoint, MinerUCheckpoint, MinerUStage, MinerUTaskPayload};
 use crate::providers::capabilities::{DocumentParseRequest, DocumentTaskState};
-use crate::rag::parse::{parse_mineru_artifact, ParseLimits};
+use crate::rag::ingest::SourceFormat;
+use crate::rag::parse::{parse_document_bytes, parse_mineru_artifact, ParseLimits};
 use crate::tasks::scheduler::{
     HandlerContext, HandlerError, HandlerFuture, HandlerOutcome, TaskHandler,
 };
@@ -91,20 +92,26 @@ async fn run_task(
     if checkpoint.source() != &payload.source {
         return Err(HandlerError::permanent("invalid_mineru_checkpoint"));
     }
-    let profile_id = Uuid::parse_str(&payload.provider_profile_id)
+    let profile_id = payload
+        .provider_profile_id
+        .as_deref()
+        .map(Uuid::parse_str)
+        .transpose()
         .map_err(|_| HandlerError::permanent("invalid_mineru_payload"))?;
 
     loop {
         if cancellation_requested(&context)? {
-            cancel_remote(
-                remotes.as_ref(),
-                &task.workspace_id,
-                profile_id,
-                payload.provider_profile_revision,
-                payload.provider_secret_generation,
-                &checkpoint,
-            )
-            .await;
+            if let Some(profile_id) = profile_id {
+                cancel_remote(
+                    remotes.as_ref(),
+                    &task.workspace_id,
+                    profile_id,
+                    payload.provider_profile_revision,
+                    payload.provider_secret_generation,
+                    &checkpoint,
+                )
+                .await;
+            }
             return Ok(HandlerOutcome::Cancelled);
         }
         if context.shutdown_requested() {
@@ -112,46 +119,72 @@ async fn run_task(
         }
         checkpoint = match checkpoint.stage() {
             MinerUStage::SourceStored => {
-                let remote = remotes.load(
-                    &task.workspace_id,
-                    profile_id,
-                    payload.provider_profile_revision,
-                    payload.provider_secret_generation,
-                )?;
-                let bytes = store
-                    .read(&payload.source, MAX_SOURCE_BYTES)
-                    .map_err(storage_error)?;
-                let submitting = persist(
-                    &context,
-                    checkpoint
-                        .mark_submitting(submit_request_hash(&payload))
-                        .map_err(checkpoint_error)?,
-                    None,
-                )?;
-                let ticket = remote
-                    .create_batch(DocumentParseRequest {
-                        file_name: payload.file_name.clone(),
-                        mime_type: payload.mime_type.clone(),
-                        bytes,
-                    })
-                    .await
-                    .map_err(|_| HandlerError::permanent("mineru_submit_outcome_unknown"))?;
-                let batch_created = persist(
-                    &context,
-                    submitting
-                        .mark_batch_created(ticket.id().0.clone())
-                        .map_err(checkpoint_error)?,
-                    None,
-                )?;
-                remote
-                    .upload(ticket)
-                    .await
-                    .map_err(|_| HandlerError::permanent("mineru_upload_outcome_unknown"))?;
-                persist(
-                    &context,
-                    batch_created.mark_submitted().map_err(checkpoint_error)?,
-                    None,
-                )?
+                if profile_id.is_none() {
+                    let bytes = store
+                        .read(&payload.source, MAX_SOURCE_BYTES)
+                        .map_err(storage_error)?;
+                    let format =
+                        SourceFormat::from_mime_type(&payload.mime_type).ok_or_else(|| {
+                            HandlerError::permanent("local_parser_unsupported_format")
+                        })?;
+                    let parsed = parse_document_bytes(&bytes, format, ParseLimits::default())
+                        .map_err(|error| HandlerError::permanent(error.code()))?;
+                    let ast = serde_json::to_vec(&parsed)
+                        .map_err(|_| HandlerError::permanent("mineru_ast_encode_failed"))?;
+                    if ast.len() as u64 > MAX_AST_BYTES {
+                        return Err(HandlerError::permanent("mineru_ast_too_large"));
+                    }
+                    let object = store.put(&ast).map_err(storage_error)?;
+                    persist(
+                        &context,
+                        checkpoint
+                            .mark_local_parsed(object)
+                            .map_err(checkpoint_error)?,
+                        None,
+                    )?
+                } else {
+                    let profile_id = profile_id.expect("checked above");
+                    let remote = remotes.load(
+                        &task.workspace_id,
+                        profile_id,
+                        payload.provider_profile_revision,
+                        payload.provider_secret_generation,
+                    )?;
+                    let bytes = store
+                        .read(&payload.source, MAX_SOURCE_BYTES)
+                        .map_err(storage_error)?;
+                    let submitting = persist(
+                        &context,
+                        checkpoint
+                            .mark_submitting(submit_request_hash(&payload))
+                            .map_err(checkpoint_error)?,
+                        None,
+                    )?;
+                    let ticket = remote
+                        .create_batch(DocumentParseRequest {
+                            file_name: payload.file_name.clone(),
+                            mime_type: payload.mime_type.clone(),
+                            bytes,
+                        })
+                        .await
+                        .map_err(|_| HandlerError::permanent("mineru_submit_outcome_unknown"))?;
+                    let batch_created = persist(
+                        &context,
+                        submitting
+                            .mark_batch_created(ticket.id().0.clone())
+                            .map_err(checkpoint_error)?,
+                        None,
+                    )?;
+                    remote
+                        .upload(ticket)
+                        .await
+                        .map_err(|_| HandlerError::permanent("mineru_upload_outcome_unknown"))?;
+                    persist(
+                        &context,
+                        batch_created.mark_submitted().map_err(checkpoint_error)?,
+                        None,
+                    )?
+                }
             }
             MinerUStage::Submitting => {
                 return Err(HandlerError::permanent("mineru_submit_outcome_unknown"));
@@ -165,6 +198,8 @@ async fn run_task(
                 None,
             )?,
             MinerUStage::Polling => {
+                let profile_id =
+                    profile_id.ok_or_else(|| HandlerError::permanent("invalid_mineru_payload"))?;
                 let remote = remotes.load(
                     &task.workspace_id,
                     profile_id,

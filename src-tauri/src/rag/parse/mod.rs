@@ -149,6 +149,23 @@ pub fn parse_document(
     limits: ParseLimits,
 ) -> Result<ParsedDocument, ParseError> {
     let bytes = read_bounded(path, limits.max_source_bytes)?;
+    parse_document_bytes(&bytes, format, limits)
+}
+
+pub(crate) fn parse_document_bytes(
+    bytes: &[u8],
+    format: SourceFormat,
+    limits: ParseLimits,
+) -> Result<ParsedDocument, ParseError> {
+    if bytes.len() as u64 > limits.max_source_bytes {
+        return Err(ParseError::new(
+            "parse_source_too_large",
+            format!(
+                "parse source exceeds the {}-byte limit",
+                limits.max_source_bytes
+            ),
+        ));
+    }
     match format {
         SourceFormat::Markdown => markdown::parse(decode_utf8(&bytes)?),
         SourceFormat::Text => text::parse(decode_utf8(&bytes)?),

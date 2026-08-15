@@ -163,6 +163,29 @@ describe("KnowledgePage", () => {
     expect(await screen.findByText("导入任务已创建")).toBeInTheDocument();
   });
 
+  it("imports with local parsing when MinerU is not configured", async () => {
+    vi.mocked(desktop.listKnowledgeBases).mockResolvedValue([base]);
+    vi.mocked(desktop.getSetting).mockResolvedValue(JSON.stringify({
+      state: "partial",
+      embedding_profile_id: "embedding-1",
+      mineru_profile_id: null,
+    }));
+    render(<KnowledgePage />);
+
+    await screen.findByRole("button", { name: "钢铁标准" });
+    fireEvent.change(screen.getByLabelText("文件路径"), { target: { value: "F:\\docs\\GB 50632.pdf" } });
+    fireEvent.click(screen.getByRole("button", { name: "导入文档" }));
+
+    await waitFor(() => expect(desktop.importLocalDocument).toHaveBeenCalledWith({
+      source_path: "F:\\docs\\GB 50632.pdf",
+      knowledge_base: { mode: "existing", id: base.id },
+      mineru_profile_id: null,
+      embedding_profile_id: "embedding-1",
+      embedding_dimension: 1024,
+    }));
+    expect(await screen.findByText("导入任务已创建")).toBeInTheDocument();
+  });
+
   it("uses the native file picker to fill a document path", async () => {
     vi.mocked(desktop.listKnowledgeBases).mockResolvedValue([base]);
     vi.mocked(desktop.openFileDialog).mockResolvedValue("F:\\docs\\GB 50632.pdf");

@@ -25,7 +25,7 @@ pub enum KnowledgeBaseTarget {
 pub struct DocumentImportRequest {
     pub source_path: PathBuf,
     pub knowledge_base: KnowledgeBaseTarget,
-    pub mineru_profile_id: Uuid,
+    pub mineru_profile_id: Option<Uuid>,
     pub embedding_profile_id: Uuid,
     pub embedding_dimension: u32,
 }
@@ -60,13 +60,18 @@ pub fn queue_document_import(
     let transaction = connection
         .transaction_with_behavior(TransactionBehavior::Immediate)
         .map_err(|error| error.to_string())?;
-    let mineru = provider(
-        &transaction,
-        workspace_id,
-        secrets,
-        request.mineru_profile_id,
-        ProviderKind::MinerU,
-    )?;
+    let mineru = request
+        .mineru_profile_id
+        .map(|id| {
+            provider(
+                &transaction,
+                workspace_id,
+                secrets,
+                id,
+                ProviderKind::MinerU,
+            )
+        })
+        .transpose()?;
     let embedding = provider(
         &transaction,
         workspace_id,
@@ -104,8 +109,16 @@ pub fn queue_document_import(
             document_id: document.id,
             content_sha256: source.content_sha256.clone(),
             mime_type: source.mime_type.clone(),
-            parser: "mineru".to_string(),
-            parser_version: "v4".to_string(),
+            parser: if mineru.is_some() {
+                "mineru".to_string()
+            } else {
+                "local".to_string()
+            },
+            parser_version: if mineru.is_some() {
+                "v4".to_string()
+            } else {
+                "v1".to_string()
+            },
             chunk_policy_version: ChunkPolicy::default().version,
             embedding_profile_id: embedding.profile.id.to_string(),
             embedding_model_id: embedding_model,
@@ -119,9 +132,9 @@ pub fn queue_document_import(
     let payload = MinerUTaskPayload {
         document_id: document.id,
         version_id: version.id,
-        provider_profile_id: mineru.profile.id.to_string(),
-        provider_profile_revision: mineru.revision,
-        provider_secret_generation: mineru.secret_generation,
+        provider_profile_id: mineru.as_ref().map(|value| value.profile.id.to_string()),
+        provider_profile_revision: mineru.as_ref().map_or(0, |value| value.revision),
+        provider_secret_generation: mineru.as_ref().map_or(0, |value| value.secret_generation),
         embedding_profile_revision: embedding.revision,
         embedding_secret_generation: embedding.secret_generation,
         source: object.clone(),

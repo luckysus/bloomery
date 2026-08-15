@@ -15,6 +15,23 @@ use uuid::Uuid;
 const WORKSPACE: &str = "workspace-a";
 
 #[test]
+fn import_request_accepts_a_missing_optional_mineru_profile() {
+    let request: DocumentImportRequest = serde_json::from_value(serde_json::json!({
+        "source_path": "F:\\docs\\GB 50632.pdf",
+        "knowledge_base": {
+            "mode": "create",
+            "name": "Steel standards"
+        },
+        "mineru_profile_id": null,
+        "embedding_profile_id": Uuid::new_v4(),
+        "embedding_dimension": 1024
+    }))
+    .expect("MinerU should be optional");
+
+    assert_eq!(request.mineru_profile_id, None);
+}
+
+#[test]
 fn import_queues_one_atomic_durable_graph_with_provider_pins() {
     let mut fixture = Fixture::new();
     let response = fixture.queue();
@@ -39,6 +56,27 @@ fn import_queues_one_atomic_durable_graph_with_provider_pins() {
     assert_eq!(attempt.document_id, response.document_id);
     assert_eq!(attempt.version_id, Some(response.version_id));
     assert_eq!(attempt.task_id, Some(task.id.to_string()));
+}
+
+#[test]
+fn import_queues_local_parser_without_a_mineru_profile() {
+    let mut fixture = Fixture::new();
+    let mut request = fixture.request();
+    request.mineru_profile_id = None;
+
+    let response = fixture.queue_request(request);
+    let task = task_repository::get(&fixture.connection, WORKSPACE, response.task_id)
+        .unwrap()
+        .unwrap();
+    let payload: MinerUTaskPayload = serde_json::from_str(&task.payload_json).unwrap();
+    let version =
+        knowledge::get_document_version(&fixture.connection, WORKSPACE, response.version_id)
+            .unwrap()
+            .unwrap();
+
+    assert_eq!(payload.provider_profile_id, None);
+    assert_eq!(version.parser, "local");
+    assert_eq!(version.parser_version, "v1");
 }
 
 #[test]
@@ -147,7 +185,7 @@ fn cross_workspace_targets_are_rejected_without_logical_imports() {
         )
         .unwrap();
     let mut request = fixture.request();
-    request.mineru_profile_id = foreign_provider;
+    request.mineru_profile_id = Some(foreign_provider);
     assert!(fixture
         .try_queue_request(request)
         .unwrap_err()
@@ -160,14 +198,14 @@ fn import_rejects_missing_disabled_wrong_kind_and_uncredentialed_providers() {
     let mut fixture = Fixture::new();
 
     let mut request = fixture.request();
-    request.mineru_profile_id = Uuid::new_v4();
+    request.mineru_profile_id = Some(Uuid::new_v4());
     assert!(fixture
         .try_queue_request(request)
         .unwrap_err()
         .contains("provider profile not found"));
 
     let mut request = fixture.request();
-    request.mineru_profile_id = fixture.embedding_id;
+    request.mineru_profile_id = Some(fixture.embedding_id);
     assert!(fixture
         .try_queue_request(request)
         .unwrap_err()
@@ -344,7 +382,7 @@ impl Fixture {
             knowledge_base: KnowledgeBaseTarget::Create {
                 name: "Steel standards".to_string(),
             },
-            mineru_profile_id: self.mineru_id,
+            mineru_profile_id: Some(self.mineru_id),
             embedding_profile_id: self.embedding_id,
             embedding_dimension: 1024,
         }

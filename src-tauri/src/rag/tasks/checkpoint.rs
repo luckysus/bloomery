@@ -59,6 +59,8 @@ impl MinerUStage {
 pub struct MinerUCheckpoint {
     stage: MinerUStage,
     source: StoredObjectRef,
+    #[serde(default)]
+    local_parse: bool,
     submit_request_sha256: Option<String>,
     remote_task_id: Option<String>,
     artifact: Option<StoredObjectRef>,
@@ -74,6 +76,7 @@ impl MinerUCheckpoint {
         Self {
             stage: MinerUStage::SourceStored,
             source,
+            local_parse: false,
             submit_request_sha256: None,
             remote_task_id: None,
             artifact: None,
@@ -111,6 +114,16 @@ impl MinerUCheckpoint {
 
     pub fn parsed_ast(&self) -> Option<&StoredObjectRef> {
         self.parsed_ast.as_ref()
+    }
+
+    pub fn mark_local_parsed(mut self, parsed_ast: StoredObjectRef) -> Result<Self, RagTaskError> {
+        self.require_stage(MinerUStage::SourceStored, MinerUStage::Parsed)?;
+        parsed_ast.validate()?;
+        self.local_parse = true;
+        self.parsed_ast = Some(parsed_ast);
+        self.stage = MinerUStage::Parsed;
+        self.validate()?;
+        Ok(self)
     }
 
     pub fn mark_submitting(
@@ -231,33 +244,48 @@ impl MinerUCheckpoint {
 
     fn validate(&self) -> Result<(), RagTaskError> {
         self.source.validate().map_err(invalid_checkpoint)?;
-        match (self.stage, self.submit_request_sha256.as_deref()) {
-            (MinerUStage::SourceStored, None) => {}
-            (MinerUStage::Submitting, Some(value)) => {
-                validate_sha256(value, "invalid_mineru_checkpoint")?;
-            }
-            (MinerUStage::SourceStored | MinerUStage::Submitting, _) => {
+        if self.local_parse {
+            if self.stage.rank() < MinerUStage::Parsed.rank()
+                || self.submit_request_sha256.is_some()
+                || self.remote_task_id.is_some()
+                || self.artifact.is_some()
+            {
                 return Err(RagTaskError::new(
                     "invalid_mineru_checkpoint",
-                    "submit_request_sha256 does not match the checkpoint stage",
+                    "local parse checkpoint contains remote state",
                 ));
             }
-            (_, Some(value)) => validate_sha256(value, "invalid_mineru_checkpoint")?,
-            (_, None) => {}
+        } else {
+            match (self.stage, self.submit_request_sha256.as_deref()) {
+                (MinerUStage::SourceStored, None) => {}
+                (MinerUStage::Submitting, Some(value)) => {
+                    validate_sha256(value, "invalid_mineru_checkpoint")?;
+                }
+                (MinerUStage::SourceStored | MinerUStage::Submitting, _) => {
+                    return Err(RagTaskError::new(
+                        "invalid_mineru_checkpoint",
+                        "submit_request_sha256 does not match the checkpoint stage",
+                    ));
+                }
+                (_, Some(value)) => validate_sha256(value, "invalid_mineru_checkpoint")?,
+                (_, None) => {}
+            }
+            validate_object_field(
+                self.stage,
+                MinerUStage::ArtifactDownloaded,
+                self.artifact.as_ref(),
+                "artifact",
+            )?;
         }
-        validate_optional(
-            self.stage,
-            MinerUStage::BatchCreated,
-            self.remote_task_id.as_deref(),
-            "remote_task_id",
-            validate_remote_task_id,
-        )?;
-        validate_object_field(
-            self.stage,
-            MinerUStage::ArtifactDownloaded,
-            self.artifact.as_ref(),
-            "artifact",
-        )?;
+        if !self.local_parse {
+            validate_optional(
+                self.stage,
+                MinerUStage::BatchCreated,
+                self.remote_task_id.as_deref(),
+                "remote_task_id",
+                validate_remote_task_id,
+            )?;
+        }
         validate_object_field(
             self.stage,
             MinerUStage::Parsed,

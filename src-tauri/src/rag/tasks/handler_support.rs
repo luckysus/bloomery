@@ -103,7 +103,9 @@ pub(super) fn submit_request_hash(payload: &MinerUTaskPayload) -> String {
     digest.update(payload.source.sha256().as_bytes());
     digest.update(payload.file_name.as_bytes());
     digest.update(payload.mime_type.as_bytes());
-    digest.update(payload.provider_profile_id.as_bytes());
+    if let Some(provider_profile_id) = &payload.provider_profile_id {
+        digest.update(provider_profile_id.as_bytes());
+    }
     format!("{:x}", digest.finalize())
 }
 

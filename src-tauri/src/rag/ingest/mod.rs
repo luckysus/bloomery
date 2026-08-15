@@ -37,6 +37,21 @@ impl SourceFormat {
         }
     }
 
+    pub(crate) fn from_mime_type(mime_type: &str) -> Option<Self> {
+        match mime_type {
+            "application/pdf" => Some(Self::Pdf),
+            "text/markdown" => Some(Self::Markdown),
+            "text/plain" => Some(Self::Text),
+            "text/html" => Some(Self::Html),
+            "text/csv" => Some(Self::Csv),
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document" => {
+                Some(Self::Docx)
+            }
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" => Some(Self::Xlsx),
+            _ => None,
+        }
+    }
+
     pub const fn mime_type(self) -> &'static str {
         match self {
             Self::Pdf => "application/pdf",

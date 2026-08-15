@@ -230,7 +230,7 @@ impl PipelineFixture {
         MinerUTaskPayload {
             document_id,
             version_id,
-            provider_profile_id: "22222222-2222-4222-8222-222222222222".to_string(),
+            provider_profile_id: Some("22222222-2222-4222-8222-222222222222".to_string()),
             provider_profile_revision: 1,
             provider_secret_generation: 0,
             embedding_profile_revision: 1,

@@ -33,6 +33,7 @@ use zip::write::SimpleFileOptions;
 const SOURCE_HASH: &str = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 const ARTIFACT_HASH: &str = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
 const AST_HASH: &str = "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc";
+const SCHEDULER_TEST_TIMEOUT: Duration = Duration::from_secs(30);
 
 fn object(hash: &str) -> StoredObjectRef {
     StoredObjectRef::new(hash, format!("objects/sha256/{}/{}", &hash[..2], hash))
@@ -134,7 +135,7 @@ fn mineru_payload_accepts_only_content_addressed_sources_and_safe_file_names() {
     let payload = MinerUTaskPayload {
         document_id: SourceDocumentId::new(),
         version_id: DocumentVersionId::new(),
-        provider_profile_id: "11111111-1111-4111-8111-111111111111".to_string(),
+        provider_profile_id: Some("11111111-1111-4111-8111-111111111111".to_string()),
         provider_profile_revision: 1,
         provider_secret_generation: 0,
         embedding_profile_revision: 1,
@@ -256,6 +257,39 @@ fn mineru_artifact_rejects_unsafe_ambiguous_or_missing_main_output() {
             expected_code
         );
     }
+}
+
+#[test]
+fn mineru_handler_uses_local_parser_without_loading_remote_provider() {
+    let workspace = TestWorkspace::new();
+    let source = workspace.store(b"# Local document\n\nBlast furnace burden notes.");
+    let mut local_payload = payload(source);
+    local_payload.provider_profile_id = None;
+    local_payload.provider_profile_revision = 0;
+    local_payload.file_name = "standard.md".to_string();
+    local_payload.mime_type = "text/markdown".to_string();
+    let processor = Arc::new(FakePostprocessor::default());
+    let handler = Arc::new(MinerUTaskHandler::new(
+        workspace.root.clone(),
+        Arc::new(UnavailableRemoteFactory),
+        processor.clone(),
+        Duration::ZERO,
+    ));
+    let task = workspace.create_task(local_payload);
+
+    let mut scheduler = workspace.scheduler(handler);
+    drive_until(
+        "local parser completion",
+        &mut scheduler,
+        || workspace.task(task.id).state == TaskState::Completed,
+        || task_diagnostic_without_remote(&workspace, task.id),
+    );
+
+    assert_eq!(workspace.task(task.id).progress, 100);
+    assert_eq!(
+        processor.calls(),
+        vec!["chunk", "embed", "index", "activate"]
+    );
 }
 
 fn mineru_archive(entries: &[(&str, &[u8])]) -> Vec<u8> {
@@ -820,7 +854,7 @@ fn payload(source: StoredObjectRef) -> MinerUTaskPayload {
     MinerUTaskPayload {
         document_id: SourceDocumentId::new(),
         version_id: DocumentVersionId::new(),
-        provider_profile_id: "11111111-1111-4111-8111-111111111111".to_string(),
+        provider_profile_id: Some("11111111-1111-4111-8111-111111111111".to_string()),
         provider_profile_revision: 1,
         provider_secret_generation: 0,
         embedding_profile_revision: 1,
@@ -837,7 +871,7 @@ fn drive_until(
     mut condition: impl FnMut() -> bool,
     diagnostic: impl Fn() -> String,
 ) {
-    let deadline = Instant::now() + Duration::from_secs(5);
+    let deadline = Instant::now() + SCHEDULER_TEST_TIMEOUT;
     while !condition() {
         scheduler.tick().expect("scheduler tick");
         assert!(

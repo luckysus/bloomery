@@ -180,7 +180,7 @@ export default function KnowledgePage() {
   const importDocument = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!selectedBaseId || !filePath.trim()) return;
-    if (!retrieval.embeddingProfileId || !retrieval.mineruProfileId) {
+    if (!retrieval.embeddingProfileId) {
       setError(t("setupRetrievalFirst"));
       return;
     }

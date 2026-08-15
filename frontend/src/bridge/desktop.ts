@@ -563,7 +563,7 @@ export interface ConversationExportSummary {
 export interface DocumentImportRequest {
   source_path: string;
   knowledge_base: { mode: "existing"; id: string } | { mode: "create"; name: string };
-  mineru_profile_id: string;
+  mineru_profile_id: string | null;
   embedding_profile_id: string;
   embedding_dimension: number;
 }

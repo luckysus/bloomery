@@ -47,7 +47,7 @@ impl StoredObjectRef {
 pub struct MinerUTaskPayload {
     pub document_id: SourceDocumentId,
     pub version_id: DocumentVersionId,
-    pub provider_profile_id: String,
+    pub provider_profile_id: Option<String>,
     #[serde(default)]
     pub provider_profile_revision: u64,
     #[serde(default)]
@@ -66,12 +66,14 @@ impl MinerUTaskPayload {
         self.source
             .validate()
             .map_err(|error| RagTaskError::new("invalid_mineru_payload", error.to_string()))?;
-        Uuid::parse_str(&self.provider_profile_id).map_err(|error| {
-            RagTaskError::new(
-                "invalid_mineru_payload",
-                format!("invalid provider profile ID: {error}"),
-            )
-        })?;
+        if let Some(provider_profile_id) = &self.provider_profile_id {
+            Uuid::parse_str(provider_profile_id).map_err(|error| {
+                RagTaskError::new(
+                    "invalid_mineru_payload",
+                    format!("invalid provider profile ID: {error}"),
+                )
+            })?;
+        }
         if self.file_name.trim() != self.file_name
             || self.file_name.is_empty()
             || self.file_name.chars().count() > 255
