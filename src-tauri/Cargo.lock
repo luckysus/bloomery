@@ -436,6 +436,7 @@ dependencies = [
 name = "bloomery"
 version = "1.0.0"
 dependencies = [
+ "base64 0.22.1",
  "chrono",
  "dirs 5.0.1",
  "ed25519-dalek",

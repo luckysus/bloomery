@@ -3,8 +3,10 @@ use crate::tasks::scheduler::{
     HandlerContext, HandlerError, HandlerFuture, HandlerOutcome, TaskHandler,
 };
 use crate::tasks::TaskRecord;
+use base64::{engine::general_purpose::STANDARD, Engine as _};
 use serde::Deserialize;
 use serde_json::{json, Value};
+use sha2::{Digest, Sha256};
 
 pub const COMPUTE_TRAIN_LINEAR_REGRESSION_KIND: &str = "compute_train_linear_regression";
 pub const COMPUTE_PREDICT_LINEAR_REGRESSION_KIND: &str = "compute_predict_linear_regression";
@@ -473,19 +475,16 @@ fn validate_export_result(result: &Value) -> Result<(), HandlerError> {
         .and_then(Value::as_str)
         .filter(|value| !value.is_empty())
         .ok_or_else(|| HandlerError::permanent("compute_worker_invalid_result"))?;
-    if !model.len().is_multiple_of(4)
-        || !model
-            .bytes()
-            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'+' | b'/' | b'='))
-    {
-        return Err(HandlerError::permanent("compute_worker_invalid_result"));
-    }
-    if result
+    let model_bytes = STANDARD
+        .decode(model)
+        .map_err(|_| HandlerError::permanent("compute_worker_invalid_result"))?;
+    let expected_hash = result
         .get("model_sha256")
         .and_then(Value::as_str)
-        .map(str::len)
-        != Some(64)
-    {
+        .filter(|value| value.len() == 64 && value.bytes().all(|byte| byte.is_ascii_hexdigit()))
+        .ok_or_else(|| HandlerError::permanent("compute_worker_invalid_result"))?;
+    let actual_hash = format!("{:x}", Sha256::digest(&model_bytes));
+    if !actual_hash.eq_ignore_ascii_case(expected_hash) {
         return Err(HandlerError::permanent("compute_worker_invalid_result"));
     }
     if !result
@@ -527,4 +526,26 @@ fn is_safe_error_code(code: &str) -> bool {
         && code
             .bytes()
             .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'_')
+}
+
+#[cfg(test)]
+mod tests {
+    use super::validate_export_result;
+    use serde_json::json;
+
+    #[test]
+    fn export_result_rejects_a_hash_that_does_not_match_the_model_blob() {
+        let result = json!({
+            "model_base64": "AA==",
+            "model_sha256": "0".repeat(64),
+            "manifest": {},
+            "operators": ["Add"],
+            "opset_version": 13,
+        });
+
+        assert!(
+            validate_export_result(&result).is_err(),
+            "export result must bind its hash to the decoded model bytes"
+        );
+    }
 }

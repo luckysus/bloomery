@@ -138,14 +138,22 @@ pub fn read_frame<R: Read>(reader: &mut R) -> Result<Option<Value>, FrameError> 
 
     let header_text = std::str::from_utf8(&header)
         .map_err(|_| FrameError::InvalidHeader("header is not UTF-8".to_string()))?;
-    let content_length = header_text
-        .split("\r\n")
-        .filter_map(|line| line.strip_prefix("Content-Length:"))
-        .map(str::trim)
-        .next()
-        .ok_or_else(|| FrameError::InvalidHeader("Content-Length is required".to_string()))?
-        .parse::<usize>()
-        .map_err(|_| FrameError::InvalidHeader("Content-Length must be an integer".to_string()))?;
+    let mut content_length = None;
+    for line in header_text.split("\r\n") {
+        let Some(value) = line.strip_prefix("Content-Length:") else {
+            continue;
+        };
+        if content_length.is_some() {
+            return Err(FrameError::InvalidHeader(
+                "duplicate Content-Length".to_string(),
+            ));
+        }
+        content_length = Some(value.trim().parse::<usize>().map_err(|_| {
+            FrameError::InvalidHeader("Content-Length must be an integer".to_string())
+        })?);
+    }
+    let content_length = content_length
+        .ok_or_else(|| FrameError::InvalidHeader("Content-Length is required".to_string()))?;
     if content_length > MAX_FRAME_BYTES {
         return Err(FrameError::TooLarge {
             actual: content_length,

@@ -69,6 +69,14 @@ fn malformed_or_oversized_frames_are_rejected() {
 }
 
 #[test]
+fn duplicate_content_length_headers_are_rejected() {
+    let duplicate = b"Content-Length: 2\r\nContent-Length: 2\r\n\r\n{}";
+    let error = read_frame(&mut Cursor::new(duplicate))
+        .expect_err("duplicate content length must be rejected");
+    assert!(matches!(error, FrameError::InvalidHeader(_)));
+}
+
+#[test]
 fn request_round_trip_preserves_typed_fields() {
     let request = WorkerRequest::new("run-1", "cancel", json!({"task_id": "job-9"}));
     let decoded = parse_request(serde_json::to_value(&request).expect("serialize request"))
