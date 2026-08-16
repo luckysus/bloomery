@@ -36,7 +36,7 @@ impl WorkerConfig {
             args: Vec::new(),
             working_directory: None,
             artifact_manifest: None,
-            isolate_process_tree: false,
+            isolate_process_tree: true,
             memory_limit_bytes: DEFAULT_WORKER_MEMORY_LIMIT_BYTES,
         }
     }
@@ -682,9 +682,9 @@ mod tests {
     }
 
     #[test]
-    fn process_tree_isolation_is_opt_in_for_worker_configs() {
+    fn worker_configs_enable_process_tree_isolation_by_default() {
         let config = WorkerConfig::new(std::path::PathBuf::from("worker.exe"));
-        assert!(!config.isolate_process_tree);
+        assert!(config.isolate_process_tree);
         assert!(
             WorkerConfig::new(std::path::PathBuf::from("worker.exe"))
                 .with_process_tree_isolation()
