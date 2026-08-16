@@ -2,7 +2,7 @@ use super::loader::{load_package, resolve_resource_path, DomainError, LoadedDoma
 use super::signature::{
     compute_package_digest, verify_package_signature, DomainTrust, DomainTrustStore, SIGNATURE_FILE,
 };
-use crate::permissions::path::authorize_existing_path;
+use crate::permissions::path::{authorize_existing_file_with_handle, authorize_existing_path};
 use serde::Serialize;
 use std::collections::HashSet;
 use std::fs::{self, File, OpenOptions};
@@ -32,14 +32,33 @@ pub fn install_package(
 ) -> Result<InstalledDomainPackage, DomainError> {
     let authorized_source = authorize_existing_path(source)
         .map_err(|error| DomainError::UnsafePath(error.to_string()))?;
-    let source = authorized_source.canonical_path();
+    let canonical_source = authorized_source.canonical_path().to_path_buf();
+    let source_is_directory = canonical_source.is_dir();
+    let source_file = if source_is_directory {
+        None
+    } else {
+        Some(
+            authorize_existing_file_with_handle(source)
+                .map_err(|error| DomainError::UnsafePath(error.to_string()))?
+                .1,
+        )
+    };
     fs::create_dir_all(install_root).map_err(|error| DomainError::Io(error.to_string()))?;
     let staging_root = install_root.join(STAGING_DIR);
     fs::create_dir_all(&staging_root).map_err(|error| DomainError::Io(error.to_string()))?;
     let staging = staging_root.join(Uuid::new_v4().to_string());
     fs::create_dir_all(&staging).map_err(|error| DomainError::Io(error.to_string()))?;
 
-    let result = install_into_staging(source, &staging, install_root, app_version, trust_store);
+    let result = install_into_staging(
+        source,
+        &canonical_source,
+        source_is_directory,
+        source_file,
+        &staging,
+        install_root,
+        app_version,
+        trust_store,
+    );
     match result {
         Ok(package) => Ok(package),
         Err(error) => {
@@ -97,15 +116,23 @@ pub fn cleanup_staging(install_root: &Path) -> Result<usize, DomainError> {
 
 fn install_into_staging(
     source: &Path,
+    authorized_root: &Path,
+    source_is_directory: bool,
+    source_file: Option<File>,
     staging: &Path,
     install_root: &Path,
     app_version: &str,
     trust_store: &DomainTrustStore,
 ) -> Result<InstalledDomainPackage, DomainError> {
-    if source.is_dir() {
-        copy_tree(source, staging)?;
+    if source_is_directory {
+        copy_tree_with_root(source, staging, authorized_root)?;
     } else if source.extension().and_then(|extension| extension.to_str()) == Some("zip") {
-        extract_archive(source, staging)?;
+        extract_archive(
+            source_file.ok_or_else(|| {
+                DomainError::Io("authorized package archive handle is missing".to_string())
+            })?,
+            staging,
+        )?;
     } else {
         return Err(DomainError::InvalidResource(
             "package source must be a directory or .zip archive".to_string(),
@@ -195,15 +222,26 @@ fn validate_package_files(
     Ok(())
 }
 
-fn copy_tree(source: &Path, destination: &Path) -> Result<(), DomainError> {
+fn copy_tree_with_root(
+    source: &Path,
+    destination: &Path,
+    authorized_root: &Path,
+) -> Result<(), DomainError> {
     let mut file_count = 0_usize;
     let mut total_bytes = 0_u64;
-    copy_tree_bounded(source, destination, &mut file_count, &mut total_bytes)
+    copy_tree_bounded(
+        source,
+        destination,
+        authorized_root,
+        &mut file_count,
+        &mut total_bytes,
+    )
 }
 
 fn copy_tree_bounded(
     source: &Path,
     destination: &Path,
+    authorized_root: &Path,
     file_count: &mut usize,
     total_bytes: &mut u64,
 ) -> Result<(), DomainError> {
@@ -219,7 +257,13 @@ fn copy_tree_bounded(
         if metadata.is_dir() {
             fs::create_dir_all(&destination_path)
                 .map_err(|error| DomainError::Io(error.to_string()))?;
-            copy_tree_bounded(&source_path, &destination_path, file_count, total_bytes)?;
+            copy_tree_bounded(
+                &source_path,
+                &destination_path,
+                authorized_root,
+                file_count,
+                total_bytes,
+            )?;
         } else if metadata.is_file() {
             reject_executable_extension(&source_path)?;
             if *file_count >= MAX_PACKAGE_FILES {
@@ -227,22 +271,33 @@ fn copy_tree_bounded(
                     "too many package files".to_string(),
                 ));
             }
-            if metadata.len() > MAX_FILE_BYTES {
+            let (authorized_file, source_file) = authorize_existing_file_with_handle(&source_path)
+                .map_err(|error| DomainError::UnsafePath(error.to_string()))?;
+            if !authorized_file
+                .canonical_path()
+                .starts_with(authorized_root)
+            {
+                return Err(DomainError::UnsafePath(source_path.display().to_string()));
+            }
+            let size = source_file
+                .metadata()
+                .map_err(|error| DomainError::Io(error.to_string()))?
+                .len();
+            if size > MAX_FILE_BYTES {
                 return Err(DomainError::ResourceLimit(format!(
                     "package file is too large: {}",
                     source_path.display()
                 )));
             }
             *total_bytes = total_bytes
-                .checked_add(metadata.len())
+                .checked_add(size)
                 .ok_or_else(|| DomainError::ResourceLimit("package size overflow".to_string()))?;
             if *total_bytes > MAX_TOTAL_BYTES {
                 return Err(DomainError::ResourceLimit(
                     "package is too large".to_string(),
                 ));
             }
-            fs::copy(&source_path, &destination_path)
-                .map_err(|error| DomainError::Io(error.to_string()))?;
+            copy_file_from_handle(source_file, &destination_path)?;
             *file_count += 1;
         } else {
             return Err(DomainError::InvalidResource(
@@ -253,9 +308,18 @@ fn copy_tree_bounded(
     Ok(())
 }
 
-fn extract_archive(source: &Path, destination: &Path) -> Result<(), DomainError> {
-    let file = File::open(source).map_err(|error| DomainError::Io(error.to_string()))?;
-    let mut archive = ZipArchive::new(file).map_err(|error| {
+fn copy_file_from_handle(mut source: File, destination: &Path) -> Result<(), DomainError> {
+    let mut output = OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(destination)
+        .map_err(|error| DomainError::Io(error.to_string()))?;
+    io::copy(&mut source, &mut output).map_err(|error| DomainError::Io(error.to_string()))?;
+    Ok(())
+}
+
+fn extract_archive(source: File, destination: &Path) -> Result<(), DomainError> {
+    let mut archive = ZipArchive::new(source).map_err(|error| {
         DomainError::InvalidResource(format!("invalid package archive: {error}"))
     })?;
     if archive.len() > MAX_PACKAGE_FILES {
@@ -380,10 +444,24 @@ fn reject_executable_extension(path: &Path) -> Result<(), DomainError> {
 
 #[cfg(test)]
 mod tests {
-    use super::{copy_tree, DomainError, MAX_FILE_BYTES};
-    use std::fs;
+    use super::{
+        copy_file_from_handle, copy_tree_with_root, extract_archive, DomainError, MAX_FILE_BYTES,
+    };
+    use std::fs::{self, File};
+    use std::io::Write;
     use std::path::PathBuf;
     use uuid::Uuid;
+    use zip::write::SimpleFileOptions;
+
+    fn write_archive(path: &std::path::Path, payload: &[u8]) {
+        let file = File::create(path).expect("create archive fixture");
+        let mut archive = zip::ZipWriter::new(file);
+        archive
+            .start_file("manifest.json", SimpleFileOptions::default())
+            .expect("start archive entry");
+        archive.write_all(payload).expect("write archive entry");
+        archive.finish().expect("finish archive fixture");
+    }
 
     #[test]
     fn bounded_directory_copy_rejects_oversized_file_before_copying() {
@@ -397,10 +475,55 @@ mod tests {
         file.set_len(MAX_FILE_BYTES + 1)
             .expect("extend oversized fixture");
 
-        let result = copy_tree(&source, &destination);
+        let authorized_root = fs::canonicalize(&source).expect("canonicalize source");
+        let result = copy_tree_with_root(&source, &destination, &authorized_root);
 
         assert!(matches!(result, Err(DomainError::ResourceLimit(_))));
         assert!(!destination.join("oversized.bin").exists());
         let _ = fs::remove_dir_all(PathBuf::from(root));
+    }
+
+    #[test]
+    fn archive_extraction_reads_the_authorized_file_after_path_replacement() {
+        let root = std::env::temp_dir().join(format!("bloomery-archive-{}", Uuid::new_v4()));
+        let archive_path = root.join("package.zip");
+        let moved_path = root.join("authorized.zip");
+        let destination = root.join("destination");
+        fs::create_dir_all(&root).expect("create archive fixture root");
+        write_archive(&archive_path, b"authorized");
+
+        let authorized_file = File::open(&archive_path).expect("open authorized archive");
+        fs::rename(&archive_path, &moved_path).expect("replace archive path");
+        write_archive(&archive_path, b"replacement");
+
+        extract_archive(authorized_file, &destination).expect("extract authorized archive");
+
+        assert_eq!(
+            fs::read(destination.join("manifest.json")).expect("read extracted manifest"),
+            b"authorized"
+        );
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn directory_copy_reads_the_authorized_file_after_path_replacement() {
+        let root = std::env::temp_dir().join(format!("bloomery-copy-{}", Uuid::new_v4()));
+        let source_path = root.join("source.txt");
+        let moved_path = root.join("authorized.txt");
+        let destination = root.join("destination.txt");
+        fs::create_dir_all(&root).expect("create copy fixture root");
+        fs::write(&source_path, b"authorized").expect("write authorized fixture");
+
+        let authorized_file = File::open(&source_path).expect("open authorized file");
+        fs::rename(&source_path, &moved_path).expect("replace source path");
+        fs::write(&source_path, b"replacement").expect("write replacement fixture");
+
+        copy_file_from_handle(authorized_file, &destination).expect("copy authorized file");
+
+        assert_eq!(
+            fs::read(&destination).expect("read copied file"),
+            b"authorized"
+        );
+        let _ = fs::remove_dir_all(root);
     }
 }

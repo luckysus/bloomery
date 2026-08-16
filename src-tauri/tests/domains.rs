@@ -290,7 +290,10 @@ fn rejects_zip_package_symlink_entries() {
     )
     .expect_err("ZIP symlink entry must be rejected");
 
-    assert!(error.to_string().contains("symlink") || error.to_string().contains("non-regular"));
+    assert!(
+        error.to_string().contains("symlink") || error.to_string().contains("non-regular"),
+        "unexpected ZIP rejection error: {error}"
+    );
 }
 
 #[test]

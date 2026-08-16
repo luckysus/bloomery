@@ -147,6 +147,36 @@ describe("SettingsPage", () => {
     );
   });
 
+  it("restores the previous SiliconFlow plan when persistence fails", async () => {
+    vi.mocked(desktop.setSetting).mockRejectedValueOnce(new Error("settings unavailable"));
+    render(<SettingsPage />);
+
+    const free = await screen.findByLabelText("settingsPlanFree");
+    fireEvent.click(screen.getByLabelText("settingsPlanPro"));
+
+    await waitFor(() => expect(free).toBeChecked());
+    expect(screen.getByRole("alert")).toBeInTheDocument();
+  });
+
+  it("reloads provider state when a secret write fails after profile save", async () => {
+    vi.mocked(desktop.setProviderSecret).mockRejectedValueOnce(new Error("keyring unavailable"));
+    render(<SettingsPage />);
+
+    const name = await screen.findByDisplayValue("Steel LLM");
+    const chatForm = name.closest("form");
+    if (!chatForm) throw new Error("chat provider form is missing");
+    fireEvent.change(name, { target: { value: "Unsaved Steel LLM" } });
+    fireEvent.change(within(chatForm).getByLabelText("provider.chat.apiKey"), {
+      target: { value: "replacement-key" },
+    });
+    fireEvent.click(within(chatForm).getByRole("button", { name: "settingsSave" }));
+
+    await waitFor(() => expect(desktop.listProviderProfiles).toHaveBeenCalledTimes(2));
+    expect(screen.getByDisplayValue("Steel LLM")).toBeInTheDocument();
+    expect(screen.queryByDisplayValue("Unsaved Steel LLM")).not.toBeInTheDocument();
+    expect(screen.getByRole("alert")).toBeInTheDocument();
+  });
+
   it("lists persistent permission rules and revokes the selected rule", async () => {
     render(<SettingsPage />);
 

@@ -96,12 +96,14 @@ export default function SettingsPage() {
   };
 
   const changePlan = async (nextPlan: RetrievalPlan) => {
+    const previousPlan = plan;
     setPlan(nextPlan);
     setError(null);
     try {
       await persistRetrieval(nextPlan, retrievalIds);
       setNotice(t("settingsSaved"));
     } catch (cause) {
+      setPlan(previousPlan);
       setError(errorMessage(cause, t("settingsSaveError")));
     }
   };
@@ -148,6 +150,7 @@ export default function SettingsPage() {
       });
       setNotice(t("settingsSaved"));
     } catch (cause) {
+      await load();
       setError(errorMessage(cause, t("settingsSaveError")));
     } finally {
       setBusySlot(null);

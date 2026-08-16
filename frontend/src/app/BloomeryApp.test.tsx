@@ -1,3 +1,4 @@
+import { StrictMode } from "react";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import BloomeryApp from "./BloomeryApp";
@@ -45,6 +46,18 @@ describe("BloomeryApp", () => {
     await waitFor(() => expect(desktop.initialize).toHaveBeenCalledOnce());
     expect(await screen.findByRole("main", { name: "工作台" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "工作台" })).toBeInTheDocument();
+  });
+
+  it("initializes the desktop bridge once under React StrictMode", async () => {
+    vi.mocked(desktop.initialize).mockClear();
+
+    render(
+      <StrictMode>
+        <BloomeryApp />
+      </StrictMode>,
+    );
+
+    await waitFor(() => expect(desktop.initialize).toHaveBeenCalledOnce());
   });
 
   it("enters the workbench when no first-run configuration exists", async () => {

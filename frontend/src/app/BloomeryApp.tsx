@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Factory, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { desktop, isDesktopRuntime } from "../bridge/desktop";
 import LanguageSelect from "../components/common/LanguageSelect";
@@ -28,12 +28,14 @@ function BloomeryAppShell() {
   const [initializationState, setInitializationState] = useState<InitializationState>("loading");
   const [activeSection, setActiveSection] = useState<SectionId>("workbench");
   const [collapsed, setCollapsed] = useState(false);
+  const initializationRef = useRef<Promise<void> | null>(null);
   const active = getNavigationSection(activeSection);
   const { t } = useLocale();
 
   useEffect(() => {
     let mounted = true;
-    desktop.initialize().then(async () => {
+    const initialization = initializationRef.current ?? (initializationRef.current = desktop.initialize());
+    initialization.then(async () => {
       if (!mounted) return;
       if (!isDesktopRuntime()) {
         setInitializationState("ready");
@@ -44,7 +46,10 @@ function BloomeryAppShell() {
       } catch {
         if (mounted) setInitializationState("failed");
       }
-    }, () => mounted && setInitializationState("failed"));
+    }, () => {
+      if (initializationRef.current === initialization) initializationRef.current = null;
+      if (mounted) setInitializationState("failed");
+    });
     return () => {
       mounted = false;
     };
