@@ -1,6 +1,6 @@
 use crate::app::task_commands::tasks::{background_task_response, BackgroundTaskResponse};
 use crate::db::{current_workspace_id, with_conn, with_conn_mut, DbState};
-use crate::permissions::path::authorize_existing_file;
+use crate::permissions::path::authorize_existing_file_with_handle;
 use crate::steel::{hash_dataset_source, read_dataset_table, DatasetTable};
 use crate::storage::repositories::steel::{self as steel_repository, SteelDatasetColumnRecord};
 use crate::storage::repositories::steel_models::{
@@ -10,6 +10,7 @@ use crate::tasks::{repository as task_repository, NewTask};
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 use std::collections::HashSet;
+use std::fs::File;
 use std::io::Read;
 
 #[derive(Debug, Clone, serde::Deserialize)]
@@ -288,7 +289,7 @@ pub fn build_onnx_prediction_payload(request: &PredictOnnxModelRequest) -> Resul
     if model_path.is_empty() {
         return Err("ONNX model path is required".to_string());
     }
-    let path = validate_onnx_model_path(std::path::Path::new(model_path))?;
+    let (path, file) = validate_onnx_model_file(std::path::Path::new(model_path))?;
     if request.model_sha256.len() != 64
         || !request
             .model_sha256
@@ -297,7 +298,7 @@ pub fn build_onnx_prediction_payload(request: &PredictOnnxModelRequest) -> Resul
     {
         return Err("ONNX model sha256 is invalid".to_string());
     }
-    let actual_hash = hash_onnx_model(&path)?;
+    let actual_hash = hash_onnx_model(file)?;
     let expected_hash = request.model_sha256.to_ascii_lowercase();
     if actual_hash != expected_hash {
         return Err("ONNX model hash does not match the selected file".to_string());
@@ -333,12 +334,12 @@ pub fn hash_onnx_model_file(path_text: &str) -> Result<String, String> {
     if path_text.is_empty() {
         return Err("ONNX model path is required".to_string());
     }
-    let path = validate_onnx_model_path(std::path::Path::new(path_text))?;
-    hash_onnx_model(&path)
+    let (_, file) = validate_onnx_model_file(std::path::Path::new(path_text))?;
+    hash_onnx_model(file)
 }
 
-fn validate_onnx_model_path(path: &std::path::Path) -> Result<std::path::PathBuf, String> {
-    let authorized = authorize_existing_file(path)
+fn validate_onnx_model_file(path: &std::path::Path) -> Result<(std::path::PathBuf, File), String> {
+    let (authorized, file) = authorize_existing_file_with_handle(path)
         .map_err(|error| format!("ONNX model path is not authorized: {error}"))?;
     let path = authorized.canonical_path();
     if path
@@ -348,12 +349,10 @@ fn validate_onnx_model_path(path: &std::path::Path) -> Result<std::path::PathBuf
     {
         return Err("ONNX model path must use the .onnx extension".to_string());
     }
-    Ok(path.to_path_buf())
+    Ok((path.to_path_buf(), file))
 }
 
-fn hash_onnx_model(path: &std::path::Path) -> Result<String, String> {
-    let mut file =
-        std::fs::File::open(path).map_err(|error| format!("read ONNX model: {error}"))?;
+fn hash_onnx_model(mut file: File) -> Result<String, String> {
     let mut digest = Sha256::new();
     let mut buffer = [0_u8; 1024 * 1024];
     loop {
@@ -1544,6 +1543,22 @@ mod tests {
             .expect_err("non-ONNX extensions must be rejected");
 
         assert_eq!(error, "ONNX model path must use the .onnx extension");
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn hashes_onnx_model_from_the_authorized_handle_not_the_path() {
+        let path = std::env::temp_dir().join(format!(
+            "bloomery-model-handle-{}.onnx",
+            uuid::Uuid::new_v4()
+        ));
+        std::fs::write(&path, b"onnx-fixture").expect("write model fixture");
+        let file = std::fs::File::open(&path).expect("open authorized model");
+
+        let hash = hash_onnx_model(file).expect("hash authorized model");
+
+        let expected = format!("{:x}", Sha256::digest(b"onnx-fixture"));
+        assert_eq!(hash, expected);
         let _ = std::fs::remove_file(path);
     }
 }

@@ -10,6 +10,7 @@ from typing import Any
 MAX_ROWS = 100_000
 MAX_FEATURES = 128
 INFERENCE_CHUNK_ROWS = 8192
+MAX_MODEL_BYTES = 512 * 1024 * 1024
 
 # Opset window matches the pinned ONNX Runtime: older graphs still load, and
 # anything newer has not been exercised by the worker whitelist tests.
@@ -94,12 +95,13 @@ def predict_onnx(
         raise OnnxInferenceError("model_hash_mismatch", "ONNX model sha256 is required")
     if any(char not in "0123456789abcdef" for char in expected_hash):
         raise OnnxInferenceError("model_hash_mismatch", "ONNX model sha256 is invalid")
-    actual_hash = _sha256(path)
+    model_bytes = _read_model_bytes(path)
+    actual_hash = _sha256_bytes(model_bytes)
     if actual_hash != expected_hash:
         raise OnnxInferenceError("model_hash_mismatch", "model hash does not match")
     _report("validated", 20)
 
-    opset, operators = _model_provenance(path)
+    opset, operators = _model_provenance(model_bytes)
     _report("validated", 35)
 
     features = _features(payload.get("features"))
@@ -107,7 +109,7 @@ def predict_onnx(
     normalized = _normalize(features, preprocessing)
     _report("normalized", 55)
 
-    session, input_specs, output_specs = _load_session(path)
+    session, input_specs, output_specs = _load_session(model_bytes)
     _validate_io_schema(manifest, input_specs, output_specs, len(normalized), len(normalized[0]))
     _report("validated", 65)
 
@@ -164,7 +166,7 @@ def predict_onnx(
     }
 
 
-def _model_provenance(path: Path) -> tuple[int, list[str]]:
+def _model_provenance(model_bytes: bytes) -> tuple[int, list[str]]:
     try:
         import onnx
     except ImportError as error:
@@ -173,7 +175,7 @@ def _model_provenance(path: Path) -> tuple[int, list[str]]:
         ) from error
 
     try:
-        model = onnx.load(str(path), load_external_data=False)
+        model = onnx.load_model_from_string(model_bytes)
     except Exception as error:
         raise OnnxInferenceError("invalid_model", "could not parse ONNX model graph") from error
 
@@ -262,15 +264,22 @@ def _model_path(value: Any) -> Path:
     return path
 
 
-def _sha256(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as stream:
-        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
+def _read_model_bytes(path: Path) -> bytes:
+    try:
+        with path.open("rb") as stream:
+            model_bytes = stream.read(MAX_MODEL_BYTES + 1)
+    except OSError as error:
+        raise OnnxInferenceError("invalid_model", "could not read ONNX model") from error
+    if len(model_bytes) > MAX_MODEL_BYTES:
+        raise OnnxInferenceError("invalid_model", "ONNX model exceeds the size limit")
+    return model_bytes
 
 
-def _load_session(path: Path) -> tuple[Any, list[dict[str, Any]], list[dict[str, Any]]]:
+def _sha256_bytes(model_bytes: bytes) -> str:
+    return hashlib.sha256(model_bytes).hexdigest()
+
+
+def _load_session(model_bytes: bytes) -> tuple[Any, list[dict[str, Any]], list[dict[str, Any]]]:
     try:
         import onnxruntime as ort
     except ImportError as error:
@@ -279,7 +288,7 @@ def _load_session(path: Path) -> tuple[Any, list[dict[str, Any]], list[dict[str,
         ) from error
 
     try:
-        session = ort.InferenceSession(str(path), providers=["CPUExecutionProvider"])
+        session = ort.InferenceSession(model_bytes, providers=["CPUExecutionProvider"])
     except Exception as error:
         raise OnnxInferenceError("invalid_model", "could not load ONNX model") from error
 

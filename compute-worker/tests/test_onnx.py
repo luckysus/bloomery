@@ -91,6 +91,18 @@ def test_onnx_inference_rejects_a_model_hash_mismatch() -> None:
     assert error.value.code == "model_hash_mismatch"
 
 
+def test_model_bytes_can_be_used_after_the_source_path_disappears(tmp_path: Path) -> None:
+    from bloomery_worker import onnx_inference
+
+    path = tmp_path / "model.onnx"
+    path.write_bytes(b"model-bytes")
+
+    model_bytes = onnx_inference._read_model_bytes(path)
+    path.unlink()
+
+    assert model_bytes == b"model-bytes"
+
+
 def test_onnx_inference_rejects_input_schema_mismatch() -> None:
     payload = _payload()
     payload["manifest"]["inputs"][0]["name"] = "wrong-input"
