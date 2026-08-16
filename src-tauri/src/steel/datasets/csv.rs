@@ -5,14 +5,13 @@ use std::io::{BufRead, BufReader};
 use std::path::Path;
 
 pub(super) fn read_dataset_table(
+    file: File,
     path: &Path,
     requested_sheet: Option<&str>,
 ) -> Result<DatasetTable, String> {
     if requested_sheet.is_some_and(|sheet| sheet != "CSV") {
         return Err("requested dataset sheet was not found".to_string());
     }
-    let file =
-        File::open(path).map_err(|error| format!("could not read dataset source: {error}"))?;
     let max_source_bytes = ParseLimits::default().max_source_bytes;
     let source_bytes = file
         .metadata()
@@ -103,6 +102,40 @@ fn validate_width(width: usize) -> Result<(), String> {
         ));
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::read_dataset_table;
+    use std::fs::{self, File};
+    use std::io::Write;
+
+    #[test]
+    fn reads_csv_from_the_authorized_handle_not_the_path() {
+        let path = std::env::temp_dir().join(format!(
+            "bloomery-dataset-handle-{}.csv",
+            uuid::Uuid::new_v4()
+        ));
+        let mut file = File::create(&path).expect("create fixture");
+        file.write_all(b"heat_id,value\nH-01,355\n")
+            .expect("write fixture");
+        drop(file);
+
+        let authorized_file = File::open(&path).expect("open authorized fixture");
+        let table = read_dataset_table(
+            authorized_file,
+            std::path::Path::new("path-is-not-used.csv"),
+            None,
+        )
+        .expect("read dataset from authorized handle");
+
+        assert_eq!(table.source_name, "path-is-not-used.csv");
+        assert_eq!(
+            table.rows,
+            vec![vec!["H-01".to_string(), "355".to_string()]]
+        );
+        let _ = fs::remove_file(path);
+    }
 }
 
 struct CsvRowReader<R> {

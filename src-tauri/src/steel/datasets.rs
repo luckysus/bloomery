@@ -1,12 +1,11 @@
 mod csv;
 mod xlsx;
 
-use crate::permissions::path::authorize_existing_file;
+use crate::permissions::path::authorize_existing_file_with_handle;
 use crate::rag::ingest::SourceFormat;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::collections::HashMap;
-use std::fs::File;
 use std::io::{BufReader, Read};
 use std::path::Path;
 
@@ -68,13 +67,13 @@ pub fn read_dataset_table(request: &DatasetPreviewRequest) -> Result<DatasetTabl
     if source_path.is_empty() {
         return Err("dataset source path is required".to_string());
     }
-    let path = authorize_existing_file(Path::new(source_path))
+    let (authorized, file) = authorize_existing_file_with_handle(Path::new(source_path))
         .map_err(|error| format!("dataset source path is not authorized: {error}"))?;
-    let path = path.canonical_path();
+    let path = authorized.canonical_path();
     let format = format_for_path(path)?;
     match format {
-        SourceFormat::Csv => csv::read_dataset_table(path, request.sheet.as_deref()),
-        SourceFormat::Xlsx => xlsx::read_dataset_table(path, request.sheet.as_deref()),
+        SourceFormat::Csv => csv::read_dataset_table(file, path, request.sheet.as_deref()),
+        SourceFormat::Xlsx => xlsx::read_dataset_table(file, path, request.sheet.as_deref()),
         _ => Err(format!("unsupported dataset format: {}", format.as_str())),
     }
 }
@@ -187,10 +186,8 @@ pub fn preview_dataset(request: &DatasetPreviewRequest) -> Result<DatasetPreview
 }
 
 pub fn hash_dataset_source(source_path: &str) -> Result<String, String> {
-    let authorized = authorize_existing_file(Path::new(source_path.trim()))
+    let (_, file) = authorize_existing_file_with_handle(Path::new(source_path.trim()))
         .map_err(|error| format!("dataset source path is not authorized: {error}"))?;
-    let file = File::open(authorized.canonical_path())
-        .map_err(|error| format!("could not read dataset source: {error}"))?;
     let mut reader = BufReader::new(file);
     let mut hasher = Sha256::new();
     let mut buffer = [0_u8; 64 * 1024];

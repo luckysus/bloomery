@@ -160,6 +160,25 @@ pub fn authorize_existing_file(path: &Path) -> Result<AuthorizedPath, PathAuthor
     Ok(authorized)
 }
 
+pub fn authorize_existing_file_with_handle(
+    path: &Path,
+) -> Result<(AuthorizedPath, fs::File), PathAuthorizationError> {
+    let roots = sibling_roots(path)?;
+    let authorized = roots.authorize(path)?;
+    let file = fs::File::open(authorized.canonical_path())
+        .map_err(|_| PathAuthorizationError::CannotResolve(path.to_path_buf()))?;
+    if !file
+        .metadata()
+        .map_err(|_| PathAuthorizationError::CannotResolve(path.to_path_buf()))?
+        .is_file()
+    {
+        return Err(PathAuthorizationError::CannotResolve(path.to_path_buf()));
+    }
+    #[cfg(windows)]
+    roots.verify_opened_file(&authorized, &file)?;
+    Ok((authorized, file))
+}
+
 pub fn authorize_output_path(path: &Path) -> Result<AuthorizedPath, PathAuthorizationError> {
     sibling_roots(path)?.authorize(path)
 }

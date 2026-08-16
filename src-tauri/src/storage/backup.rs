@@ -1,4 +1,4 @@
-use crate::permissions::path::{authorize_existing_file, authorize_output_path};
+use crate::permissions::path::{authorize_existing_file_with_handle, authorize_output_path};
 use chrono::Utc;
 use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
@@ -156,11 +156,15 @@ fn create_backup_archive(
 
 pub fn preview_backup(archive_path: &Path) -> Result<BackupSummary, String> {
     let display_path = archive_path.to_path_buf();
-    let authorized_archive = authorize_existing_file(archive_path)
+    let (_, archive_file) = authorize_existing_file_with_handle(archive_path)
         .map_err(|error| format!("backup archive path is not authorized: {error}"))?;
-    let archive_path = authorized_archive.canonical_path();
-    let archive_file =
-        File::open(archive_path).map_err(|error| format!("open backup archive failed: {error}"))?;
+    preview_backup_from_file(archive_file, &display_path)
+}
+
+fn preview_backup_from_file(
+    archive_file: File,
+    display_path: &Path,
+) -> Result<BackupSummary, String> {
     let mut archive = ZipArchive::new(archive_file)
         .map_err(|error| format!("read backup archive failed: {error}"))?;
     let manifest = read_manifest(&mut archive)?;
@@ -222,9 +226,8 @@ fn restore_backup_internal(
     trust_store: &DomainTrustStore,
 ) -> Result<BackupSummary, String> {
     let display_path = archive_path.to_path_buf();
-    let authorized_archive = authorize_existing_file(archive_path)
+    let (_, archive_file) = authorize_existing_file_with_handle(archive_path)
         .map_err(|error| format!("backup archive path is not authorized: {error}"))?;
-    let archive_path = authorized_archive.canonical_path();
     if database_path.is_dir() {
         return Err("restore database destination must be a file".to_string());
     }
@@ -232,8 +235,6 @@ fn restore_backup_internal(
         return Err("restore content destination must be a directory".to_string());
     }
 
-    let archive_file =
-        File::open(archive_path).map_err(|error| format!("open backup archive failed: {error}"))?;
     let mut archive = ZipArchive::new(archive_file)
         .map_err(|error| format!("read backup archive failed: {error}"))?;
     let manifest = read_manifest(&mut archive)?;
@@ -777,4 +778,35 @@ fn collect_content_files_from(
 
 fn copy_file(source: &mut File, destination: &mut impl Write) -> io::Result<u64> {
     io::copy(source, destination)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{create_backup, preview_backup_from_file};
+    use crate::storage::migrations::migrate;
+    use rusqlite::Connection;
+    use std::fs;
+    use std::path::Path;
+    use uuid::Uuid;
+
+    #[test]
+    fn preview_uses_the_supplied_archive_handle_not_the_path() {
+        let root = std::env::temp_dir().join(format!("bloomery-backup-handle-{}", Uuid::new_v4()));
+        fs::create_dir_all(&root).expect("create fixture root");
+        let database = root.join("source.sqlite3");
+        let mut connection = Connection::open(&database).expect("open database");
+        migrate(&mut connection).expect("migrate database");
+        let archive = root.join("source.bloomery-backup");
+        create_backup(&connection, &database, &root.join("content"), &archive)
+            .expect("create backup");
+
+        let archive_file = fs::File::open(&archive).expect("open authorized archive");
+        let summary = preview_backup_from_file(archive_file, Path::new("path-is-not-used"))
+            .expect("preview backup from authorized handle");
+
+        assert_eq!(summary.archive_path, "path-is-not-used");
+        assert!(summary.database_bytes > 0);
+        drop(connection);
+        fs::remove_dir_all(root).expect("remove fixture");
+    }
 }

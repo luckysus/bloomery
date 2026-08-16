@@ -1,7 +1,8 @@
 #![cfg(windows)]
 
 use bloomery::permissions::path::{
-    authorize_existing_path, authorize_output_path, AuthorizedRoots, PathAuthorizationError,
+    authorize_existing_file_with_handle, authorize_existing_path, authorize_output_path,
+    AuthorizedRoots, PathAuthorizationError,
 };
 use std::{
     fs::File,
@@ -191,6 +192,18 @@ fn path_helpers_authorize_existing_and_new_sibling_targets() {
     assert!(authorized_output
         .canonical_path()
         .ends_with("new-output.txt"));
+    cleanup(root, outside);
+}
+
+#[test]
+fn authorized_file_helper_returns_a_handle_that_was_rechecked() {
+    let (root, outside) = fixture();
+    let inside = root.join("nested").join("inside.txt");
+
+    let (authorized, file) = authorize_existing_file_with_handle(&inside).unwrap();
+
+    assert!(authorized.canonical_path().ends_with("inside.txt"));
+    assert!(file.metadata().unwrap().is_file());
     cleanup(root, outside);
 }
 

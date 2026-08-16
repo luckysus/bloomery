@@ -11,12 +11,11 @@ use std::path::Path;
 const MAX_XLSX_ENTRY_BYTES: usize = 64 * 1024 * 1024;
 
 pub(super) fn read_dataset_table(
+    mut file: File,
     path: &Path,
     requested_sheet: Option<&str>,
 ) -> Result<DatasetTable, String> {
     let limits = ParseLimits::default();
-    let mut file =
-        File::open(path).map_err(|error| format!("could not read dataset source: {error}"))?;
     let mut bytes = Vec::new();
     file.by_ref()
         .take(limits.max_source_bytes.saturating_add(1))

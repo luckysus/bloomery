@@ -14,12 +14,10 @@ pub(super) struct StagedDigest {
 }
 
 pub(super) fn stage_and_hash(
-    source: &Path,
+    mut input: File,
     staged: &Path,
     max_bytes: u64,
 ) -> Result<StagedDigest, IngestError> {
-    let mut input = File::open(source)
-        .map_err(|error| IngestError::io("source_unavailable", "open source", error))?;
     if !input
         .metadata()
         .map_err(|error| IngestError::io("source_unavailable", "inspect source", error))?
