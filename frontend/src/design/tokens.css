@@ -4,20 +4,20 @@
   --bloomery-bg-raised: #fffdf9;
   --bloomery-bg-soft: #f5f0e8;
   --bloomery-bg-hover: #f1e8de;
-  --bloomery-sidebar: #f7f1e8;
-  --bloomery-line: #eadfd2;
-  --bloomery-line-strong: #d8cdbc;
-  --bloomery-text: #2b2118;
-  --bloomery-text-soft: #5b5048;
-  --bloomery-text-muted: #8a7665;
-  --bloomery-steel: #557684;
-  --bloomery-amber: #b85f43;
-  --bloomery-amber-soft: #fbede3;
+  --bloomery-sidebar: #f5f0e8;
+  --bloomery-line: #e6dfd8;
+  --bloomery-line-strong: #d4cbc2;
+  --bloomery-text: #141413;
+  --bloomery-text-soft: #252523;
+  --bloomery-text-muted: #6c6a64;
+  --bloomery-steel: #a9583e;
+  --bloomery-amber: #cc785c;
+  --bloomery-amber-soft: #f7e8df;
   --bloomery-green: #3f8b75;
   --bloomery-green-soft: #eef9f6;
   --bloomery-red: #c64545;
   --bloomery-red-soft: #fff4f0;
-  --bloomery-accent: #557684;
+  --bloomery-accent: #cc785c;
   --bloomery-sidebar-width: 216px;
   --bloomery-sidebar-collapsed-width: 72px;
   --bloomery-topbar-height: 64px;
@@ -29,6 +29,6 @@
   --bloomery-radius-small: 8px;
   --bloomery-shadow: 0 16px 36px rgba(72, 52, 38, 0.1);
   --bloomery-shadow-soft: 0 4px 14px rgba(72, 52, 38, 0.07);
-  --bloomery-focus: rgba(85, 118, 132, 0.24);
+  --bloomery-focus: rgba(204, 120, 92, 0.24);
   --bloomery-mono: "Cascadia Code", "JetBrains Mono", Consolas, monospace;
 }

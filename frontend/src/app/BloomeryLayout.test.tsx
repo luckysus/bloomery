@@ -2,6 +2,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import BloomeryApp from "./BloomeryApp";
 import { desktop } from "../bridge/desktop";
+import tokensCss from "../design/tokens.css?raw";
 import themeCss from "../design/theme.css?raw";
 import polishCss from "../design/polish.css?raw";
 
@@ -93,6 +94,20 @@ describe("Bloomery desktop layout", () => {
     expect(polishCss).toContain("@media (max-width: 980px)");
     expect(polishCss).toContain("var(--bloomery-chat-session-width)");
     expect(polishCss).toContain("var(--bloomery-chat-inspector-width)");
+  });
+
+  it("uses the Web palette and exposes a compact workbench header", async () => {
+    expect(tokensCss).toContain("--bloomery-bg: #faf9f5");
+    expect(tokensCss).toContain("--bloomery-bg-raised: #fffdf9");
+    expect(tokensCss).toContain("--bloomery-amber: #cc785c");
+    expect(tokensCss).toContain("--bloomery-text: #141413");
+    expect(tokensCss).toContain("--bloomery-line: #e6dfd8");
+    expect(`${themeCss}\n${polishCss}`).not.toContain("#557684");
+    expect(`${themeCss}\n${polishCss}`).toContain(".bloomery-workbench-header");
+
+    render(<BloomeryApp />);
+    const header = await screen.findByTestId("workbench-header");
+    expect(header.querySelector(".bloomery-action-strip")).not.toBeNull();
   });
 
   it("shows the degraded provider state when no chat provider is configured", async () => {

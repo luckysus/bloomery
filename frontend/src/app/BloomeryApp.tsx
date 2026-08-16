@@ -65,7 +65,6 @@ function BloomeryAppShell() {
           {!collapsed && (
             <div className="bloomery-brand-copy">
               <strong>BLOOMERY</strong>
-            <span>{t("brandTagline")}</span>
             </div>
           )}
         </div>
@@ -109,7 +108,6 @@ function BloomeryAppShell() {
               </button>
             ))}
           </div>
-          {!collapsed && <p className="bloomery-sidebar-footer">{t("offlineFooter")}</p>}
         </nav>
 
         <main className="bloomery-main" aria-label={t(active.labelKey)}>

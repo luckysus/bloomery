@@ -118,20 +118,12 @@ export default function WorkbenchHome({ initializationState, onOpenSection }: Wo
 
   return (
     <div className="bloomery-workbench" data-testid="workbench-home">
-      <section className="bloomery-hero" aria-labelledby="workbench-heading">
-        <div>
-          <p className="bloomery-eyebrow">{t("workbenchEyebrow")}</p>
+      <header className="bloomery-workbench-header" data-testid="workbench-header">
+        <div className="bloomery-workbench-heading">
           <h1 id="workbench-heading">{t("workbenchTitle")}</h1>
-          <p className="bloomery-lede">{t("workbenchLede")}</p>
         </div>
-        <div className="bloomery-hero-mark" aria-hidden="true">
-          <span className="bloomery-hero-mark-line" />
-          <span className="bloomery-hero-mark-line bloomery-hero-mark-line-short" />
-          <span className="bloomery-hero-mark-dot" />
-        </div>
-      </section>
 
-      <section className="bloomery-action-strip" aria-label={t("commonActions")}>
+        <section className="bloomery-action-strip" aria-label={t("commonActions")}>
         <button type="button" className="bloomery-action-primary" onClick={() => onOpenSection("chat")}>
           <MessageSquarePlus size={18} aria-hidden="true" />
           <span>{t("newConversation")}</span>
@@ -145,7 +137,8 @@ export default function WorkbenchHome({ initializationState, onOpenSection }: Wo
           <Database size={17} aria-hidden="true" />
           <span>{t("importData")}</span>
         </button>
-      </section>
+        </section>
+      </header>
 
       {overview.failedSources.length > 0 && (
         <div className="bloomery-workbench-alert" role="alert">
@@ -158,7 +151,6 @@ export default function WorkbenchHome({ initializationState, onOpenSection }: Wo
         <section className="bloomery-status-section" aria-labelledby="status-heading" aria-busy={overview.loading}>
         <div className="bloomery-section-heading">
           <div>
-            <p className="bloomery-eyebrow">{t("runtimeStatusEyebrow")}</p>
             <h2 id="status-heading">{t("runtimeStatus")}</h2>
           </div>
           <div className="bloomery-section-heading-actions">
@@ -189,7 +181,6 @@ export default function WorkbenchHome({ initializationState, onOpenSection }: Wo
         <section className="bloomery-empty-section" aria-labelledby="recent-heading" aria-busy={overview.loading}>
         <div className="bloomery-section-heading">
           <div>
-            <p className="bloomery-eyebrow">{t("recentWorkEyebrow")}</p>
             <h2 id="recent-heading">{t("recentWork")}</h2>
           </div>
           <span className="bloomery-muted-label" data-testid="workbench-record-count">{t("records", { count: conversations.length })}</span>

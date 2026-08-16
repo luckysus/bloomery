@@ -220,7 +220,7 @@
 
 .bloomery-nav-item.is-active {
   background: var(--bloomery-amber-soft);
-  border-color: #d3a354;
+  border-color: #e5c8bb;
   color: var(--bloomery-amber);
 }
 
@@ -357,8 +357,8 @@
 }
 
 .bloomery-action-primary:hover {
-  background: #efb44b;
-  border-color: #efb44b;
+  background: var(--bloomery-steel);
+  border-color: var(--bloomery-steel);
 }
 
 .bloomery-action-secondary {
@@ -414,7 +414,7 @@
 
 .bloomery-state-badge.is-pending {
   background: var(--bloomery-amber-soft);
-  border-color: #d2a254;
+  border-color: #e5c8bb;
   color: var(--bloomery-amber);
 }
 
@@ -484,7 +484,7 @@
 .bloomery-workbench-alert {
   align-items: center;
   background: var(--bloomery-amber-soft);
-  border: 1px solid #d2a254;
+  border: 1px solid #e5c8bb;
   color: var(--bloomery-text-soft);
   display: flex;
   gap: 9px;
@@ -792,7 +792,7 @@
 .bloomery-setup-icon {
   align-items: center;
   background: var(--bloomery-amber-soft);
-  border: 1px solid #d3a354;
+  border: 1px solid #e5c8bb;
   border-radius: var(--bloomery-radius-small);
   color: var(--bloomery-amber);
   display: inline-flex;
@@ -911,8 +911,8 @@
 }
 
 .bloomery-setup-primary:hover {
-  background: #efb44b;
-  border-color: #efb44b;
+  background: var(--bloomery-steel);
+  border-color: var(--bloomery-steel);
 }
 
 .bloomery-setup-primary:disabled,
@@ -1326,7 +1326,7 @@
 .bloomery-knowledge-base-select:hover,
 .bloomery-knowledge-base.is-active .bloomery-knowledge-base-select {
   background: var(--bloomery-amber-soft);
-  border-color: #d3a354;
+  border-color: #e5c8bb;
   color: var(--bloomery-amber);
 }
 
@@ -1798,7 +1798,7 @@ button.bloomery-knowledge-document.is-active {
 .bloomery-chat-session:hover,
 .bloomery-chat-session.is-active {
   background: var(--bloomery-amber-soft);
-  border-color: #d3a354;
+  border-color: #e5c8bb;
   color: var(--bloomery-amber);
 }
 
@@ -1905,7 +1905,7 @@ button.bloomery-knowledge-document.is-active {
 .bloomery-chat-empty-icon {
   align-items: center;
   background: var(--bloomery-amber-soft);
-  border: 1px solid #d3a354;
+  border: 1px solid #e5c8bb;
   color: var(--bloomery-amber);
   display: inline-flex;
   height: 42px;
@@ -3342,7 +3342,7 @@ button.bloomery-knowledge-document.is-active {
 .bloomery-analysis-mark {
   align-items: center;
   background: var(--bloomery-amber-soft);
-  border: 1px solid #d2a254;
+  border: 1px solid #e5c8bb;
   border-radius: var(--bloomery-radius-small);
   color: var(--bloomery-amber);
   display: flex;
@@ -3603,7 +3603,7 @@ button.bloomery-knowledge-document.is-active {
 }
 
 .bloomery-analysis-submit:hover:not(:disabled) {
-  background: #efb44b;
+  background: var(--bloomery-steel);
 }
 
 .bloomery-analysis-submit:disabled {

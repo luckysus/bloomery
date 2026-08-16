@@ -46,6 +46,9 @@ describe("BloomeryApp", () => {
     await waitFor(() => expect(desktop.initialize).toHaveBeenCalledOnce());
     expect(await screen.findByRole("main", { name: "工作台" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "工作台" })).toBeInTheDocument();
+    expect(screen.queryByText("STEEL AGENT WORKBENCH")).not.toBeInTheDocument();
+    expect(screen.queryByText("离线优先 · 数据归本地")).not.toBeInTheDocument();
+    expect(screen.queryByText("从本地知识、对话和生产数据开始一次可追溯的工作。")).not.toBeInTheDocument();
   });
 
   it("initializes the desktop bridge once under React StrictMode", async () => {

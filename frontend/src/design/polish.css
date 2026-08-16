@@ -1,15 +1,15 @@
 /*
  * Bloomery visual layer
- * White industrial control-room language: steel blue, paper white, and safety amber.
+ * Warm paper, editorial typography, and restrained terracotta accents.
  * Keep feature styles in theme.css; this file only owns the shared visual system.
  */
 
 :root {
-  --bloomery-surface-tint: rgba(255, 255, 255, 0.86);
-  --bloomery-steel-deep: #17384b;
-  --bloomery-steel-blue: #1d4e68;
-  --bloomery-steel-light: #e8f1f5;
-  --bloomery-amber-strong: #9a4d08;
+  --bloomery-surface-tint: rgba(255, 253, 249, 0.9);
+  --bloomery-steel-deep: #a9583e;
+  --bloomery-steel-blue: #cc785c;
+  --bloomery-steel-light: #f5f0e8;
+  --bloomery-amber-strong: #a9583e;
 }
 
 html {
@@ -80,7 +80,7 @@ textarea:focus-visible {
   background: var(--bloomery-steel);
   border: 0;
   border-radius: 10px;
-  box-shadow: 0 5px 14px rgba(29, 78, 104, 0.22);
+  box-shadow: 0 5px 14px rgba(169, 88, 62, 0.18);
   color: #fff;
   height: 38px;
   width: 38px;
@@ -138,7 +138,7 @@ textarea:focus-visible {
 }
 
 .bloomery-language-control:focus-within {
-  border-color: var(--bloomery-steel-blue);
+  border-color: var(--bloomery-amber);
   box-shadow: 0 0 0 3px var(--bloomery-focus);
 }
 
@@ -184,7 +184,7 @@ textarea:focus-visible {
 }
 
 .bloomery-nav-item:hover {
-  background: rgba(232, 238, 243, 0.9);
+  background: rgba(241, 232, 222, 0.9);
   color: var(--bloomery-steel-deep);
 }
 
@@ -322,13 +322,14 @@ textarea:focus-visible {
 .bloomery-action-primary {
   background: var(--bloomery-steel);
   border-color: var(--bloomery-steel);
-  box-shadow: 0 5px 12px rgba(85, 118, 132, 0.18);
+  box-shadow: 0 5px 12px rgba(169, 88, 62, 0.16);
   color: #fff;
 }
 
 .bloomery-action-primary:hover:not(:disabled) {
-  background: #466873;
-  box-shadow: 0 7px 16px rgba(85, 118, 132, 0.22);
+  background: var(--bloomery-steel-deep);
+  border-color: var(--bloomery-steel-deep);
+  box-shadow: 0 7px 16px rgba(169, 88, 62, 0.2);
 }
 
 .bloomery-action-secondary {
@@ -339,7 +340,7 @@ textarea:focus-visible {
 
 .bloomery-action-secondary:hover:not(:disabled) {
   background: #fff;
-  border-color: var(--bloomery-steel);
+  border-color: var(--bloomery-amber);
   color: var(--bloomery-text);
   box-shadow: var(--bloomery-shadow-soft);
 }
@@ -411,7 +412,7 @@ textarea:focus-visible {
 .bloomery-diagnostics-alert,
 .bloomery-extensions-alert {
   background: var(--bloomery-amber-soft);
-  border: 1px solid #f2c48f;
+  border: 1px solid #e5c8bb;
   border-radius: 10px;
   color: var(--bloomery-text-soft);
   line-height: 1.5;
@@ -461,7 +462,7 @@ textarea:focus-visible {
 }
 
 .bloomery-recent-row svg {
-  color: var(--bloomery-steel-blue);
+  color: var(--bloomery-amber);
 }
 
 .bloomery-recent-row strong {
@@ -477,7 +478,7 @@ textarea:focus-visible {
 
 .bloomery-placeholder-icon {
   background: var(--bloomery-steel-light);
-  border: 1px solid #c5d9e2;
+  border: 1px solid var(--bloomery-line);
   border-radius: 12px;
   color: var(--bloomery-steel-blue);
   height: 48px;
@@ -513,14 +514,14 @@ textarea:focus-visible {
 .bloomery-app input:not([type="checkbox"]):not([type="radio"]):hover,
 .bloomery-app select:hover,
 .bloomery-app textarea:hover {
-  border-color: #8ca8b6;
+  border-color: #c9a694;
 }
 
 .bloomery-app input:not([type="checkbox"]):not([type="radio"]):focus,
 .bloomery-app select:focus,
 .bloomery-app textarea:focus {
   background: #fff;
-  border-color: var(--bloomery-steel-blue);
+  border-color: var(--bloomery-amber);
   box-shadow: 0 0 0 3px var(--bloomery-focus);
   outline: 0;
 }
@@ -539,7 +540,7 @@ textarea:focus-visible {
 }
 
 .bloomery-chat-sidebar {
-  background: #f7f4ef;
+  background: var(--bloomery-bg-soft);
   border-right-color: var(--bloomery-line);
   padding: 22px 14px 16px;
 }
@@ -623,8 +624,8 @@ textarea:focus-visible {
 }
 
 .bloomery-chat-message.is-user {
-  background: #eef5f6;
-  border-color: #d6e6e8;
+  background: var(--bloomery-amber-soft);
+  border-color: #e5c8bb;
   margin-left: auto;
 }
 
@@ -654,7 +655,7 @@ textarea:focus-visible {
 }
 
 .bloomery-chat-composer textarea {
-  background: #f8fafc;
+  background: var(--bloomery-bg);
   border: 0;
   box-shadow: none;
   min-height: 74px;
@@ -673,28 +674,28 @@ textarea:focus-visible {
 
 .bloomery-chat-empty-large {
   background: #fbfaf7;
-  border: 1px dashed #b8ced8;
+  border: 1px dashed var(--bloomery-line-strong);
   border-radius: 16px;
   min-height: 280px;
 }
 
 .bloomery-chat-empty-icon {
   background: var(--bloomery-steel-light);
-  border: 1px solid #c7dce5;
+  border: 1px solid var(--bloomery-line);
   border-radius: 14px;
-  color: var(--bloomery-steel-blue);
+  color: var(--bloomery-amber);
   height: 54px;
   width: 54px;
 }
 
 .bloomery-chat-permission {
   background: var(--bloomery-amber-soft);
-  border: 1px solid #f2c48f;
+  border: 1px solid #e5c8bb;
   border-radius: 12px;
 }
 
 .bloomery-chat-tool-trace {
-  background: #f8fafc;
+  background: var(--bloomery-bg);
   border: 1px solid var(--bloomery-line);
   border-radius: 9px;
   color: var(--bloomery-text-muted);
@@ -724,24 +725,24 @@ textarea:focus-visible {
 .bloomery-diagnostics-card-icon,
 .bloomery-extension-icon {
   background: var(--bloomery-steel-light);
-  border-color: #c5d9e2;
-  color: var(--bloomery-steel-blue);
+  border-color: var(--bloomery-line);
+  color: var(--bloomery-amber);
 }
 
 .bloomery-knowledge-base.is-active {
-  background: #eef7fa;
-  border-color: #b5d3df;
+  background: var(--bloomery-amber-soft);
+  border-color: #e5c8bb;
   box-shadow: var(--bloomery-shadow-soft);
 }
 
 .bloomery-knowledge-progress::before {
-  background: linear-gradient(90deg, var(--bloomery-steel-blue), var(--bloomery-amber));
+  background: var(--bloomery-amber);
 }
 
 .bloomery-analysis-submit,
 .bloomery-dataset-training-button,
 .bloomery-dataset-prediction-button {
-  background: linear-gradient(135deg, var(--bloomery-steel-blue), var(--bloomery-steel-deep));
+  background: var(--bloomery-steel);
   border-color: var(--bloomery-steel-deep);
   border-radius: 9px;
   color: #fff;
@@ -750,7 +751,7 @@ textarea:focus-visible {
 .bloomery-analysis-submit:hover:not(:disabled),
 .bloomery-dataset-training-button:hover:not(:disabled),
 .bloomery-dataset-prediction-button:hover:not(:disabled) {
-  box-shadow: 0 7px 16px rgba(29, 78, 104, 0.2);
+  box-shadow: 0 7px 16px rgba(169, 88, 62, 0.18);
 }
 
 .bloomery-analysis-warning,
@@ -776,9 +777,7 @@ textarea:focus-visible {
 }
 
 .bloomery-setup {
-  background:
-    radial-gradient(circle at 18% 12%, rgba(205, 225, 234, 0.48), transparent 30rem),
-    var(--bloomery-bg);
+  background: var(--bloomery-bg);
 }
 
 .bloomery-setup-frame {
@@ -794,13 +793,13 @@ textarea:focus-visible {
 }
 
 .bloomery-setup-brand-mark {
-  background: linear-gradient(145deg, var(--bloomery-steel-blue), var(--bloomery-steel-deep));
+  background: var(--bloomery-steel);
   border-radius: 10px;
-  box-shadow: 0 5px 14px rgba(29, 78, 104, 0.22);
+  box-shadow: 0 5px 14px rgba(169, 88, 62, 0.18);
 }
 
 .bloomery-setup-progress {
-  background: linear-gradient(160deg, #17384b, #245b74);
+  background: var(--bloomery-steel-deep);
   color: #fff;
 }
 
@@ -831,12 +830,12 @@ textarea:focus-visible {
 
 .bloomery-setup-icon {
   background: var(--bloomery-steel-light);
-  border-color: #c5d9e2;
-  color: var(--bloomery-steel-blue);
+  border-color: var(--bloomery-line);
+  color: var(--bloomery-amber);
 }
 
 .bloomery-setup-primary {
-  background: linear-gradient(135deg, var(--bloomery-steel-blue), var(--bloomery-steel-deep));
+  background: var(--bloomery-steel);
   border-color: var(--bloomery-steel-deep);
   border-radius: 10px;
   color: #fff;
@@ -1024,7 +1023,7 @@ body {
   background: var(--bloomery-steel);
   border: 0;
   border-radius: 10px;
-  box-shadow: 0 5px 14px rgba(85, 118, 132, 0.18);
+  box-shadow: 0 5px 14px rgba(169, 88, 62, 0.16);
 }
 
 .bloomery-brand-copy strong {
@@ -1081,7 +1080,7 @@ body {
 }
 
 .bloomery-hero::after {
-  border-color: rgba(85, 118, 132, 0.12);
+  border-color: rgba(169, 88, 62, 0.12);
 }
 
 .bloomery-hero h1,
@@ -1092,14 +1091,14 @@ body {
 .bloomery-action-primary {
   background: var(--bloomery-steel);
   border-color: var(--bloomery-steel);
-  box-shadow: 0 5px 12px rgba(85, 118, 132, 0.18);
+  box-shadow: 0 5px 12px rgba(169, 88, 62, 0.16);
   color: #fff;
 }
 
 .bloomery-action-primary:hover:not(:disabled) {
   background: #466873;
   border-color: #466873;
-  box-shadow: 0 7px 16px rgba(85, 118, 132, 0.22);
+  box-shadow: 0 7px 16px rgba(169, 88, 62, 0.2);
 }
 
 .bloomery-action-secondary {
@@ -1148,7 +1147,7 @@ body {
 }
 
 .bloomery-chat-sidebar {
-  background: #f7f4ef;
+  background: var(--bloomery-bg-soft);
   border-right-color: var(--bloomery-line);
   padding: 18px 12px 14px;
 }
@@ -1213,8 +1212,8 @@ body {
 }
 
 .bloomery-chat-message.is-user {
-  background: #eef5f6;
-  border: 1px solid #d6e6e8;
+  background: var(--bloomery-amber-soft);
+  border: 1px solid #e5c8bb;
   border-left: 3px solid var(--bloomery-steel);
   border-radius: 12px;
   padding: 13px 16px;
@@ -1496,8 +1495,8 @@ body {
 
 .bloomery-chat-inspector-empty-icon {
   align-items: center;
-  background: #eef5f6;
-  border: 1px solid #d6e6e8;
+  background: var(--bloomery-amber-soft);
+  border: 1px solid #e5c8bb;
   border-radius: 10px;
   color: var(--bloomery-steel);
   display: inline-flex;
@@ -1580,5 +1579,261 @@ body {
   .bloomery-chat-inspector {
     grid-column: auto;
     max-height: none;
+  }
+}
+
+/* ========================= Warm editorial finish ========================= */
+.bloomery-topbar {
+  background: rgba(255, 253, 249, 0.96);
+  border-bottom-color: var(--bloomery-line);
+  box-shadow: 0 1px 0 rgba(72, 52, 38, 0.02);
+}
+
+.bloomery-brand-mark {
+  background: var(--bloomery-amber);
+  box-shadow: 0 5px 14px rgba(169, 88, 62, 0.16);
+  color: #fffdf9;
+}
+
+.bloomery-brand-copy strong,
+.bloomery-sidebar-caption,
+.bloomery-section-heading h2,
+.bloomery-chat-sidebar-heading h1,
+.bloomery-chat-header h2 {
+  color: var(--bloomery-text);
+}
+
+.bloomery-sidebar {
+  background: var(--bloomery-bg-soft);
+  border-right-color: var(--bloomery-line);
+}
+
+.bloomery-nav-item:hover,
+.bloomery-icon-button:hover {
+  background: var(--bloomery-bg-hover);
+  color: var(--bloomery-text);
+}
+
+.bloomery-nav-item.is-active {
+  background: var(--bloomery-bg-hover);
+  border-color: var(--bloomery-line);
+  color: var(--bloomery-steel);
+}
+
+.bloomery-nav-item.is-active::before {
+  background: var(--bloomery-amber);
+}
+
+.bloomery-main {
+  background: var(--bloomery-bg);
+}
+
+.bloomery-main-inner {
+  max-width: 1440px;
+  padding: 30px clamp(22px, 3.5vw, 52px) 56px;
+}
+
+.bloomery-workbench {
+  animation: bloomery-surface-in 220ms ease-out both;
+}
+
+.bloomery-workbench-header {
+  align-items: flex-end;
+  border-bottom: 1px solid var(--bloomery-line);
+  display: flex;
+  gap: 24px;
+  justify-content: space-between;
+  margin-bottom: 20px;
+  padding: 8px 0 20px;
+}
+
+.bloomery-workbench-heading {
+  min-width: 0;
+}
+
+.bloomery-workbench-heading h1 {
+  color: var(--bloomery-text);
+  font-size: clamp(28px, 3vw, 38px);
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  line-height: 1.12;
+  margin: 0;
+}
+
+.bloomery-workbench-header .bloomery-action-strip {
+  flex: 0 0 auto;
+  gap: 8px;
+  padding: 0;
+}
+
+.bloomery-action-primary,
+.bloomery-action-secondary {
+  border-radius: 9px;
+  height: 40px;
+}
+
+.bloomery-action-primary {
+  background: var(--bloomery-amber);
+  border-color: var(--bloomery-amber);
+  box-shadow: 0 5px 12px rgba(169, 88, 62, 0.14);
+  color: #fffdf9;
+}
+
+.bloomery-action-primary:hover:not(:disabled) {
+  background: var(--bloomery-steel);
+  border-color: var(--bloomery-steel);
+  box-shadow: 0 7px 16px rgba(169, 88, 62, 0.18);
+}
+
+.bloomery-action-secondary {
+  background: var(--bloomery-bg-raised);
+  border-color: var(--bloomery-line-strong);
+}
+
+.bloomery-action-secondary:hover:not(:disabled) {
+  background: var(--bloomery-bg-hover);
+  border-color: var(--bloomery-amber);
+}
+
+.bloomery-workbench-alert {
+  background: var(--bloomery-amber-soft);
+  border-color: #e5c8bb;
+  margin-bottom: 16px;
+}
+
+.bloomery-workbench-grid {
+  align-items: stretch;
+  gap: 16px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.bloomery-workbench-grid > .bloomery-status-section,
+.bloomery-workbench-grid > .bloomery-empty-section {
+  background: var(--bloomery-bg-raised);
+  border: 1px solid var(--bloomery-line);
+  border-radius: 12px;
+  box-shadow: var(--bloomery-shadow-soft);
+  min-width: 0;
+  padding: 20px;
+}
+
+.bloomery-section-heading {
+  min-height: 32px;
+}
+
+.bloomery-section-heading h2 {
+  font-size: 16px;
+  font-weight: 650;
+}
+
+.bloomery-status-list {
+  gap: 6px;
+  margin-top: 16px;
+}
+
+.bloomery-status-row,
+.bloomery-recent-row {
+  background: var(--bloomery-bg);
+}
+
+.bloomery-status-row:hover,
+.bloomery-recent-row:hover {
+  background: var(--bloomery-bg-hover);
+  border-color: var(--bloomery-line);
+}
+
+.bloomery-status-row {
+  min-height: 50px;
+}
+
+.bloomery-recent-list {
+  gap: 18px;
+  margin-top: 16px;
+}
+
+.bloomery-recent-row svg {
+  color: var(--bloomery-amber);
+}
+
+.bloomery-empty-state,
+.bloomery-workbench-loading {
+  background: var(--bloomery-bg);
+  border-color: var(--bloomery-line-strong);
+  margin-top: 16px;
+}
+
+.bloomery-chat,
+.bloomery-analysis-tool,
+.bloomery-analysis-result,
+.bloomery-knowledge-base,
+.bloomery-knowledge-content,
+.bloomery-settings-card,
+.bloomery-diagnostics-card,
+.bloomery-extensions-section {
+  border-color: var(--bloomery-line);
+  border-radius: 12px;
+  box-shadow: var(--bloomery-shadow-soft);
+}
+
+.bloomery-chat-session:hover,
+.bloomery-chat-session.is-active {
+  color: var(--bloomery-text);
+}
+
+.bloomery-chat-session.is-active {
+  border-left-color: var(--bloomery-amber);
+}
+
+.bloomery-chat-message.is-user {
+  background: var(--bloomery-amber-soft);
+  border-color: #e5c8bb;
+  border-left-color: var(--bloomery-amber);
+}
+
+.bloomery-chat-inspector-empty-icon {
+  background: var(--bloomery-amber-soft);
+  border-color: #e5c8bb;
+  color: var(--bloomery-amber);
+}
+
+.bloomery-chat-inspector-progress > span {
+  background: var(--bloomery-amber);
+}
+
+.bloomery-setup-progress {
+  background: var(--bloomery-steel);
+}
+
+@media (max-width: 760px) {
+  .bloomery-workbench-header {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 16px;
+    padding-bottom: 18px;
+  }
+
+  .bloomery-workbench-header .bloomery-action-strip {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .bloomery-workbench-header .bloomery-action-primary,
+  .bloomery-workbench-header .bloomery-action-secondary {
+    width: 100%;
+  }
+}
+
+@media (max-width: 640px) {
+  .bloomery-main-inner {
+    padding: 20px 14px 44px;
+  }
+
+  .bloomery-workbench-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .bloomery-workbench-grid > .bloomery-status-section,
+  .bloomery-workbench-grid > .bloomery-empty-section {
+    padding: 18px;
   }
 }

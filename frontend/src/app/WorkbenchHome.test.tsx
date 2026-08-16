@@ -18,6 +18,14 @@ describe("WorkbenchHome", () => {
     vi.clearAllMocks();
   });
 
+  it("keeps the workbench title and common actions in one compact header", () => {
+    render(<WorkbenchHome initializationState="ready" onOpenSection={() => undefined} />);
+
+    const header = screen.getByTestId("workbench-header");
+    expect(header.querySelector(".bloomery-action-strip")).not.toBeNull();
+    expect(header.querySelector("h1")).toHaveTextContent("工作台");
+  });
+
   it("loads local activity summaries instead of showing static empty values", async () => {
     vi.mocked(desktop.listConversations).mockResolvedValue([
       { id: "conversation-1", title: "Q355B 质量分析", created_at: "2026-08-07T10:00:00Z", updated_at: "2026-08-07T10:10:00Z", pinned: false, archived: false },
