@@ -15,7 +15,7 @@ use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
 
 pub const MAX_STDERR_BYTES: usize = 64 * 1024;
-pub const DEFAULT_WORKER_MEMORY_LIMIT_BYTES: u64 = 1024 * 1024 * 1024;
+pub const DEFAULT_WORKER_MEMORY_LIMIT_BYTES: u64 = 2 * 1024 * 1024 * 1024;
 const MIN_WORKER_MEMORY_LIMIT_BYTES: u64 = 64 * 1024 * 1024;
 const DEFAULT_SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(2);
 
@@ -695,7 +695,11 @@ mod tests {
     #[test]
     fn worker_configs_have_a_bounded_memory_limit_by_default() {
         let config = WorkerConfig::new(std::path::PathBuf::from("worker.exe"));
-        assert_eq!(config.memory_limit_bytes, DEFAULT_WORKER_MEMORY_LIMIT_BYTES);
+        assert_eq!(
+            config.memory_limit_bytes,
+            2 * 1024 * 1024 * 1024,
+            "the default Worker budget must leave headroom for scientific Python runtimes"
+        );
         assert_eq!(
             WorkerConfig::new(std::path::PathBuf::from("worker.exe"))
                 .with_memory_limit_bytes(256 * 1024 * 1024)
