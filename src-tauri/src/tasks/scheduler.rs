@@ -186,7 +186,7 @@ pub struct SchedulerConfig {
 impl Default for SchedulerConfig {
     fn default() -> Self {
         Self {
-            max_workers: 4,
+            max_workers: 2,
             max_attempts: 4,
             retry_base: Duration::from_secs(5),
             retry_max: Duration::from_secs(5 * 60),
@@ -949,6 +949,15 @@ mod tests {
         assert_eq!(
             journal_mode, "wal",
             "scheduler task connections must use WAL for concurrent progress reads"
+        );
+    }
+
+    #[test]
+    fn default_scheduler_limits_concurrent_workers_for_desktop_memory_budget() {
+        assert_eq!(
+            SchedulerConfig::default().max_workers,
+            2,
+            "the desktop scheduler must leave memory headroom for the app and two bounded compute workers"
         );
     }
 
