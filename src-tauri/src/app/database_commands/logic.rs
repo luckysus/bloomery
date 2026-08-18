@@ -113,6 +113,19 @@ pub(super) fn load_record(
     })
 }
 
+pub(super) fn load_enabled_record(
+    db: &tauri::State<'_, DbState>,
+    store: &dyn SecretStore,
+    id: Uuid,
+) -> Result<DatabaseConnectionRecord, String> {
+    let _ = store;
+    let record = load_record(db, id)?;
+    if !record.enabled {
+        return Err("database connection is disabled".to_string());
+    }
+    Ok(record)
+}
+
 pub(super) struct PreparedQuerySubmission {
     pub connection_id: Uuid,
     pub sql: String,

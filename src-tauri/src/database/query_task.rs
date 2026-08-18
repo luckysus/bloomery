@@ -26,8 +26,8 @@ struct QueryTaskPayload {
 }
 
 fn parse_payload(payload_json: &str) -> Result<QueryTaskPayload, HandlerError> {
-    let payload: QueryTaskPayload =
-        serde_json::from_str(payload_json).map_err(|_| HandlerError::permanent("invalid_payload"))?;
+    let payload: QueryTaskPayload = serde_json::from_str(payload_json)
+        .map_err(|_| HandlerError::permanent("invalid_payload"))?;
     if payload.connection_id.trim().is_empty() || payload.sql.trim().is_empty() {
         return Err(HandlerError::permanent("invalid_payload"));
     }
@@ -85,7 +85,9 @@ async fn run_query(
             .map_err(|error| HandlerError::permanent(format!("cannot switch database: {error}")))?;
     }
     match tokio::time::timeout(timeout, catalog::execute_read(&mut client, &wrapped)).await {
-        Ok(result) => result.map_err(|error| HandlerError::permanent(format!("query_failed: {error}"))),
+        Ok(result) => {
+            result.map_err(|error| HandlerError::permanent(format!("query_failed: {error}")))
+        }
         Err(_) => Err(HandlerError::permanent("query_timeout")),
     }
 }

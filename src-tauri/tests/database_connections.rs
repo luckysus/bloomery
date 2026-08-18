@@ -138,16 +138,14 @@ fn record_health_rejects_foreign_workspace() {
     let mut conn = database();
     let owned = record("电炉");
     database_connections::save(&mut conn, WORKSPACE, &owned).expect("save");
-    assert!(
-        database_connections::record_health(
-            &conn,
-            OTHER_WORKSPACE,
-            owned.id,
-            &Utc::now().to_rfc3339(),
-            None,
-            None,
-            Some("timeout")
-        )
-        .is_err()
-    );
+    assert!(database_connections::record_health(
+        &conn,
+        OTHER_WORKSPACE,
+        owned.id,
+        &Utc::now().to_rfc3339(),
+        None,
+        None,
+        Some("timeout")
+    )
+    .is_err());
 }

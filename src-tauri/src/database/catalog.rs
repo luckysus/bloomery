@@ -76,10 +76,33 @@ pub async fn execute_read(client: &mut SqlClient, sql: &str) -> Result<QueryRows
                         .ok()
                         .flatten()
                         .map(str::to_string)
-                        .or_else(|| row.try_get::<i64, _>(index).ok().flatten().map(|value| value.to_string()))
-                        .or_else(|| row.try_get::<i32, _>(index).ok().flatten().map(|value| value.to_string()))
-                        .or_else(|| row.try_get::<f64, _>(index).ok().flatten().map(|value| value.to_string()))
-                        .or_else(|| row.try_get::<bool, _>(index).ok().flatten().map(|value| if value { "1".to_string() } else { "0".to_string() }))
+                        .or_else(|| {
+                            row.try_get::<i64, _>(index)
+                                .ok()
+                                .flatten()
+                                .map(|value| value.to_string())
+                        })
+                        .or_else(|| {
+                            row.try_get::<i32, _>(index)
+                                .ok()
+                                .flatten()
+                                .map(|value| value.to_string())
+                        })
+                        .or_else(|| {
+                            row.try_get::<f64, _>(index)
+                                .ok()
+                                .flatten()
+                                .map(|value| value.to_string())
+                        })
+                        .or_else(|| {
+                            row.try_get::<bool, _>(index).ok().flatten().map(|value| {
+                                if value {
+                                    "1".to_string()
+                                } else {
+                                    "0".to_string()
+                                }
+                            })
+                        })
                 })
                 .collect()
         })
@@ -92,7 +115,11 @@ pub fn csv_cell(value: Option<&str>) -> String {
     match value {
         None => String::new(),
         Some(text) => {
-            if text.contains(',') || text.contains('"') || text.contains('\n') || text.contains('\r') {
+            if text.contains(',')
+                || text.contains('"')
+                || text.contains('\n')
+                || text.contains('\r')
+            {
                 format!("\"{}\"", text.replace('"', "\"\""))
             } else {
                 text.to_string()
@@ -107,7 +134,10 @@ mod tests {
 
     #[test]
     fn escape_identifier_brackets_and_doubles_closing_brackets() {
-        assert_eq!(escape_identifier("SteelWorks").expect("plain"), "[SteelWorks]");
+        assert_eq!(
+            escape_identifier("SteelWorks").expect("plain"),
+            "[SteelWorks]"
+        );
         assert_eq!(escape_identifier(" my]db ").expect("trimmed"), "[my]]db]");
     }
 

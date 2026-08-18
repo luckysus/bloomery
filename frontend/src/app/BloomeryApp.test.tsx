@@ -223,6 +223,7 @@ describe("BloomeryApp", () => {
 
     await screen.findByRole("heading", { name: "工作台" });
     fireEvent.click(screen.getByRole("button", { name: "设置" }));
+    fireEvent.click(await screen.findByRole("tab", { name: "通用" }));
     fireEvent.click(await screen.findByRole("button", { name: "深色" }));
 
     await waitFor(() =>

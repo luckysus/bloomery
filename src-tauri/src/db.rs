@@ -81,7 +81,6 @@ fn content_root_for(database: &PathBuf) -> Result<PathBuf, String> {
         .map(std::path::Path::to_path_buf)
         .ok_or_else(|| "resolve RAG content root failed".to_string())
 }
-
 #[tauri::command]
 pub fn db_init(
     app: tauri::AppHandle,

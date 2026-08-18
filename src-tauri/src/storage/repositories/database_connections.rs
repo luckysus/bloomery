@@ -156,7 +156,14 @@ pub fn record_health(
             "UPDATE database_connections
              SET last_checked_at = ?3, last_latency_ms = ?4, last_version = ?5, last_error = ?6
              WHERE workspace_id = ?1 AND id = ?2",
-            params![workspace_id, id.to_string(), checked_at, latency_ms, version, error],
+            params![
+                workspace_id,
+                id.to_string(),
+                checked_at,
+                latency_ms,
+                version,
+                error
+            ],
         )
         .map_err(|error| error.to_string())?;
     if updated == 0 {

@@ -58,10 +58,7 @@ fn query_result_round_trip() {
 
     let recent = database_query_results::list_recent(&conn, WORKSPACE, 10).expect("list");
     assert_eq!(recent.len(), 2);
-    assert_eq!(
-        recent[0].query_text, "SELECT 2 AS heat_id",
-        "倒序:最新在前"
-    );
+    assert_eq!(recent[0].query_text, "SELECT 2 AS heat_id", "倒序:最新在前");
 }
 
 #[test]
@@ -70,16 +67,12 @@ fn query_results_are_workspace_scoped() {
     let owned = record(Uuid::new_v4(), "SELECT 1");
     database_query_results::insert(&conn, WORKSPACE, &owned).expect("insert");
 
-    assert!(
-        database_query_results::get(&conn, OTHER, owned.task_id)
-            .expect("get other")
-            .is_none()
-    );
-    assert!(
-        database_query_results::list_recent(&conn, OTHER, 10)
-            .expect("list other")
-            .is_empty()
-    );
+    assert!(database_query_results::get(&conn, OTHER, owned.task_id)
+        .expect("get other")
+        .is_none());
+    assert!(database_query_results::list_recent(&conn, OTHER, 10)
+        .expect("list other")
+        .is_empty());
 }
 
 #[test]

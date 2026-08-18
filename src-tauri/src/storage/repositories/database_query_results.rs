@@ -56,8 +56,7 @@ pub fn insert(
     workspace_id: &str,
     record: &QueryResultRecord,
 ) -> Result<(), String> {
-    let columns_json =
-        serde_json::to_string(&record.columns).map_err(|error| error.to_string())?;
+    let columns_json = serde_json::to_string(&record.columns).map_err(|error| error.to_string())?;
     let rows_json = serde_json::to_string(&record.rows).map_err(|error| error.to_string())?;
     conn.execute(
         "INSERT INTO database_query_results

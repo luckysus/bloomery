@@ -1,18 +1,9 @@
-import { useEffect, useState } from "react";
 import { Database } from "lucide-react";
-import {
-  desktop,
-  type BackgroundTask,
-  type DatabaseConnectionSummary,
-  type DatabaseQueryResult,
-  type DatabaseQuerySummary,
-} from "../../bridge/desktop";
 import { useLocale } from "../../i18n/locale";
+import { ROW_LIMITS, useDatabaseController } from "./useDatabaseController";
 
-const POLL_INTERVAL_MS = 500;
-const ROW_LIMITS = [100, 500, 1000, 5000];
-const TERMINAL_STATES = ["completed", "failed", "cancelled", "interrupted"];
-const isTerminal = (state: string) => TERMINAL_STATES.includes(state);
+const isRunning = (state?: string) =>
+  state !== undefined && !["completed", "failed", "cancelled", "interrupted"].includes(state);
 
 export default function DatabasePage({
   onOpenSection,
@@ -20,159 +11,32 @@ export default function DatabasePage({
   onOpenSection?: (section: "analysis" | "settings") => void;
 }) {
   const { t } = useLocale();
-  const [connections, setConnections] = useState<DatabaseConnectionSummary[]>([]);
-  const [connectionId, setConnectionId] = useState("");
-  const [databases, setDatabases] = useState<string[]>([]);
-  const [databaseName, setDatabaseName] = useState("");
-  const [tables, setTables] = useState<string[]>([]);
-  const [sql, setSql] = useState("");
-  const [rowLimit, setRowLimit] = useState(500);
-  const [task, setTask] = useState<BackgroundTask | null>(null);
-  const [result, setResult] = useState<DatabaseQueryResult | null>(null);
-  const [history, setHistory] = useState<DatabaseQuerySummary[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [busy, setBusy] = useState(false);
-  const [sending, setSending] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
-
-  const connectionName = (id: string) =>
-    connections.find((item) => item.id === id)?.display_name ?? id;
-
-  useEffect(() => {
-    let mounted = true;
-    desktop
-      .listDatabaseConnections()
-      .then((items) => {
-        if (!mounted) return;
-        const enabled = items.filter((item) => item.enabled && item.secret_configured);
-        setConnections(enabled);
-        setConnectionId(enabled[0]?.id ?? "");
-      })
-      .catch(() => mounted && setError(t("dbLoadError")))
-      .finally(() => mounted && setLoading(false));
-    return () => {
-      mounted = false;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  useEffect(() => {
-    if (!connectionId) return;
-    let mounted = true;
-    setError(null);
-    Promise.all([desktop.listDatabases(connectionId), desktop.listDatabaseTables(connectionId)])
-      .then(([names, tableNames]) => {
-        if (!mounted) return;
-        setDatabases(names);
-        setTables(tableNames);
-      })
-      .catch((cause) => mounted && setError(cause instanceof Error ? cause.message : t("dbLoadError")));
-    return () => {
-      mounted = false;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [connectionId]);
-
-  useEffect(() => {
-    let mounted = true;
-    desktop
-      .listDatabaseQueryResults()
-      .then((items) => mounted && setHistory(items))
-      .catch(() => {
-        /* 历史加载失败不打断主流程 */
-      });
-    return () => {
-      mounted = false;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const run = async () => {
-    if (!connectionId || busy || !sql.trim()) return;
-    setBusy(true);
-    setError(null);
-    setNotice(null);
-    try {
-      const queued = await desktop.submitDatabaseQuery({
-        connection_id: connectionId,
-        database: databaseName || null,
-        sql,
-        row_limit: rowLimit,
-      });
-      setTask(queued);
-      setResult(null);
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : t("dbQueryFailed"));
-      setTask(null);
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const cancel = async () => {
-    if (!task) return;
-    try {
-      await desktop.cancelBackgroundTask(task.id);
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : t("dbQueryFailed"));
-    }
-  };
-
-  useEffect(() => {
-    if (!task || isTerminal(task.state)) return;
-    let mounted = true;
-    const refresh = async () => {
-      try {
-        const tasks = await desktop.listBackgroundTasks();
-        const current = tasks.find((candidate) => candidate.id === task.id);
-        if (!mounted || !current) return;
-        if (current.state === "completed") {
-          const next = await desktop.getDatabaseQueryResult(current.id);
-          if (!mounted) return;
-          setTask(current);
-          setResult(next);
-          void desktop
-            .listDatabaseQueryResults()
-            .then((items) => mounted && setHistory(items))
-            .catch(() => {
-              /* 静默 */
-            });
-        } else {
-          setTask(current);
-        }
-      } catch {
-        /* 轮询失败下次重试 */
-      }
-    };
-    void refresh();
-    const timer = window.setInterval(() => void refresh(), POLL_INTERVAL_MS);
-    return () => {
-      mounted = false;
-      window.clearInterval(timer);
-    };
-  }, [task]);
-
-  const sendToAnalysis = async () => {
-    if (!result || sending) return;
-    setSending(true);
-    setError(null);
-    setNotice(null);
-    try {
-      const saved = await desktop.saveSteelDataset({ sourcePath: result.csv_path });
-      await desktop.activateSteelDataset(saved.id);
-      setNotice(t("dbSent"));
-      onOpenSection?.("analysis");
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : t("dbSendError"));
-    } finally {
-      setSending(false);
-    }
-  };
-
-  const fillFromTable = (name: string) => {
-    setSql(`SELECT TOP (${rowLimit}) * FROM [${name.replace(".", "].[")}]`);
-  };
+  const {
+    connections,
+    databases,
+    tables,
+    sql,
+    rowLimit,
+    task,
+    result,
+    history,
+    loading,
+    busy,
+    sending,
+    error,
+    notice,
+    connectionId,
+    databaseName,
+    connectionName,
+    onConnectionChange,
+    onDatabaseChange,
+    onSqlChange,
+    onRowLimitChange,
+    run,
+    cancel,
+    sendToAnalysis,
+    fillFromTable,
+  } = useDatabaseController(onOpenSection);
 
   return (
     <div className="bloomery-db bloomery-page-surface">
@@ -221,7 +85,7 @@ export default function DatabasePage({
                 <select
                   aria-label={t("dbConnectionLabel")}
                   value={connectionId}
-                  onChange={(event) => setConnectionId(event.target.value)}
+                  onChange={(event) => onConnectionChange(event.target.value)}
                 >
                   {connections.map((item) => (
                     <option key={item.id} value={item.id}>
@@ -235,7 +99,7 @@ export default function DatabasePage({
                 <select
                   aria-label={t("dbDatabaseLabel")}
                   value={databaseName}
-                  onChange={(event) => setDatabaseName(event.target.value)}
+                  onChange={(event) => onDatabaseChange(event.target.value)}
                 >
                   <option value="">{t("dbDatabaseLabel")}</option>
                   {databases.map((name) => (
@@ -255,7 +119,7 @@ export default function DatabasePage({
                   rows={6}
                   className="bloomery-db-sql-input"
                   value={sql}
-                  onChange={(event) => setSql(event.target.value)}
+                  onChange={(event) => onSqlChange(event.target.value)}
                   spellCheck={false}
                 />
               </label>
@@ -265,7 +129,7 @@ export default function DatabasePage({
                   <select
                     aria-label={t("dbRowLimit")}
                     value={rowLimit}
-                    onChange={(event) => setRowLimit(Number(event.target.value))}
+                    onChange={(event) => onRowLimitChange(Number(event.target.value))}
                   >
                     {ROW_LIMITS.map((limit) => (
                       <option key={limit} value={limit}>
@@ -274,7 +138,7 @@ export default function DatabasePage({
                     ))}
                   </select>
                 </label>
-                {task && !isTerminal(task.state) ? (
+                {task && isRunning(task.state) ? (
                   <button
                     type="button"
                     className="bloomery-action-secondary"
@@ -294,7 +158,7 @@ export default function DatabasePage({
                     {t("dbRun")}
                   </button>
                 )}
-                {task && !isTerminal(task.state) && (
+                {task && isRunning(task.state) && (
                   <span className="bloomery-db-running" aria-live="polite">
                     {t("dbRunning")}
                   </span>
@@ -360,7 +224,7 @@ export default function DatabasePage({
                   type="button"
                   className="bloomery-db-table-button"
                   title={item.query_text}
-                  onClick={() => setSql(item.query_text)}
+                  onClick={() => onSqlChange(item.query_text)}
                 >
                   <code>{item.query_text}</code>
                   <span className="bloomery-db-history-meta">
