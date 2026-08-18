@@ -1,5 +1,6 @@
 use bloomery::storage::migrations::migrate;
 use bloomery::storage::repositories::database_connections::{self, DatabaseConnectionRecord};
+use chrono::Utc;
 use rusqlite::Connection;
 use uuid::Uuid;
 
@@ -22,6 +23,10 @@ fn record(display_name: &str) -> DatabaseConnectionRecord {
         username: "sa".to_string(),
         timeout_ms: 10_000,
         enabled: true,
+        last_checked_at: None,
+        last_latency_ms: None,
+        last_version: None,
+        last_error: None,
     }
 }
 
@@ -93,5 +98,56 @@ fn database_connection_update_preserves_owner_workspace() {
     assert!(
         database_connections::save(&mut conn, OTHER_WORKSPACE, &renamed).is_err(),
         "saving from another workspace must be rejected"
+    );
+}
+
+#[test]
+fn record_health_updates_health_columns_only() {
+    let mut conn = database();
+    let original = record("转炉");
+    database_connections::save(&mut conn, WORKSPACE, &original).expect("save");
+
+    database_connections::record_health(
+        &conn,
+        WORKSPACE,
+        original.id,
+        &Utc::now().to_rfc3339(),
+        Some(128),
+        Some("Microsoft SQL Server 2022"),
+        None,
+    )
+    .expect("record health");
+
+    let healthy = database_connections::get(&conn, WORKSPACE, original.id)
+        .expect("get")
+        .expect("exists");
+    assert_eq!(healthy.last_latency_ms, Some(128));
+    assert_eq!(
+        healthy.last_version.as_deref(),
+        Some("Microsoft SQL Server 2022")
+    );
+    assert!(healthy.last_error.is_none());
+    assert_eq!(
+        healthy.display_name, "转炉",
+        "health write must not touch other columns"
+    );
+}
+
+#[test]
+fn record_health_rejects_foreign_workspace() {
+    let mut conn = database();
+    let owned = record("电炉");
+    database_connections::save(&mut conn, WORKSPACE, &owned).expect("save");
+    assert!(
+        database_connections::record_health(
+            &conn,
+            OTHER_WORKSPACE,
+            owned.id,
+            &Utc::now().to_rfc3339(),
+            None,
+            None,
+            Some("timeout")
+        )
+        .is_err()
     );
 }

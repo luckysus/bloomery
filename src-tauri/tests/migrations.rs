@@ -125,6 +125,10 @@ fn seed_database_at_version(connection: &mut Connection, version: u32) {
             23,
             include_str!("../src/storage/migrations/0023_clear_database_name.sql"),
         ),
+        (
+            24,
+            include_str!("../src/storage/migrations/0024_database_workspace.sql"),
+        ),
     ];
 
     for (migration_version, sql) in migrations.into_iter().take(version as usize) {
@@ -440,6 +444,7 @@ fn version_twelve_database_receives_summary_source_backfill() {
         DROP TABLE steel_models;
         DROP TABLE mcp_servers;
         DROP TABLE database_connections;
+        DROP TABLE database_query_results;
         ALTER TABLE background_tasks DROP COLUMN started_at;
         ALTER TABLE background_tasks DROP COLUMN finished_at;
         DELETE FROM schema_migrations WHERE version > 12;
@@ -452,7 +457,7 @@ fn version_twelve_database_receives_summary_source_backfill() {
 
     assert_eq!(
         report.applied_versions,
-        vec![13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23]
+        vec![13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24]
     );
     assert_eq!(
         conn.query_row(
@@ -484,7 +489,7 @@ fn version_nineteen_database_requires_v20_for_sklearn_model_kind() {
     );
 
     let report = migrate(&mut conn).expect("apply v20 model-kind migration");
-    assert_eq!(report.applied_versions, vec![20, 21, 22, 23]);
+    assert_eq!(report.applied_versions, vec![20, 21, 22, 23, 24]);
 
     conn.execute(
         "INSERT INTO steel_models
@@ -515,7 +520,7 @@ fn file_database_uses_wal_and_ordered_migrations() {
     assert_eq!(version, latest_version());
     assert_eq!(
         report.applied_versions,
-        vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23]
+        vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24]
     );
 }
 

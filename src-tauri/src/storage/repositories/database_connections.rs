@@ -12,10 +12,14 @@ pub struct DatabaseConnectionRecord {
     pub username: String,
     pub timeout_ms: u64,
     pub enabled: bool,
+    pub last_checked_at: Option<String>,
+    pub last_latency_ms: Option<i64>,
+    pub last_version: Option<String>,
+    pub last_error: Option<String>,
 }
 
 const SELECT_COLUMNS: &str =
-    "id, display_name, host, port, database_name, username, timeout_ms, enabled";
+    "id, display_name, host, port, database_name, username, timeout_ms, enabled, last_checked_at, last_latency_ms, last_version, last_error";
 
 fn decode(row: &rusqlite::Row<'_>) -> rusqlite::Result<DatabaseConnectionRecord> {
     Ok(DatabaseConnectionRecord {
@@ -33,6 +37,10 @@ fn decode(row: &rusqlite::Row<'_>) -> rusqlite::Result<DatabaseConnectionRecord>
         username: row.get(5)?,
         timeout_ms: row.get::<_, i64>(6)? as u64,
         enabled: row.get::<_, i64>(7)? == 1,
+        last_checked_at: row.get(8)?,
+        last_latency_ms: row.get(9)?,
+        last_version: row.get(10)?,
+        last_error: row.get(11)?,
     })
 }
 
@@ -129,6 +137,29 @@ pub fn delete(conn: &mut Connection, workspace_id: &str, id: Uuid) -> Result<(),
         )
         .map_err(|error| error.to_string())?;
     if deleted == 0 {
+        return Err("database connection not found".to_string());
+    }
+    Ok(())
+}
+
+pub fn record_health(
+    conn: &Connection,
+    workspace_id: &str,
+    id: Uuid,
+    checked_at: &str,
+    latency_ms: Option<i64>,
+    version: Option<&str>,
+    error: Option<&str>,
+) -> Result<(), String> {
+    let updated = conn
+        .execute(
+            "UPDATE database_connections
+             SET last_checked_at = ?3, last_latency_ms = ?4, last_version = ?5, last_error = ?6
+             WHERE workspace_id = ?1 AND id = ?2",
+            params![workspace_id, id.to_string(), checked_at, latency_ms, version, error],
+        )
+        .map_err(|error| error.to_string())?;
+    if updated == 0 {
         return Err("database connection not found".to_string());
     }
     Ok(())

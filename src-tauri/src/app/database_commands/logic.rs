@@ -62,6 +62,10 @@ pub(super) fn normalized(
                 .unwrap_or(crate::database::DEFAULT_TIMEOUT_MS)
                 .clamp(1_000, 60_000),
             enabled: input.enabled.unwrap_or(true),
+            last_checked_at: None,
+            last_latency_ms: None,
+            last_version: None,
+            last_error: None,
         },
     ))
 }
