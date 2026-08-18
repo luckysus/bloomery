@@ -43,14 +43,14 @@ pub struct HandlerError {
 impl HandlerError {
     pub fn retryable(code: impl Into<String>) -> Self {
         Self {
-            code: code.into(),
+            code: normalize_handler_error_code(code.into()),
             retryable: true,
         }
     }
 
     pub fn permanent(code: impl Into<String>) -> Self {
         Self {
-            code: code.into(),
+            code: normalize_handler_error_code(code.into()),
             retryable: false,
         }
     }
@@ -62,6 +62,17 @@ impl HandlerError {
     pub fn is_retryable(&self) -> bool {
         self.retryable
     }
+}
+
+fn normalize_handler_error_code(code: String) -> String {
+    if validate_identifier("error_code", &code).is_ok() {
+        return code;
+    }
+    code.split_once(':')
+        .map(|(prefix, _)| prefix.trim())
+        .filter(|prefix| validate_identifier("error_code", prefix).is_ok())
+        .map(str::to_string)
+        .unwrap_or_else(|| "handler_error".to_string())
 }
 
 pub trait TaskHandler: Send + Sync {
@@ -1016,6 +1027,61 @@ mod tests {
         assert_eq!(failed.state, TaskState::Failed);
         assert_eq!(failed.error_code.as_deref(), Some("handler_panicked"));
         assert!(scheduler.active.is_empty());
+        drop(scheduler);
+        fs::remove_file(&path).expect("remove test database");
+    }
+
+    #[test]
+    fn invalid_handler_error_codes_are_normalized_before_persistence() {
+        let path = std::env::temp_dir().join(format!(
+            "bloomery-invalid-handler-code-{}.sqlite3",
+            Uuid::new_v4()
+        ));
+        let mut connection = Connection::open(&path).expect("open test database");
+        migrate(&mut connection).expect("migrate test database");
+        let created = repository::create(
+            &mut connection,
+            NewTask {
+                workspace_id: "workspace-a".to_string(),
+                kind: "claim-gate".to_string(),
+                payload_json: "{}".to_string(),
+                checkpoint_json: None,
+                next_run_at: None,
+                progress: 0,
+            },
+        )
+        .expect("create task");
+        let claim =
+            repository::claim_next(&mut connection, "workspace-a", &Utc::now().to_rfc3339())
+                .expect("claim task")
+                .expect("claimed task");
+        drop(connection);
+
+        let scheduler = Scheduler::new(
+            path.clone(),
+            "workspace-a".to_string(),
+            SchedulerConfig::default(),
+            Arc::new(SystemClock),
+            Vec::new(),
+            Arc::new(NoopEventSink),
+        )
+        .expect("create scheduler");
+        scheduler
+            .finish(
+                claim,
+                Err(HandlerError::permanent("query_failed: 数据库 is locked")),
+            )
+            .expect("invalid handler code must not break task persistence");
+
+        let failed = repository::get(
+            &open_connection(&path).expect("open task database"),
+            "workspace-a",
+            created.id,
+        )
+        .expect("read task")
+        .expect("persisted task");
+        assert_eq!(failed.state, TaskState::Failed);
+        assert_eq!(failed.error_code.as_deref(), Some("query_failed"));
         drop(scheduler);
         fs::remove_file(&path).expect("remove test database");
     }
