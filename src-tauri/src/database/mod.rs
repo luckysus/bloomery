@@ -1,3 +1,4 @@
+pub mod catalog;
 pub mod query;
 
 use crate::storage::repositories::database_connections::DatabaseConnectionRecord;
