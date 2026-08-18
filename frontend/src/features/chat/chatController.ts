@@ -40,6 +40,21 @@ function exportFileName(title: string, extension: string) {
   return `${safeTitle || "bloomery-conversation"}.${extension}`;
 }
 
+function shouldRunSmartSearch(question: string) {
+  const value = question.trim();
+  if (!value) return false;
+  const compact = value.toLocaleLowerCase().replace(/\s+/g, "");
+  if (["你好", "您好", "hello", "hi", "hey", "在吗", "谢谢", "thanks"].includes(compact)) {
+    return false;
+  }
+  const cjkCount = Array.from(value).filter((character) => {
+    const code = character.charCodeAt(0);
+    return (code >= 0x3400 && code <= 0x9fff) || (code >= 0xf900 && code <= 0xfaff);
+  }).length;
+  const asciiTokens = value.match(/[a-z0-9][a-z0-9._/-]*/gi)?.length ?? 0;
+  return cjkCount >= 4 || asciiTokens >= 2 || /钢|铁|材料|牌号|屈服|抗拉|延伸|成分|工艺|标准|文献|知识库|q\d/i.test(value);
+}
+
 export interface ChatControllerProps {
   conversations: Conversation[];
   selectedId: string | null;
@@ -269,7 +284,7 @@ export function useChatController(): ChatControllerProps {
       setAttachments([]);
 
       let evidencePackId: string | undefined;
-      if (smartSearchEnabled && question && knowledgeBaseIds.length > 0) {
+      if (smartSearchEnabled && shouldRunSmartSearch(question) && knowledgeBaseIds.length > 0) {
         try {
           const evidencePack = await desktop.queryLocalKnowledge({ query: question, knowledge_base_ids: knowledgeBaseIds });
           evidencePackId = evidencePack.id;

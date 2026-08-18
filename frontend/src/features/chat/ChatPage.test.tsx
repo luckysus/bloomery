@@ -227,6 +227,20 @@ describe("ChatPage", () => {
     expect(desktop.queryLocalKnowledge).not.toHaveBeenCalled();
   });
 
+  it("does not run local smart search for short greetings", async () => {
+    render(<ChatPage />);
+
+    await screen.findByRole("button", { name: "Q355B 标准" });
+    fireEvent.change(screen.getByRole("textbox"), { target: { value: "你好" } });
+    fireEvent.click(screen.getByRole("button", { name: "发送" }));
+
+    await waitFor(() => expect(desktop.desktopAgentChat).toHaveBeenCalledWith(expect.objectContaining({
+      message: "你好",
+      evidencePackId: undefined,
+    })));
+    expect(desktop.queryLocalKnowledge).not.toHaveBeenCalled();
+  });
+
   it("sends a message through the local agent command", async () => {
     vi.mocked(desktop.desktopAgentChat).mockImplementation(async () => {
       vi.mocked(desktop.listMessages).mockResolvedValue([userMessage, {

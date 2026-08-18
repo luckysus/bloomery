@@ -1,6 +1,7 @@
 // Local knowledge command domain logic.
 use crate::db::{current_workspace_id, database_path, with_conn, with_conn_mut, DbState};
 use crate::providers::capabilities::{EmbeddingProvider, RerankProvider};
+use crate::providers::http::{ProviderError, ProviderErrorCode};
 use crate::providers::profiles::{ProviderCapability, ProviderKind, ProviderProfileRecord};
 use crate::providers::{
     configured_embedding_provider, configured_rerank_provider, ConfiguredEmbeddingProvider,
@@ -10,6 +11,7 @@ use crate::rag::citation::{
     persist_evidence_pack, resolve_citation, EvidencePack, ResolvedCitation,
     RetrievalConfigSnapshot,
 };
+use crate::rag::index::fts::{search as search_fts, FtsHit, FtsSearchRequest};
 use crate::rag::index::lifecycle::open_with_flat_fallback;
 use crate::rag::index::rebuild::{
     index_root, load_index_snapshot, queue_index_rebuild, IndexRebuildRequest,
@@ -17,7 +19,7 @@ use crate::rag::index::rebuild::{
 use crate::rag::ingest::{queue_document_import, DocumentImportRequest, DocumentImportResponse};
 use crate::rag::model::{KnowledgeBaseId, SourceDocumentId};
 use crate::rag::rerank::{rerank_candidates, RerankDegradationReason, RerankProviderState};
-use crate::rag::retrieve::{retrieve, HybridSearchRequest};
+use crate::rag::retrieve::{retrieve, HybridSearchRequest, RetrievedChunk};
 use crate::storage::repositories::domains;
 use crate::storage::repositories::knowledge::{
     self, DocumentVersionRecord, KnowledgeBaseDeleteImpact, KnowledgeBaseRecord, KnowledgeHealth,
@@ -253,8 +255,7 @@ pub(crate) async fn query_local_knowledge_from_path(
             &connection,
             workspace_id,
             ProviderCapability::Embedding,
-        )?
-        .ok_or_else(|| "default embedding provider is not configured".to_string())?;
+        )?;
         let rerank = provider_profiles::get_default_record(
             &connection,
             workspace_id,
@@ -266,13 +267,70 @@ pub(crate) async fn query_local_knowledge_from_path(
         Ok::<_, String>((embedding, rerank, plan))
     }?;
     drop(connection);
+    let Some(embedding_record) = embedding_record else {
+        let connection = open_query_connection(&path)?;
+        return query_local_knowledge_fts_fallback(
+            &connection,
+            workspace_id,
+            request,
+            "local_fts",
+            "keyword",
+            Some(RerankDegradationReason::UnsupportedCapability),
+        );
+    };
+    if request.dense_limit == 0 {
+        let connection = open_query_connection(&path)?;
+        return query_local_knowledge_fts_fallback(
+            &connection,
+            workspace_id,
+            request,
+            &embedding_record.profile.id.to_string(),
+            embedding_record
+                .profile
+                .model_id
+                .as_deref()
+                .unwrap_or("keyword"),
+            None,
+        );
+    }
     let embedding_provider =
-        prepare_embedding_provider(&embedding_record, secrets, retrieval_plan)?;
+        match prepare_embedding_provider(&embedding_record, secrets, retrieval_plan) {
+            Ok(provider) => provider,
+            Err(error) => {
+                let connection = open_query_connection(&path)?;
+                return query_local_knowledge_fts_fallback(
+                    &connection,
+                    workspace_id,
+                    request,
+                    &embedding_record.profile.id.to_string(),
+                    embedding_record
+                        .profile
+                        .model_id
+                        .as_deref()
+                        .unwrap_or("keyword"),
+                    Some(configuration_degradation(&error)),
+                );
+            }
+        };
     let reranker = prepare_reranker(rerank_record, secrets, retrieval_plan);
-    let embedding = embedding_provider
-        .embed(vec![request.query.clone()])
-        .await
-        .map_err(|error| error.to_string())?;
+    let embedding = match embedding_provider.embed(vec![request.query.clone()]).await {
+        Ok(value) => value,
+        Err(error) => {
+            let connection = open_query_connection(&path)?;
+            return query_local_knowledge_fts_fallback(
+                &connection,
+                workspace_id,
+                request,
+                &embedding_record.profile.id.to_string(),
+                embedding_record
+                    .profile
+                    .model_id
+                    .as_deref()
+                    .unwrap_or("keyword"),
+                Some(provider_degradation(&error)),
+            );
+        }
+    };
     if embedding.vectors.len() != 1
         || embedding.vectors[0].is_empty()
         || embedding.vectors[0].iter().any(|value| !value.is_finite())
@@ -291,14 +349,37 @@ pub(crate) async fn query_local_knowledge_from_path(
         .parent()
         .ok_or_else(|| "resolve RAG content root failed".to_string())?;
     let connection = open_query_connection(&path)?;
-    let snapshot = load_index_snapshot(&connection, workspace_id, &index_request)?;
-    let index = open_with_flat_fallback(
+    let snapshot = match load_index_snapshot(&connection, workspace_id, &index_request) {
+        Ok(value) => value,
+        Err(error) => {
+            return query_local_knowledge_fts_fallback(
+                &connection,
+                workspace_id,
+                request,
+                &embedding_record.profile.id.to_string(),
+                &embedding.model_id,
+                Some(configuration_degradation(&error)),
+            );
+        }
+    };
+    let index = match open_with_flat_fallback(
         &connection,
         &index_root(content_root, &snapshot.watermark),
         &snapshot.watermark,
-    )
-    .map_err(|error| error.to_string())?;
-    let chunks = retrieve(
+    ) {
+        Ok(value) => value,
+        Err(error) => {
+            return query_local_knowledge_fts_fallback(
+                &connection,
+                workspace_id,
+                request,
+                &embedding_record.profile.id.to_string(),
+                &embedding.model_id,
+                Some(configuration_degradation(&error.to_string())),
+            );
+        }
+    };
+    let chunks = match retrieve(
         &connection,
         &index,
         &HybridSearchRequest {
@@ -311,8 +392,20 @@ pub(crate) async fn query_local_knowledge_from_path(
             candidate_limit: request.candidate_limit,
             rrf_k: request.rrf_k,
         },
-    )
-    .map_err(|error| error.to_string())?;
+    ) {
+        Ok(value) => value,
+        Err(error) => {
+            drop(index);
+            return query_local_knowledge_fts_fallback(
+                &connection,
+                workspace_id,
+                request,
+                &embedding_record.profile.id.to_string(),
+                &embedding.model_id,
+                Some(configuration_degradation(&error.to_string())),
+            );
+        }
+    };
     drop(index);
     drop(connection);
 
@@ -344,6 +437,110 @@ pub(crate) async fn query_local_knowledge_from_path(
         reranked.chunks,
     )
     .map_err(|error| error.to_string())
+}
+
+fn query_local_knowledge_fts_fallback(
+    connection: &Connection,
+    workspace_id: &str,
+    request: LocalKnowledgeQueryRequest,
+    embedding_provider_profile_id: &str,
+    embedding_model_id: &str,
+    degradation: Option<RerankDegradationReason>,
+) -> Result<EvidencePack, String> {
+    let limit = request.lexical_limit.min(request.candidate_limit);
+    let hits = if limit == 0 {
+        Vec::new()
+    } else {
+        search_fts(
+            connection,
+            &FtsSearchRequest {
+                workspace_id: workspace_id.to_string(),
+                query: request.query.clone(),
+                knowledge_base_ids: request.knowledge_base_ids.clone(),
+                limit,
+            },
+        )
+        .map_err(|error| error.to_string())?
+    };
+    let chunks = hits
+        .into_iter()
+        .enumerate()
+        .map(|(index, hit)| fts_hit_to_retrieved_chunk(connection, workspace_id, hit, index + 1))
+        .collect::<Result<Vec<_>, _>>()?;
+    persist_evidence_pack(
+        connection,
+        workspace_id,
+        &request.query,
+        RetrievalConfigSnapshot {
+            knowledge_base_ids: request.knowledge_base_ids,
+            lexical_limit: request.lexical_limit,
+            dense_limit: 0,
+            candidate_limit: request.candidate_limit,
+            rrf_k: request.rrf_k,
+            embedding_provider_profile_id: embedding_provider_profile_id.to_string(),
+            embedding_model_id: embedding_model_id.to_string(),
+            rerank_provider_profile_id: None,
+            rerank_model_id: None,
+            rerank_degradation: degradation,
+        },
+        chunks,
+    )
+    .map_err(|error| error.to_string())
+}
+
+fn fts_hit_to_retrieved_chunk(
+    connection: &Connection,
+    workspace_id: &str,
+    hit: FtsHit,
+    rank: usize,
+) -> Result<RetrievedChunk, String> {
+    let source_location_json: String = connection
+        .query_row(
+            "SELECT source_location_json FROM knowledge_chunks
+             WHERE workspace_id = ?1 AND version_id = ?2 AND id = ?3",
+            rusqlite::params![
+                workspace_id,
+                hit.version_id.to_string(),
+                hit.chunk_id.to_string()
+            ],
+            |row| row.get(0),
+        )
+        .map_err(|error| error.to_string())?;
+    Ok(RetrievedChunk {
+        knowledge_base_id: hit.knowledge_base_id,
+        document_id: hit.document_id,
+        version_id: hit.version_id,
+        chunk_id: hit.chunk_id,
+        source_name: hit.source_name,
+        source_location: serde_json::from_str(&source_location_json)
+            .map_err(|error| error.to_string())?,
+        text: hit.text,
+        lexical_rank: Some(rank),
+        dense_rank: None,
+        rrf_score: 1.0 / rank as f64,
+        rerank_score: None,
+    })
+}
+
+fn configuration_degradation(message: &str) -> RerankDegradationReason {
+    let lower = message.to_ascii_lowercase();
+    if lower.contains("credential") || lower.contains("secret") {
+        RerankDegradationReason::MissingCredential
+    } else {
+        RerankDegradationReason::InvalidConfiguration
+    }
+}
+
+fn provider_degradation(error: &ProviderError) -> RerankDegradationReason {
+    match error.code() {
+        ProviderErrorCode::Network => RerankDegradationReason::Network,
+        ProviderErrorCode::Authentication => RerankDegradationReason::Authentication,
+        ProviderErrorCode::Quota => RerankDegradationReason::Quota,
+        ProviderErrorCode::Timeout => RerankDegradationReason::Timeout,
+        ProviderErrorCode::ProviderResponse => RerankDegradationReason::ProviderResponse,
+        ProviderErrorCode::Cancelled => RerankDegradationReason::Cancelled,
+        ProviderErrorCode::UnsupportedCapability => RerankDegradationReason::UnsupportedCapability,
+    }
 }
 
 fn prepare_embedding_provider(
@@ -462,4 +659,141 @@ const fn default_rrf_k() -> u32 {
 
 const fn default_rerank_limit() -> usize {
     DEFAULT_RERANK_LIMIT
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::rag::model::{
+        ChunkId, EmbeddingIdentity, EmbeddingVectorBatch, NewChunk, NewDocumentVersion,
+        NewSourceDocument, SourceLocation,
+    };
+    use crate::storage::secrets::{SecretError, SecretRef, SecretValue};
+    use sha2::{Digest, Sha256};
+
+    struct EmptySecretStore;
+
+    impl SecretStore for EmptySecretStore {
+        fn set(&self, _reference: &SecretRef, _value: &SecretValue) -> Result<(), SecretError> {
+            Ok(())
+        }
+
+        fn get(&self, _reference: &SecretRef) -> Result<SecretValue, SecretError> {
+            Err(SecretError::not_found())
+        }
+
+        fn delete(&self, _reference: &SecretRef) -> Result<(), SecretError> {
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn local_knowledge_query_falls_back_to_fts_without_embedding_provider() {
+        let path = std::env::temp_dir().join(format!(
+            "bloomery-local-knowledge-fallback-{}.sqlite3",
+            Uuid::new_v4()
+        ));
+        let (mut connection, _) = crate::storage::database::open(&path).expect("open test db");
+        let base = knowledge::create_knowledge_base(&connection, "local", "Steel docs")
+            .expect("create base")
+            .id;
+        let document = knowledge::create_source_document(
+            &connection,
+            "local",
+            NewSourceDocument {
+                knowledge_base_id: base,
+                display_name: "Q355B.md".to_string(),
+                source_kind: "file".to_string(),
+            },
+        )
+        .expect("create document");
+        let version = knowledge::create_document_version(
+            &connection,
+            "local",
+            NewDocumentVersion {
+                document_id: document.id,
+                content_sha256: "a".repeat(64),
+                mime_type: "text/markdown".to_string(),
+                parser: "test".to_string(),
+                parser_version: "1".to_string(),
+                chunk_policy_version: "steel-v1".to_string(),
+                embedding_profile_id: "11111111-1111-4111-8111-111111111111".to_string(),
+                embedding_model_id: "BAAI/bge-m3".to_string(),
+                embedding_dimension: 2,
+                expected_asset_count: 0,
+                expected_chunk_count: 1,
+            },
+        )
+        .expect("create version");
+        let chunk_id = ChunkId::new("chunk-1").expect("chunk id");
+        knowledge::add_chunk(
+            &connection,
+            "local",
+            NewChunk {
+                id: chunk_id.clone(),
+                version_id: version.id,
+                ordinal: 0,
+                text: "Q355B 屈服强度通常需要结合厚度和 GB/T 1591 标准判断。".to_string(),
+                source_location: SourceLocation::Heading {
+                    path: vec!["力学性能".to_string()],
+                },
+                content_sha256: "b".repeat(64),
+                policy_version: "steel-v1".to_string(),
+            },
+        )
+        .expect("add chunk");
+        knowledge::index_chunk_fts(&mut connection, "local", version.id, &chunk_id)
+            .expect("index chunk");
+        let vector = vec![0_u8; 8];
+        knowledge::persist_embedding_batch(
+            &mut connection,
+            "local",
+            version.id,
+            &[EmbeddingVectorBatch {
+                vector_key: "vector-a-0".to_string(),
+                identity: EmbeddingIdentity {
+                    provider_profile_id: "11111111-1111-4111-8111-111111111111".to_string(),
+                    model_id: "BAAI/bge-m3".to_string(),
+                    dimension: 2,
+                    normalized_text_sha256: "c".repeat(64),
+                    policy_version: "steel-v1".to_string(),
+                },
+                vector_sha256: format!("{:x}", Sha256::digest(&vector)),
+                vector_blob: vector,
+                chunk_ids: vec![chunk_id],
+            }],
+        )
+        .expect("persist embedding");
+        knowledge::finalize_flat_index(&mut connection, "local", version.id)
+            .expect("finalize flat index");
+        knowledge::activate_document_version(&mut connection, "local", document.id, version.id)
+            .expect("activate version");
+        drop(connection);
+
+        let pack = tauri::async_runtime::block_on(query_local_knowledge_from_path(
+            path.clone(),
+            "local",
+            &EmptySecretStore,
+            LocalKnowledgeQueryRequest {
+                query: "Q355B 屈服强度".to_string(),
+                knowledge_base_ids: vec![base],
+                lexical_limit: 10,
+                dense_limit: 10,
+                candidate_limit: 5,
+                rrf_k: 60,
+                rerank_limit: 5,
+            },
+        ))
+        .expect("query should fall back to FTS");
+
+        assert_eq!(pack.evidence.len(), 1);
+        assert_eq!(pack.configuration.dense_limit, 0);
+        assert_eq!(
+            pack.configuration.rerank_degradation,
+            Some(RerankDegradationReason::UnsupportedCapability)
+        );
+        assert!(pack.evidence[0].chunk.text.contains("Q355B"));
+
+        let _ = std::fs::remove_file(path);
+    }
 }
