@@ -115,12 +115,14 @@ describe("SettingsPage", () => {
 
     expect(await screen.findByRole("heading", { name: "settingsTitle" })).toBeInTheDocument();
     expect(screen.getByRole("combobox", { name: "languageLabel" })).toBeInTheDocument();
+    expect(screen.getByDisplayValue("https://api.example.com/v1")).toBeInTheDocument();
+    expect(screen.getAllByText("settingsSecretConfigured").length).toBeGreaterThan(0);
+
+    fireEvent.click(screen.getByRole("tab", { name: "settingsTabGeneral" }));
     expect(screen.getByRole("group", { name: "themeTitle" })).toBeInTheDocument();
     for (const label of ["themeSystem", "themeLight", "themeDark"]) {
       expect(screen.getByRole("button", { name: label })).toBeInTheDocument();
     }
-    expect(screen.getByDisplayValue("https://api.example.com/v1")).toBeInTheDocument();
-    expect(screen.getAllByText("settingsSecretConfigured").length).toBeGreaterThan(0);
     expect(screen.getByText("settingsSecretCopy")).toBeInTheDocument();
     expect(container.querySelectorAll(".bloomery-eyebrow")).toHaveLength(0);
     expect(screen.queryByText("settingsLede")).not.toBeInTheDocument();
@@ -211,10 +213,19 @@ describe("SettingsPage", () => {
   it("lists persistent permission rules and revokes the selected rule", async () => {
     renderSettings();
 
+    fireEvent.click(await screen.findByRole("tab", { name: "settingsTabPermissions" }));
     expect(await screen.findByText("builtin.write_file")).toBeInTheDocument();
     vi.spyOn(window, "confirm").mockReturnValue(true);
     fireEvent.click(screen.getByRole("button", { name: /revoke permission|permissionRevoke/i }));
 
     await waitFor(() => expect(desktop.revokePermissionRule).toHaveBeenCalledWith("rule-1"));
+  });
+
+  it("shows the database panel only on the databases tab", async () => {
+    renderSettings();
+
+    expect(screen.queryByRole("heading", { name: "settingsDatabaseTitle" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("tab", { name: "settingsTabDatabases" }));
+    expect(await screen.findByRole("heading", { name: "settingsDatabaseTitle" })).toBeInTheDocument();
   });
 });

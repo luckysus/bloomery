@@ -9,7 +9,7 @@ import {
   Settings2,
 } from "lucide-react";
 import { desktop, type PermissionRuleRecord, type ProviderCapability, type ProviderProfileInput } from "../../bridge/desktop";
-import { useLocale } from "../../i18n/locale";
+import { useLocale, type MessageKey } from "../../i18n/locale";
 import LanguageSelect from "../../components/common/LanguageSelect";
 import ThemeSelect from "../../components/common/ThemeSelect";
 import SettingsProviderCard from "./SettingsProviderCard";
@@ -34,8 +34,18 @@ interface SettingsPageProps {
   onOpenDiagnostics?: () => void;
 }
 
+type SettingsTab = "providers" | "general" | "permissions" | "databases";
+
+const settingsTabs: { id: SettingsTab; labelKey: MessageKey }[] = [
+  { id: "providers", labelKey: "settingsTabProviders" },
+  { id: "general", labelKey: "settingsTabGeneral" },
+  { id: "permissions", labelKey: "settingsTabPermissions" },
+  { id: "databases", labelKey: "settingsTabDatabases" },
+];
+
 export default function SettingsPage({ onOpenDiagnostics }: SettingsPageProps) {
   const { t } = useLocale();
+  const [activeTab, setActiveTab] = useState<SettingsTab>("providers");
   const [editors, setEditors] = useState<SettingsEditor[]>([]);
   const [plan, setPlan] = useState<RetrievalPlan>("free");
   const [retrievalIds, setRetrievalIds] = useState<RetrievalIds>(defaultRetrievalIds);
@@ -248,48 +258,73 @@ export default function SettingsPage({ onOpenDiagnostics }: SettingsPageProps) {
       {error && <div className="bloomery-settings-alert" role="alert"><AlertCircle size={17} aria-hidden="true" /><span>{error}</span></div>}
       {notice && <div className="bloomery-settings-notice" role="status"><Check size={17} aria-hidden="true" /><span>{notice}</span></div>}
 
-      <div className="bloomery-settings-safety">
-        <KeyRound size={18} aria-hidden="true" />
-        <div><strong>{t("settingsSecretTitle")}</strong><span>{t("settingsSecretCopy")}</span></div>
+      <div className="bloomery-settings-tabs" role="tablist" aria-label={t("settingsTitle")}>
+        {settingsTabs.map((tab) => (
+          <button
+            key={tab.id}
+            type="button"
+            role="tab"
+            id={`settings-tab-${tab.id}`}
+            aria-selected={activeTab === tab.id}
+            aria-controls={`settings-panel-${tab.id}`}
+            className={`bloomery-settings-tab ${activeTab === tab.id ? "is-active" : ""}`}
+            onClick={() => setActiveTab(tab.id)}
+          >
+            {t(tab.labelKey)}
+          </button>
+        ))}
       </div>
 
-      <ThemeSelect />
+      <div role="tabpanel" id={`settings-panel-${activeTab}`} aria-labelledby={`settings-tab-${activeTab}`}>
+        {activeTab === "general" && (
+          <>
+            <div className="bloomery-settings-safety">
+              <KeyRound size={18} aria-hidden="true" />
+              <div><strong>{t("settingsSecretTitle")}</strong><span>{t("settingsSecretCopy")}</span></div>
+            </div>
+            <ThemeSelect />
+          </>
+        )}
+        {activeTab === "permissions" && (
+          <PermissionRulesPanel
+            rules={permissionRules}
+            busyId={permissionBusyId}
+            onRevoke={(rule) => void revokePermission(rule)}
+          />
+        )}
+        {activeTab === "databases" && <DatabaseConnectionsPanel />}
+        {activeTab === "providers" && (
+          <>
+            <section className="bloomery-settings-plan" aria-labelledby="settings-plan-heading">
+              <div><h2 id="settings-plan-heading">{t("settingsPlanTitle")}</h2></div>
+              <fieldset className="bloomery-settings-plan-options">
+                <legend>{t("settingsPlanLabel")}</legend>
+                <label><input type="radio" name="siliconflow-plan" checked={plan === "free"} onChange={() => void changePlan("free")} aria-label={t("settingsPlanFree")} />{t("freePlan")}</label>
+                <label><input type="radio" name="siliconflow-plan" checked={plan === "pro"} onChange={() => void changePlan("pro")} aria-label={t("settingsPlanPro")} />{t("proPlan")}</label>
+              </fieldset>
+            </section>
 
-      <PermissionRulesPanel
-        rules={permissionRules}
-        busyId={permissionBusyId}
-        onRevoke={(rule) => void revokePermission(rule)}
-      />
+            {loading ? <div className="bloomery-settings-loading"><LoaderCircle size={18} className="bloomery-spin" />{t("loading")}</div> : (
+              <div className="bloomery-settings-grid">
+                {editors.map((editor) => (
+                  <SettingsProviderCard
+                    key={editor.slot}
+                    editor={editor}
+                    busy={busySlot === editor.slot}
+                    testing={testingSlot === editor.slot}
+                    onChange={updateEditor}
+                    onSubmit={saveEditor}
+                    onTest={testEditor}
+                    onDelete={deleteEditor}
+                  />
+                ))}
+              </div>
+            )}
 
-      <DatabaseConnectionsPanel />
-
-      <section className="bloomery-settings-plan" aria-labelledby="settings-plan-heading">
-        <div><h2 id="settings-plan-heading">{t("settingsPlanTitle")}</h2></div>
-        <fieldset className="bloomery-settings-plan-options">
-          <legend>{t("settingsPlanLabel")}</legend>
-          <label><input type="radio" name="siliconflow-plan" checked={plan === "free"} onChange={() => void changePlan("free")} aria-label={t("settingsPlanFree")} />{t("freePlan")}</label>
-          <label><input type="radio" name="siliconflow-plan" checked={plan === "pro"} onChange={() => void changePlan("pro")} aria-label={t("settingsPlanPro")} />{t("proPlan")}</label>
-        </fieldset>
-      </section>
-
-      {loading ? <div className="bloomery-settings-loading"><LoaderCircle size={18} className="bloomery-spin" />{t("loading")}</div> : (
-        <div className="bloomery-settings-grid">
-          {editors.map((editor) => (
-            <SettingsProviderCard
-              key={editor.slot}
-              editor={editor}
-              busy={busySlot === editor.slot}
-              testing={testingSlot === editor.slot}
-              onChange={updateEditor}
-              onSubmit={saveEditor}
-              onTest={testEditor}
-              onDelete={deleteEditor}
-            />
-          ))}
-        </div>
-      )}
-
-      <aside className="bloomery-settings-note"><CircleHelp size={17} aria-hidden="true" /><span>{t("settingsProviderNote")}</span></aside>
+            <aside className="bloomery-settings-note"><CircleHelp size={17} aria-hidden="true" /><span>{t("settingsProviderNote")}</span></aside>
+          </>
+        )}
+      </div>
     </section>
   );
 }

@@ -4717,3 +4717,26 @@ body,
 [data-theme="dark"] .bloomery-db-sql-input {
   background: var(--bloomery-bg-raised);
 }
+
+/* 设置页标签导航 */
+.bloomery-settings-tabs {
+  display: flex;
+  gap: 8px;
+  border-bottom: 1px solid var(--bloomery-line);
+}
+
+.bloomery-settings-tab {
+  border: none;
+  background: transparent;
+  padding: 10px 16px;
+  border-radius: var(--bloomery-radius-small) var(--bloomery-radius-small) 0 0;
+  cursor: pointer;
+  color: var(--bloomery-text-muted);
+  border-bottom: 2px solid transparent;
+}
+
+.bloomery-settings-tab.is-active {
+  color: var(--bloomery-text);
+  border-bottom-color: var(--bloomery-accent);
+  font-weight: 600;
+}
