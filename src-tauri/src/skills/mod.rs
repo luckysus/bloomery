@@ -39,6 +39,7 @@ pub struct SkillRecord {
     pub name: String,
     pub description: String,
     pub version: String,
+    pub tags: Vec<String>,
     pub compatibility: Vec<String>,
     pub body: String,
     pub source: SkillSource,
@@ -80,10 +81,19 @@ pub struct SkillSummary {
     pub name: String,
     pub description: String,
     pub version: String,
+    pub tags: Vec<String>,
     pub compatibility: Vec<String>,
     pub source: SkillSource,
     pub content_sha256: String,
     pub enabled: bool,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct LoadedSkill {
+    pub name: String,
+    pub version: String,
+    pub content_sha256: String,
+    pub trigger_reason: String,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -96,6 +106,7 @@ pub struct SkillCatalog {
 pub struct RenderedSkills {
     pub prompt: String,
     pub enabled_versions: Vec<String>,
+    pub loaded: Vec<LoadedSkill>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -190,6 +201,7 @@ pub fn summarize_skills(
             name: skill.name.clone(),
             description: skill.description.clone(),
             version: skill.version.clone(),
+            tags: skill.tags.clone(),
             compatibility: skill.compatibility.clone(),
             source: skill.source.clone(),
             content_sha256: skill.content_sha256.clone(),
@@ -202,15 +214,56 @@ pub fn render_enabled_skills(
     skills: &[SkillRecord],
     enabled_names: &BTreeSet<String>,
 ) -> RenderedSkills {
+    render_skills(skills, enabled_names, |_| {
+        Some("enabled_by_user".to_string())
+    })
+}
+
+pub fn render_relevant_skills(
+    skills: &[SkillRecord],
+    enabled_names: &BTreeSet<String>,
+    query: &str,
+) -> RenderedSkills {
+    let reasons = skills
+        .iter()
+        .filter(|skill| enabled_names.contains(&skill.name))
+        .filter_map(|skill| {
+            match_skill_query(skill, query).map(|reason| (skill.name.clone(), reason))
+        })
+        .collect::<BTreeMap<_, _>>();
+
+    if reasons.is_empty() {
+        return render_enabled_skills(skills, enabled_names);
+    }
+
+    render_skills(skills, enabled_names, |skill| {
+        reasons.get(&skill.name).cloned()
+    })
+}
+
+fn render_skills<F>(
+    skills: &[SkillRecord],
+    enabled_names: &BTreeSet<String>,
+    mut trigger_reason: F,
+) -> RenderedSkills
+where
+    F: FnMut(&SkillRecord) -> Option<String>,
+{
     let mut prompt_sections = Vec::new();
     let mut enabled_versions = Vec::new();
+    let mut loaded = Vec::new();
     let mut prompt_chars = "enabled_skills:".chars().count();
 
     for skill in skills
         .iter()
         .filter(|skill| enabled_names.contains(&skill.name))
-        .take(MAX_ENABLED_SKILLS)
     {
+        if loaded.len() >= MAX_ENABLED_SKILLS {
+            break;
+        }
+        let Some(trigger_reason) = trigger_reason(skill) else {
+            continue;
+        };
         let version = format!("{}@{}#{}", skill.name, skill.version, skill.content_sha256);
         let header = format!("## {} (v{})", skill.name, skill.version);
         let available = MAX_RENDERED_SKILL_PROMPT_CHARS
@@ -223,6 +276,12 @@ pub fn render_enabled_skills(
         prompt_chars += section.chars().count() + 2;
         prompt_sections.push(section);
         enabled_versions.push(version);
+        loaded.push(LoadedSkill {
+            name: skill.name.clone(),
+            version: skill.version.clone(),
+            content_sha256: skill.content_sha256.clone(),
+            trigger_reason,
+        });
     }
 
     let prompt = if prompt_sections.is_empty() {
@@ -233,7 +292,48 @@ pub fn render_enabled_skills(
     RenderedSkills {
         prompt,
         enabled_versions,
+        loaded,
     }
+}
+
+fn match_skill_query(skill: &SkillRecord, query: &str) -> Option<String> {
+    let query = query.trim().to_lowercase();
+    if query.is_empty() {
+        return None;
+    }
+
+    for tag in &skill.tags {
+        if tag_matches_query(tag, &query) {
+            return Some(format!("matched_query_tag:{tag}"));
+        }
+    }
+    if metadata_matches_query(&skill.name, &query) {
+        return Some("matched_query_name".to_string());
+    }
+    if metadata_matches_query(&skill.description, &query) {
+        return Some("matched_query_description".to_string());
+    }
+    None
+}
+
+fn tag_matches_query(tag: &str, query: &str) -> bool {
+    let tag_lower = tag.to_lowercase();
+    query.contains(&tag_lower)
+        || (tag_lower == "steel" && has_any(query, &["钢", "钢铁", "合金", "热轧", "q345"]))
+        || (tag_lower == "evidence" && has_any(query, &["证据", "引用", "文献"]))
+}
+
+fn metadata_matches_query(value: &str, query: &str) -> bool {
+    let value = value.to_lowercase();
+    value.contains(query)
+        || query
+            .split(|character: char| !character.is_ascii_alphanumeric())
+            .filter(|term| term.chars().count() >= 2)
+            .any(|term| value.contains(term))
+}
+
+fn has_any(value: &str, needles: &[&str]) -> bool {
+    needles.iter().any(|needle| value.contains(needle))
 }
 
 pub fn load_enabled_names(
@@ -290,6 +390,21 @@ pub fn load_context(
     Ok(SkillContext {
         summaries: summarize_skills(&report.skills, &enabled_names),
         rendered: render_enabled_skills(&report.skills, &enabled_names),
+        errors: report.errors,
+    })
+}
+
+pub fn load_context_for_query(
+    connection: &rusqlite::Connection,
+    workspace_id: &str,
+    app_version: &str,
+    query: &str,
+) -> Result<SkillContext, String> {
+    let enabled_names = load_enabled_names(connection, workspace_id)?;
+    let report = discover_skills(&default_skill_roots(), app_version);
+    Ok(SkillContext {
+        summaries: summarize_skills(&report.skills, &enabled_names),
+        rendered: render_relevant_skills(&report.skills, &enabled_names, query),
         errors: report.errors,
     })
 }
@@ -400,6 +515,16 @@ fn load_skill(
         );
         return None;
     }
+    let tags = match fields.get("tags") {
+        Some(value) => match parse_tags(value) {
+            Ok(value) => value,
+            Err(message) => {
+                push_error(errors, SkillErrorCode::InvalidField, path, message);
+                return None;
+            }
+        },
+        None => Vec::new(),
+    };
     let compatibility = match fields.get("compatibility") {
         Some(value) => match parse_compatibility(value) {
             Ok(value) => value,
@@ -432,6 +557,7 @@ fn load_skill(
         name,
         description,
         version,
+        tags,
         compatibility,
         body,
         source: SkillSource {
@@ -543,6 +669,14 @@ fn parse_compatibility(value: &str) -> Result<Vec<String>, String> {
     Ok(values)
 }
 
+fn parse_tags(value: &str) -> Result<Vec<String>, String> {
+    let tags = parse_list(value);
+    if tags.iter().any(|tag| !valid_name(tag)) {
+        return Err("skill tags must use letters, digits, dot, dash, or underscore".to_string());
+    }
+    Ok(tags)
+}
+
 fn compatible(constraints: &[String], app_version: &str) -> Result<bool, String> {
     let current = parse_version(app_version)
         .ok_or_else(|| "Bloomery version must be major.minor.patch".to_string())?;
@@ -560,6 +694,22 @@ fn compatible(constraints: &[String], app_version: &str) -> Result<bool, String>
         }
     }
     Ok(true)
+}
+
+fn parse_list(value: &str) -> Vec<String> {
+    let value = value.trim();
+    if value.is_empty() {
+        return Vec::new();
+    }
+    if value.starts_with('[') && value.ends_with(']') {
+        value[1..value.len() - 1]
+            .split(',')
+            .map(|item| unquote(item.trim()))
+            .filter(|item| !item.is_empty())
+            .collect()
+    } else {
+        vec![unquote(value)]
+    }
 }
 
 fn parse_version(value: &str) -> Option<(u64, u64, u64)> {

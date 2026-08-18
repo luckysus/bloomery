@@ -223,13 +223,39 @@ fn find_word_boundary_marker(text: &str, marker: &str) -> Option<usize> {
 
 fn infer_type(statement: &str) -> &'static str {
     let lower = statement.to_lowercase();
-    if lower.contains("http://") || lower.contains("https://") || lower.contains("doi") {
-        "reference"
+    if has_any(
+        &lower,
+        &[
+            "错误",
+            "错了",
+            "修正",
+            "纠正",
+            "失败",
+            "复盘",
+            "反思",
+            "mistake",
+            "wrong",
+            "correction",
+            "fix this",
+            "failed",
+        ],
+    ) {
+        "reflection_memory"
     } else if has_any(
         &lower,
-        &["不要", "回答", "回复", "always", "never", "始终", "总是"],
+        &[
+            "下次",
+            "继续",
+            "待办",
+            "任务",
+            "进度",
+            "todo",
+            "next time",
+            "follow up",
+            "continue",
+        ],
     ) {
-        "feedback"
+        "task_memory"
     } else if has_any(
         &lower,
         &[
@@ -244,37 +270,54 @@ fn infer_type(statement: &str) -> &'static str {
             "钢",
             "合金",
             "热处理",
+            "热轧",
+            "冷轧",
+            "轧制",
+            "屈服",
+            "强度",
+            "成分",
+            "温度",
+            "mpa",
         ],
     ) {
-        "project"
+        "domain_memory"
     } else {
-        "user"
+        "user_profile"
     }
 }
 
 fn infer_scope(statement: &str, memory_type: &str) -> &'static str {
-    let lower = statement.to_lowercase();
-    if has_any(
-        &lower,
-        &[
-            "steel",
-            "alloy",
-            "heat treatment",
-            "钢",
-            "合金",
-            "热处理",
-            "相变",
-            "轧制",
-            "淬火",
-            "回火",
-            "成分",
-        ],
-    ) {
+    if memory_type == "domain_memory" {
         "domain"
-    } else if memory_type == "project" {
+    } else if memory_type == "task_memory" {
         "project"
     } else {
-        "global"
+        let lower = statement.to_lowercase();
+        if has_any(
+            &lower,
+            &[
+                "steel",
+                "alloy",
+                "heat treatment",
+                "钢",
+                "合金",
+                "热处理",
+                "相变",
+                "轧制",
+                "热轧",
+                "冷轧",
+                "淬火",
+                "回火",
+                "成分",
+                "屈服",
+                "强度",
+                "mpa",
+            ],
+        ) {
+            "domain"
+        } else {
+            "global"
+        }
     }
 }
 
@@ -288,4 +331,45 @@ fn has_any(value: &str, needles: &[&str]) -> bool {
 
 fn truncate_chars(value: &str, limit: usize) -> String {
     value.chars().take(limit).collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn candidate(content: &str) -> MemoryCandidate {
+        extract_memory_candidate(content, "message-1", None, 0.8)
+            .expect("valid candidate")
+            .expect("candidate")
+    }
+
+    #[test]
+    fn user_preference_becomes_user_profile_memory() {
+        let memory = candidate("记住：我偏好简洁中文回答");
+
+        assert_eq!(memory.memory_type, "user_profile");
+        assert_eq!(memory.scope, "global");
+    }
+
+    #[test]
+    fn steel_fact_becomes_domain_memory() {
+        let memory = candidate("记住：Q355B 热轧屈服波动和终轧温度有关");
+
+        assert_eq!(memory.memory_type, "domain_memory");
+        assert_eq!(memory.scope, "domain");
+    }
+
+    #[test]
+    fn unfinished_work_becomes_task_memory() {
+        let memory = candidate("记住：下次继续处理钢铁数据集清洗任务");
+
+        assert_eq!(memory.memory_type, "task_memory");
+    }
+
+    #[test]
+    fn correction_becomes_reflection_memory() {
+        let memory = candidate("记住：刚才的计算错误，以后遇到成分单位必须先确认");
+
+        assert_eq!(memory.memory_type, "reflection_memory");
+    }
 }

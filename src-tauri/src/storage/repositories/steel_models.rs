@@ -157,6 +157,26 @@ pub fn list(
         .map_err(|error| error.to_string())
 }
 
+pub fn list_all(
+    connection: &Connection,
+    workspace_id: &str,
+) -> Result<Vec<SteelModelRecord>, String> {
+    let mut statement = connection
+        .prepare(
+            "SELECT id, lineage_id, kind, version, source_task_id,
+                    model_sha256, manifest_json, artifact_json, model_base64, is_active, created_at
+             FROM steel_models
+             WHERE workspace_id = ?1
+             ORDER BY lineage_id, version DESC",
+        )
+        .map_err(|error| error.to_string())?;
+    let rows = statement
+        .query_map(params![workspace_id], row_to_model)
+        .map_err(|error| error.to_string())?;
+    rows.collect::<Result<Vec<_>, _>>()
+        .map_err(|error| error.to_string())
+}
+
 pub fn set_active(
     connection: &mut Connection,
     workspace_id: &str,

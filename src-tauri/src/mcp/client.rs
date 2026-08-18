@@ -60,18 +60,21 @@ impl McpClient {
         Ok(result
             .tools
             .into_iter()
-            .map(|tool| McpTool {
-                name: tool.name.into_owned(),
-                description: tool.description.map(|value| value.into_owned()),
-                input_schema: Value::Object((*tool.input_schema).clone()),
-                output_schema: tool
-                    .output_schema
-                    .map(|schema| Value::Object((*schema).clone())),
-                read_only_hint: tool
-                    .annotations
-                    .as_ref()
-                    .and_then(|annotations| annotations.read_only_hint)
-                    .unwrap_or(false),
+            .map(|tool| {
+                let annotations = tool.annotations.as_ref();
+                McpTool {
+                    name: tool.name.into_owned(),
+                    description: tool.description.map(|value| value.into_owned()),
+                    input_schema: Value::Object((*tool.input_schema).clone()),
+                    output_schema: tool
+                        .output_schema
+                        .map(|schema| Value::Object((*schema).clone())),
+                    read_only_hint: annotations
+                        .and_then(|annotations| annotations.read_only_hint)
+                        .unwrap_or(false),
+                    destructive_hint: annotations
+                        .and_then(|annotations| annotations.destructive_hint),
+                }
             })
             .collect())
     }
@@ -123,7 +126,7 @@ impl McpClient {
                     output_schema: tool
                         .output_schema
                         .unwrap_or_else(|| serde_json::json!({"type": "object"})),
-                    risk: crate::agent::protocol::PermissionRisk::ConfirmationRequired,
+                    risk: mcp_permission_risk(tool.read_only_hint, tool.destructive_hint),
                     read_only: tool.read_only_hint,
                     concurrency: if tool.read_only_hint {
                         ConcurrencyPolicy::ParallelRead
@@ -185,6 +188,42 @@ impl McpClient {
             .await
             .map_err(|_| McpError::Timeout)?
             .map_err(map_service_error)
+    }
+}
+
+fn mcp_permission_risk(
+    read_only_hint: bool,
+    destructive_hint: Option<bool>,
+) -> crate::agent::protocol::PermissionRisk {
+    if read_only_hint {
+        crate::agent::protocol::PermissionRisk::Automatic
+    } else if destructive_hint == Some(true) {
+        crate::agent::protocol::PermissionRisk::Dangerous
+    } else {
+        crate::agent::protocol::PermissionRisk::ConfirmationRequired
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::mcp_permission_risk;
+    use crate::agent::protocol::PermissionRisk;
+
+    #[test]
+    fn mcp_permission_risk_uses_tool_annotations() {
+        assert_eq!(mcp_permission_risk(true, None), PermissionRisk::Automatic);
+        assert_eq!(
+            mcp_permission_risk(false, Some(true)),
+            PermissionRisk::Dangerous
+        );
+        assert_eq!(
+            mcp_permission_risk(false, Some(false)),
+            PermissionRisk::ConfirmationRequired
+        );
+        assert_eq!(
+            mcp_permission_risk(false, None),
+            PermissionRisk::ConfirmationRequired
+        );
     }
 }
 

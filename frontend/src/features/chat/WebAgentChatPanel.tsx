@@ -37,7 +37,7 @@ import WebFeedback from "./web/WebFeedback";
 import WebProgressBar, { progressFromRunState } from "./web/WebProgressBar";
 import WebRecommendationCard from "./web/WebRecommendationCard";
 import WebTurnNavigator from "./web/WebTurnNavigator";
-import { toWebMessage, type WebPendingConfirmation } from "./web/webTypes";
+import { toWebMessage, type WebPendingConfirmation, type WebResponse } from "./web/webTypes";
 
 interface SpeechRecognitionLike {
   lang: string;
@@ -214,6 +214,21 @@ function WebRunStatus({
   );
 }
 
+function WebContextStatus({ response }: { response: WebResponse | null }) {
+  const { t } = useLocale();
+  const status = response?.context_status;
+  if (!status || (status.memory_count === 0 && status.skill_count === 0 && status.tool_count === 0)) {
+    return null;
+  }
+  return (
+    <div className="bloomery-chat-context-status" aria-label={t("chatContextStatus")}>
+      {status.memory_count > 0 && <span>{t("chatContextMemoryCount", { count: status.memory_count })}</span>}
+      {status.skill_count > 0 && <span>{t("chatContextSkillCount", { count: status.skill_count })}</span>}
+      {status.tool_count > 0 && <span>{t("chatContextToolCount", { count: status.tool_count })}</span>}
+    </div>
+  );
+}
+
 function WebMessage({
   message,
   index,
@@ -276,6 +291,7 @@ function WebMessage({
       <div className="ai-markdown-body w-full text-[17px] leading-relaxed text-slate-700">
         <WebAnswerRenderer message={webMessage} />
       </div>
+      <WebContextStatus response={response} />
       {evidence && <CitationPanel auditId={evidence.auditId} evidence={evidence.evidence} />}
       {response?.follow_up_questions.length ? (
         <div className="mt-4 rounded-xl border border-blue-200 bg-blue-50 p-4 shadow-sm">

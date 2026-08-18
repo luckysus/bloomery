@@ -52,9 +52,17 @@ impl ProviderCapabilities {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ChatImage {
+    pub data: String,
+    pub mime: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ChatMessage {
     pub role: String,
     pub content: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub images: Vec<ChatImage>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tool_call_id: Option<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -66,6 +74,21 @@ impl ChatMessage {
         Self {
             role: role.into(),
             content: content.into(),
+            images: Vec::new(),
+            tool_call_id: None,
+            tool_calls: Vec::new(),
+        }
+    }
+
+    pub fn with_images(
+        role: impl Into<String>,
+        content: impl Into<String>,
+        images: Vec<ChatImage>,
+    ) -> Self {
+        Self {
+            role: role.into(),
+            content: content.into(),
+            images,
             tool_call_id: None,
             tool_calls: Vec::new(),
         }
@@ -75,6 +98,7 @@ impl ChatMessage {
         Self {
             role: "assistant".to_string(),
             content: String::new(),
+            images: Vec::new(),
             tool_call_id: None,
             tool_calls,
         }
@@ -84,6 +108,7 @@ impl ChatMessage {
         Self {
             role: "tool".to_string(),
             content: content.into(),
+            images: Vec::new(),
             tool_call_id: Some(tool_call_id.into()),
             tool_calls: Vec::new(),
         }

@@ -1997,6 +1997,23 @@ button.bloomery-knowledge-document.is-active {
   padding-left: 11px;
 }
 
+.bloomery-chat-context-status {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.bloomery-chat-context-status > span {
+  background: var(--bloomery-bg-soft);
+  border: 1px solid var(--bloomery-line);
+  border-radius: 999px;
+  color: var(--bloomery-text-muted);
+  font-size: 12px;
+  line-height: 1;
+  padding: 6px 9px;
+}
+
 .bloomery-chat-permission-list {
   display: grid;
   gap: 10px;
@@ -3175,6 +3192,20 @@ button.bloomery-knowledge-document.is-active {
   color: var(--bloomery-text-soft);
   font-size: 12px;
   margin: 0;
+}
+
+.bloomery-extension-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.bloomery-extension-tags > span {
+  background: var(--bloomery-bg-soft);
+  border: 1px solid var(--bloomery-line);
+  border-radius: 999px;
+  color: var(--bloomery-text);
+  padding: 2px 7px;
 }
 
 .bloomery-extension-path {
@@ -4726,6 +4757,27 @@ button.bloomery-knowledge-document.is-active {
   overflow-wrap: anywhere;
 }
 
+.bloomery-mcp-diagnostic {
+  background: var(--bloomery-bg-soft);
+  border: 1px solid var(--bloomery-line);
+  display: grid;
+  gap: 4px;
+  margin-top: 10px;
+  padding: 10px 12px;
+}
+
+.bloomery-mcp-diagnostic strong {
+  color: var(--bloomery-text);
+  font-size: 12px;
+}
+
+.bloomery-mcp-diagnostic span {
+  color: var(--bloomery-text-muted);
+  font-size: 12px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
 .bloomery-mcp-tools {
   border-top: 1px solid var(--bloomery-line);
   display: grid;
@@ -4749,6 +4801,20 @@ button.bloomery-knowledge-document.is-active {
   color: var(--bloomery-text-muted);
   font-size: 11px;
   overflow-wrap: anywhere;
+}
+
+.bloomery-mcp-tool-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.bloomery-mcp-tool-badges > span {
+  background: var(--bloomery-bg-soft);
+  border: 1px solid var(--bloomery-line);
+  border-radius: 999px;
+  color: var(--bloomery-text);
+  padding: 2px 7px;
 }
 
 .bloomery-mcp-footnote {

@@ -11,7 +11,6 @@ const RECENT_MESSAGE_CHAR_LIMIT: usize = 2500;
 const CONVERSATION_SUMMARY_CHAR_LIMIT: usize = 4000;
 const SELECTED_MEMORY_LIMIT: usize = 5;
 const MEMORY_BODY_CHAR_LIMIT: usize = 1200;
-const MEMORY_INDEX_LIMIT: usize = 80;
 const MEMORY_INDEX_TITLE_CHAR_LIMIT: usize = 120;
 const MEMORY_INDEX_DESCRIPTION_CHAR_LIMIT: usize = 240;
 const MEMORY_INDEX_TAGS_CHAR_LIMIT: usize = 240;
@@ -38,7 +37,6 @@ struct MemoryCandidate {
     description: String,
     body: String,
     tags_json: String,
-    updated_at: String,
 }
 
 #[derive(Clone)]
@@ -218,7 +216,7 @@ fn load_enabled_memories(
 ) -> Result<Vec<MemoryCandidate>, String> {
     let mut stmt = conn
         .prepare(
-            "SELECT id, scope, type, title, description, body, tags_json, updated_at
+            "SELECT id, scope, type, title, description, body, tags_json
              FROM memories
              WHERE workspace_id = ?1 AND enabled = 1 AND archived_at IS NULL
                AND status = 'confirmed'
@@ -235,7 +233,6 @@ fn load_enabled_memories(
                 description: row.get(4)?,
                 body: row.get(5)?,
                 tags_json: row.get(6)?,
-                updated_at: row.get(7)?,
             })
         })
         .map_err(|err| err.to_string())?;
@@ -244,21 +241,8 @@ fn load_enabled_memories(
 }
 
 fn build_memory_index(memories: &[MemoryCandidate]) -> Vec<serde_json::Value> {
-    memories
-        .iter()
-        .take(MEMORY_INDEX_LIMIT)
-        .map(|memory| {
-            serde_json::json!({
-                "id": memory.id,
-                "scope": memory.scope,
-                "type": memory.memory_type,
-                "title": truncate_chars(&memory.title, MEMORY_INDEX_TITLE_CHAR_LIMIT),
-                "description": truncate_chars(&memory.description, MEMORY_INDEX_DESCRIPTION_CHAR_LIMIT),
-                "tags_json": truncate_chars(&memory.tags_json, MEMORY_INDEX_TAGS_CHAR_LIMIT),
-                "updated_at": memory.updated_at,
-            })
-        })
-        .collect()
+    let _ = memories;
+    Vec::new()
 }
 
 fn select_memories(memories: &[MemoryCandidate], query: &str) -> Vec<serde_json::Value> {
@@ -287,6 +271,7 @@ fn select_memories(memories: &[MemoryCandidate], query: &str) -> Vec<serde_json:
                 "id": memory.id,
                 "scope": memory.scope,
                 "type": memory.memory_type,
+                "layer": memory_layer(&memory.scope, &memory.memory_type),
                 "title": truncate_chars(&memory.title, MEMORY_INDEX_TITLE_CHAR_LIMIT),
                 "description": truncate_chars(&memory.description, MEMORY_INDEX_DESCRIPTION_CHAR_LIMIT),
                 "body": truncate_chars(&memory.body, MEMORY_BODY_CHAR_LIMIT),
@@ -296,6 +281,19 @@ fn select_memories(memories: &[MemoryCandidate], query: &str) -> Vec<serde_json:
             }))
         })
         .collect()
+}
+
+fn memory_layer(scope: &str, memory_type: &str) -> &'static str {
+    match memory_type {
+        "user_profile" | "user" | "feedback" => "user_profile",
+        "domain_memory" | "reference" => "domain_memory",
+        "task_memory" => "task_memory",
+        "reflection_memory" => "reflection_memory",
+        "project" if scope == "domain" => "domain_memory",
+        "project" => "task_memory",
+        _ if scope == "domain" => "domain_memory",
+        _ => "user_profile",
+    }
 }
 
 fn load_history_hits(
@@ -393,7 +391,7 @@ mod tests {
     }
 
     #[test]
-    fn memory_index_is_bounded_and_does_not_include_bodies() {
+    fn memory_index_is_not_injected_into_context_prompt() {
         let long_text = "x".repeat(500);
         let memories = (0..100)
             .map(|index| MemoryCandidate {
@@ -404,28 +402,12 @@ mod tests {
                 description: long_text.clone(),
                 body: "secret body must stay out of memory index".to_string(),
                 tags_json: long_text.clone(),
-                updated_at: format!("t{index}"),
             })
             .collect::<Vec<_>>();
 
         let index = build_memory_index(&memories);
 
-        assert_eq!(index.len(), MEMORY_INDEX_LIMIT);
-        assert_eq!(index[0]["id"], "memory-0");
-        assert_eq!(index[MEMORY_INDEX_LIMIT - 1]["id"], "memory-79");
-        assert!(index[0].get("body").is_none());
-        assert!(
-            index[0]["title"].as_str().expect("title").chars().count()
-                <= MEMORY_INDEX_TITLE_CHAR_LIMIT + 1
-        );
-        assert!(
-            index[0]["description"]
-                .as_str()
-                .expect("description")
-                .chars()
-                .count()
-                <= MEMORY_INDEX_DESCRIPTION_CHAR_LIMIT + 1
-        );
+        assert!(index.is_empty());
     }
 
     #[test]
@@ -439,7 +421,6 @@ mod tests {
             description: long_text.clone(),
             body: long_text.clone(),
             tags_json: long_text,
-            updated_at: "t1".to_string(),
         }];
 
         let selected = select_memories(&memories, "Q355B");
@@ -473,6 +454,76 @@ mod tests {
             selected[0]["body"].as_str().expect("body").chars().count()
                 <= MEMORY_BODY_CHAR_LIMIT + 1
         );
+    }
+
+    #[test]
+    fn selected_memories_include_public_memory_layer() {
+        let memories = vec![MemoryCandidate {
+            id: "memory-1".to_string(),
+            scope: "domain".to_string(),
+            memory_type: "project".to_string(),
+            title: "Q355B hot rolling".to_string(),
+            description: "Q355B hot rolling".to_string(),
+            body: "Q355B hot rolling yield strength context".to_string(),
+            tags_json: "[\"steel\"]".to_string(),
+        }];
+
+        let selected = select_memories(&memories, "Q355B yield");
+
+        assert_eq!(selected[0]["layer"], "domain_memory");
+    }
+
+    #[test]
+    fn context_packet_only_injects_confirmed_relevant_memories() {
+        let conn = memory_conn();
+        conn.execute(
+            "INSERT INTO conversations (id, workspace_id, title, created_at, updated_at)
+             VALUES ('c1', 'local', 'title', 't1', 't1')",
+            [],
+        )
+        .expect("insert conversation");
+        for (id, status, enabled, body) in [
+            (
+                "confirmed-memory",
+                "confirmed",
+                1,
+                "Q355B yield target is 355 MPa",
+            ),
+            (
+                "pending-memory",
+                "pending",
+                1,
+                "Q355B pending private draft",
+            ),
+            (
+                "rejected-memory",
+                "rejected",
+                0,
+                "Q355B rejected stale draft",
+            ),
+        ] {
+            conn.execute(
+                "INSERT INTO memories
+                 (id, workspace_id, scope, type, title, description, body, tags_json,
+                  enabled, archived_at, created_at, updated_at, source_message_id,
+                  source_run_id, confidence, status, dedup_key)
+                 VALUES (?1, 'local', 'domain', 'domain_memory', ?1, '', ?2, '[]',
+                         ?3, NULL, 't1', 't1', NULL, NULL, 1.0, ?4, ?1)",
+                params![id, body, enabled, status],
+            )
+            .expect("insert memory");
+        }
+
+        let packet =
+            build_context_packet_for_connection(&conn, "local", "c1", "Q355B yield").unwrap();
+
+        let selected = packet
+            .selected_memories
+            .iter()
+            .map(|item| item["id"].as_str().unwrap_or_default())
+            .collect::<Vec<_>>();
+        assert_eq!(selected, vec!["confirmed-memory"]);
+        assert!(packet.memory_index.is_empty());
     }
 
     #[test]

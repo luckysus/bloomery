@@ -72,7 +72,8 @@ where
             }))
             .map_err(AgentLoopError::EventSink)?;
         }
-        let mut messages = render_context_messages(&context, &request.context);
+        let mut messages =
+            render_context_messages(&context, &request.context, &request.attachments);
         let mut answer = String::new();
         let mut usage = None;
         let mut tool_round = 0usize;

@@ -81,6 +81,7 @@ Local-first does not mean automatically offline. When you enable a cloud LLM, Si
 
 - [Contributing](CONTRIBUTING.md)
 - [Event protocol](docs/PROTOCOL.md)
+- [Memory](docs/memory.md)
 - [MCP extensions](docs/extensions/mcp.md)
 - [Skills extensions](docs/extensions/skills.md)
 - [Domain packages](docs/extensions/domain-packages.md)

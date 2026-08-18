@@ -4,10 +4,10 @@ mod helpers;
 mod types;
 
 pub use types::{
-    AgentEventSink, AgentLoop, AgentLoopError, AgentLoopRequest, AgentLoopResult,
-    CancellationToken, ContextEntry, DenyPermissions, EvidenceAttachment, NoopToolExecutor,
-    PermissionFuture, PermissionRequest, PermissionResolver, ToolExecutionError, ToolExecutor,
-    ToolFuture, ToolHandler, ToolInvocation, ToolRegistration,
+    AgentEventSink, AgentLoop, AgentLoopAttachment, AgentLoopError, AgentLoopRequest,
+    AgentLoopResult, CancellationToken, ContextEntry, DenyPermissions, EvidenceAttachment,
+    NoopToolExecutor, PermissionFuture, PermissionRequest, PermissionResolver, ToolExecutionError,
+    ToolExecutor, ToolFuture, ToolHandler, ToolInvocation, ToolRegistration,
 };
 
 use types::AgentLoop as AgentLoopType;

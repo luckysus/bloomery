@@ -8,6 +8,7 @@ use rmcp::{
         CallToolResult, ClientJsonRpcMessage, ClientRequest, ErrorData, Implementation,
         InitializeResult, JsonRpcError, ListPromptsResult, ListResourcesResult, ListToolsResult,
         Prompt, Resource, ServerCapabilities, ServerJsonRpcMessage, ServerResult, Tool,
+        ToolAnnotations,
     },
     transport::{IntoTransport, Transport},
     RoleServer,
@@ -61,6 +62,11 @@ async fn converts_mcp_tool_schema_to_bloomery_definition() {
     assert_eq!(definitions.len(), 1);
     assert_eq!(definitions[0].id.as_str(), "mcp.steel-fixture.steel.lookup");
     assert_eq!(definitions[0].input_schema["type"], "object");
+    assert_eq!(
+        definitions[0].risk,
+        bloomery::agent::protocol::PermissionRisk::Automatic
+    );
+    assert!(definitions[0].read_only);
     assert!(matches!(
         definitions[0].source,
         ToolSource::Mcp {
@@ -280,5 +286,6 @@ fn fixture_tool() -> Tool {
         .unwrap()
         .clone(),
     );
+    tool.annotations = Some(ToolAnnotations::new().read_only(true));
     tool
 }

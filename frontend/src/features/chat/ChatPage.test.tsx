@@ -349,6 +349,34 @@ describe("ChatPage", () => {
     expect(screen.getByRole("navigation", { name: "本次对话问题导航" })).toBeInTheDocument();
   });
 
+  it("shows local context status from the agent response metadata", async () => {
+    vi.mocked(desktop.listMessages).mockResolvedValue([
+      userMessage,
+      {
+        ...userMessage,
+        id: "message-2",
+        role: "agent",
+        content: "已结合本地上下文回答。",
+        response_json: JSON.stringify({
+          memory: {
+            selected_count: 1,
+            selected: [{ id: "memory-1", title: "Q355B target", layer: "domain_memory" }],
+          },
+          skills: {
+            loaded: [{ name: "steel-review", version: "1.0.0", content_sha256: "abc", trigger_reason: "matched_query_tag:steel" }],
+          },
+          tool_calls: [{ tool_name: "steel.carbon_equivalent" }],
+        }),
+      },
+    ]);
+
+    render(<ChatPage />);
+
+    expect(await screen.findByText("1 条记忆")).toBeInTheDocument();
+    expect(screen.getByText("1 个技能")).toBeInTheDocument();
+    expect(screen.getByText("1 个工具")).toBeInTheDocument();
+  });
+
   it("fills the composer with a Web follow-up question", async () => {
     vi.mocked(desktop.listMessages).mockResolvedValue([{
       ...userMessage,

@@ -35,6 +35,7 @@ pub struct McpTool {
     pub input_schema: Value,
     pub output_schema: Option<Value>,
     pub read_only_hint: bool,
+    pub destructive_hint: Option<bool>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]

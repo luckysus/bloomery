@@ -1,3 +1,4 @@
+mod agent_tools;
 mod analysis;
 mod calculators;
 mod datasets;
@@ -5,6 +6,7 @@ mod evaluations;
 mod optimization_tool;
 mod tool;
 
+pub use agent_tools::{SteelAgentGateway, SteelAgentGatewayFuture};
 pub use analysis::{
     analyze_dataset, DatasetAnalysis, DatasetAnalysisRequest, DatasetColumnAnalysis,
     DatasetCorrelation, DatasetDistributionBin, DatasetGroupColumnSummary, DatasetGroupSummary,
@@ -15,7 +17,7 @@ pub use calculators::{
     CompositionUnit, SteelCalculationError,
 };
 pub use datasets::{
-    hash_dataset_source, preview_dataset, read_dataset_table, DatasetPreview,
+    hash_dataset_source, preview_dataset, read_dataset_table, DatasetColumnPreview, DatasetPreview,
     DatasetPreviewRequest, DatasetTable,
 };
 pub use evaluations::{parse_suite, run_rust_categories, CategoryReport, EvaluationReport};

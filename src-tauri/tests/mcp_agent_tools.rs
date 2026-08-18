@@ -178,3 +178,44 @@ async fn composite_executor_keeps_builtin_and_mcp_tools_available() {
         .expect("MCP tool remains executable through composite");
     assert_eq!(calls.lock().expect("read calls").len(), 1);
 }
+
+#[test]
+fn limits_mcp_tools_for_agent_prompt_when_many_are_enabled() {
+    let caller = Arc::new(RecordingCaller {
+        calls: Arc::new(Mutex::new(Vec::new())),
+    });
+    let mut bindings = Vec::new();
+    for index in 0..12 {
+        let mut item = definition(
+            &format!("mcp.steel.tool_{index}"),
+            ToolSource::Mcp {
+                server_id: "steel".to_string(),
+                server_version: ToolVersion {
+                    major: 1,
+                    minor: 0,
+                    patch: 0,
+                },
+            },
+        );
+        item.name = if index == 9 {
+            "calculator".to_string()
+        } else {
+            format!("tool_{index}")
+        };
+        item.description = if index == 9 {
+            "Calculate steel process windows".to_string()
+        } else {
+            "Generic MCP helper".to_string()
+        };
+        bindings.push(McpToolBinding {
+            definition: item,
+            caller: caller.clone(),
+        });
+    }
+
+    let executor = McpToolExecutor::from_bindings_for_query(bindings, "calculate Q355B")
+        .expect("filtered MCP executor");
+
+    assert!(executor.registrations().len() <= 8);
+    assert_eq!(executor.registrations()[0].spec.name, "calculator");
+}

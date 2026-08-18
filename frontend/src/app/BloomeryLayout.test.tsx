@@ -188,6 +188,16 @@ describe("Bloomery desktop layout", () => {
     expect(polishCss).toContain("background-color: var(--bloomery-bg-raised) !important;");
   });
 
+  it("keeps the copied Web chat surfaces dark in dark mode", () => {
+    expect(polishCss).toContain('[data-theme="dark"] .bloomery-web-chat-embedded,');
+    expect(polishCss).toContain('[data-theme="dark"] .bloomery-web-chat-desktop-clean .web-agent-chat-panel,');
+    expect(polishCss).toContain('[data-theme="dark"] .bloomery-web-chat-desktop-clean .web-agent-chat-panel > div,');
+    expect(polishCss).toContain('[data-theme="dark"] .bloomery-web-chat-desktop-clean .web-agent-chat-panel header,');
+    expect(polishCss).toContain('[data-theme="dark"] .bloomery-web-chat-desktop-clean .web-agent-chat-panel form');
+    expect(polishCss).toContain('[data-theme="dark"] .bloomery-web-chat-desktop-clean [class*="bg-[#fbf7ef]"]');
+    expect(polishCss).toContain('[data-theme="dark"] .bloomery-web-chat-desktop-clean .web-agent-chat-panel textarea');
+  });
+
   it("keeps copied Web conversation menus readable in dark mode", () => {
     expect(polishCss).toContain(
       '[data-theme="dark"] .bloomery-web-chat-desktop-clean .bloomery-web-chat-session-menu',

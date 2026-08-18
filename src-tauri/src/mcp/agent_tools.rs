@@ -13,6 +13,8 @@ use serde_json::Value;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
+const MAX_MCP_TOOLS_FOR_AGENT_PROMPT: usize = 8;
+
 pub trait McpToolCaller: Send + Sync {
     fn call(
         &self,
@@ -35,6 +37,13 @@ impl McpToolExecutor {
     pub async fn from_supervisors(
         supervisors: Vec<Arc<Mutex<McpSupervisor>>>,
     ) -> Result<Self, String> {
+        Self::from_supervisors_for_query(supervisors, "").await
+    }
+
+    pub async fn from_supervisors_for_query(
+        supervisors: Vec<Arc<Mutex<McpSupervisor>>>,
+        query: &str,
+    ) -> Result<Self, String> {
         let mut bindings = Vec::new();
         for supervisor in supervisors {
             let guard = supervisor.lock().await;
@@ -55,6 +64,14 @@ impl McpToolExecutor {
                 });
             }
         }
+        Self::from_bindings_for_query(bindings, query)
+    }
+
+    pub fn from_bindings_for_query(
+        bindings: Vec<McpToolBinding>,
+        query: &str,
+    ) -> Result<Self, String> {
+        let bindings = select_bindings_for_query(bindings, query);
         Self::from_bindings(bindings)
     }
 
@@ -89,6 +106,56 @@ impl McpToolExecutor {
         }
         Ok(Self { registrations })
     }
+}
+
+fn select_bindings_for_query(bindings: Vec<McpToolBinding>, query: &str) -> Vec<McpToolBinding> {
+    if bindings.len() <= MAX_MCP_TOOLS_FOR_AGENT_PROMPT {
+        return bindings;
+    }
+    let terms = query_terms(query);
+    let mut scored = bindings
+        .into_iter()
+        .enumerate()
+        .map(|(index, binding)| {
+            let score = score_binding(&binding, &terms, query);
+            (index, score, binding)
+        })
+        .collect::<Vec<_>>();
+    if scored.iter().any(|(_, score, _)| *score > 0) {
+        scored.retain(|(_, score, _)| *score > 0);
+        scored.sort_by(|left, right| right.1.cmp(&left.1).then_with(|| left.0.cmp(&right.0)));
+    }
+    scored
+        .into_iter()
+        .take(MAX_MCP_TOOLS_FOR_AGENT_PROMPT)
+        .map(|(_, _, binding)| binding)
+        .collect()
+}
+
+fn score_binding(binding: &McpToolBinding, terms: &[String], query: &str) -> usize {
+    let text = format!(
+        "{} {} {}",
+        binding.definition.id, binding.definition.name, binding.definition.description
+    )
+    .to_lowercase();
+    let mut score = terms.iter().filter(|term| text.contains(*term)).count();
+    if !binding.definition.name.trim().is_empty()
+        && query
+            .to_lowercase()
+            .contains(&binding.definition.name.to_lowercase())
+    {
+        score += 2;
+    }
+    score
+}
+
+fn query_terms(query: &str) -> Vec<String> {
+    query
+        .to_lowercase()
+        .split(|character: char| !character.is_alphanumeric())
+        .filter(|term| term.chars().count() >= 2)
+        .map(str::to_string)
+        .collect()
 }
 
 impl ToolExecutor for McpToolExecutor {

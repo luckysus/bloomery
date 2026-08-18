@@ -255,6 +255,7 @@ export default function ExtensionsPage() {
                     <dl className="bloomery-extension-details">
                       <div><dt>{t("extensionsVersion")}</dt><dd>{skill.version}</dd></div>
                       <div><dt>{t("extensionsSource")}</dt><dd>{t("extensionsScopeUser")}</dd></div>
+                      {skill.tags.length > 0 && <div><dt>{t("extensionsTags")}</dt><dd className="bloomery-extension-tags">{skill.tags.map((tag) => <span key={tag}>{tag}</span>)}</dd></div>}
                       <div><dt>{t("extensionsHash")}</dt><dd title={skill.content_sha256}>{shortHash(skill.content_sha256)}</dd></div>
                     </dl>
                     <div className="bloomery-extension-path"><FolderOpen size={14} aria-hidden="true" /><code>{skill.source.path}</code></div>

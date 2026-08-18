@@ -31,9 +31,16 @@ export interface WebResponse {
   recommendations: WebRecommendation[];
   pending_confirmations: WebPendingConfirmation[];
   evidence: EvidenceItem[];
+  context_status: WebContextStatus;
   reasoning?: string;
   reasoning_ms?: number;
   web_sources: WebSource[];
+}
+
+export interface WebContextStatus {
+  memory_count: number;
+  skill_count: number;
+  tool_count: number;
 }
 
 export interface WebMessage {
@@ -105,6 +112,22 @@ function asWebSources(value: unknown): WebSource[] {
   });
 }
 
+function countArray(value: unknown): number {
+  return Array.isArray(value) ? value.length : 0;
+}
+
+function responseContextStatus(record: Record<string, unknown>): WebContextStatus {
+  const memory = asRecord(record.memory);
+  const skills = asRecord(record.skills);
+  return {
+    memory_count: typeof memory?.selected_count === "number"
+      ? memory.selected_count
+      : countArray(memory?.selected),
+    skill_count: countArray(skills?.loaded),
+    tool_count: countArray(record.tool_calls),
+  };
+}
+
 export function parseWebResponse(message: Message): WebResponse | null {
   if (!["agent", "assistant"].includes(message.role) || !message.response_json) return null;
   try {
@@ -115,6 +138,7 @@ export function parseWebResponse(message: Message): WebResponse | null {
       recommendations: asRecommendations(record.recommendations),
       pending_confirmations: asConfirmations(record.pending_confirmations),
       evidence: asEvidence(record.evidence),
+      context_status: responseContextStatus(record),
       reasoning: typeof record.reasoning === "string" ? record.reasoning : undefined,
       reasoning_ms: typeof record.reasoning_ms === "number" ? record.reasoning_ms : undefined,
       web_sources: asWebSources(record.web_sources),

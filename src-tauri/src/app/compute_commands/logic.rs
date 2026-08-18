@@ -569,68 +569,70 @@ pub(crate) fn train_steel_dataset(
     db: tauri::State<DbState>,
     request: TrainSteelDatasetRequest,
 ) -> Result<BackgroundTaskResponse, String> {
-    let algorithm = requested_training_algorithm(&request)?;
-    let prepared = with_conn(&db, |connection| {
-        let workspace_id = current_workspace_id();
-        let dataset = steel_repository::get(connection, workspace_id, &request.dataset_id)?
-            .ok_or_else(|| "steel dataset was not found in the local workspace".to_string())?;
-        if dataset.mapping_state != "ready" {
-            return Err("steel dataset must be activated before training".to_string());
-        }
-        let current_hash = hash_dataset_source(&dataset.source_path)?;
-        if current_hash != dataset.source_sha256 {
-            return Err(
-                "steel dataset source changed since it was saved; preview and save it again"
-                    .to_string(),
-            );
-        }
-        let table = read_dataset_table(&crate::steel::DatasetPreviewRequest {
-            source_path: dataset.source_path.clone(),
-            sheet: Some(dataset.selected_sheet.clone()),
-        })?;
-        let payload = build_linear_regression_payload(&table, &dataset.columns, &request)?;
-        Ok((workspace_id.to_string(), dataset.source_sha256, payload))
-    })?;
-
-    let (workspace_id, source_sha256, payload) = prepared;
     with_conn_mut(&db, |connection| {
-        let operation = if algorithm == "linear_regression" {
-            "train_linear_regression"
-        } else {
-            "train_sklearn_model"
-        };
-        let task_payload = json!({
-            "operation": operation,
-            "payload": {
-                "dataset_id": payload["dataset_id"],
-                "data_version": source_sha256,
-                "features": payload["features"],
-                "targets": payload["targets"],
-                "feature_names": payload["feature_names"],
-                "field_mapping": payload["field_mapping"],
-                "split_policy": payload["split_policy"],
-                "algorithm": algorithm,
-            }
-        });
-        let task_kind = if algorithm == "linear_regression" {
-            crate::compute::handler::COMPUTE_TRAIN_LINEAR_REGRESSION_KIND
-        } else {
-            crate::compute::handler::COMPUTE_TRAIN_SKLEARN_KIND
-        };
-        task_repository::create(
-            connection,
-            NewTask {
-                workspace_id,
-                kind: task_kind.to_string(),
-                payload_json: serialize_compute_task_payload(&task_payload)?,
-                checkpoint_json: Some(json!({"stage": "queued"}).to_string()),
-                next_run_at: None,
-                progress: 0,
-            },
-        )
-        .map(background_task_response)
-        .map_err(|error| error.to_string())
+        train_steel_dataset_on_connection(connection, current_workspace_id(), &request)
+            .map(background_task_response)
     })
+}
+
+pub fn train_steel_dataset_on_connection(
+    connection: &mut rusqlite::Connection,
+    workspace_id: &str,
+    request: &TrainSteelDatasetRequest,
+) -> Result<crate::tasks::TaskRecord, String> {
+    let algorithm = requested_training_algorithm(request)?;
+    let dataset = steel_repository::get(connection, workspace_id, &request.dataset_id)?
+        .ok_or_else(|| "steel dataset was not found in the local workspace".to_string())?;
+    if dataset.mapping_state != "ready" {
+        return Err("steel dataset must be activated before training".to_string());
+    }
+    let current_hash = hash_dataset_source(&dataset.source_path)?;
+    if current_hash != dataset.source_sha256 {
+        return Err(
+            "steel dataset source changed since it was saved; preview and save it again"
+                .to_string(),
+        );
+    }
+    let table = read_dataset_table(&crate::steel::DatasetPreviewRequest {
+        source_path: dataset.source_path.clone(),
+        sheet: Some(dataset.selected_sheet.clone()),
+    })?;
+    let payload = build_linear_regression_payload(&table, &dataset.columns, request)?;
+    let operation = if algorithm == "linear_regression" {
+        "train_linear_regression"
+    } else {
+        "train_sklearn_model"
+    };
+    let task_payload = json!({
+        "operation": operation,
+        "payload": {
+            "dataset_id": payload["dataset_id"],
+            "data_version": dataset.source_sha256,
+            "features": payload["features"],
+            "targets": payload["targets"],
+            "feature_names": payload["feature_names"],
+            "field_mapping": payload["field_mapping"],
+            "split_policy": payload["split_policy"],
+            "algorithm": algorithm,
+        }
+    });
+    let task_kind = if algorithm == "linear_regression" {
+        crate::compute::handler::COMPUTE_TRAIN_LINEAR_REGRESSION_KIND
+    } else {
+        crate::compute::handler::COMPUTE_TRAIN_SKLEARN_KIND
+    };
+    task_repository::create(
+        connection,
+        NewTask {
+            workspace_id: workspace_id.to_string(),
+            kind: task_kind.to_string(),
+            payload_json: serialize_compute_task_payload(&task_payload)?,
+            checkpoint_json: Some(json!({"stage": "queued"}).to_string()),
+            next_run_at: None,
+            progress: 0,
+        },
+    )
+    .map_err(|error| error.to_string())
 }
 
 pub(crate) fn get_compute_training_result(
@@ -665,63 +667,75 @@ pub(crate) fn predict_steel_model(
     let training_task_id = uuid::Uuid::parse_str(&request.training_task_id)
         .map_err(|error| format!("invalid training task ID: {error}"))?;
     with_conn_mut(&db, |connection| {
-        let workspace_id = current_workspace_id();
-        let training_task = task_repository::get(connection, workspace_id, training_task_id)
-            .map_err(|error| error.to_string())?
-            .ok_or_else(|| "training task was not found in the local workspace".to_string())?;
-        if !crate::compute::handler::is_training_task_kind(&training_task.kind) {
-            return Err("task is not a model training task".to_string());
-        }
-        if training_task.state != crate::tasks::TaskState::Completed {
-            return Err("training task must be completed before prediction".to_string());
-        }
-        let training_payload: Value = serde_json::from_str(&training_task.payload_json)
-            .map_err(|error| format!("invalid training task payload: {error}"))?;
-        let source_dataset_id = training_payload["payload"]["dataset_id"]
-            .as_str()
-            .ok_or_else(|| "training task has no dataset identity".to_string())?;
-        if source_dataset_id != request.dataset_id {
-            return Err("prediction dataset does not match the training task".to_string());
-        }
-        let checkpoint: Value = serde_json::from_str(
-            training_task
-                .checkpoint_json
-                .as_deref()
-                .ok_or_else(|| "completed training task has no result".to_string())?,
-        )
-        .map_err(|error| format!("invalid training checkpoint: {error}"))?;
-        let artifact = checkpoint["result"]["artifact"].clone();
-        let mut payload = build_linear_regression_prediction_payload(
-            &request.dataset_id,
-            &request.training_task_id,
-            &artifact,
-            &request.feature_values,
-        )?;
-        let task_kind = match artifact["artifact_version"].as_str() {
-            Some("linear-regression.v1") => {
-                crate::compute::handler::COMPUTE_PREDICT_LINEAR_REGRESSION_KIND
-            }
-            Some("sklearn-pickle.v1") => {
-                payload["operation"] = json!("predict_trained_model");
-                crate::compute::handler::COMPUTE_PREDICT_TRAINED_KIND
-            }
-            _ => return Err("unsupported training model artifact".to_string()),
-        };
-        let task_payload = serialize_compute_task_payload(&payload)?;
-        task_repository::create(
+        predict_steel_model_on_connection(
             connection,
-            NewTask {
-                workspace_id: workspace_id.to_string(),
-                kind: task_kind.to_string(),
-                payload_json: task_payload,
-                checkpoint_json: Some(json!({"stage": "queued"}).to_string()),
-                next_run_at: None,
-                progress: 0,
-            },
+            current_workspace_id(),
+            &request,
+            training_task_id,
         )
         .map(background_task_response)
-        .map_err(|error| error.to_string())
     })
+}
+
+pub fn predict_steel_model_on_connection(
+    connection: &mut rusqlite::Connection,
+    workspace_id: &str,
+    request: &PredictSteelModelRequest,
+    training_task_id: uuid::Uuid,
+) -> Result<crate::tasks::TaskRecord, String> {
+    let training_task = task_repository::get(connection, workspace_id, training_task_id)
+        .map_err(|error| error.to_string())?
+        .ok_or_else(|| "training task was not found in the local workspace".to_string())?;
+    if !crate::compute::handler::is_training_task_kind(&training_task.kind) {
+        return Err("task is not a model training task".to_string());
+    }
+    if training_task.state != crate::tasks::TaskState::Completed {
+        return Err("training task must be completed before prediction".to_string());
+    }
+    let training_payload: Value = serde_json::from_str(&training_task.payload_json)
+        .map_err(|error| format!("invalid training task payload: {error}"))?;
+    let source_dataset_id = training_payload["payload"]["dataset_id"]
+        .as_str()
+        .ok_or_else(|| "training task has no dataset identity".to_string())?;
+    if source_dataset_id != request.dataset_id {
+        return Err("prediction dataset does not match the training task".to_string());
+    }
+    let checkpoint: Value = serde_json::from_str(
+        training_task
+            .checkpoint_json
+            .as_deref()
+            .ok_or_else(|| "completed training task has no result".to_string())?,
+    )
+    .map_err(|error| format!("invalid training checkpoint: {error}"))?;
+    let artifact = checkpoint["result"]["artifact"].clone();
+    let mut payload = build_linear_regression_prediction_payload(
+        &request.dataset_id,
+        &request.training_task_id,
+        &artifact,
+        &request.feature_values,
+    )?;
+    let task_kind = match artifact["artifact_version"].as_str() {
+        Some("linear-regression.v1") => {
+            crate::compute::handler::COMPUTE_PREDICT_LINEAR_REGRESSION_KIND
+        }
+        Some("sklearn-pickle.v1") => {
+            payload["operation"] = json!("predict_trained_model");
+            crate::compute::handler::COMPUTE_PREDICT_TRAINED_KIND
+        }
+        _ => return Err("unsupported training model artifact".to_string()),
+    };
+    task_repository::create(
+        connection,
+        NewTask {
+            workspace_id: workspace_id.to_string(),
+            kind: task_kind.to_string(),
+            payload_json: serialize_compute_task_payload(&payload)?,
+            checkpoint_json: Some(json!({"stage": "queued"}).to_string()),
+            next_run_at: None,
+            progress: 0,
+        },
+    )
+    .map_err(|error| error.to_string())
 }
 
 pub(crate) fn get_compute_prediction_result(

@@ -59,6 +59,10 @@ pub async fn desktop_agent_chat(
         &preparation.route,
         preparation.evidence_pack.as_ref(),
         &preparation.skills.rendered.enabled_versions,
+        &preparation.skills.summaries,
+        &preparation.skills.rendered.loaded,
+        &streamed.tool_calls,
+        &preparation.selected_memories,
     );
     if streamed.stopped {
         response["status"] = Value::String("cancelled".to_string());

@@ -103,6 +103,14 @@ pub struct EvidenceAttachment {
     pub citation_numbers: Vec<u32>,
 }
 
+/// 附着在 agent 请求上的多模态附件(如图片),由前端以 base64 提供。
+#[derive(Debug, Clone)]
+pub struct AgentLoopAttachment {
+    pub data: String,
+    pub mime: String,
+    pub name: String,
+}
+
 #[derive(Debug, Clone)]
 pub struct ContextEntry {
     pub item: ContextItem,
@@ -131,6 +139,7 @@ pub struct AgentLoopRequest {
     pub context: Vec<ContextEntry>,
     pub output_reservation: usize,
     pub evidence: Option<EvidenceAttachment>,
+    pub attachments: Vec<AgentLoopAttachment>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

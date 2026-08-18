@@ -22,6 +22,7 @@ pub(crate) mod permission_commands;
 pub(crate) mod provider_commands;
 pub(crate) mod secret_commands;
 pub(crate) mod skills_commands;
+pub(crate) mod steel_agent_gateway;
 pub(crate) mod steel_commands;
 pub(crate) mod storage_commands;
 pub(crate) mod task_commands;

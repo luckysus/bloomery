@@ -1,6 +1,6 @@
 use super::types::{
-    AgentEventSink, AgentLoopError, ContextEntry, EvidenceAttachment, PreparedToolCall,
-    ToolExecutionError, ToolRegistration,
+    AgentEventSink, AgentLoopAttachment, AgentLoopError, ContextEntry, EvidenceAttachment,
+    PreparedToolCall, ToolExecutionError, ToolRegistration,
 };
 use crate::agent::context::{ContextReport, ContextSource};
 use crate::agent::protocol::{
@@ -8,7 +8,9 @@ use crate::agent::protocol::{
     ToolOutcome, UsageUpdated,
 };
 use crate::agent::tool_repair::{repair_tool_call, ToolRepairError, ToolSpec};
-use crate::providers::capabilities::{ChatMessage, ChatResponse, ChatToolCall, ChatUsage};
+use crate::providers::capabilities::{
+    ChatImage, ChatMessage, ChatResponse, ChatToolCall, ChatUsage,
+};
 use crate::providers::http::ProviderErrorCode;
 use serde_json::{json, Value};
 use uuid::Uuid;
@@ -61,13 +63,37 @@ pub(super) fn tool_definitions(registrations: &[ToolRegistration]) -> Value {
                     "type": "function",
                     "function": {
                         "name": registration.spec.name,
-                        "description": format!("Bloomery tool {}", registration.spec.name),
+                        "description": tool_description(&registration.spec.name),
                         "parameters": registration.spec.input_schema,
                     }
                 })
             })
             .collect(),
     )
+}
+
+fn tool_description(name: &str) -> String {
+    match name {
+        "search_literature" => "混合检索本地知识库中的文献片段、结论、文献配图和金相照片；优先走本地 hybrid RAG，必要时降级到 FTS。".to_string(),
+        "read_literature_section" => "读取本地知识库中已解析文档的目录、摘要、参考文献或指定章节原文。".to_string(),
+        "query_production_data" => "查询本地导入的生产数据集，包含钢卷批次、实测成分、实测力学性能和实际工艺参数；这不是标准查询。".to_string(),
+        "query_composition_standard" => "查询本地知识库中的成分标准，例如钢级、牌号、出钢记号对应的元素含量范围。".to_string(),
+        "query_process_standard" => "查询本地知识库中的工艺标准，例如轧制温度、卷取温度、冷却制度等标准工艺参数范围。".to_string(),
+        "ask_llm_with_context" => "整理当前证据给本地 AgentLoop 继续合成最终中文回答；不要在工具内部递归调用模型。".to_string(),
+        "predict_performance" => "基于 Bloomery 本地已完成训练的模型预测力学性能；需要本地 datasetId、trainingTaskId 和 featureValues，不能调用 Web 云模型。".to_string(),
+        "optimize_process" => "基于 Bloomery 本地已完成训练的模型执行工艺/参数寻优；需要用户确认，不能调用 Web 云优化服务。".to_string(),
+        "match_coil" => "按目标屈服强度、抗拉强度或延伸率，在本地生产数据中匹配性能相近的历史钢卷。".to_string(),
+        "get_model_status" => "查看本地已注册的钢铁模型、版本和激活状态；只读，不做预测、不训练、不优化。".to_string(),
+        "start_training" => "启动本地模型训练任务；高风险操作，只有用户明确要求训练/重新训练/更新模型时才调用。".to_string(),
+        "process_literature" => "把本地 PDF、Markdown、Office 文档加入 Bloomery 知识库；需要用户确认，并使用本地配置的 MinerU/Embedding provider。".to_string(),
+        "export_data" => "识别导出意图并提示用户在结果区手动导出，避免 Agent 后台自动写文件。".to_string(),
+        "remember_memory" => "保存用户确认的长期偏好、稳定事实、任务状态或纠正。".to_string(),
+        "read_memory" => "按记忆 ID 读取当前本地工作区的一条长期记忆。".to_string(),
+        "search_memory" => "搜索当前本地工作区的长期记忆摘要。".to_string(),
+        "list_memory" => "列出当前本地工作区的长期记忆，可按类型或关键词过滤。".to_string(),
+        "forget_memory" => "让一条长期记忆不再被召回；需要用户确认。".to_string(),
+        _ => format!("Bloomery tool {name}"),
+    }
 }
 
 pub(super) fn record_usage(
@@ -218,6 +244,7 @@ pub(super) fn append_response_text(
 pub(super) fn render_context_messages(
     report: &ContextReport,
     entries: &[ContextEntry],
+    attachments: &[AgentLoopAttachment],
 ) -> Vec<ChatMessage> {
     let selected = report
         .included_items
@@ -251,9 +278,16 @@ pub(super) fn render_context_messages(
         .iter()
         .find(|entry| entry.item.source == ContextSource::CurrentRequest)
     {
-        messages.push(ChatMessage::new(
+        messages.push(ChatMessage::with_images(
             role_text(entry.role),
             entry.item.content.clone(),
+            attachments
+                .iter()
+                .map(|attachment| ChatImage {
+                    data: attachment.data.clone(),
+                    mime: attachment.mime.clone(),
+                })
+                .collect(),
         ));
     }
     messages
@@ -357,5 +391,17 @@ pub(super) fn to_agent_error(error: &AgentLoopError) -> AgentError {
         message: error.to_string(),
         retryable,
         details: None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::tool_description;
+
+    #[test]
+    fn steel_tool_descriptions_are_domain_specific() {
+        assert!(tool_description("search_literature").contains("本地 hybrid RAG"));
+        assert!(tool_description("predict_performance").contains("不能调用 Web 云模型"));
+        assert_eq!(tool_description("custom_tool"), "Bloomery tool custom_tool");
     }
 }

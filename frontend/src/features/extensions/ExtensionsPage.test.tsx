@@ -38,6 +38,7 @@ describe("ExtensionsPage", () => {
         name: "steel-review",
         description: "Review steel evidence",
         version: "1.0.0",
+        tags: ["steel", "review"],
         compatibility: ["bloomery>=0.1.0"],
         source: { scope: "user", path: "C:/Users/example/.bloomery/skills/steel-review/SKILL.md" },
         content_sha256: "abc123",
@@ -50,6 +51,7 @@ describe("ExtensionsPage", () => {
         name: "steel-review",
         description: "Review steel evidence",
         version: "1.0.0",
+        tags: ["steel", "review"],
         compatibility: ["bloomery>=0.1.0"],
         source: { scope: "user", path: "C:/Users/example/.bloomery/skills/steel-review/SKILL.md" },
         content_sha256: "abc123",
@@ -65,6 +67,8 @@ describe("ExtensionsPage", () => {
     expect(await screen.findByRole("heading", { name: "extensionsTitle" })).toBeInTheDocument();
     expect(screen.getByText("steel-review")).toBeInTheDocument();
     expect(screen.getByText("1.0.0")).toBeInTheDocument();
+    expect(screen.getByText("steel")).toBeInTheDocument();
+    expect(screen.getByText("review")).toBeInTheDocument();
     expect(screen.getByText("extensionsScopeUser")).toBeInTheDocument();
     expect(screen.getByText(/C:\/Users\/example/)).toBeInTheDocument();
     expect(container.querySelectorAll(".bloomery-eyebrow")).toHaveLength(0);
@@ -115,7 +119,7 @@ describe("ExtensionsPage", () => {
     render(<ExtensionsPage />);
 
     expect(await screen.findByRole("heading", { name: "extensionsDomainsTitle" })).toBeInTheDocument();
-    expect(screen.getByText("steel")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "steel" })).toBeInTheDocument();
     expect(screen.getByText("extensionsDomainOfficial")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "extensionsDomainActivate" }));
 
@@ -149,8 +153,15 @@ describe("ExtensionsPage", () => {
       tool_count: 1,
       resource_count: 0,
       prompt_count: 0,
-      tools: [{ id: "mcp.steel-mcp.lookup", name: "lookup", description: "Look up steel" }],
+      tools: [{
+        id: "mcp.steel-mcp.lookup",
+        name: "lookup",
+        description: "Look up steel",
+        read_only: true,
+        risk: "automatic",
+      }],
       error: null,
+      diagnostic: null,
       checked_at: "2026-08-09T00:00:00Z",
     });
 
@@ -161,7 +172,54 @@ describe("ExtensionsPage", () => {
 
     await waitFor(() => expect(desktop.checkMcpServer).toHaveBeenCalledWith("mcp-1"));
     expect(await screen.findByText("lookup")).toBeInTheDocument();
+    expect(screen.getByText("extensionsMcpToolAutomatic")).toBeInTheDocument();
+    expect(screen.getByText("extensionsMcpToolReadOnly")).toBeInTheDocument();
     expect(screen.getByText("extensionsMcpHealthy")).toBeInTheDocument();
+  });
+
+  it("shows MCP diagnostics when a server check fails", async () => {
+    vi.mocked(desktop.listMcpServers).mockResolvedValue([{
+      id: "mcp-diagnostic",
+      display_name: "Steel MCP",
+      server_id: "steel-mcp",
+      transport: "stdio",
+      url: null,
+      executable: "powershell.exe",
+      args: [],
+      working_directory: null,
+      inherited_env: [],
+      env_names: ["STEEL_API_KEY"],
+      timeout_ms: 30000,
+      enabled: true,
+      secret_configured: false,
+      status: "unknown",
+      last_error: null,
+      last_checked_at: null,
+      tool_count: 0,
+    }]);
+    vi.mocked(desktop.checkMcpServer).mockResolvedValue({
+      status: "failed",
+      server_name: null,
+      server_version: null,
+      tool_count: 0,
+      resource_count: 0,
+      prompt_count: 0,
+      tools: [],
+      error: "MCP environment credential is not configured: STEEL_API_KEY",
+      diagnostic: {
+        code: "missing_credential",
+        message: "MCP server is missing a configured credential.",
+        suggested_action: "Edit the server and save the required token or environment value.",
+      },
+      checked_at: "2026-08-09T00:00:00Z",
+    });
+
+    render(<ExtensionsPage />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "extensionsMcpCheck" }));
+
+    expect(await screen.findByText("MCP server is missing a configured credential.")).toBeInTheDocument();
+    expect(screen.getByText("Edit the server and save the required token or environment value.")).toBeInTheDocument();
   });
 
   it("repopulates inherited environment settings when editing an MCP server", async () => {
@@ -242,6 +300,58 @@ describe("ExtensionsPage", () => {
         clear_environment_credentials: true,
         env_values: {},
         replace_inherited_env: true,
+      })),
+    );
+  });
+
+  it("can disable an MCP server from the edit form", async () => {
+    vi.mocked(desktop.listMcpServers).mockResolvedValue([{
+      id: "mcp-disabled",
+      display_name: "Steel MCP",
+      server_id: "steel-mcp",
+      transport: "stdio",
+      url: null,
+      executable: "powershell.exe",
+      args: [],
+      working_directory: null,
+      inherited_env: [],
+      env_names: [],
+      timeout_ms: 30000,
+      enabled: true,
+      secret_configured: false,
+      status: "unknown",
+      last_error: null,
+      last_checked_at: null,
+      tool_count: 0,
+    }]);
+    vi.mocked(desktop.saveMcpServer).mockResolvedValue({
+      id: "mcp-disabled",
+      display_name: "Steel MCP",
+      server_id: "steel-mcp",
+      transport: "stdio",
+      url: null,
+      executable: "powershell.exe",
+      args: [],
+      working_directory: null,
+      inherited_env: [],
+      env_names: [],
+      timeout_ms: 30000,
+      enabled: false,
+      secret_configured: false,
+      status: "unknown",
+      last_error: null,
+      last_checked_at: null,
+      tool_count: 0,
+    });
+
+    render(<ExtensionsPage />);
+    fireEvent.click(await screen.findByRole("button", { name: "extensionsMcpEdit" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "extensionsMcpEnabled" }));
+    fireEvent.click(screen.getByRole("button", { name: "extensionsMcpSave" }));
+
+    await waitFor(() =>
+      expect(desktop.saveMcpServer).toHaveBeenCalledWith(expect.objectContaining({
+        enabled: false,
       })),
     );
   });

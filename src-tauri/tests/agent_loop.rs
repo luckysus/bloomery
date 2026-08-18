@@ -219,6 +219,7 @@ fn request(evidence: Option<bloomery::agent::runtime::EvidenceAttachment>) -> Ag
         ],
         output_reservation: 4,
         evidence,
+        attachments: Vec::new(),
     }
 }
 
@@ -301,6 +302,7 @@ fn direct_answer_streams_usage_and_completes_once() {
         ],
         output_reservation: 128,
         evidence: None,
+        attachments: Vec::new(),
     };
 
     let result = tauri::async_runtime::block_on(
@@ -676,6 +678,7 @@ fn selected_recent_turns_are_restored_to_chronological_provider_order() {
         ],
         output_reservation: 4,
         evidence: None,
+        attachments: Vec::new(),
     };
 
     tauri::async_runtime::block_on(

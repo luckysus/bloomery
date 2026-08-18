@@ -1,5 +1,6 @@
 use super::model::{DesktopIntentKind, DesktopRoute};
 use crate::rag::citation::EvidencePack;
+use crate::skills::{LoadedSkill, SkillSummary};
 use serde_json::{json, Value};
 
 pub fn classify_desktop_intent(message: &str) -> DesktopRoute {
@@ -92,19 +93,19 @@ pub fn classify_desktop_intent(message: &str) -> DesktopRoute {
 }
 
 fn route(intent: DesktopIntentKind, confidence: f32, reason: &'static str) -> DesktopRoute {
-    let unavailable_capability = match intent {
-        DesktopIntentKind::KnowledgeQa => Some("local_rag"),
-        DesktopIntentKind::TrainingTask => Some("local_training"),
-        DesktopIntentKind::OptimizationTask => Some("local_optimization"),
-        DesktopIntentKind::LiteratureTask => Some("local_literature"),
-        _ => None,
-    };
     DesktopRoute {
         intent,
         confidence,
         reason,
-        unavailable_capability,
+        unavailable_capability: None,
     }
+}
+
+pub fn route_with_evidence_pack(mut route: DesktopRoute, has_evidence_pack: bool) -> DesktopRoute {
+    if has_evidence_pack && route.intent == DesktopIntentKind::KnowledgeQa {
+        route.unavailable_capability = None;
+    }
+    route
 }
 
 pub fn route_to_json(route: &DesktopRoute) -> Value {
@@ -126,6 +127,10 @@ pub fn build_agent_response_json(
     route: &DesktopRoute,
     evidence_pack: Option<&EvidencePack>,
     enabled_skill_versions: &[String],
+    available_skills: &[SkillSummary],
+    loaded_skills: &[LoadedSkill],
+    tool_calls: &[Value],
+    selected_memories: &[Value],
 ) -> Value {
     let evidence = evidence_pack
         .map(|pack| pack.evidence.clone())
@@ -137,10 +142,10 @@ pub fn build_agent_response_json(
         "answer": answer,
         "follow_up_questions": [],
         "plan_steps": [],
-        "tool_calls": [],
+        "tool_calls": tool_calls,
         "evidence_pack_id": evidence_pack.map(|pack| pack.id),
         "evidence": evidence,
-        "skills": {"enabled_versions": enabled_skill_versions},
+        "skills": {"available": available_skills, "enabled_versions": enabled_skill_versions, "loaded": loaded_skills},
         "recommendations": [],
         "verification": {
             "confidence": "medium",
@@ -150,7 +155,7 @@ pub fn build_agent_response_json(
             "unsupported_claims": [],
             "summary": "Generated locally from the current desktop context."
         },
-        "memory": {"session_id": conversation_id, "notes": []},
+        "memory": {"session_id": conversation_id, "selected_count": selected_memories.len(), "selected": selected_memories, "notes": []},
         "pending_confirmations": [],
         "intent": {
             "intent_type": route.intent.as_str(),
@@ -197,6 +202,9 @@ pub fn build_capability_unavailable_response_json(
     conversation_id: &str,
     route: &DesktopRoute,
     enabled_skill_versions: &[String],
+    available_skills: &[SkillSummary],
+    loaded_skills: &[LoadedSkill],
+    selected_memories: &[Value],
 ) -> Value {
     let capability = route.unavailable_capability.unwrap_or("unknown");
     json!({
@@ -207,11 +215,11 @@ pub fn build_capability_unavailable_response_json(
         "follow_up_questions": [],
         "plan_steps": [],
         "tool_calls": [],
-        "skills": {"enabled_versions": enabled_skill_versions},
+        "skills": {"available": available_skills, "enabled_versions": enabled_skill_versions, "loaded": loaded_skills},
         "evidence": [],
         "recommendations": [],
         "verification": {"confidence": "high", "citation_count": 0, "missing_citations": [], "numeric_warnings": [], "unsupported_claims": [], "summary": "The requested local capability is unavailable."},
-        "memory": {"session_id": conversation_id, "notes": []},
+        "memory": {"session_id": conversation_id, "selected_count": selected_memories.len(), "selected": selected_memories, "notes": []},
         "pending_confirmations": [],
         "intent": {"intent_type": route.intent.as_str(), "domain": "steel", "risk_level": "low", "needs_evidence": false, "needs_tools": [], "unavailable_capability": capability, "missing_slots": [], "answer_policy": "capability_unavailable", "reason": route.reason},
         "workflow_trace": {"route": "desktop_local_agent", "tools_selected": [], "tools_skipped": [capability], "evidence_policy": "none", "answer_policy": "capability_unavailable", "model_provider": "", "model_name": "", "notes": []},

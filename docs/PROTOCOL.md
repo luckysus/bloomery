@@ -176,6 +176,32 @@ infer approval from a model message. `allow_once`, `allow_session`, and
 `allow_always` are explicit decisions; `deny` prevents the call. Permission
 intent supplied by a model is never trusted as approval.
 
+## Assistant Response Metadata
+
+Assistant messages may persist a `response_json` object alongside the message
+body. This is not a replacement for the event stream; it is a compact replay
+summary for the chat UI.
+
+Current metadata can include:
+
+- `memory.selected`: confirmed memories selected for this run, grouped with a
+  `layer` such as `user_profile`, `domain_memory`, `task_memory`, or
+  `reflection_memory`;
+- `memory.selected_count`: the number of selected memories shown in the compact
+  chat status row;
+- `context_packet.memory_index`: intentionally empty in normal responses so the
+  complete memory catalog is not injected into prompts;
+- `skills.enabled_versions`: enabled Skill versions and content hashes;
+- `skills.loaded`: Skill name, version, content hash, and trigger reason for
+  Skills loaded into this run;
+- `tool_calls`: compact tool audit entries with `id`, `tool_id`, `name`,
+  `status`, and optional error metadata; tool outputs are not copied here;
+- `evidence` and `follow_up_questions`: UI-facing summaries derived from the
+  local run.
+
+Clients must treat `response_json` as display metadata. It must not approve
+permissions, execute tools, or write memory by itself.
+
 ## Errors
 
 Errors use this shape:

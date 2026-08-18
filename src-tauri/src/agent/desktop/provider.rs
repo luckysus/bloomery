@@ -123,6 +123,7 @@ where
     Ok(StreamedLlmAnswer {
         text: response.text,
         stopped: response.cancelled,
+        tool_calls: Vec::new(),
     })
 }
 

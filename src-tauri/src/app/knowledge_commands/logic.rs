@@ -219,16 +219,26 @@ pub(crate) fn get_knowledge_health(db: tauri::State<DbState>) -> Result<Knowledg
 
 pub(crate) async fn query_local_knowledge(
     app: tauri::AppHandle,
-    db: tauri::State<'_, DbState>,
+    _db: tauri::State<'_, DbState>,
     secrets: tauri::State<'_, SecretState>,
+    request: LocalKnowledgeQueryRequest,
+) -> Result<EvidencePack, String> {
+    let path = database_path(&app)?;
+    query_local_knowledge_from_path(path, current_workspace_id(), secrets.store(), request).await
+}
+
+pub(crate) async fn query_local_knowledge_from_path(
+    path: std::path::PathBuf,
+    workspace_id: &str,
+    secrets: &dyn SecretStore,
     mut request: LocalKnowledgeQueryRequest,
 ) -> Result<EvidencePack, String> {
     request.validate()?;
     // Apply all active domain packages' retrieval policies. The strictest evidence cap
     // wins so no package receives more candidates than it declares.
-    let active_domains = with_conn(&db, |connection| {
-        domains::active_manifests(connection, current_workspace_id())
-    })?;
+    let connection = open_query_connection(&path)?;
+    let active_domains = domains::active_manifests(&connection, workspace_id)?;
+    drop(connection);
     if let Some(max_items) = active_domains
         .iter()
         .map(|manifest| manifest.retrieval.max_evidence_items)
@@ -237,26 +247,28 @@ pub(crate) async fn query_local_knowledge(
     {
         request.candidate_limit = request.candidate_limit.min(max_items);
     }
-    let (embedding_record, rerank_record, retrieval_plan) = with_conn(&db, |connection| {
+    let connection = open_query_connection(&path)?;
+    let (embedding_record, rerank_record, retrieval_plan) = {
         let embedding = provider_profiles::get_default_record(
-            connection,
-            current_workspace_id(),
+            &connection,
+            workspace_id,
             ProviderCapability::Embedding,
         )?
         .ok_or_else(|| "default embedding provider is not configured".to_string())?;
         let rerank = provider_profiles::get_default_record(
-            connection,
-            current_workspace_id(),
+            &connection,
+            workspace_id,
             ProviderCapability::Rerank,
         )?;
         let plan = SiliconFlowPlan::from_setting(
-            settings::get(connection, current_workspace_id(), "onboarding.retrieval")?.as_deref(),
+            settings::get(&connection, workspace_id, "onboarding.retrieval")?.as_deref(),
         );
-        Ok((embedding, rerank, plan))
-    })?;
+        Ok::<_, String>((embedding, rerank, plan))
+    }?;
+    drop(connection);
     let embedding_provider =
-        prepare_embedding_provider(&embedding_record, secrets.store(), retrieval_plan)?;
-    let reranker = prepare_reranker(rerank_record, secrets.store(), retrieval_plan);
+        prepare_embedding_provider(&embedding_record, secrets, retrieval_plan)?;
+    let reranker = prepare_reranker(rerank_record, secrets, retrieval_plan);
     let embedding = embedding_provider
         .embed(vec![request.query.clone()])
         .await
@@ -275,12 +287,11 @@ pub(crate) async fn query_local_knowledge(
         model_id: embedding.model_id.clone(),
         dimension,
     };
-    let path = database_path(&app)?;
     let content_root = path
         .parent()
         .ok_or_else(|| "resolve RAG content root failed".to_string())?;
     let connection = open_query_connection(&path)?;
-    let snapshot = load_index_snapshot(&connection, current_workspace_id(), &index_request)?;
+    let snapshot = load_index_snapshot(&connection, workspace_id, &index_request)?;
     let index = open_with_flat_fallback(
         &connection,
         &index_root(content_root, &snapshot.watermark),
@@ -291,7 +302,7 @@ pub(crate) async fn query_local_knowledge(
         &connection,
         &index,
         &HybridSearchRequest {
-            workspace_id: current_workspace_id().to_string(),
+            workspace_id: workspace_id.to_string(),
             query: request.query.clone(),
             query_vector,
             knowledge_base_ids: request.knowledge_base_ids.clone(),
@@ -316,7 +327,7 @@ pub(crate) async fn query_local_knowledge(
     let connection = open_query_connection(&path)?;
     persist_evidence_pack(
         &connection,
-        current_workspace_id(),
+        workspace_id,
         &request.query,
         RetrievalConfigSnapshot {
             knowledge_base_ids: request.knowledge_base_ids,

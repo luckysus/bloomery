@@ -1,6 +1,6 @@
 use bloomery::skills::{
-    discover_skills, render_enabled_skills, summarize_skills, SkillErrorCode, SkillRecord,
-    SkillRoot, SkillScope, SkillSource,
+    discover_skills, render_enabled_skills, render_relevant_skills, summarize_skills,
+    SkillErrorCode, SkillRecord, SkillRoot, SkillScope, SkillSource,
 };
 use std::collections::BTreeSet;
 use std::fs;
@@ -48,7 +48,7 @@ fn discovers_frontmatter_and_preserves_markdown_body() {
     write_skill(
         root_dir.path(),
         "steel-review",
-        "name: steel-review\ndescription: Review steel process data\nversion: 1.2.0\ncompatibility: bloomery>=0.1.0",
+        "name: steel-review\ndescription: Review steel process data\nversion: 1.2.0\ntags: [steel, review]\ncompatibility: bloomery>=0.1.0",
         "# Review\n\nUse the local evidence before making a claim.",
     );
 
@@ -59,6 +59,7 @@ fn discovers_frontmatter_and_preserves_markdown_body() {
     assert_eq!(report.skills[0].name, "steel-review");
     assert_eq!(report.skills[0].description, "Review steel process data");
     assert_eq!(report.skills[0].version, "1.2.0");
+    assert_eq!(report.skills[0].tags, vec!["steel", "review"]);
     assert_eq!(
         report.skills[0].body,
         "# Review\n\nUse the local evidence before making a claim."
@@ -213,6 +214,7 @@ fn enabled_skills_render_bounded_context_and_exact_versions() {
         name: "steel-review".to_string(),
         description: "Review steel evidence".to_string(),
         version: "1.2.0".to_string(),
+        tags: vec!["steel".to_string()],
         compatibility: vec!["bloomery>=0.1.0".to_string()],
         body: "Use the source document.\n".repeat(4_000),
         source: SkillSource {
@@ -225,10 +227,51 @@ fn enabled_skills_render_bounded_context_and_exact_versions() {
     let rendered = render_enabled_skills(&[skill.clone()], &BTreeSet::from([skill.name.clone()]));
 
     assert_eq!(rendered.enabled_versions, vec!["steel-review@1.2.0#abc123"]);
+    assert_eq!(rendered.loaded.len(), 1);
+    assert_eq!(rendered.loaded[0].name, "steel-review");
+    assert_eq!(rendered.loaded[0].trigger_reason, "enabled_by_user");
     assert!(rendered.prompt.contains("enabled_skills:"));
     assert!(rendered.prompt.contains("steel-review (v1.2.0)"));
     assert!(rendered.prompt.contains("Use the source document."));
     assert!(rendered.prompt.chars().count() <= 12_000);
+}
+
+#[test]
+fn query_render_loads_only_matching_enabled_skills() {
+    let steel = SkillRecord {
+        name: "steel-review".to_string(),
+        description: "Review steel evidence".to_string(),
+        version: "1.2.0".to_string(),
+        tags: vec!["steel".to_string(), "evidence".to_string()],
+        compatibility: Vec::new(),
+        body: "Use steel evidence.".to_string(),
+        source: SkillSource {
+            scope: SkillScope::User,
+            path: PathBuf::from("user/.bloomery/skills/steel-review/SKILL.md"),
+        },
+        content_sha256: "abc123".to_string(),
+    };
+    let writing = SkillRecord {
+        name: "writing-polish".to_string(),
+        description: "Polish release notes".to_string(),
+        version: "2.0.0".to_string(),
+        tags: vec!["writing".to_string()],
+        compatibility: Vec::new(),
+        body: "Improve prose.".to_string(),
+        source: SkillSource {
+            scope: SkillScope::User,
+            path: PathBuf::from("user/.bloomery/skills/writing-polish/SKILL.md"),
+        },
+        content_sha256: "def456".to_string(),
+    };
+    let enabled = BTreeSet::from([steel.name.clone(), writing.name.clone()]);
+
+    let rendered = render_relevant_skills(&[steel, writing], &enabled, "请审查 Q345 钢铁证据");
+
+    assert_eq!(rendered.enabled_versions, vec!["steel-review@1.2.0#abc123"]);
+    assert_eq!(rendered.loaded[0].trigger_reason, "matched_query_tag:steel");
+    assert!(rendered.prompt.contains("Use steel evidence."));
+    assert!(!rendered.prompt.contains("Improve prose."));
 }
 
 #[test]
@@ -237,6 +280,7 @@ fn skill_summaries_expose_state_without_skill_body() {
         name: "steel-review".to_string(),
         description: "Review steel evidence".to_string(),
         version: "1.0.0".to_string(),
+        tags: vec!["steel".to_string(), "evidence".to_string()],
         compatibility: Vec::new(),
         body: "private prompt body".to_string(),
         source: SkillSource {
@@ -250,6 +294,7 @@ fn skill_summaries_expose_state_without_skill_body() {
     let value = serde_json::to_value(&summaries).expect("serialize skill summaries");
 
     assert_eq!(value[0]["enabled"], true);
+    assert_eq!(value[0]["tags"][0], "steel");
     assert_eq!(value[0]["content_sha256"], "def456");
     assert!(value[0].get("body").is_none());
 }

@@ -11,10 +11,10 @@ pub use domain_tools::DomainToolExecutor;
 pub use model_adapter::{ModelAdapter, ModelFuture, ProviderModelAdapter};
 pub use persistence::{AgentEventPublisher, NoopAgentEventPublisher, SqliteAgentEventSink};
 pub use r#loop::{
-    AgentEventSink, AgentLoop, AgentLoopError, AgentLoopRequest, AgentLoopResult,
-    CancellationToken, ContextEntry, DenyPermissions, EvidenceAttachment, NoopToolExecutor,
-    PermissionFuture, PermissionRequest, PermissionResolver, ToolExecutionError, ToolExecutor,
-    ToolFuture, ToolHandler, ToolInvocation, ToolRegistration,
+    AgentEventSink, AgentLoop, AgentLoopAttachment, AgentLoopError, AgentLoopRequest,
+    AgentLoopResult, CancellationToken, ContextEntry, DenyPermissions, EvidenceAttachment,
+    NoopToolExecutor, PermissionFuture, PermissionRequest, PermissionResolver, ToolExecutionError,
+    ToolExecutor, ToolFuture, ToolHandler, ToolInvocation, ToolRegistration,
 };
 pub use recovery::{
     AgentRecoveryService, PendingPermission, RecoveredRun, RecoveryAction, RunCommandResult,

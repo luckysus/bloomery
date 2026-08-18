@@ -1,4 +1,5 @@
 use crate::{
+    agent::protocol::PermissionRisk,
     app::mcp_runtime::McpRuntimeState,
     db::{current_workspace_id, with_conn, DbState},
     mcp::{McpError, McpServerConfig, McpSupervisor, McpTool, McpTransportKind},
@@ -14,7 +15,7 @@ use std::{
 };
 use uuid::Uuid;
 
-use super::types::{McpHealth, McpServerInput, McpServerSummary, McpToolSummary};
+use super::types::{McpDiagnostic, McpHealth, McpServerInput, McpServerSummary, McpToolSummary};
 
 pub(super) fn parse_id(value: &str) -> Result<Uuid, String> {
     Uuid::parse_str(value.trim()).map_err(|_| "MCP server id must be a UUID".to_string())
@@ -193,6 +194,7 @@ pub(super) async fn inspect(
 }
 
 pub(super) fn health_from_error(error: impl Into<String>) -> McpHealth {
+    let error = error.into();
     McpHealth {
         status: "failed".to_string(),
         server_name: None,
@@ -201,8 +203,48 @@ pub(super) fn health_from_error(error: impl Into<String>) -> McpHealth {
         resource_count: 0,
         prompt_count: 0,
         tools: Vec::new(),
-        error: Some(error.into()),
+        error: Some(error.clone()),
+        diagnostic: Some(diagnostic_from_error(&error)),
         checked_at: Utc::now().to_rfc3339(),
+    }
+}
+
+fn diagnostic_from_error(error: &str) -> McpDiagnostic {
+    let lower = error.to_lowercase();
+    if lower.contains("credential is not configured") || lower.contains("missing credential") {
+        return McpDiagnostic {
+            code: "missing_credential".to_string(),
+            message: "MCP server is missing a configured credential.".to_string(),
+            suggested_action: "Edit the server and save the required token or environment value; Bloomery stores it in Windows Credential Manager.".to_string(),
+        };
+    }
+    if lower.contains("timed out") || lower.contains("timeout") {
+        return McpDiagnostic {
+            code: "timeout".to_string(),
+            message: "MCP server did not answer before the timeout.".to_string(),
+            suggested_action: "Check the server process or URL, then increase the timeout only if the server is normally slow.".to_string(),
+        };
+    }
+    if lower.contains("invalid mcp") || lower.contains("invalid transport") {
+        return McpDiagnostic {
+            code: "invalid_transport".to_string(),
+            message: "MCP transport configuration is invalid.".to_string(),
+            suggested_action:
+                "Check whether the transport type matches the executable or URL configuration."
+                    .to_string(),
+        };
+    }
+    if lower.contains("failed to start") {
+        return McpDiagnostic {
+            code: "process_start_failed".to_string(),
+            message: "Bloomery could not start the MCP stdio process.".to_string(),
+            suggested_action: "Check the executable path, arguments, working directory, and inherited environment allowlist.".to_string(),
+        };
+    }
+    McpDiagnostic {
+        code: "connection_failed".to_string(),
+        message: "MCP connection failed.".to_string(),
+        suggested_action: "Check the server configuration and run the server manually once if the error is unclear.".to_string(),
     }
 }
 
@@ -227,6 +269,7 @@ fn health_from_tools(
         prompt_count,
         tools: summaries,
         error: None,
+        diagnostic: None,
         checked_at: Utc::now().to_rfc3339(),
     }
 }
@@ -240,6 +283,12 @@ pub(super) fn tool_summary(server_id: &str, tool: McpTool) -> McpToolSummary {
         ),
         name: tool.name,
         description: tool.description.unwrap_or_default(),
+        read_only: tool.read_only_hint,
+        risk: if tool.read_only_hint {
+            PermissionRisk::Automatic
+        } else {
+            PermissionRisk::ConfirmationRequired
+        },
     }
 }
 
@@ -758,5 +807,15 @@ mod tests {
             .expect("build explicitly empty desired credentials");
 
         assert_eq!(desired.get(&env_credential_name("STEEL_KEY")), Some(&None));
+    }
+
+    #[test]
+    fn failed_health_includes_a_structured_missing_credential_diagnostic() {
+        let health = health_from_error("MCP environment credential is not configured: STEEL_KEY");
+
+        let diagnostic = health.diagnostic.expect("diagnostic");
+        assert_eq!(diagnostic.code, "missing_credential");
+        assert!(diagnostic.suggested_action.contains("Credential Manager"));
+        assert!(!diagnostic.message.contains("STEEL_KEY"));
     }
 }

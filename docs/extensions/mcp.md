@@ -39,9 +39,23 @@ server retry intervals, and stops after the configured retry budget. Requests
 use the server timeout configured in the desktop UI. Restart is an explicit
 user action after a permanent failure.
 
-Every discovered MCP tool is converted to Bloomery's typed tool registry and
-requires local permission confirmation by default. An MCP server cannot grant
+Server checks return a small doctor result in addition to the raw error:
+`missing_credential`, `timeout`, `invalid_transport`,
+`process_start_failed`, or `connection_failed`. The UI displays the diagnosis
+and suggested next action without exposing token or environment values.
+
+Every discovered MCP tool is converted to Bloomery's typed tool registry.
+Tools require local permission confirmation by default. A tool that declares
+`readOnlyHint: true` is classified as low-risk automatic execution; a tool that
+declares `destructiveHint: true` is classified as dangerous; unknown or
+write-capable tools remain confirmation-required. An MCP server cannot grant
 itself file, shell, network, secret, or domain permissions.
+
+The chat runtime does not keep every enabled MCP schema in the model prompt.
+When more than eight MCP tools are available, Bloomery selects the tools most
+related to the current user message by tool id, name, and description, then
+passes only that compact set to the agent loop. The Extensions view can still
+show the full server tool catalog.
 
 ## MCP 传输
 
@@ -57,4 +71,14 @@ Bearer 令牌和环境变量值保存在 Windows Credential Manager。SQLite 只
 子进程启动前会清空环境，只允许固定的运行时白名单
 `SystemRoot`、`windir`、`ComSpec`、`COMSPEC`、`PATHEXT`、`TEMP` 和
 `TMP`；`PATH`、`OPENAI_API_KEY`、`GH_TOKEN` 等任意继承名称会被拒绝。
-发现的 MCP 工具统一进入 Bloomery 工具注册表，默认需要本地权限确认。
+服务器检查除了原始错误，还会返回轻量 doctor 诊断，例如缺少凭据、超时、
+传输配置无效、本地进程启动失败或连接失败；前端只显示原因和建议动作，不显示
+令牌或环境变量值。
+发现的 MCP 工具统一进入 Bloomery 工具注册表。默认需要本地权限确认；
+声明 `readOnlyHint: true` 的工具会归类为低风险自动执行，声明
+`destructiveHint: true` 的工具会归类为危险操作，未知或可能写入的工具仍然需要确认。
+MCP 服务器不能自行获得文件、Shell、网络、密钥或领域权限。
+
+对话运行时不会把所有已启用 MCP 工具 schema 常驻塞进模型 prompt。可用 MCP
+工具超过 8 个时，Bloomery 会按当前用户问题匹配工具 id、名称和描述，只把最相关的
+一小组交给 agent loop；“扩展”页面仍可查看完整工具列表。

@@ -93,7 +93,7 @@ struct OpenAiChatRequest<'a> {
 #[derive(Serialize)]
 struct OpenAiChatMessage<'a> {
     role: &'a str,
-    content: &'a str,
+    content: Value,
     #[serde(skip_serializing_if = "Option::is_none")]
     tool_call_id: Option<&'a str>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
@@ -216,7 +216,7 @@ impl ChatProvider for OpenAiProvider {
 fn openai_message(message: &ChatMessage) -> OpenAiChatMessage<'_> {
     OpenAiChatMessage {
         role: &message.role,
-        content: &message.content,
+        content: openai_message_content(message),
         tool_call_id: message.tool_call_id.as_deref(),
         tool_calls: message
             .tool_calls
@@ -231,6 +231,29 @@ fn openai_message(message: &ChatMessage) -> OpenAiChatMessage<'_> {
             })
             .collect(),
     }
+}
+
+fn openai_message_content(message: &ChatMessage) -> Value {
+    if message.images.is_empty() {
+        return Value::String(message.content.clone());
+    }
+
+    let mut parts = Vec::with_capacity(message.images.len() + 1);
+    if !message.content.is_empty() {
+        parts.push(serde_json::json!({
+            "type": "text",
+            "text": message.content,
+        }));
+    }
+    parts.extend(message.images.iter().map(|image| {
+        serde_json::json!({
+            "type": "image_url",
+            "image_url": {
+                "url": format!("data:{};base64,{}", image.mime, image.data),
+            },
+        })
+    }));
+    Value::Array(parts)
 }
 
 enum BodyRead {
@@ -576,6 +599,29 @@ mod tests {
 
         assert_eq!(error.code(), ProviderErrorCode::ProviderResponse);
         assert_eq!(buffer, vec![1, 2, 3, 4]);
+    }
+
+    #[test]
+    fn multimodal_messages_use_openai_image_content_parts() {
+        let message = ChatMessage::with_images(
+            "user",
+            "inspect this furnace image",
+            vec![crate::providers::capabilities::ChatImage {
+                data: "ZmFrZQ==".to_string(),
+                mime: "image/png".to_string(),
+            }],
+        );
+
+        let payload = serde_json::to_value(openai_message(&message)).expect("serialize message");
+
+        assert_eq!(payload["role"], "user");
+        assert_eq!(payload["content"][0]["type"], "text");
+        assert_eq!(payload["content"][0]["text"], "inspect this furnace image");
+        assert_eq!(payload["content"][1]["type"], "image_url");
+        assert_eq!(
+            payload["content"][1]["image_url"]["url"],
+            "data:image/png;base64,ZmFrZQ=="
+        );
     }
 
     #[test]

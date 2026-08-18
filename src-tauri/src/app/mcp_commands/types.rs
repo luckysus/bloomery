@@ -1,4 +1,4 @@
-use crate::mcp::McpTransportKind;
+use crate::{agent::protocol::PermissionRisk, mcp::McpTransportKind};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
@@ -58,6 +58,8 @@ pub(crate) struct McpToolSummary {
     pub id: String,
     pub name: String,
     pub description: String,
+    pub read_only: bool,
+    pub risk: PermissionRisk,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -71,5 +73,14 @@ pub(crate) struct McpHealth {
     pub prompt_count: usize,
     pub tools: Vec<McpToolSummary>,
     pub error: Option<String>,
+    pub diagnostic: Option<McpDiagnostic>,
     pub checked_at: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub(crate) struct McpDiagnostic {
+    pub code: String,
+    pub message: String,
+    pub suggested_action: String,
 }

@@ -1,4 +1,3 @@
-use super::service::build_agent_loop_request;
 use super::{
     assistant_content_for_stream_result,
     cancellation::LocalAgentState,
@@ -38,6 +37,22 @@ fn knowledge_route_uses_a_local_evidence_pack_when_one_is_available() {
 
     assert_eq!(route.intent, DesktopIntentKind::KnowledgeQa);
     assert_eq!(route.unavailable_capability, None);
+}
+
+#[test]
+fn steel_routes_enter_the_local_agent_loop_instead_of_blocking() {
+    for message in [
+        "search Q355B literature",
+        "upload and process this pdf",
+        "start model training",
+        "run process optimization",
+    ] {
+        assert_eq!(
+            classify_desktop_intent(message).unavailable_capability,
+            None,
+            "{message} should be handled by local tools"
+        );
+    }
 }
 
 #[test]
@@ -88,6 +103,7 @@ fn stopped_answers_are_marked_partial() {
     let answer = assistant_content_for_stream_result(&StreamedLlmAnswer {
         text: "partial answer".to_string(),
         stopped: true,
+        tool_calls: Vec::new(),
     });
     assert!(answer.contains("partial answer"));
     assert!(answer.contains("generation stopped"));
@@ -149,6 +165,109 @@ fn desktop_prompt_includes_enabled_skills() {
     assert!(prompt.contains("skills:"));
     assert!(prompt.contains("steel-review@1.0.0#abc123"));
     assert!(prompt.contains("Use source evidence."));
+}
+
+#[test]
+fn desktop_response_exposes_loaded_skill_audit() {
+    let route = classify_desktop_intent("review Q355B evidence");
+    let response = super::routing::build_agent_response_json(
+        "run-1",
+        "conversation-1",
+        "answer",
+        "ollama",
+        "qwen",
+        false,
+        &route,
+        None,
+        &["steel-review@1.0.0#abc123".to_string()],
+        &[crate::skills::SkillSummary {
+            name: "steel-review".to_string(),
+            description: "Review steel evidence".to_string(),
+            version: "1.0.0".to_string(),
+            tags: vec!["steel".to_string(), "review".to_string()],
+            compatibility: vec!["bloomery>=0.1.0".to_string()],
+            source: crate::skills::SkillSource {
+                scope: crate::skills::SkillScope::User,
+                path: "C:/Users/example/.bloomery/skills/steel-review/SKILL.md".into(),
+            },
+            content_sha256: "abc123".to_string(),
+            enabled: true,
+        }],
+        &[crate::skills::LoadedSkill {
+            name: "steel-review".to_string(),
+            version: "1.0.0".to_string(),
+            content_sha256: "abc123".to_string(),
+            trigger_reason: "enabled_by_user".to_string(),
+        }],
+        &[],
+        &[],
+    );
+
+    assert_eq!(response["skills"]["available"][0]["name"], "steel-review");
+    assert_eq!(response["skills"]["available"][0]["tags"][0], "steel");
+    assert_eq!(response["skills"]["loaded"][0]["name"], "steel-review");
+    assert_eq!(
+        response["skills"]["loaded"][0]["trigger_reason"],
+        "enabled_by_user"
+    );
+}
+
+#[test]
+fn desktop_response_exposes_selected_memory_audit() {
+    let route = classify_desktop_intent("review Q355B evidence");
+    let selected_memories = vec![json!({
+        "id": "memory-1",
+        "layer": "domain_memory",
+        "title": "Q355B target",
+    })];
+
+    let response = super::routing::build_agent_response_json(
+        "run-1",
+        "conversation-1",
+        "answer",
+        "ollama",
+        "qwen",
+        false,
+        &route,
+        None,
+        &[],
+        &[],
+        &[],
+        &[],
+        &selected_memories,
+    );
+
+    assert_eq!(response["memory"]["selected_count"], 1);
+    assert_eq!(response["memory"]["selected"][0]["layer"], "domain_memory");
+}
+
+#[test]
+fn desktop_response_exposes_tool_call_audit() {
+    let route = classify_desktop_intent("search Q355B literature");
+
+    let response = super::routing::build_agent_response_json(
+        "run-1",
+        "conversation-1",
+        "answer",
+        "ollama",
+        "qwen",
+        false,
+        &route,
+        None,
+        &[],
+        &[],
+        &[],
+        &[json!({
+            "id": "tool-call-1",
+            "tool_id": "steel.search_literature",
+            "name": "search_literature",
+            "status": "succeeded",
+        })],
+        &[],
+    );
+
+    assert_eq!(response["tool_calls"][0]["name"], "search_literature");
+    assert_eq!(response["tool_calls"][0]["status"], "succeeded");
 }
 
 #[test]
@@ -220,11 +339,12 @@ fn desktop_prompt_omits_domain_sections_without_active_package() {
 
 #[test]
 fn desktop_chat_builds_a_standard_agent_loop_request() {
-    let request = build_agent_loop_request(
+    let request = super::service::build_agent_loop_request_with_attachments(
         Uuid::new_v4(),
         "system prompt",
         "calculate carbon equivalent",
         None,
+        &[],
     );
 
     assert_eq!(request.context.len(), 2);

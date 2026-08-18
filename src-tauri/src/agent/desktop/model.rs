@@ -86,6 +86,7 @@ pub struct ExistingSummary {
 pub struct StreamedLlmAnswer {
     pub text: String,
     pub stopped: bool,
+    pub tool_calls: Vec<serde_json::Value>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

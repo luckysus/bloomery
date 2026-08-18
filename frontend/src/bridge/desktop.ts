@@ -647,6 +647,7 @@ export interface SkillSummary {
   name: string;
   description: string;
   version: string;
+  tags: string[];
   compatibility: string[];
   source: SkillSource;
   content_sha256: string;
@@ -746,6 +747,14 @@ export interface McpToolSummary {
   id: string;
   name: string;
   description: string;
+  read_only: boolean;
+  risk: "automatic" | "confirmation_required" | "dangerous";
+}
+
+export interface McpDiagnostic {
+  code: string;
+  message: string;
+  suggested_action: string;
 }
 
 export interface McpHealth {
@@ -757,6 +766,7 @@ export interface McpHealth {
   prompt_count: number;
   tools: McpToolSummary[];
   error: string | null;
+  diagnostic: McpDiagnostic | null;
   checked_at: string;
 }
 

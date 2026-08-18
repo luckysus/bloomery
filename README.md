@@ -81,6 +81,7 @@ Bloomery 将 `bloomery.sqlite3` 存放在操作系统应用数据目录，而不
 
 - [贡献指南](CONTRIBUTING.md)
 - [事件协议](docs/PROTOCOL.md)
+- [记忆机制](docs/memory.md)
 - [MCP 扩展](docs/extensions/mcp.md)
 - [Skills 扩展](docs/extensions/skills.md)
 - [领域包](docs/extensions/domain-packages.md)

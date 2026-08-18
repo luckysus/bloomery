@@ -5,9 +5,10 @@ use crate::{
 };
 use tauri::Manager;
 
-pub(crate) async fn load_enabled_tools(
+pub(crate) async fn load_enabled_tools_for_query(
     app: &tauri::AppHandle,
     configs: Vec<McpServerConfig>,
+    query: &str,
 ) -> Result<McpToolExecutor, String> {
     let runtime = app.state::<McpRuntimeState>();
     let secrets = app.state::<SecretState>();
@@ -28,7 +29,7 @@ pub(crate) async fn load_enabled_tools(
         };
         supervisors.push(supervisor);
     }
-    McpToolExecutor::from_supervisors(supervisors)
+    McpToolExecutor::from_supervisors_for_query(supervisors, query)
         .await
         .map_err(|error| format!("load MCP tools failed: {error}"))
 }

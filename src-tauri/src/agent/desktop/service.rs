@@ -1,12 +1,14 @@
 use super::model::{
-    DesktopRoute, LocalAgentChatRequest, LocalAskRequest, LocalLlmConfig,
+    DesktopRoute, LocalAgentAttachment, LocalAgentChatRequest, LocalAskRequest, LocalLlmConfig,
     SummarizeConversationResponse, SummaryPreparation,
 };
 use crate::agent::context::{
     build_summary_prompt, estimate_summary_tokens, messages_after_covered_id, plan_summary,
 };
 use crate::agent::context::{ContextItem, ContextSource};
-use crate::agent::runtime::{AgentLoopRequest, ContextEntry, EvidenceAttachment};
+use crate::agent::runtime::{
+    AgentLoopAttachment, AgentLoopRequest, ContextEntry, EvidenceAttachment,
+};
 use crate::context::build_context_packet_for_connection;
 use crate::rag::citation::{load_evidence_pack, EvidencePack};
 use crate::skills::SkillContext;
@@ -23,8 +25,10 @@ pub struct ChatPreparation {
     pub prompt: String,
     pub config: LocalLlmConfig,
     pub evidence_pack: Option<EvidencePack>,
+    pub attachments: Vec<LocalAgentAttachment>,
     pub skills: SkillContext,
     pub active_domains: Vec<crate::domains::DomainManifest>,
+    pub selected_memories: Vec<Value>,
     pub unavailable_response: Option<Value>,
 }
 
@@ -35,11 +39,12 @@ pub struct LocalAskPreparation {
     pub config: LocalLlmConfig,
 }
 
-pub fn build_agent_loop_request(
+pub fn build_agent_loop_request_with_attachments(
     assistant_message_id: Uuid,
     prompt: &str,
     message: &str,
     evidence_pack: Option<&EvidencePack>,
+    attachments: &[LocalAgentAttachment],
 ) -> AgentLoopRequest {
     AgentLoopRequest {
         assistant_message_id,
@@ -64,6 +69,14 @@ pub fn build_agent_loop_request(
                 .map(|item| item.citation_number)
                 .collect(),
         }),
+        attachments: attachments
+            .iter()
+            .map(|attachment| AgentLoopAttachment {
+                data: attachment.data.clone(),
+                mime: attachment.mime.clone(),
+                name: attachment.name.clone(),
+            })
+            .collect(),
     }
 }
 
@@ -90,7 +103,7 @@ pub fn prepare_chat(
         &message,
     )?;
     let conversation_id_text = conversation_id.to_string();
-    let route = super::routing::classify_desktop_intent(&message);
+    let classified_route = super::routing::classify_desktop_intent(&message);
     let packet = serde_json::to_value(build_context_packet_for_connection(
         conn,
         workspace_id,
@@ -99,16 +112,29 @@ pub fn prepare_chat(
     )?)
     .map_err(|error| error.to_string())?;
     let mut packet = packet;
-    packet["desktop_route"] = super::routing::route_to_json(&route);
     let evidence_pack = load_evidence_pack_reference(conn, workspace_id, request.evidence_pack_id)?;
+    let route = super::routing::route_with_evidence_pack(classified_route, evidence_pack.is_some());
+    packet["desktop_route"] = super::routing::route_to_json(&route);
     if let Some(pack) = &evidence_pack {
         packet["evidence_pack"] = serde_json::to_value(pack).map_err(|error| error.to_string())?;
     }
-    let skills = crate::skills::load_context(conn, workspace_id, env!("CARGO_PKG_VERSION"))?;
+    let skills = crate::skills::load_context_for_query(
+        conn,
+        workspace_id,
+        env!("CARGO_PKG_VERSION"),
+        &message,
+    )?;
     packet["skills"] = serde_json::json!({
+        "available": skills.summaries,
         "enabled_versions": skills.rendered.enabled_versions,
+        "loaded": skills.rendered.loaded,
         "prompt": skills.rendered.prompt,
     });
+    let selected_memories = packet
+        .get("selected_memories")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
     super::session::start_agent_run(conn, workspace_id, conversation_id, run_id, &message)?;
 
     let unavailable_response = route.unavailable_capability.map(|_| {
@@ -117,6 +143,9 @@ pub fn prepare_chat(
             &conversation_id_text,
             &route,
             &skills.rendered.enabled_versions,
+            &skills.summaries,
+            &skills.rendered.loaded,
+            &selected_memories,
         )
     });
     let (config, prompt, active_domains) = if unavailable_response.is_some() {
@@ -138,8 +167,10 @@ pub fn prepare_chat(
         prompt,
         config,
         evidence_pack,
+        attachments: request.attachments,
         skills,
         active_domains,
+        selected_memories,
         unavailable_response,
     })
 }
