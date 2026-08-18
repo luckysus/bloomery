@@ -54,7 +54,8 @@ pub fn list(conn: &Connection, workspace_id: &str) -> Result<Vec<TaskRecord>, Ta
     let mut statement = conn
         .prepare(
             "SELECT id, workspace_id, kind, state, payload_json, checkpoint_json, attempt,
-                        next_run_at, progress, error_code, cancel_requested, created_at, updated_at
+                        next_run_at, progress, error_code, cancel_requested, created_at, updated_at,
+                        started_at, finished_at
                  FROM background_tasks
                  WHERE workspace_id = ?1
                  ORDER BY created_at ASC, id ASC",
@@ -293,12 +294,17 @@ pub fn transition(
     } else {
         i64::from(current.cancel_requested)
     };
+    let finished_at = matches!(
+        target,
+        TaskState::Completed | TaskState::Failed | TaskState::Cancelled | TaskState::Interrupted
+    )
+    .then(now_rfc3339);
     transaction
         .execute(
             "UPDATE background_tasks
                  SET state = ?1, progress = ?2, next_run_at = ?3, error_code = ?4,
-                     cancel_requested = ?5, updated_at = ?6
-                 WHERE workspace_id = ?7 AND id = ?8 AND attempt = ?9 AND state = ?10",
+                     cancel_requested = ?5, updated_at = ?6, finished_at = ?7
+                 WHERE workspace_id = ?8 AND id = ?9 AND attempt = ?10 AND state = ?11",
             params![
                 target.as_str(),
                 progress,
@@ -306,6 +312,7 @@ pub fn transition(
                 error_code,
                 cancel_requested,
                 now_rfc3339(),
+                finished_at,
                 workspace_id,
                 id.to_string(),
                 expected_attempt,
@@ -513,7 +520,7 @@ pub fn claim_next(
     let updated = transaction
         .execute(
             "UPDATE background_tasks
-                 SET state = 'running', attempt = attempt + 1, updated_at = ?1
+                 SET state = 'running', attempt = attempt + 1, updated_at = ?1, started_at = ?1
                  WHERE workspace_id = ?2 AND id = ?3
                    AND state IN ('queued', 'waiting_external') AND cancel_requested = 0",
             params![now, workspace_id, candidate_id],
@@ -539,7 +546,8 @@ pub fn claim_next(
 
 const SELECT_TASK: &str =
     "SELECT id, workspace_id, kind, state, payload_json, checkpoint_json, attempt,
-            next_run_at, progress, error_code, cancel_requested, created_at, updated_at
+            next_run_at, progress, error_code, cancel_requested, created_at, updated_at,
+            started_at, finished_at
      FROM background_tasks WHERE workspace_id = ?1 AND id = ?2";
 
 fn row_to_task(row: &rusqlite::Row<'_>) -> rusqlite::Result<RawTask> {
@@ -557,6 +565,8 @@ fn row_to_task(row: &rusqlite::Row<'_>) -> rusqlite::Result<RawTask> {
         cancel_requested: row.get(10)?,
         created_at: row.get(11)?,
         updated_at: row.get(12)?,
+        started_at: row.get(13)?,
+        finished_at: row.get(14)?,
     })
 }
 
@@ -574,6 +584,8 @@ struct RawTask {
     cancel_requested: i64,
     created_at: String,
     updated_at: String,
+    started_at: Option<String>,
+    finished_at: Option<String>,
 }
 
 fn decode_task(raw: RawTask) -> Result<TaskRecord, TaskError> {
@@ -595,6 +607,8 @@ fn decode_task(raw: RawTask) -> Result<TaskRecord, TaskError> {
         },
         created_at: raw.created_at,
         updated_at: raw.updated_at,
+        started_at: raw.started_at,
+        finished_at: raw.finished_at,
     };
     record
         .validate()

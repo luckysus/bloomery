@@ -46,6 +46,9 @@ rmcp = { version = "3.1.1", features = [
     "transport-streamable-http-client-reqwest",
 ] }
 zip = { version = "4.0", default-features = false, features = ["deflate-flate2"] }
+# ponytail: 首版不带 TLS（内网库通常不加密）；需要 encrypt 时再加 rustls feature
+tiberius = { version = "0.12", default-features = false, features = ["tds73"] }
+tokio-util = { version = "0.7", features = ["compat"] }
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.59", features = [

@@ -112,6 +112,9 @@ function HoverCardTag({
       <span
         ref={tagRef}
         className="ref-tag cursor-pointer text-indigo-600 font-medium hover:text-indigo-800 transition-colors"
+        role="button"
+        tabIndex={0}
+        aria-label={String(tagLabel)}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
         onClick={handleTagClick}
@@ -121,7 +124,7 @@ function HoverCardTag({
       {showTooltip && createPortal(
         <div
           ref={tooltipRef}
-          className="ref-tooltip w-[340px] max-w-[calc(100vw-2rem)] rounded-xl border border-slate-200 bg-white shadow-2xl"
+          className="bloomery-ref-tooltip ref-tooltip w-[340px] max-w-[calc(100vw-2rem)] rounded-xl border border-slate-200 bg-white shadow-2xl"
           style={{ position: "fixed", zIndex: 9999, visibility: "hidden", left: 0, top: 0 }}
           onMouseEnter={() => setIsTooltipHovered(true)}
           onMouseLeave={() => setIsTooltipHovered(false)}

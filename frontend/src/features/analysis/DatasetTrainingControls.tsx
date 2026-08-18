@@ -222,7 +222,6 @@ export default function DatasetTrainingControls({ dataset }: Props) {
     <section className="bloomery-dataset-training" data-testid={`training-controls-${dataset.id}`} aria-labelledby={`training-heading-${dataset.id}`}>
       <div className="bloomery-dataset-training-heading">
         <div>
-          <p className="bloomery-eyebrow">MODEL-01</p>
           <h3 id={`training-heading-${dataset.id}`}>{t("analysisTrainingTitle")}</h3>
         </div>
         <BrainCircuit size={18} aria-hidden="true" />
@@ -278,7 +277,7 @@ export default function DatasetTrainingControls({ dataset }: Props) {
       </output>}
       {result && <section className="bloomery-training-result" data-testid={`training-result-${dataset.id}`} aria-labelledby={`training-result-heading-${dataset.id}`}>
         <div className="bloomery-training-result-heading">
-          <div><p className="bloomery-eyebrow">MODEL OUTPUT</p><h4 id={`training-result-heading-${dataset.id}`}>{t("analysisTrainingResult")}</h4></div>
+          <div><h4 id={`training-result-heading-${dataset.id}`}>{t("analysisTrainingResult")}</h4></div>
           <Check size={16} aria-hidden="true" />
         </div>
         <dl className="bloomery-training-result-details">

@@ -59,11 +59,15 @@ describe("Bloomery desktop layout", () => {
       expect(screen.getByRole("navigation", { name: "主导航" })).toBeInTheDocument();
       expect(screen.getByRole("main")).toBeInTheDocument();
       expect(screen.getByRole("region", { name: "常用操作" })).toBeInTheDocument();
-      for (const label of ["工作台", "对话", "知识库", "数据分析", "扩展", "设置", "诊断"]) {
+      for (const label of ["工作台", "对话", "知识库", "数据分析", "扩展", "设置"]) {
         const button = screen.getByRole("button", { name: label });
         expect(button).toBeInTheDocument();
         expect(button.getBoundingClientRect !== undefined).toBe(true);
       }
+      expect(screen.queryByRole("button", { name: "诊断" })).not.toBeInTheDocument();
+      expect(screen.getByTestId("utility-navigation")).toContainElement(
+        screen.getByRole("button", { name: "设置" }),
+      );
     });
 
     it(`keeps collapse behavior accessible at ${size.width}x${size.height}`, async () => {
@@ -87,13 +91,76 @@ describe("Bloomery desktop layout", () => {
     expect(theme).toContain("prefers-reduced-motion");
   });
 
-  it("keeps the desktop shell quiet and the chat workbench three-column", () => {
+  it("keeps the desktop shell quiet and the chat workbench focused on the conversation", () => {
     expect(polishCss).not.toContain("backdrop-filter: blur(18px)");
     expect(polishCss).not.toContain("background: linear-gradient(120deg, rgba(255, 255, 255, 0.98), rgba(235, 244, 248, 0.92))");
     expect(polishCss).not.toContain("background: linear-gradient(90deg, #e5f0f5, #f6fafc)");
     expect(polishCss).toContain("@media (max-width: 980px)");
     expect(polishCss).toContain("var(--bloomery-chat-session-width)");
-    expect(polishCss).toContain("var(--bloomery-chat-inspector-width)");
+    expect(polishCss).toContain("grid-template-columns: var(--bloomery-chat-session-width) minmax(0, 1fr)");
+  });
+
+  it("keeps language settings out of the top bar and removes page-level cards", () => {
+    expect(polishCss).toContain(".bloomery-page-surface");
+    expect(polishCss).toContain("box-shadow: none");
+    expect(polishCss).toContain("border-radius: 0");
+    expect(polishCss).toContain("background: transparent");
+  });
+
+  it("keeps the desktop shell fixed while the main content owns scrolling", () => {
+    expect(polishCss).toContain("height: 100dvh;");
+    expect(polishCss).toContain("min-height: 0;");
+    expect(polishCss).toContain("overflow: hidden;");
+    expect(polishCss).toContain(".bloomery-body");
+    expect(polishCss).toContain(".bloomery-sidebar");
+    expect(polishCss).toContain(".bloomery-main");
+    expect(polishCss).toContain(".bloomery-main-inner.is-chat-shell");
+    expect(polishCss).toContain(".bloomery-web-chat-embedded");
+  });
+
+  it("keeps the sidebar anchored to the body and the utility footer in flow", () => {
+    expect(polishCss).toContain(".bloomery-sidebar {\n  height: 100%;");
+    expect(polishCss).toContain("  position: relative;\n  top: 0;");
+    expect(polishCss).toContain(".bloomery-sidebar-footer {\n  display: block;");
+    expect(polishCss).toContain("  flex: 0 0 auto;");
+    expect(polishCss).toContain("  visibility: visible;");
+  });
+
+  it("uses one content track for non-chat pages", () => {
+    expect(polishCss).toContain(".bloomery-main-inner:not(.is-chat-shell)");
+    expect(polishCss).toContain("  width: 100%;");
+    expect(polishCss).toContain("  max-width: 1440px;");
+    expect(polishCss).toContain("  margin: 0 auto;");
+  });
+
+  it("keeps the embedded Web mobile overlay from covering desktop navigation", () => {
+    expect(polishCss).toContain(".bloomery-web-chat-embedded > .fixed.inset-0.z-40");
+    expect(polishCss).toContain("  display: none;");
+  });
+
+  it("keeps analysis and knowledge content inside consistent card gutters", () => {
+    expect(polishCss).toContain(".bloomery-analysis-tool,\n.bloomery-analysis-result");
+    expect(polishCss).toContain("  padding: 24px;");
+    expect(polishCss).toContain(".bloomery-knowledge-content-header,\n.bloomery-knowledge-import,\n.bloomery-knowledge-list-section");
+    expect(polishCss).toContain("  padding-left: 24px;");
+    expect(polishCss).toContain("  padding-right: 24px;");
+    expect(polishCss).toContain("  overflow-wrap: anywhere;");
+  });
+
+  it("keeps the desktop Web chat focused on conversation controls", () => {
+    expect(polishCss).toContain(".bloomery-web-chat-desktop-clean > aside > div > div:first-child > div > button:first-child");
+    expect(polishCss).toContain(".bloomery-web-chat-desktop-clean > aside > div > div:nth-child(2) > div > div:last-child");
+    expect(polishCss).toContain(".bloomery-web-chat-desktop-clean > main > section:first-child");
+    expect(polishCss).toContain(".bloomery-web-chat-desktop-clean h3 + p");
+    expect(polishCss).toContain("--agent-turn-gutter: clamp(24px, 4vw, 64px);");
+    expect(polishCss).toContain("min-height: 88px !important;");
+    expect(polishCss).toContain("max-height: 220px !important;");
+  });
+
+  it("uses a complete domain package install grid", () => {
+    expect(polishCss).toContain("grid-template-columns: auto minmax(0, 1fr) repeat(3, max-content);");
+    expect(polishCss).toContain(".bloomery-domain-install input");
+    expect(polishCss).toContain(".bloomery-domain-install .bloomery-secondary-button");
   });
 
   it("uses the Web palette and exposes a compact workbench header", async () => {
@@ -108,6 +175,25 @@ describe("Bloomery desktop layout", () => {
     render(<BloomeryApp />);
     const header = await screen.findByTestId("workbench-header");
     expect(header.querySelector(".bloomery-action-strip")).not.toBeNull();
+  });
+
+  it("defines the dark theme palette for the complete desktop shell", () => {
+    expect(tokensCss).toContain('[data-theme="dark"]');
+    expect(tokensCss).toContain("--bloomery-bg: #171614");
+    expect(tokensCss).toContain("--bloomery-text: #f5f1ea");
+    expect(tokensCss).toContain("--bloomery-line: #39342f");
+    expect(polishCss).toContain('[data-theme="dark"] .bloomery-topbar');
+    expect(polishCss).toContain('[data-theme="dark"] .bloomery-settings-card');
+    expect(polishCss).toContain('[data-theme="dark"] .bloomery-app input');
+    expect(polishCss).toContain("background-color: var(--bloomery-bg-raised) !important;");
+  });
+
+  it("keeps copied Web conversation menus readable in dark mode", () => {
+    expect(polishCss).toContain(
+      '[data-theme="dark"] .bloomery-web-chat-desktop-clean .bloomery-web-chat-session-menu',
+    );
+    expect(polishCss).toContain(".bloomery-web-chat-session-menu-divider");
+    expect(polishCss).toContain(".bloomery-web-chat-session-menu-danger:hover");
   });
 
   it("shows the degraded provider state when no chat provider is configured", async () => {

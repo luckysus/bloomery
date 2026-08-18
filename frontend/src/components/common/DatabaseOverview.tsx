@@ -30,8 +30,8 @@ export default function DatabaseOverview({ data }: { data: DatabaseOverviewData 
   const formatNumber = (num: number) => num.toLocaleString(locale);
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-3 mb-4 max-md:p-2 max-md:mb-2">
-      <div className="flex items-center gap-2 text-base font-semibold text-slate-500 mb-3 max-md:mb-1.5 max-md:text-sm">
+    <div className="bloomery-database-overview rounded-xl border border-slate-200 bg-slate-50/50 p-3 mb-4 max-md:p-2 max-md:mb-2">
+      <div className="bloomery-database-overview-heading flex items-center gap-2 text-base font-semibold text-slate-500 mb-3 max-md:mb-1.5 max-md:text-sm">
         <Database size={18} />
         {t("databaseOverview")}
       </div>
@@ -41,17 +41,17 @@ export default function DatabaseOverview({ data }: { data: DatabaseOverviewData 
           return (
             <div
               key={stat.label}
-              className="flex items-center justify-between rounded-lg bg-white border border-slate-200 px-3 py-2.5 transition-all duration-200 hover:shadow-sm hover:border-slate-300 max-md:flex-col max-md:items-start max-md:gap-0.5 max-md:px-2 max-md:py-1.5"
+              className="bloomery-database-overview-row flex items-center justify-between rounded-lg bg-white border border-slate-200 px-3 py-2.5 transition-all duration-200 hover:shadow-sm hover:border-slate-300 max-md:flex-col max-md:items-start max-md:gap-0.5 max-md:px-2 max-md:py-1.5"
             >
               <div className="flex items-center gap-2 max-md:gap-1">
                 <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md ${stat.bgColor} max-md:h-5 max-md:w-5`}>
                   <Icon size={14} className={stat.textColor} />
                 </div>
-                <span className="text-base text-slate-600 max-md:text-xs">{stat.label}</span>
+                <span className="bloomery-database-overview-label text-base text-slate-600 max-md:text-xs">{stat.label}</span>
               </div>
-              <span className="text-base font-semibold text-slate-900 max-md:text-sm">
+              <span className="bloomery-database-overview-value text-base font-semibold text-slate-900 max-md:text-sm">
                 {formatNumber(stat.value)}
-                {stat.unit && <span className="text-xs font-normal text-slate-400 ml-0.5">{stat.unit}</span>}
+                {stat.unit && <span className="bloomery-database-overview-unit text-xs font-normal text-slate-400 ml-0.5">{stat.unit}</span>}
               </span>
             </div>
           );

@@ -42,9 +42,15 @@ describe("AnalysisPage", () => {
   });
 
   it("calculates a steel carbon equivalent through the desktop bridge", async () => {
-    render(<AnalysisPage />);
+    const { container } = render(<AnalysisPage />);
 
     expect(screen.getByTestId("analysis-page")).toBeInTheDocument();
+    expect(screen.queryByText("STEEL DOMAIN / ANALYSIS")).not.toBeInTheDocument();
+    expect(screen.queryByText("先从可审计的钢材碳当量计算开始，保留公式、输入和适用范围。")).not.toBeInTheDocument();
+    expect(screen.queryByText("使用 IIW 或 Pcm 公式对钢材成分进行焊接性筛查。")).not.toBeInTheDocument();
+    expect(screen.queryByText("先预览 CSV 或 XLSX 的字段质量，再进行字段映射和后续分析。预览不会修改本地数据。")).not.toBeInTheDocument();
+    expect(container.querySelectorAll(".bloomery-eyebrow")).toHaveLength(0);
+    expect(screen.queryByText("analysisOnnxCopy")).not.toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("C"), { target: { value: "0.20" } });
     fireEvent.click(screen.getByRole("button", { name: /calculate|计算/i }));
 

@@ -72,12 +72,10 @@ export default function AnalysisPage() {
   };
 
   return (
-    <div className="bloomery-analysis" data-testid="analysis-page">
+    <div className="bloomery-analysis bloomery-page-surface" data-testid="analysis-page">
       <header className="bloomery-analysis-header">
         <div>
-          <p className="bloomery-eyebrow">STEEL DOMAIN / ANALYSIS</p>
           <h1>{t("analysisTitle")}</h1>
-          <p>{t("analysisLede")}</p>
         </div>
         <div className="bloomery-analysis-mark" aria-hidden="true"><Calculator size={24} /></div>
       </header>
@@ -86,13 +84,9 @@ export default function AnalysisPage() {
         <section className="bloomery-analysis-tool" aria-labelledby="carbon-equivalent-heading">
           <div className="bloomery-section-heading">
             <div>
-              <p className="bloomery-eyebrow">CALC-01</p>
               <h2 id="carbon-equivalent-heading">{t("analysisCalculatorTitle")}</h2>
             </div>
-            <span className="bloomery-analysis-source">RUST / LOCAL</span>
           </div>
-          <p className="bloomery-analysis-copy">{t("analysisCalculatorCopy")}</p>
-
           <form onSubmit={calculate}>
             <fieldset className="bloomery-analysis-fieldset">
               <legend>{t("analysisFormula")}</legend>
@@ -144,7 +138,6 @@ export default function AnalysisPage() {
         <section className="bloomery-analysis-result" aria-labelledby="analysis-result-heading">
           <div className="bloomery-section-heading">
             <div>
-              <p className="bloomery-eyebrow">AUDIT OUTPUT</p>
               <h2 id="analysis-result-heading">{t("analysisResult")}</h2>
             </div>
             {result && <CheckCircle2 size={19} className="bloomery-analysis-success" aria-label="completed" />}

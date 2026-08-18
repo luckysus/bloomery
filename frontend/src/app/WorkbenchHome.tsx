@@ -190,7 +190,7 @@ export default function WorkbenchHome({ initializationState, onOpenSection }: Wo
         ) : conversations.length === 0 && activeTasks.length === 0 ? (
           <div className="bloomery-empty-state">
             <div className="bloomery-empty-icon" aria-hidden="true"><BookOpen size={22} /></div>
-            <div><strong>{t("noRecords")}</strong><p>{t("workbenchEmptyCopy")}</p></div>
+            <div><strong>{t("noRecords")}</strong></div>
           </div>
         ) : (
           <div className="bloomery-recent-list">

@@ -112,7 +112,8 @@ signing material must never enter the repository or an artifact.
 ## Troubleshooting / 故障排查
 
 - If the frontend hook reports a missing root `package.json`, verify that
-  `src-tauri/tauri.conf.json` uses `npm --prefix frontend run build`.
+  `src-tauri/tauri.conf.json` runs `npm run build` with `cwd` set to
+  `../frontend`.
 - If NSIS or WiX cannot be downloaded, restore network access for the current
   process and rerun the command. Do not commit downloaded tools or place them
   in the source tree.
@@ -122,7 +123,8 @@ signing material must never enter the repository or an artifact.
   upgrade, uninstall, signing, updater, security, SBOM or steel case-study gates.
 
 - 如果前端钩子提示根目录缺少 `package.json`，检查
-  `src-tauri/tauri.conf.json` 是否使用 `npm --prefix frontend run build`。
+  `src-tauri/tauri.conf.json` 是否使用 `npm run build`，并将 `cwd` 设置为
+  `../frontend`。
 - 如果 NSIS 或 WiX 无法下载，为当前进程恢复网络后重新执行，不要把下载的
   工具提交到源码目录。
 - 如果输出目录已经存在，请指定新的 `-OutputDirectory`；脚本默认拒绝覆盖

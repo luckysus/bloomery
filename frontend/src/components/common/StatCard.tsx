@@ -20,7 +20,7 @@ export default function StatCard({ icon: Icon, label, value, unit, color }: Stat
   const c = colorMap[color] ?? colorMap.indigo;
 
   return (
-    <div className="group relative rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg hover:border-slate-300">
+    <div className="bloomery-stat-card group relative rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg hover:border-slate-300">
       <div
         className={`absolute -top-1 -right-1 h-2 w-2 rounded-full ${c.dot} opacity-60 blur-[2px] group-hover:opacity-100 transition-opacity`}
       />
@@ -28,11 +28,11 @@ export default function StatCard({ icon: Icon, label, value, unit, color }: Stat
         <div className={`flex h-7 w-7 items-center justify-center rounded-md ${c.iconBg}`}>
           <Icon size={14} className={c.iconText} />
         </div>
-        <span className="text-sm font-medium text-slate-500">{label}</span>
+        <span className="bloomery-stat-card-label text-sm font-medium text-slate-500">{label}</span>
       </div>
-      <p className="text-xl font-semibold tracking-tight text-slate-900">
+      <p className="bloomery-stat-card-value text-xl font-semibold tracking-tight text-slate-900">
         {value}
-        <span className="ml-1 text-xs font-normal text-slate-400">{unit}</span>
+        <span className="bloomery-stat-card-unit ml-1 text-xs font-normal text-slate-400">{unit}</span>
       </p>
     </div>
   );

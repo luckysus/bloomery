@@ -96,6 +96,9 @@ describe("KnowledgePage", () => {
 
     expect(await screen.findByRole("heading", { name: "知识库" })).toBeInTheDocument();
     expect(screen.getByText("还没有知识库")).toBeInTheDocument();
+    expect(screen.queryByText("LOCAL KNOWLEDGE / STEEL DOMAIN")).not.toBeInTheDocument();
+    expect(screen.queryByText("管理标准、论文和工艺资料，让每一次检索都能回到原始文档。")).not.toBeInTheDocument();
+    expect(screen.queryByText("知识库会保存文档、版本和可追溯的检索证据。")).not.toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText("知识库名称"), { target: { value: "钢铁标准" } });
     fireEvent.click(screen.getByRole("button", { name: "创建知识库" }));
@@ -127,6 +130,9 @@ describe("KnowledgePage", () => {
       can_retry: false,
       created_at: base.created_at,
       updated_at: base.updated_at,
+      started_at: null,
+      finished_at: null,
+      file_name: null,
     }]);
     vi.mocked(desktop.getKnowledgeHealth).mockResolvedValue({
       knowledge_base_count: 1,
@@ -211,6 +217,9 @@ describe("KnowledgePage", () => {
       can_retry: false,
       created_at: base.created_at,
       updated_at: base.updated_at,
+      started_at: null,
+      finished_at: null,
+      file_name: "spec-sheet.pdf",
     };
     const failedTask = {
       ...runningTask,
@@ -297,5 +306,13 @@ describe("KnowledgePage", () => {
       model_id: "BAAI/bge-m3",
       dimension: 1024,
     }));
+  });
+
+  it("keeps the retrieval setup guidance when the index is unavailable", async () => {
+    vi.mocked(desktop.listProviderProfiles).mockResolvedValue([]);
+
+    render(<KnowledgePage />);
+
+    expect(await screen.findByText("导入文档前需要先配置 SiliconFlow Embedding。未配置 MinerU 时将使用本地基础解析。")).toBeInTheDocument();
   });
 });

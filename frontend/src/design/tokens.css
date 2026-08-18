@@ -30,5 +30,40 @@
   --bloomery-shadow: 0 16px 36px rgba(72, 52, 38, 0.1);
   --bloomery-shadow-soft: 0 4px 14px rgba(72, 52, 38, 0.07);
   --bloomery-focus: rgba(204, 120, 92, 0.24);
+  --bloomery-scrollbar: rgba(108, 106, 100, 0.22);
+  --bloomery-scrollbar-hover: rgba(108, 106, 100, 0.36);
+  --bloomery-range-track: #e6dfd8;
   --bloomery-mono: "Cascadia Code", "JetBrains Mono", Consolas, monospace;
+}
+
+[data-theme="light"] {
+  color-scheme: light;
+}
+
+[data-theme="dark"] {
+  color-scheme: dark;
+  --bloomery-bg: #171614;
+  --bloomery-bg-raised: #201e1b;
+  --bloomery-bg-soft: #27231f;
+  --bloomery-bg-hover: #332b25;
+  --bloomery-sidebar: #1b1a18;
+  --bloomery-line: #39342f;
+  --bloomery-line-strong: #4a433c;
+  --bloomery-text: #f5f1ea;
+  --bloomery-text-soft: #ded5cc;
+  --bloomery-text-muted: #aaa099;
+  --bloomery-steel: #e8896b;
+  --bloomery-amber: #e69a74;
+  --bloomery-amber-soft: #3a2922;
+  --bloomery-green: #70b99c;
+  --bloomery-green-soft: #20352d;
+  --bloomery-red: #f08080;
+  --bloomery-red-soft: #3a2424;
+  --bloomery-accent: #e69a74;
+  --bloomery-shadow: 0 16px 36px rgba(0, 0, 0, 0.3);
+  --bloomery-shadow-soft: 0 4px 14px rgba(0, 0, 0, 0.22);
+  --bloomery-focus: rgba(230, 154, 116, 0.3);
+  --bloomery-scrollbar: rgba(170, 160, 153, 0.3);
+  --bloomery-scrollbar-hover: rgba(230, 154, 116, 0.58);
+  --bloomery-range-track: #39342f;
 }

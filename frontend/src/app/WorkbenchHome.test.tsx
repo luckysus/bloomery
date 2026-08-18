@@ -24,6 +24,7 @@ describe("WorkbenchHome", () => {
     const header = screen.getByTestId("workbench-header");
     expect(header.querySelector(".bloomery-action-strip")).not.toBeNull();
     expect(header.querySelector("h1")).toHaveTextContent("工作台");
+    expect(screen.queryByText("从本地知识、对话和生产数据开始一次可追溯的工作。")).not.toBeInTheDocument();
   });
 
   it("loads local activity summaries instead of showing static empty values", async () => {

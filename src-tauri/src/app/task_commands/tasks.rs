@@ -18,9 +18,13 @@ pub struct BackgroundTaskResponse {
     pub can_retry: bool,
     pub created_at: String,
     pub updated_at: String,
+    pub started_at: Option<String>,
+    pub finished_at: Option<String>,
+    pub file_name: Option<String>,
 }
 pub(crate) fn background_task_response(task: TaskRecord) -> BackgroundTaskResponse {
-    let dataset_id = task_dataset_id(&task);
+    let dataset_id = crate::compute::handler::task_dataset_id(&task);
+    let file_name = crate::tasks::mineru_file_name(&task);
     let can_cancel = !task.cancel_requested
         && matches!(
             task.state,
@@ -47,22 +51,10 @@ pub(crate) fn background_task_response(task: TaskRecord) -> BackgroundTaskRespon
         can_retry,
         created_at: task.created_at,
         updated_at: task.updated_at,
+        started_at: task.started_at,
+        finished_at: task.finished_at,
+        file_name,
     }
-}
-fn task_dataset_id(task: &TaskRecord) -> Option<String> {
-    let exposes_dataset_id = crate::compute::handler::is_training_task_kind(&task.kind)
-        || crate::compute::handler::is_prediction_task_kind(&task.kind)
-        || matches!(
-            task.kind.as_str(),
-            crate::compute::handler::COMPUTE_OPTIMIZE_CONSTRAINED_KIND
-                | crate::compute::handler::COMPUTE_EXPORT_ONNX_KIND
-        );
-    if !exposes_dataset_id {
-        return None;
-    }
-    let payload: serde_json::Value = serde_json::from_str(&task.payload_json).ok()?;
-    let dataset_id = payload.get("payload")?.get("dataset_id")?.as_str()?.trim();
-    (!dataset_id.is_empty() && dataset_id.len() <= 128).then(|| dataset_id.to_string())
 }
 fn cancel_task(
     connection: &mut Connection,
@@ -190,6 +182,35 @@ mod tests {
         ] {
             assert!(!json.contains(forbidden), "leaked {forbidden}");
         }
+    }
+
+    #[test]
+    fn mineru_task_response_exposes_file_name_and_timing() {
+        let mut connection = database();
+        let task = repository::create(
+            &mut connection,
+            NewTask {
+                workspace_id: "workspace-a".to_string(),
+                kind: crate::rag::tasks::MINERU_TASK_KIND.to_string(),
+                payload_json: r#"{"file_name":"spec-sheet.pdf"}"#.to_string(),
+                checkpoint_json: None,
+                next_run_at: None,
+                progress: 0,
+            },
+        )
+        .expect("create mineru task");
+
+        let response = background_task_response(task);
+        assert_eq!(response.file_name.as_deref(), Some("spec-sheet.pdf"));
+        assert!(response.started_at.is_none());
+        assert!(response.finished_at.is_none());
+    }
+
+    #[test]
+    fn non_mineru_task_response_has_no_file_name() {
+        let mut connection = database();
+        let response = background_task_response(create_task(&mut connection));
+        assert!(response.file_name.is_none());
     }
 
     #[test]

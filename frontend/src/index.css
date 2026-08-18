@@ -48,11 +48,11 @@ body {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(108, 106, 100, 0.22);
+  background: var(--bloomery-scrollbar);
   border-radius: 999px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(108, 106, 100, 0.36);
+  background: var(--bloomery-scrollbar-hover);
 }
 
 /* ========================= Range input track (Firefox) ========================= */
@@ -61,7 +61,7 @@ input[type="range"] {
 }
 input[type="range"]::-moz-range-track {
   height: 6px;
-  background: #e6dfd8;
+  background: var(--bloomery-range-track);
   border-radius: 999px;
   border: none;
 }
@@ -325,3 +325,80 @@ input[type="range"]::-moz-range-thumb {
 .agent-reasoning-md ol { margin: 0.4em 0; padding-left: 1.4em; }
 .agent-reasoning-md li { margin: 0.2em 0; }
 .agent-reasoning-md strong { font-weight: 600; }
+
+/* ========================= Dark content surfaces ========================= */
+[data-theme="dark"] .ai-markdown-body h1,
+[data-theme="dark"] .ai-markdown-body h2,
+[data-theme="dark"] .ai-markdown-body h3,
+[data-theme="dark"] .ai-markdown-body strong {
+  color: var(--bloomery-text);
+}
+
+[data-theme="dark"] .ai-markdown-body h1 {
+  border-bottom-color: var(--bloomery-line);
+}
+
+[data-theme="dark"] .ai-markdown-body h2,
+[data-theme="dark"] .ai-markdown-body hr {
+  border-color: var(--bloomery-line);
+}
+
+[data-theme="dark"] .ai-markdown-body code {
+  background: var(--bloomery-amber-soft);
+  border-color: var(--bloomery-line);
+  color: var(--bloomery-amber);
+}
+
+[data-theme="dark"] .ai-markdown-body blockquote {
+  background: var(--bloomery-bg-soft);
+  border-left-color: var(--bloomery-amber);
+  color: var(--bloomery-text-muted);
+}
+
+[data-theme="dark"] .ai-markdown-body th {
+  background: var(--bloomery-bg-soft);
+  color: var(--bloomery-text);
+}
+
+[data-theme="dark"] .ai-markdown-body th,
+[data-theme="dark"] .ai-markdown-body td {
+  border-color: var(--bloomery-line);
+}
+
+[data-theme="dark"] .ai-markdown-body td,
+[data-theme="dark"] .ai-markdown-body tr:hover td {
+  background: var(--bloomery-bg-raised);
+}
+
+[data-theme="dark"] .markdown-preview blockquote {
+  border-left-color: var(--bloomery-amber);
+  color: var(--bloomery-text-muted);
+}
+
+[data-theme="dark"] .markdown-preview code {
+  background: var(--bloomery-amber-soft);
+  color: var(--bloomery-amber);
+}
+
+[data-theme="dark"] .markdown-preview pre {
+  background: var(--bloomery-bg-soft);
+  color: var(--bloomery-text);
+}
+
+[data-theme="dark"] .markdown-preview th,
+[data-theme="dark"] .markdown-preview td {
+  border-color: var(--bloomery-line);
+}
+
+[data-theme="dark"] .markdown-preview th {
+  background: var(--bloomery-bg-soft);
+  color: var(--bloomery-text);
+}
+
+[data-theme="dark"] .markdown-preview a {
+  color: var(--bloomery-amber);
+}
+
+[data-theme="dark"] .markdown-preview hr {
+  border-top-color: var(--bloomery-line);
+}

@@ -170,14 +170,12 @@ export default function DatasetPanel() {
     <section className="bloomery-analysis-dataset" aria-labelledby="dataset-preview-heading">
       <div className="bloomery-section-heading">
         <div>
-          <p className="bloomery-eyebrow">DATA-01</p>
           <h2 id="dataset-preview-heading">{t("analysisDatasetTitle")}</h2>
         </div>
         <button type="button" className="bloomery-icon-button" onClick={() => void chooseDataset()} disabled={datasetBusy} aria-label={t("analysisChooseDataset")} title={t("analysisChooseDataset")}>
           {datasetBusy ? <LoaderCircle size={17} className="bloomery-spin" aria-hidden="true" /> : <FolderOpen size={17} aria-hidden="true" />}
         </button>
       </div>
-      <p className="bloomery-analysis-copy">{t("analysisDatasetCopy")}</p>
       {datasetError && <p className="bloomery-analysis-error" role="alert"><TriangleAlert size={16} aria-hidden="true" />{datasetError}</p>}
       {datasetSaveError && <p className="bloomery-analysis-error" role="alert"><TriangleAlert size={16} aria-hidden="true" />{datasetSaveError}</p>}
       {datasetAnalysisError && <p className="bloomery-analysis-error" role="alert"><TriangleAlert size={16} aria-hidden="true" />{datasetAnalysisError}</p>}

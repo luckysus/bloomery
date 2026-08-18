@@ -40,7 +40,7 @@ export default function DiagnosticsHealthGrid({
       <article className="bloomery-diagnostics-card">
         <div className="bloomery-diagnostics-card-heading">
           <span className="bloomery-diagnostics-card-icon"><Database size={17} aria-hidden="true" /></span>
-          <div><p className="bloomery-eyebrow">SQLITE</p><h2>{t("diagnosticsDatabase")}</h2></div>
+          <div><h2>{t("diagnosticsDatabase")}</h2></div>
           <span className={`bloomery-diagnostics-status ${databaseHealthy ? "is-healthy" : "is-warning"}`}>
             {databaseHealthy ? t("diagnosticsDatabaseHealthy") : t("diagnosticsDatabaseAttention")}
           </span>
@@ -56,7 +56,7 @@ export default function DiagnosticsHealthGrid({
       <article className="bloomery-diagnostics-card">
         <div className="bloomery-diagnostics-card-heading">
           <span className="bloomery-diagnostics-card-icon"><SearchCheck size={17} aria-hidden="true" /></span>
-          <div><p className="bloomery-eyebrow">RAG INDEX</p><h2>{t("diagnosticsIndex")}</h2></div>
+          <div><h2>{t("diagnosticsIndex")}</h2></div>
           <span className={`bloomery-diagnostics-status ${indexHealthy ? "is-healthy" : "is-warning"}`}>
             {indexHealthy ? t("diagnosticsIndexHealthy") : t(indexError ? "diagnosticsIndexUnavailable" : "diagnosticsIndexAttention")}
           </span>
@@ -72,7 +72,7 @@ export default function DiagnosticsHealthGrid({
       <article className="bloomery-diagnostics-card">
         <div className="bloomery-diagnostics-card-heading">
           <span className="bloomery-diagnostics-card-icon"><PackageCheck size={17} aria-hidden="true" /></span>
-          <div><p className="bloomery-eyebrow">STEEL DOMAIN</p><h2>{t("diagnosticsSteelPackage")}</h2></div>
+          <div><h2>{t("diagnosticsSteelPackage")}</h2></div>
           <span className={`bloomery-diagnostics-status ${steelPackageHealthy ? "is-healthy" : "is-warning"}`}>
             {t(steelPackageStatusKey)}
           </span>

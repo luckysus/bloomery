@@ -94,6 +94,18 @@ const MIGRATIONS: &[Migration] = &[
         version: 20,
         sql: include_str!("migrations/0020_sklearn_model_kind.sql"),
     },
+    Migration {
+        version: 21,
+        sql: include_str!("migrations/0021_database_connections.sql"),
+    },
+    Migration {
+        version: 22,
+        sql: include_str!("migrations/0022_task_timings.sql"),
+    },
+    Migration {
+        version: 23,
+        sql: include_str!("migrations/0023_clear_database_name.sql"),
+    },
 ];
 
 pub fn latest_version() -> u32 {

@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import {
   AlertCircle,
+  Activity,
   Check,
   CircleHelp,
   KeyRound,
@@ -9,8 +10,11 @@ import {
 } from "lucide-react";
 import { desktop, type PermissionRuleRecord, type ProviderCapability, type ProviderProfileInput } from "../../bridge/desktop";
 import { useLocale } from "../../i18n/locale";
+import LanguageSelect from "../../components/common/LanguageSelect";
+import ThemeSelect from "../../components/common/ThemeSelect";
 import SettingsProviderCard from "./SettingsProviderCard";
 import PermissionRulesPanel from "./PermissionRulesPanel";
+import DatabaseConnectionsPanel from "./DatabaseConnectionsPanel";
 import {
   defaultRetrievalIds,
   defaults,
@@ -26,7 +30,11 @@ import {
   type SettingsEditor,
 } from "./settingsModel";
 
-export default function SettingsPage() {
+interface SettingsPageProps {
+  onOpenDiagnostics?: () => void;
+}
+
+export default function SettingsPage({ onOpenDiagnostics }: SettingsPageProps) {
   const { t } = useLocale();
   const [editors, setEditors] = useState<SettingsEditor[]>([]);
   const [plan, setPlan] = useState<RetrievalPlan>("free");
@@ -214,16 +222,27 @@ export default function SettingsPage() {
   };
 
   return (
-    <section className="bloomery-settings" aria-labelledby="settings-heading">
+    <section className="bloomery-settings bloomery-page-surface" aria-labelledby="settings-heading">
       <header className="bloomery-settings-header">
         <div>
-          <p className="bloomery-eyebrow">LOCAL CONFIGURATION / PROVIDERS</p>
           <h1 id="settings-heading">{t("settingsTitle")}</h1>
-          <p className="bloomery-lede">{t("settingsLede")}</p>
         </div>
-        <button type="button" className="bloomery-icon-button" onClick={() => void load()} disabled={loading} aria-label={t("settingsRefresh")} title={t("settingsRefresh")}>
-          <Settings2 size={18} aria-hidden="true" />
-        </button>
+        <div className="bloomery-settings-header-actions">
+          <LanguageSelect />
+          {onOpenDiagnostics && (
+            <button
+              type="button"
+              className="bloomery-action-secondary bloomery-settings-diagnostics-button"
+              onClick={onOpenDiagnostics}
+            >
+              <Activity size={16} aria-hidden="true" />
+              {t("settingsDiagnostics")}
+            </button>
+          )}
+          <button type="button" className="bloomery-icon-button" onClick={() => void load()} disabled={loading} aria-label={t("settingsRefresh")} title={t("settingsRefresh")}>
+            <Settings2 size={18} aria-hidden="true" />
+          </button>
+        </div>
       </header>
 
       {error && <div className="bloomery-settings-alert" role="alert"><AlertCircle size={17} aria-hidden="true" /><span>{error}</span></div>}
@@ -234,14 +253,18 @@ export default function SettingsPage() {
         <div><strong>{t("settingsSecretTitle")}</strong><span>{t("settingsSecretCopy")}</span></div>
       </div>
 
+      <ThemeSelect />
+
       <PermissionRulesPanel
         rules={permissionRules}
         busyId={permissionBusyId}
         onRevoke={(rule) => void revokePermission(rule)}
       />
 
+      <DatabaseConnectionsPanel />
+
       <section className="bloomery-settings-plan" aria-labelledby="settings-plan-heading">
-        <div><p className="bloomery-eyebrow">RAG / SILICONFLOW</p><h2 id="settings-plan-heading">{t("settingsPlanTitle")}</h2><p>{t("settingsPlanCopy")}</p></div>
+        <div><h2 id="settings-plan-heading">{t("settingsPlanTitle")}</h2></div>
         <fieldset className="bloomery-settings-plan-options">
           <legend>{t("settingsPlanLabel")}</legend>
           <label><input type="radio" name="siliconflow-plan" checked={plan === "free"} onChange={() => void changePlan("free")} aria-label={t("settingsPlanFree")} />{t("freePlan")}</label>

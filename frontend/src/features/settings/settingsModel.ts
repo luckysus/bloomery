@@ -68,13 +68,6 @@ export const slotTitles: Record<ProviderSlot, "settingsChatProvider" | "settings
   mineru: "settingsMineruProvider",
 };
 
-export const slotDescriptions: Record<ProviderSlot, "settingsChatDescription" | "settingsEmbeddingDescription" | "settingsRerankerDescription" | "settingsMineruDescription"> = {
-  chat: "settingsChatDescription",
-  embedding: "settingsEmbeddingDescription",
-  reranker: "settingsRerankerDescription",
-  mineru: "settingsMineruDescription",
-};
-
 export function parseObject(value: string | null) {
   if (!value) return {} as Record<string, unknown>;
   try {

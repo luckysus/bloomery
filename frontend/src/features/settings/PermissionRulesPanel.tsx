@@ -34,9 +34,7 @@ export default function PermissionRulesPanel({ rules, busyId, onRevoke }: Permis
     <section className="bloomery-settings-permissions" aria-labelledby="settings-permissions-heading">
       <div className="bloomery-settings-permissions-heading">
         <div>
-          <p className="bloomery-eyebrow">AGENT / ACCESS CONTROL</p>
           <h2 id="settings-permissions-heading">{t("permissionRulesTitle")}</h2>
-          <p>{t("permissionRulesCopy")}</p>
         </div>
         <ShieldCheck size={21} aria-hidden="true" />
       </div>

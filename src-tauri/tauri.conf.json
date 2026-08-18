@@ -5,9 +5,15 @@
   "identifier": "com.bloomery.desktop",
   "mainBinaryName": "bloomery",
   "build": {
-    "beforeDevCommand": "npm --prefix frontend run dev -- --host 127.0.0.1",
+    "beforeDevCommand": {
+      "script": "npm run dev -- --host 127.0.0.1",
+      "cwd": "../frontend"
+    },
     "devUrl": "http://127.0.0.1:5173",
-    "beforeBuildCommand": "npm --prefix frontend run build",
+    "beforeBuildCommand": {
+      "script": "npm run build",
+      "cwd": "../frontend"
+    },
     "frontendDist": "../frontend/dist"
   },
   "app": {

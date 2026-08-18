@@ -1,4 +1,5 @@
 pub mod conversations;
+pub mod database_connections;
 pub mod domains;
 pub mod events;
 pub mod knowledge;

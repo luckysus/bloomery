@@ -226,12 +226,18 @@ fn tauri_frontend_hooks_run_from_the_frontend_directory() {
     let config = source(manifest_dir().join("tauri.conf.json"));
 
     assert!(
-        config.contains(r#""beforeDevCommand": "npm --prefix frontend run dev -- --host 127.0.0.1""#),
-        "beforeDevCommand must address the frontend package from Tauri's repository working directory"
+        config.contains(r#""beforeDevCommand": {"#)
+            && config.contains(r#""script": "npm run dev -- --host 127.0.0.1""#),
+        "beforeDevCommand must run the frontend development script"
     );
     assert!(
-        config.contains(r#""beforeBuildCommand": "npm --prefix frontend run build""#),
-        "beforeBuildCommand must address the frontend package from Tauri's repository working directory"
+        config.contains(r#""beforeBuildCommand": {"#)
+            && config.contains(r#""script": "npm run build""#),
+        "beforeBuildCommand must run the frontend build script"
+    );
+    assert!(
+        config.matches(r#""cwd": "../frontend""#).count() >= 2,
+        "Tauri frontend hooks must use the frontend working directory"
     );
 }
 

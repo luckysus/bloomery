@@ -2,16 +2,21 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import SettingsPage from "./SettingsPage";
 import { desktop, type PermissionRuleRecord, type ProviderProfileResponse } from "../../bridge/desktop";
+import { ThemeProvider } from "../../theme/theme";
 
 vi.mock("../../i18n/locale", () => ({
   useLocale: () => ({
+    preference: "zh-CN",
+    setPreference: vi.fn(),
     t: (key: string, params?: Record<string, string | number>) =>
       params ? `${key}:${JSON.stringify(params)}` : key,
   }),
 }));
 
 vi.mock("../../bridge/desktop", () => ({
+  isDesktopRuntime: vi.fn().mockReturnValue(false),
   desktop: {
+    setNativeTheme: vi.fn().mockResolvedValue(undefined),
     listProviderProfiles: vi.fn(),
     getSetting: vi.fn(),
     setSetting: vi.fn(),
@@ -23,6 +28,11 @@ vi.mock("../../bridge/desktop", () => ({
     testProviderProfile: vi.fn(),
     listPermissionRules: vi.fn(),
     revokePermissionRule: vi.fn(),
+    listDatabaseConnections: vi.fn(),
+    saveDatabaseConnection: vi.fn(),
+    deleteDatabaseConnection: vi.fn(),
+    testDatabaseConnection: vi.fn(),
+    listDatabaseTables: vi.fn(),
   },
 }));
 
@@ -61,8 +71,15 @@ const permissionRule: PermissionRuleRecord = {
 };
 
 describe("SettingsPage", () => {
+  const renderSettings = () => render(
+    <ThemeProvider>
+      <SettingsPage />
+    </ThemeProvider>,
+  );
+
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(desktop.listDatabaseConnections).mockResolvedValue([]);
     vi.mocked(desktop.listProviderProfiles).mockResolvedValue([chatProfile, embeddingProfile]);
     vi.mocked(desktop.getSetting).mockImplementation(async (key) => {
       if (key === "onboarding.completed") return JSON.stringify({ llm_profile_id: chatProfile.id });
@@ -94,16 +111,30 @@ describe("SettingsPage", () => {
   });
 
   it("loads provider cards and never displays a configured secret", async () => {
-    render(<SettingsPage />);
+    const { container } = renderSettings();
 
     expect(await screen.findByRole("heading", { name: "settingsTitle" })).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "languageLabel" })).toBeInTheDocument();
+    expect(screen.getByRole("group", { name: "themeTitle" })).toBeInTheDocument();
+    for (const label of ["themeSystem", "themeLight", "themeDark"]) {
+      expect(screen.getByRole("button", { name: label })).toBeInTheDocument();
+    }
     expect(screen.getByDisplayValue("https://api.example.com/v1")).toBeInTheDocument();
     expect(screen.getAllByText("settingsSecretConfigured").length).toBeGreaterThan(0);
+    expect(screen.getByText("settingsSecretCopy")).toBeInTheDocument();
+    expect(container.querySelectorAll(".bloomery-eyebrow")).toHaveLength(0);
+    expect(screen.queryByText("settingsLede")).not.toBeInTheDocument();
+    expect(screen.queryByText("settingsPlanCopy")).not.toBeInTheDocument();
+    expect(screen.queryByText("settingsChatDescription")).not.toBeInTheDocument();
+    expect(screen.queryByText("settingsEmbeddingDescription")).not.toBeInTheDocument();
+    expect(screen.queryByText("settingsRerankerDescription")).not.toBeInTheDocument();
+    expect(screen.queryByText("settingsMineruDescription")).not.toBeInTheDocument();
+    expect(screen.queryByText("permissionRulesCopy")).not.toBeInTheDocument();
     expect(screen.queryByText("secret-token")).not.toBeInTheDocument();
   });
 
   it("saves an edited provider and writes a replacement key through the secret bridge", async () => {
-    render(<SettingsPage />);
+    renderSettings();
 
     const name = await screen.findByDisplayValue("Steel LLM");
     fireEvent.change(name, { target: { value: "Updated Steel LLM" } });
@@ -134,7 +165,7 @@ describe("SettingsPage", () => {
   });
 
   it("persists the SiliconFlow free or Pro selection without exposing credentials", async () => {
-    render(<SettingsPage />);
+    renderSettings();
 
     const pro = await screen.findByLabelText("settingsPlanPro");
     fireEvent.click(pro);
@@ -149,7 +180,7 @@ describe("SettingsPage", () => {
 
   it("restores the previous SiliconFlow plan when persistence fails", async () => {
     vi.mocked(desktop.setSetting).mockRejectedValueOnce(new Error("settings unavailable"));
-    render(<SettingsPage />);
+    renderSettings();
 
     const free = await screen.findByLabelText("settingsPlanFree");
     fireEvent.click(screen.getByLabelText("settingsPlanPro"));
@@ -160,7 +191,7 @@ describe("SettingsPage", () => {
 
   it("reloads provider state when a secret write fails after profile save", async () => {
     vi.mocked(desktop.setProviderSecret).mockRejectedValueOnce(new Error("keyring unavailable"));
-    render(<SettingsPage />);
+    renderSettings();
 
     const name = await screen.findByDisplayValue("Steel LLM");
     const chatForm = name.closest("form");
@@ -178,7 +209,7 @@ describe("SettingsPage", () => {
   });
 
   it("lists persistent permission rules and revokes the selected rule", async () => {
-    render(<SettingsPage />);
+    renderSettings();
 
     expect(await screen.findByText("builtin.write_file")).toBeInTheDocument();
     vi.spyOn(window, "confirm").mockReturnValue(true);

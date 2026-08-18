@@ -30,6 +30,21 @@ pub fn is_prediction_task_kind(kind: &str) -> bool {
     )
 }
 
+pub fn task_dataset_id(task: &TaskRecord) -> Option<String> {
+    let exposes_dataset_id = is_training_task_kind(&task.kind)
+        || is_prediction_task_kind(&task.kind)
+        || matches!(
+            task.kind.as_str(),
+            COMPUTE_OPTIMIZE_CONSTRAINED_KIND | COMPUTE_EXPORT_ONNX_KIND
+        );
+    if !exposes_dataset_id {
+        return None;
+    }
+    let payload: serde_json::Value = serde_json::from_str(&task.payload_json).ok()?;
+    let dataset_id = payload.get("payload")?.get("dataset_id")?.as_str()?.trim();
+    (!dataset_id.is_empty() && dataset_id.len() <= 128).then(|| dataset_id.to_string())
+}
+
 #[derive(Debug, Clone)]
 pub struct ComputeTaskHandler {
     worker: Option<WorkerConfig>,

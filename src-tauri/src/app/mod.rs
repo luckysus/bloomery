@@ -3,6 +3,7 @@ pub(crate) mod bundled_domain;
 pub(crate) mod bundled_domain_commands;
 pub(crate) mod commands;
 pub mod compute_commands;
+pub(crate) mod database_commands;
 pub(crate) mod desktop_agent_runtime;
 pub(crate) mod desktop_ask_commands;
 pub(crate) mod desktop_cancel_commands;

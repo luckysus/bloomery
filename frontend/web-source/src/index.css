@@ -1,0 +1,323 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ========================= Global Reset ========================= */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  scroll-behavior: smooth;
+}
+
+/*
+ * 窄屏统一缩小根字号：项目里 677 处 text-* 与大量 rem 间距都基于根字号，
+ * 在此一处等比缩放，避免桌面端字号在手机上把内容挤成竖排或溢出。
+ * 14px = 87.5%：text-base 16→14px、text-sm 14→12.25px，仍在可读区间。
+ */
+@media (max-width: 767px) {
+  html {
+    font-size: 14px;
+  }
+}
+
+body {
+  font-family: "Inter", "Noto Sans SC", system-ui, -apple-system, sans-serif;
+  background: #faf9f5;
+  color: #141413;
+  overflow-x: hidden;
+}
+
+/* ========================= Custom scrollbar - Light Mode ========================= */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(108, 106, 100, 0.22);
+  border-radius: 999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(108, 106, 100, 0.36);
+}
+
+/* ========================= Range input track (Firefox) ========================= */
+input[type="range"] {
+  -moz-appearance: none;
+}
+input[type="range"]::-moz-range-track {
+  height: 6px;
+  background: #e6dfd8;
+  border-radius: 999px;
+  border: none;
+}
+input[type="range"]::-moz-range-thumb {
+  height: 16px;
+  width: 16px;
+  border-radius: 50%;
+  border: none;
+  cursor: pointer;
+}
+
+/* ========================= Utility animations ========================= */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes pulse-glow {
+  0%, 100% { opacity: 0.6; }
+  50%      { opacity: 1; }
+}
+
+.animate-in {
+  animation: slideUp 0.5s ease-out both;
+}
+.fade-in {
+  animation: fadeIn 0.4s ease-out both;
+}
+
+/* ========================= Auth Carousel ========================= */
+@keyframes authCarouselA {
+  0%, 43% { opacity: 1; transform: scale(1); }
+  50%, 93% { opacity: 0; transform: scale(1.025); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+@keyframes authCarouselB {
+  0%, 43% { opacity: 0; transform: scale(1.025); }
+  50%, 93% { opacity: 1; transform: scale(1); }
+  100% { opacity: 0; transform: scale(1.025); }
+}
+
+.auth-carousel-slide-a,
+.auth-carousel-slide-b {
+  will-change: opacity, transform;
+  animation-duration: 12s;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+}
+
+.auth-carousel-slide-a {
+  animation-name: authCarouselA;
+}
+
+.auth-carousel-slide-b {
+  animation-name: authCarouselB;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .auth-carousel-slide-a,
+  .auth-carousel-slide-b {
+    animation: none;
+  }
+
+  .auth-carousel-slide-b {
+    opacity: 0;
+  }
+}
+
+/* ========================= Line clamp (fallback) ========================= */
+.line-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.line-clamp-3 {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.line-clamp-4 {
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* ========================= AI Markdown Body ========================= */
+.ai-markdown-body {
+  font-size: 1.0625rem; /* 17px base */
+}
+.ai-markdown-body h1 {
+  font-size: 1.5rem; font-weight: 700; margin: 1.2rem 0 0.6rem;
+  color: #141413; padding-bottom: 0.4rem; border-bottom: 2px solid #e6dfd8;
+}
+.ai-markdown-body h2 {
+  font-size: 1.3rem; font-weight: 700; margin: 1rem 0 0.5rem;
+  color: #141413; padding-bottom: 0.3rem; border-bottom: 1px solid #ebe6df;
+}
+.ai-markdown-body h3 {
+  font-size: 1.175rem; font-weight: 600; margin: 0.9rem 0 0.4rem;
+  color: #252523;
+}
+.ai-markdown-body p { margin: 0.5rem 0; line-height: 1.8; font-size: inherit; }
+.ai-markdown-body ul, .ai-markdown-body ol { margin: 0.5rem 0 0.5rem 1.5rem; }
+.ai-markdown-body li { margin: 0.3rem 0; line-height: 1.7; font-size: inherit; }
+.ai-markdown-body li::marker { color: #cc785c; }
+.ai-markdown-body strong { color: #141413; font-weight: 600; }
+.ai-markdown-body em { color: #cc785c; font-style: normal; font-weight: 500; }
+.ai-markdown-body code {
+  background: linear-gradient(135deg, #fbf2ed, #f5f0e8); padding: 0.15rem 0.45rem; border-radius: 0.3rem;
+  font-size: 0.85em; color: #a9583e; border: 1px solid #e6dfd8;
+}
+.ai-markdown-body pre {
+  background: #181715; border: 1px solid #252320; border-radius: 0.75rem; color: #faf9f5;
+  padding: 1rem 1.25rem; margin: 0.75rem 0; overflow-x: auto;
+}
+.ai-markdown-body pre code { background: transparent; padding: 0; color: inherit; border: none; }
+.ai-markdown-body blockquote {
+  border-left: 3px solid #cc785c; padding: 0.5rem 0.75rem; margin: 0.75rem 0;
+  color: #6c6a64; font-style: italic; background: #f5f0e8; border-radius: 0 0.5rem 0.5rem 0;
+}
+.ai-markdown-body hr { border: none; border-top: 1px solid #e6dfd8; margin: 1rem 0; }
+.ai-markdown-body table { width: 100%; border-collapse: collapse; margin: 0.75rem 0; font-size: 0.9rem; border-radius: 0.5rem; overflow: hidden; }
+.ai-markdown-body th, .ai-markdown-body td {
+  border: 1px solid #e6dfd8; padding: 0.5rem 0.75rem; text-align: left;
+}
+.ai-markdown-body th { background: linear-gradient(135deg, #faf9f5, #f5f0e8); font-weight: 600; color: #252523; }
+.ai-markdown-body td { background: #fffdf9; }
+.ai-markdown-body tr:hover td { background: #f5f0e8; }
+
+/* ========================= AI Typing Cursor ========================= */
+@keyframes blink-cursor {
+  0%, 50% { opacity: 1; }
+  51%, 100% { opacity: 0; }
+}
+.ai-typing-cursor {
+  display: inline-block;
+  width: 2px;
+  height: 1em;
+  background: linear-gradient(to bottom, #cc785c, #a9583e);
+  border-radius: 1px;
+  margin-left: 2px;
+  vertical-align: text-bottom;
+  animation: blink-cursor 1s step-end infinite;
+}
+
+/* ========================= AI Skeleton Loading ========================= */
+.ai-skeleton-container {
+  background: linear-gradient(135deg, #faf9f5 0%, #f5f0e8 100%);
+  border-radius: 0.75rem;
+}
+
+/* ========================= Reference Tooltip ========================= */
+.ref-tag {
+  position: relative;
+}
+.ref-tooltip {
+  animation: tooltipFadeIn 0.2s ease-out;
+}
+@keyframes tooltipFadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ========================= Line Clamp (fallback) ========================= */
+.line-clamp-6 {
+  display: -webkit-box;
+  -webkit-line-clamp: 6;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* ========================= Fade Animations ========================= */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes fadeOut {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+/* ========================= Knowledge base Markdown preview ========================= */
+.markdown-preview h1,
+.markdown-preview h2,
+.markdown-preview h3,
+.markdown-preview h4 {
+  font-weight: 600;
+  line-height: 1.35;
+  margin: 1.1em 0 0.5em;
+}
+.markdown-preview h1 { font-size: 1.5em; }
+.markdown-preview h2 { font-size: 1.3em; }
+.markdown-preview h3 { font-size: 1.15em; }
+.markdown-preview h4 { font-size: 1.05em; }
+.markdown-preview p { margin: 0.6em 0; }
+.markdown-preview ul,
+.markdown-preview ol { margin: 0.6em 0; padding-left: 1.5em; }
+.markdown-preview ul { list-style: disc; }
+.markdown-preview ol { list-style: decimal; }
+.markdown-preview li { margin: 0.25em 0; }
+.markdown-preview blockquote {
+  margin: 0.8em 0;
+  padding: 0.2em 1em;
+  border-left: 3px solid #e0cdbd;
+  color: #6b5d50;
+}
+.markdown-preview code {
+  font-family: "JetBrains Mono", "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 0.9em;
+  background: #f2e9df;
+  padding: 0.1em 0.35em;
+  border-radius: 4px;
+}
+.markdown-preview pre {
+  margin: 0.8em 0;
+  padding: 0.9em 1em;
+  background: #f6efe6;
+  border-radius: 8px;
+  overflow-x: auto;
+}
+.markdown-preview pre code { background: transparent; padding: 0; }
+.markdown-preview table {
+  border-collapse: collapse;
+  margin: 0.8em 0;
+  width: 100%;
+  font-size: 0.95em;
+}
+.markdown-preview th,
+.markdown-preview td {
+  border: 1px solid #e2d4c6;
+  padding: 0.4em 0.7em;
+  text-align: left;
+}
+.markdown-preview th { background: #f6ede3; font-weight: 600; }
+.markdown-preview a { color: #b5502f; text-decoration: underline; }
+.markdown-preview hr { margin: 1.2em 0; border: none; border-top: 1px solid #e5d8cc; }
+
+/* DeepSeek 风格思考块：统一小字号、灰色、紧凑 */
+.agent-reasoning-md,
+.agent-reasoning-md p,
+.agent-reasoning-md li,
+.agent-reasoning-md h1,
+.agent-reasoning-md h2,
+.agent-reasoning-md h3,
+.agent-reasoning-md h4,
+.agent-reasoning-md strong,
+.agent-reasoning-md code {
+  font-size: 15px !important;
+  font-weight: 400;
+  color: #8b8b8b !important;
+}
+.agent-reasoning-md p { margin: 0.4em 0; }
+.agent-reasoning-md ul,
+.agent-reasoning-md ol { margin: 0.4em 0; padding-left: 1.4em; }
+.agent-reasoning-md li { margin: 0.2em 0; }
+.agent-reasoning-md strong { font-weight: 600; }

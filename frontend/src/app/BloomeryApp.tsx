@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Factory, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { desktop, isDesktopRuntime } from "../bridge/desktop";
-import LanguageSelect from "../components/common/LanguageSelect";
 import ChatPage from "../features/chat/ChatPage";
 import AnalysisPage from "../features/analysis/AnalysisPage";
 import DiagnosticsPage from "../features/diagnostics/DiagnosticsPage";
@@ -10,16 +9,23 @@ import KnowledgePage from "../features/knowledge/KnowledgePage";
 import SettingsPage from "../features/settings/SettingsPage";
 import SectionPlaceholder from "./SectionPlaceholder";
 import WorkbenchHome from "./WorkbenchHome";
-import { getNavigationSection, navigationSections, type SectionId } from "./navigation";
+import {
+  getNavigationSection,
+  primaryNavigationSections,
+  utilityNavigationSections,
+  type SectionId,
+} from "./navigation";
 import { LocaleProvider, useLocale } from "../i18n/locale";
-import { BLOOMERY_VERSION } from "../version";
+import { ThemeProvider } from "../theme/theme";
 
 type InitializationState = "loading" | "ready" | "failed";
 
 export default function BloomeryApp() {
   return (
     <LocaleProvider>
-      <BloomeryAppShell />
+      <ThemeProvider>
+        <BloomeryAppShell />
+      </ThemeProvider>
     </LocaleProvider>
   );
 }
@@ -68,14 +74,6 @@ function BloomeryAppShell() {
             </div>
           )}
         </div>
-        <div className="bloomery-topbar-meta">
-          <span className="bloomery-local-indicator">
-            <span className="bloomery-state-dot" aria-hidden="true" />
-            {t("localWorkspace")}
-          </span>
-          <span className="bloomery-version-label">LOCAL / {BLOOMERY_VERSION}</span>
-          <LanguageSelect />
-        </div>
       </header>
 
       <div className="bloomery-body">
@@ -93,42 +91,66 @@ function BloomeryAppShell() {
             </button>
           </div>
           <div className="bloomery-nav-list" aria-label={t("moduleNavigation")}>
-            {navigationSections.map(({ id, labelKey, icon: Icon }) => (
-              <button
-                key={id}
-                type="button"
-                className={`bloomery-nav-item ${activeSection === id ? "is-active" : ""}`}
-                aria-label={t(labelKey)}
-                aria-current={activeSection === id ? "page" : undefined}
-                title={collapsed ? t(labelKey) : undefined}
-                onClick={() => setActiveSection(id)}
-              >
-                <Icon size={18} strokeWidth={activeSection === id ? 2.2 : 1.8} aria-hidden="true" />
-                {!collapsed && <span data-testid={`nav-label-${id}`}>{t(labelKey)}</span>}
-              </button>
-            ))}
+            {primaryNavigationSections.map(({ id, labelKey, icon: Icon }) => {
+              const isActive = activeSection === id;
+              return (
+                <button
+                  key={id}
+                  type="button"
+                  className={`bloomery-nav-item ${isActive ? "is-active" : ""}`}
+                  aria-label={t(labelKey)}
+                  aria-current={isActive ? "page" : undefined}
+                  title={collapsed ? t(labelKey) : undefined}
+                  onClick={() => setActiveSection(id)}
+                >
+                  <Icon size={18} strokeWidth={isActive ? 2.2 : 1.8} aria-hidden="true" />
+                  {!collapsed && <span data-testid={`nav-label-${id}`}>{t(labelKey)}</span>}
+                </button>
+              );
+            })}
+          </div>
+          <div className="bloomery-sidebar-footer" data-testid="utility-navigation">
+            <div className="bloomery-nav-list" aria-label={t("utilityNavigation")}>
+              {utilityNavigationSections.map(({ id, labelKey, icon: Icon }) => {
+                const isActive = activeSection === id || (id === "settings" && activeSection === "diagnostics");
+                return (
+                  <button
+                    key={id}
+                    type="button"
+                    className={`bloomery-nav-item ${isActive ? "is-active" : ""}`}
+                    aria-label={t(labelKey)}
+                    aria-current={isActive ? "page" : undefined}
+                    title={collapsed ? t(labelKey) : undefined}
+                    onClick={() => setActiveSection(id)}
+                  >
+                    <Icon size={18} strokeWidth={isActive ? 2.2 : 1.8} aria-hidden="true" />
+                    {!collapsed && <span data-testid={`nav-label-${id}`}>{t(labelKey)}</span>}
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </nav>
 
         <main className="bloomery-main" aria-label={t(active.labelKey)}>
-          <div className="bloomery-main-inner">
+          <div className={`bloomery-main-inner ${activeSection === "chat" ? "is-chat-shell" : ""}`}>
             {activeSection === "workbench" ? (
               <WorkbenchHome
                 initializationState={initializationState}
                 onOpenSection={setActiveSection}
               />
-            ) : activeSection === "chat" ? (
-              <ChatPage />
             ) : activeSection === "analysis" ? (
               <AnalysisPage />
             ) : activeSection === "knowledge" ? (
               <KnowledgePage />
             ) : activeSection === "settings" ? (
-              <SettingsPage />
+              <SettingsPage onOpenDiagnostics={() => setActiveSection("diagnostics")} />
             ) : activeSection === "diagnostics" ? (
               <DiagnosticsPage />
             ) : activeSection === "extensions" ? (
               <ExtensionsPage />
+            ) : activeSection === "chat" ? (
+              <ChatPage onOpenSection={setActiveSection} />
             ) : (
               <SectionPlaceholder section={active} />
             )}

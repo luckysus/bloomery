@@ -133,6 +133,8 @@ pub struct TaskRecord {
     pub cancel_requested: bool,
     pub created_at: String,
     pub updated_at: String,
+    pub started_at: Option<String>,
+    pub finished_at: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -174,6 +176,12 @@ impl TaskRecord {
         validate_progress(self.progress)?;
         validate_timestamp("created_at", &self.created_at)?;
         validate_timestamp("updated_at", &self.updated_at)?;
+        if let Some(started_at) = &self.started_at {
+            validate_timestamp("started_at", started_at)?;
+        }
+        if let Some(finished_at) = &self.finished_at {
+            validate_timestamp("finished_at", finished_at)?;
+        }
         if self.state == TaskState::Completed
             && (self.progress != 100 || self.next_run_at.is_some())
         {

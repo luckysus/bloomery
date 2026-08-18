@@ -1,6 +1,7 @@
 pub mod agent;
 pub mod app;
 pub mod compute;
+pub mod database;
 mod context;
 mod db;
 pub mod diagnostics;

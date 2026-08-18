@@ -229,12 +229,10 @@ export default function OnnxInferencePanel() {
     <section className="bloomery-onnx-panel" data-testid="onnx-inference-panel" aria-labelledby="onnx-heading">
       <div className="bloomery-section-heading">
         <div>
-          <p className="bloomery-eyebrow">INFER-02</p>
           <h2 id="onnx-heading">{t("analysisOnnxTitle")}</h2>
         </div>
         <Boxes size={18} aria-hidden="true" />
       </div>
-      <p className="bloomery-analysis-copy">{t("analysisOnnxCopy")}</p>
 
       <div className="bloomery-onnx-model-row">
         <button type="button" onClick={() => void pickModel()} disabled={picking} data-testid="onnx-pick-model">

@@ -60,13 +60,20 @@ describe("ExtensionsPage", () => {
   });
 
   it("loads Skills and exposes their source and version", async () => {
-    render(<ExtensionsPage />);
+    const { container } = render(<ExtensionsPage />);
 
     expect(await screen.findByRole("heading", { name: "extensionsTitle" })).toBeInTheDocument();
     expect(screen.getByText("steel-review")).toBeInTheDocument();
     expect(screen.getByText("1.0.0")).toBeInTheDocument();
     expect(screen.getByText("extensionsScopeUser")).toBeInTheDocument();
     expect(screen.getByText(/C:\/Users\/example/)).toBeInTheDocument();
+    expect(container.querySelectorAll(".bloomery-eyebrow")).toHaveLength(0);
+    expect(screen.queryByText("extensionsLede")).not.toBeInTheDocument();
+    expect(screen.queryByText("extensionsSkillsCopy")).not.toBeInTheDocument();
+    expect(screen.queryByText("extensionsDomainsCopy")).not.toBeInTheDocument();
+    expect(screen.queryByText("extensionsMcpCopy")).not.toBeInTheDocument();
+    expect(screen.queryByText("extensionsMcpSecretNote")).toBeInTheDocument();
+    expect(screen.queryByText("extensionsMcpFooter")).toBeInTheDocument();
   });
 
   it("enables a Skill through the desktop bridge", async () => {
@@ -235,6 +242,54 @@ describe("ExtensionsPage", () => {
         clear_environment_credentials: true,
         env_values: {},
         replace_inherited_env: true,
+      })),
+    );
+  });
+
+  it("fills the SQL Server preset and sends the DSN through environment values", async () => {
+    vi.mocked(desktop.saveMcpServer).mockResolvedValue({
+      id: "mcp-4",
+      display_name: "SQL Server",
+      server_id: "dbhub-sqlserver",
+      transport: "stdio",
+      url: null,
+      executable: "F:/Tools/dbhub.exe",
+      args: ["--transport", "stdio"],
+      working_directory: null,
+      inherited_env: [],
+      env_names: ["DSN"],
+      timeout_ms: 30000,
+      enabled: true,
+      secret_configured: true,
+      status: "unknown",
+      last_error: null,
+      last_checked_at: null,
+      tool_count: 0,
+    } as never);
+
+    render(<ExtensionsPage />);
+
+    const preset = await screen.findByRole("combobox", { name: "extensionsMcpPreset" });
+    fireEvent.change(preset, { target: { value: "sqlserver" } });
+
+    expect(screen.getByRole("textbox", { name: "extensionsMcpDisplayName" })).toHaveValue("SQL Server");
+    expect(screen.getByRole("textbox", { name: "extensionsMcpServerId" })).toHaveValue("dbhub-sqlserver");
+    expect(screen.getByRole("textbox", { name: "extensionsMcpArguments" })).toHaveValue("--transport\nstdio");
+    expect(screen.getByRole("textbox", { name: "extensionsMcpEnvironment" })).toHaveValue(
+      "DSN=sqlserver://user:password@host:1433/database?sslmode=disable",
+    );
+
+    fireEvent.change(screen.getByRole("textbox", { name: "extensionsMcpExecutable" }), {
+      target: { value: "F:/Tools/dbhub.exe" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "extensionsMcpSave" }));
+
+    await waitFor(() =>
+      expect(desktop.saveMcpServer).toHaveBeenCalledWith(expect.objectContaining({
+        transport: "stdio",
+        executable: "F:/Tools/dbhub.exe",
+        args: ["--transport", "stdio"],
+        env_values: { DSN: "sqlserver://user:password@host:1433/database?sslmode=disable" },
       })),
     );
   });

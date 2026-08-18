@@ -22,9 +22,7 @@ export default function DiagnosticsHeader({
   return (
     <header className="bloomery-diagnostics-header">
       <div>
-        <p className="bloomery-eyebrow">LOCAL RUNTIME / HEALTH</p>
         <h1 id="diagnostics-heading">{t("diagnosticsTitle")}</h1>
-        <p className="bloomery-lede">{t("diagnosticsLede")}</p>
       </div>
       <div className="bloomery-diagnostics-actions">
         <button type="button" className="bloomery-icon-button" onClick={onRefresh} disabled={loading} aria-label={t("diagnosticsRefresh")} title={t("diagnosticsRefresh")}>

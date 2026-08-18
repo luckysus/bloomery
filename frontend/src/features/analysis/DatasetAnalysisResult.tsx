@@ -18,7 +18,6 @@ export default function DatasetAnalysisResult({ analysis }: { analysis: DatasetA
     <section className="bloomery-dataset-analysis" data-testid="dataset-analysis-result" aria-labelledby="dataset-analysis-heading">
       <div className="bloomery-section-heading">
         <div>
-          <p className="bloomery-eyebrow">PROFILE-01</p>
           <h3 id="dataset-analysis-heading">{t("analysisDatasetAnalysisTitle")}</h3>
         </div>
         <BarChart3 size={19} aria-hidden="true" />

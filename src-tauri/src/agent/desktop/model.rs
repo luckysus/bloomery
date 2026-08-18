@@ -15,6 +15,16 @@ pub struct LocalAgentChatRequest {
     pub message: String,
     pub run_id: Option<String>,
     pub evidence_pack_id: Option<String>,
+    #[serde(default)]
+    pub attachments: Vec<LocalAgentAttachment>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalAgentAttachment {
+    pub data: String,
+    pub mime: String,
+    pub name: String,
 }
 
 #[derive(Debug, Deserialize)]

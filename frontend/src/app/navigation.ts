@@ -26,14 +26,26 @@ export interface NavigationSection {
   icon: LucideIcon;
 }
 
-export const navigationSections: readonly NavigationSection[] = [
+export const primaryNavigationSections: readonly NavigationSection[] = [
   { id: "workbench", labelKey: "navWorkbench", descriptionKey: "navWorkbenchDescription", icon: LayoutDashboard },
   { id: "chat", labelKey: "navChat", descriptionKey: "navChatDescription", icon: MessageSquareText },
   { id: "knowledge", labelKey: "navKnowledge", descriptionKey: "navKnowledgeDescription", icon: BookOpen },
   { id: "analysis", labelKey: "navAnalysis", descriptionKey: "navAnalysisDescription", icon: BarChart3 },
   { id: "extensions", labelKey: "navExtensions", descriptionKey: "navExtensionsDescription", icon: Puzzle },
+];
+
+export const utilityNavigationSections: readonly NavigationSection[] = [
   { id: "settings", labelKey: "navSettings", descriptionKey: "navSettingsDescription", icon: Settings },
+];
+
+const secondarySections: readonly NavigationSection[] = [
   { id: "diagnostics", labelKey: "navDiagnostics", descriptionKey: "navDiagnosticsDescription", icon: Activity },
+];
+
+export const navigationSections: readonly NavigationSection[] = [
+  ...primaryNavigationSections,
+  ...utilityNavigationSections,
+  ...secondarySections,
 ];
 
 export function getNavigationSection(id: SectionId) {

@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { setTheme as setNativeTheme } from "@tauri-apps/api/app";
 import {
   open as openNativeDialog,
   save as saveNativeDialog,
@@ -17,6 +18,17 @@ export interface Conversation {
   archived: boolean;
 }
 
+export interface HistoryHit {
+  conversation_id: string;
+  conversation_title: string;
+  message_id: string;
+  role: string;
+  content: string;
+  created_at: string;
+  score: number;
+  snippet: string;
+}
+
 export interface Message {
   id: string;
   conversation_id: string;
@@ -31,6 +43,13 @@ export interface LocalAgentChatRequest {
   message: string;
   runId?: string;
   evidencePackId?: string;
+  attachments?: LocalAgentAttachment[];
+}
+
+export interface LocalAgentAttachment {
+  data: string;
+  mime: string;
+  name: string;
 }
 
 export interface LocalAgentDelta {
@@ -433,6 +452,10 @@ export interface BackgroundTask {
   can_retry: boolean;
   created_at: string;
   updated_at: string;
+  // ponytail: optional so existing task fixtures don't need updating; backend always returns them
+  started_at?: string | null;
+  finished_at?: string | null;
+  file_name?: string | null;
 }
 
 export type SourceLocation =
@@ -737,6 +760,28 @@ export interface McpHealth {
   checked_at: string;
 }
 
+export interface DatabaseConnectionSummary {
+  id: string;
+  display_name: string;
+  host: string;
+  port: number;
+  username: string;
+  timeout_ms: number;
+  enabled: boolean;
+  secret_configured: boolean;
+}
+
+export interface DatabaseConnectionInput {
+  id?: string | null;
+  display_name: string;
+  host: string;
+  port?: number;
+  username: string;
+  password?: string;
+  timeout_ms?: number;
+  enabled?: boolean;
+}
+
 export type FileDialogOptions = OpenDialogOptions;
 export type SaveFileDialogOptions = SaveDialogOptions;
 
@@ -746,6 +791,10 @@ function call<T>(command: string, args?: Record<string, unknown>) {
 }
 
 export const desktop = {
+  setNativeTheme: (theme: "light" | "dark") => {
+    if (!isDesktopRuntime()) return Promise.resolve();
+    return setNativeTheme(theme);
+  },
   async initialize() {
     if (!isDesktopRuntime()) return;
     await invoke<void>("db_init");
@@ -756,8 +805,27 @@ export const desktop = {
   setSetting: (key: string, valueJson: string) =>
     call<void>("set_setting", { key, valueJson }),
   listConversations: () => call<Conversation[]>("list_conversations"),
+  searchHistory: (request: {
+    query: string;
+    conversationId?: string;
+    excludeCurrent?: boolean;
+    limit?: number;
+  }) => call<HistoryHit[]>("search_history", {
+    query: request.query,
+    conversationId: request.conversationId,
+    excludeCurrent: request.excludeCurrent,
+    limit: request.limit,
+  }),
   createConversation: (title: string) =>
     call<Conversation>("create_conversation", { title }),
+  updateConversationTitle: (conversationId: string, title: string) =>
+    call<void>("update_conversation_title", { conversationId, title }),
+  updateConversationPinned: (conversationId: string, pinned: boolean) =>
+    call<void>("update_conversation_pinned", { conversationId, pinned }),
+  archiveConversation: (conversationId: string) =>
+    call<void>("archive_conversation", { conversationId }),
+  deleteConversationLocal: (conversationId: string) =>
+    call<void>("delete_conversation_local", { conversationId }),
   listMessages: (conversationId: string) =>
     call<Message[]>("list_messages", { conversationId }),
   exportConversation: (conversationId: string, outputPath: string, format: ConversationExportFormat) =>
@@ -878,6 +946,16 @@ getComputeOptimizationResult: (id: string) =>
   restartMcpServer: (id: string) => call<McpHealth>("restart_mcp_server", { id }),
   listMcpTools: (id: string) => call<McpToolSummary[]>("list_mcp_tools", { id }),
   deleteMcpServer: (id: string) => call<void>("delete_mcp_server", { id }),
+  listDatabaseConnections: () =>
+    call<DatabaseConnectionSummary[]>("list_database_connections"),
+  saveDatabaseConnection: (input: DatabaseConnectionInput) =>
+    call<DatabaseConnectionSummary>("save_database_connection", { input }),
+  deleteDatabaseConnection: (id: string) =>
+    call<void>("delete_database_connection", { id }),
+  testDatabaseConnection: (id: string) =>
+    call<string>("test_database_connection", { id }),
+  listDatabaseTables: (id: string) =>
+    call<string[]>("list_database_tables", { id }),
   listKnowledgeBases: () => call<KnowledgeBaseRecord[]>("list_knowledge_bases"),
   createKnowledgeBase: (name: string) =>
     call<KnowledgeBaseRecord>("create_knowledge_base", { name }),

@@ -115,13 +115,16 @@ describe("DiagnosticsPage", () => {
   });
 
   it("shows database, index, and task health from local diagnostics", async () => {
-    render(<DiagnosticsPage />);
+    const { container } = render(<DiagnosticsPage />);
 
     expect(await screen.findByRole("heading", { name: "diagnosticsTitle" })).toBeInTheDocument();
     expect(screen.getByText("diagnosticsDatabaseHealthy")).toBeInTheDocument();
     expect(screen.getByText("diagnosticsIndexHealthy")).toBeInTheDocument();
     expect(screen.getByText("42")).toBeInTheDocument();
     expect(screen.getByText("provider_timeout")).toBeInTheDocument();
+    expect(container.querySelectorAll(".bloomery-eyebrow")).toHaveLength(0);
+    expect(screen.queryByText("diagnosticsLede")).not.toBeInTheDocument();
+    expect(screen.getByText("diagnosticsPrivacyCopy")).toBeInTheDocument();
   });
 
   it("reports the bundled steel package from the local package registry", async () => {

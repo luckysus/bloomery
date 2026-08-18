@@ -81,6 +81,14 @@ function taskKindLabel(kind: string, translate: (key: "taskLiteratureParse" | "t
   return kind === "mineru_parse" ? translate("taskLiteratureParse") : kind === "rag_index_rebuild" ? translate("taskIndexRebuild") : translate("taskBackground");
 }
 
+function taskDuration(task: BackgroundTask) {
+  if (!task.started_at || !task.finished_at) return null;
+  const seconds = Math.max(0, Math.round((Date.parse(task.finished_at) - Date.parse(task.started_at)) / 1000));
+  if (seconds < 60) return `${seconds}s`;
+  const minutes = Math.floor(seconds / 60);
+  return `${minutes}m ${seconds % 60}s`;
+}
+
 function documentStateLabel(document: SourceDocumentRecord, translate: (key: "documentActive" | "documentProcessing") => string) {
   return document.active_version_id ? translate("documentActive") : translate("documentProcessing");
 }
@@ -137,9 +145,9 @@ export default function KnowledgeView({
   };
 
   return (
-    <section className="bloomery-knowledge" aria-labelledby="knowledge-heading">
+    <section className="bloomery-knowledge bloomery-page-surface" aria-labelledby="knowledge-heading">
       <header className="bloomery-knowledge-header">
-        <div><p className="bloomery-eyebrow">LOCAL KNOWLEDGE / STEEL DOMAIN</p><h1 id="knowledge-heading">{t("knowledgeTitle")}</h1><p className="bloomery-lede">{t("knowledgeLede")}</p></div>
+        <div><h1 id="knowledge-heading">{t("knowledgeTitle")}</h1></div>
         <button type="button" className="bloomery-icon-button" onClick={onRefresh} disabled={loading} aria-label={t("refreshKnowledge")} title={t("refreshKnowledge")}><RefreshCw size={17} aria-hidden="true" /></button>
       </header>
 
@@ -172,12 +180,11 @@ export default function KnowledgeView({
 
         <div className="bloomery-knowledge-content">
           {selectedBase ? <>
-            <div className="bloomery-knowledge-content-header"><div><p className="bloomery-eyebrow">SELECTED KNOWLEDGE BASE</p><h2>{selectedBase.name}</h2></div><span className="bloomery-knowledge-count">{t("documents", { count: documents.length })}</span></div>
+            <div className="bloomery-knowledge-content-header"><div><h2>{selectedBase.name}</h2></div><span className="bloomery-knowledge-count">{t("documents", { count: documents.length })}</span></div>
             <form className="bloomery-knowledge-import" onSubmit={onImportDocument}>
               <div className="bloomery-knowledge-import-title"><FolderUp size={18} aria-hidden="true" /><strong>{t("importLocalDocument")}</strong></div>
               <label htmlFor="knowledge-file-path">{t("filePath")}</label>
               <div className="bloomery-knowledge-import-row"><input id="knowledge-file-path" value={filePath} onChange={(event) => onFilePathChange(event.target.value)} placeholder={t("filePathPlaceholder")} required /><button type="button" className="bloomery-icon-button" onClick={onChooseFile} disabled={busy} aria-label={t("browseFile")} title={t("browseFile")}><FolderOpen size={17} aria-hidden="true" /></button><button type="submit" className="bloomery-action-primary" disabled={busy || !filePath.trim()}><FileText size={17} aria-hidden="true" />{t("importDocumentAction")}</button></div>
-              <p>{t("importDescription")}</p>
             </form>
             <section className="bloomery-knowledge-list-section" aria-labelledby="documents-heading">
               <div className="bloomery-knowledge-section-heading"><h3 id="documents-heading">{t("document")}</h3><span>{t("items", { count: documents.length })}</span></div>
@@ -187,7 +194,7 @@ export default function KnowledgeView({
               <div className="bloomery-knowledge-section-heading"><h3 id="versions-heading">{t("documentVersions")}</h3><span>{t("items", { count: versions.length })}</span></div>
               {versions.length === 0 ? <div className="bloomery-knowledge-empty-content"><FileText size={19} /><span>{t("noVersions")}</span></div> : <div className="bloomery-knowledge-version-list">{versions.map((version) => <div className="bloomery-knowledge-version" key={version.id}><div><strong>{version.embedding_model_id}</strong><span>{version.parser} {version.parser_version} / {version.chunk_policy_version}</span></div><small>{version.expected_chunk_count} {t("indexedChunks").toLowerCase()} / {version.activated_at ? t("documentActive") : t("documentProcessing")}</small></div>)}</div>}
             </section>
-          </> : <div className="bloomery-knowledge-empty-content is-large"><Database size={28} /><strong>{t("createKnowledgeBaseFirst")}</strong><span>{t("knowledgeBaseDescription")}</span></div>}
+          </> : <div className="bloomery-knowledge-empty-content is-large"><Database size={28} /><strong>{t("createKnowledgeBaseFirst")}</strong></div>}
 
           <section className="bloomery-knowledge-list-section" aria-labelledby="index-health-heading">
             <div className="bloomery-knowledge-section-heading"><h3 id="index-health-heading">{t("indexHealth")}</h3><span>{indexHealth ? indexStateLabel(indexHealth.state) : t("indexUnavailable")}</span></div>
@@ -196,7 +203,7 @@ export default function KnowledgeView({
 
           <section className="bloomery-knowledge-list-section" aria-labelledby="tasks-heading">
             <div className="bloomery-knowledge-section-heading"><h3 id="tasks-heading">{t("backgroundTasks")}</h3><span>{t("items", { count: tasks.length })}</span></div>
-            {tasks.length === 0 ? <div className="bloomery-knowledge-empty-content"><LoaderCircle size={19} /><span>{t("noBackgroundTasks")}</span></div> : <div className="bloomery-knowledge-task-list">{tasks.slice(0, 5).map((task) => <div className="bloomery-knowledge-task" key={task.id}><div><strong>{taskKindLabel(task.kind, (key) => t(key))}</strong><span>{taskStateLabel(task, (key) => t(key))} / {t("taskAttempt", { count: task.attempt })}</span></div><div className="bloomery-knowledge-progress"><span style={{ width: `${task.progress}%` }} /><b>{task.progress}%</b></div><div className="bloomery-knowledge-task-actions">{task.can_cancel && <button type="button" className="bloomery-icon-button" onClick={() => onCancelTask(task)} disabled={taskBusyId === task.id} aria-label={t("cancelTask")} title={t("cancelTask")}><X size={15} aria-hidden="true" /></button>}{task.can_retry && <button type="button" className="bloomery-icon-button" onClick={() => onRetryTask(task)} disabled={taskBusyId === task.id} aria-label={t("retryTask")} title={t("retryTask")}><RotateCcw size={15} aria-hidden="true" /></button>}</div></div>)}</div>}
+            {tasks.length === 0 ? <div className="bloomery-knowledge-empty-content"><LoaderCircle size={19} /><span>{t("noBackgroundTasks")}</span></div> : <div className="bloomery-knowledge-task-list">{tasks.slice(0, 5).map((task) => <div className="bloomery-knowledge-task" key={task.id}><div><strong>{task.file_name ?? taskKindLabel(task.kind, (key) => t(key))}</strong><span>{taskStateLabel(task, (key) => t(key))} / {t("taskAttempt", { count: task.attempt })}{taskDuration(task) ? ` · ${taskDuration(task)}` : ""}</span></div><div className="bloomery-knowledge-progress"><span style={{ width: `${task.progress}%` }} /><b>{task.progress}%</b></div><div className="bloomery-knowledge-task-actions">{task.can_cancel && <button type="button" className="bloomery-icon-button" onClick={() => onCancelTask(task)} disabled={taskBusyId === task.id} aria-label={t("cancelTask")} title={t("cancelTask")}><X size={15} aria-hidden="true" /></button>}{task.can_retry && <button type="button" className="bloomery-icon-button" onClick={() => onRetryTask(task)} disabled={taskBusyId === task.id} aria-label={t("retryTask")} title={t("retryTask")}><RotateCcw size={15} aria-hidden="true" /></button>}</div></div>)}</div>}
           </section>
         </div>
       </div>

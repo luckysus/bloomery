@@ -240,12 +240,10 @@ export default function OptimizationPanel({ datasetId, trainingResult }: Props) 
     <section className="bloomery-optimization-panel" data-testid={`optimization-panel-${datasetId}`} aria-labelledby={`optimization-heading-${datasetId}`}>
       <div className="bloomery-section-heading">
         <div>
-          <p className="bloomery-eyebrow">OPT-01</p>
           <h4 id={`optimization-heading-${datasetId}`}>{t("analysisOptimizationTitle")}</h4>
         </div>
         <Route size={18} aria-hidden="true" />
       </div>
-      <p className="bloomery-analysis-copy">{t("analysisOptimizationCopy")}</p>
 
       <fieldset className="bloomery-optimization-direction">
         <legend>{t("analysisOptimizationDirection")}</legend>

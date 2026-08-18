@@ -4,7 +4,6 @@ import { useLocale } from "../../i18n/locale";
 import {
   type ProviderSlot,
   type SettingsEditor,
-  slotDescriptions,
   slotTitles,
 } from "./settingsModel";
 
@@ -34,8 +33,7 @@ export default function SettingsProviderCard({
 
   return (
     <form className="bloomery-settings-card" onSubmit={(event) => void onSubmit(event, editor)}>
-      <div className="bloomery-settings-card-heading"><div><span className="bloomery-settings-card-icon"><PlugZap size={17} aria-hidden="true" /></span><div><p className="bloomery-eyebrow">{editor.kind.toUpperCase()}</p><h2>{t(slotTitles[editor.slot])}</h2></div></div><span className={`bloomery-settings-status ${editor.secretConfigured ? "is-configured" : "is-missing"}`}>{editor.secretConfigured ? t("settingsSecretConfigured") : t("settingsSecretMissing")}</span></div>
-      <p className="bloomery-settings-description">{t(slotDescriptions[editor.slot])}</p>
+      <div className="bloomery-settings-card-heading"><div><span className="bloomery-settings-card-icon"><PlugZap size={17} aria-hidden="true" /></span><h2>{t(slotTitles[editor.slot])}</h2></div><span className={`bloomery-settings-status ${editor.secretConfigured ? "is-configured" : "is-missing"}`}>{editor.secretConfigured ? t("settingsSecretConfigured") : t("settingsSecretMissing")}</span></div>
       <div className="bloomery-settings-fields">
         <label htmlFor={`settings-${editor.slot}-name`}>{t("settingsDisplayName")}</label>
         <input id={`settings-${editor.slot}-name`} value={editor.displayName} onChange={(event) => update("displayName", event.target.value)} required />

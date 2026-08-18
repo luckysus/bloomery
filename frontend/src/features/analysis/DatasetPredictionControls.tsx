@@ -165,7 +165,6 @@ export default function DatasetPredictionControls({ datasetId, trainingResult }:
     <section className="bloomery-dataset-prediction" data-testid="prediction-controls" aria-labelledby="prediction-heading">
       <div className="bloomery-dataset-prediction-heading">
         <div>
-          <p className="bloomery-eyebrow">PREDICT-01</p>
           <h4 id="prediction-heading">{t("analysisPredictionTitle")}</h4>
         </div>
         <Gauge size={16} aria-hidden="true" />

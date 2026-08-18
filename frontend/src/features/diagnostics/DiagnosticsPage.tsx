@@ -243,7 +243,7 @@ export default function DiagnosticsPage() {
   const storage = snapshot.storage;
 
   return (
-    <section className="bloomery-diagnostics" aria-labelledby="diagnostics-heading" aria-busy={loading}>
+    <section className="bloomery-diagnostics bloomery-page-surface" aria-labelledby="diagnostics-heading" aria-busy={loading}>
       <DiagnosticsHeader
         loading={loading}
         busy={busyBackup}

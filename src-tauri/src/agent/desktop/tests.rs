@@ -30,6 +30,17 @@ fn routes_steel_requests_without_cloud_dependencies() {
 }
 
 #[test]
+fn knowledge_route_uses_a_local_evidence_pack_when_one_is_available() {
+    let route = super::routing::route_with_evidence_pack(
+        classify_desktop_intent("search Q355B literature"),
+        true,
+    );
+
+    assert_eq!(route.intent, DesktopIntentKind::KnowledgeQa);
+    assert_eq!(route.unavailable_capability, None);
+}
+
+#[test]
 fn prompt_bounds_frontend_contexts() {
     let long_context = "x".repeat(super::model::LOCAL_ASK_CONTEXT_CHAR_LIMIT + 40);
     let contexts = (0..20)
@@ -86,11 +97,18 @@ fn stopped_answers_are_marked_partial() {
 fn chat_request_accepts_evidence_pack_reference() {
     let request: LocalAgentChatRequest = serde_json::from_value(json!({
         "message": "Q355B strength",
-        "evidencePackId": "audit-1"
+        "evidencePackId": "audit-1",
+        "attachments": [{
+            "data": "ZmFrZQ==",
+            "mime": "image/png",
+            "name": "炉况.png"
+        }]
     }))
     .expect("deserialize desktop chat request");
 
     assert_eq!(request.evidence_pack_id.as_deref(), Some("audit-1"));
+    assert_eq!(request.attachments.len(), 1);
+    assert_eq!(request.attachments[0].name, "炉况.png");
 }
 
 #[test]
@@ -224,4 +242,29 @@ fn desktop_chat_builds_a_standard_agent_loop_request() {
         crate::agent::context::ContextSource::CurrentRequest
     ));
     assert!(request.evidence.is_none());
+}
+
+#[test]
+fn desktop_chat_attaches_images_to_the_agent_request() {
+    let request: LocalAgentChatRequest = serde_json::from_value(json!({
+        "message": "分析这张炉况图",
+        "attachments": [{
+            "data": "ZmFrZQ==",
+            "mime": "image/png",
+            "name": "炉况.png"
+        }]
+    }))
+    .expect("deserialize desktop chat request");
+
+    let loop_request = super::service::build_agent_loop_request_with_attachments(
+        Uuid::new_v4(),
+        "system prompt",
+        &request.message,
+        None,
+        &request.attachments,
+    );
+
+    assert_eq!(loop_request.attachments.len(), 1);
+    assert_eq!(loop_request.attachments[0].mime, "image/png");
+    assert_eq!(loop_request.attachments[0].data, "ZmFrZQ==");
 }

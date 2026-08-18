@@ -33,7 +33,7 @@ export default function DiagnosticsTaskList({ tasks, busyTask, onRetry }: Diagno
 
   return (
     <section className="bloomery-diagnostics-tasks" aria-labelledby="diagnostics-tasks-heading">
-      <div className="bloomery-diagnostics-section-heading"><div><p className="bloomery-eyebrow">RECOVERY QUEUE</p><h2 id="diagnostics-tasks-heading">{t("diagnosticsTaskErrors")}</h2></div><HardDrive size={18} aria-hidden="true" /></div>
+      <div className="bloomery-diagnostics-section-heading"><div><h2 id="diagnostics-tasks-heading">{t("diagnosticsTaskErrors")}</h2></div><HardDrive size={18} aria-hidden="true" /></div>
       {failedTasks.length === 0 ? <p className="bloomery-diagnostics-empty">{t("diagnosticsNoTaskErrors")}</p> : (
         <div className="bloomery-diagnostics-task-list">
           {failedTasks.map((task) => (

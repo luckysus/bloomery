@@ -75,6 +75,20 @@ function updateServer(servers: McpServerSummary[], next: McpServerSummary) {
   return servers.map((item) => (item.id === next.id ? next : item));
 }
 
+// ponytail: 模板只填表单骨架，不写死后端；dbhub 的 DSN 走环境变量，值进 Credential Manager。
+const MCP_PRESETS = {
+  sqlserver: {
+    draft: {
+      display_name: "SQL Server",
+      server_id: "dbhub-sqlserver",
+    },
+    args: "--transport\nstdio",
+    environment: "DSN=sqlserver://user:password@host:1433/database?sslmode=disable",
+  },
+} as const;
+
+type PresetKey = keyof typeof MCP_PRESETS;
+
 function serverTransportLabel(transport: McpTransportKind, t: (key: any) => string) {
   if (transport === "stdio") return t("extensionsMcpStdio");
   if (transport === "sse") return t("extensionsMcpSse");
@@ -94,6 +108,17 @@ export default function McpServersPanel() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [preset, setPreset] = useState("");
+
+  const applyPreset = (key: string) => {
+    setPreset(key);
+    const template = MCP_PRESETS[key as PresetKey];
+    if (!template) return;
+    setDraft((current) => ({ ...emptyDraft(), ...template.draft, enabled: current.enabled }));
+    setArgsText(template.args);
+    setInheritedText("");
+    setEnvironmentText(template.environment);
+  };
 
   const load = async () => {
     setLoading(true);
@@ -132,6 +157,7 @@ export default function McpServersPanel() {
       const saved = await desktop.saveMcpServer(payload);
       setServers((current) => updateServer(current, saved));
       setDraft(emptyDraft());
+      setPreset("");
       setArgsText("");
       setInheritedText("");
       setEnvironmentText("");
@@ -217,15 +243,15 @@ export default function McpServersPanel() {
   return (
     <section className="bloomery-extensions-section bloomery-mcp-panel" aria-labelledby="mcp-heading" aria-busy={loading}>
       <div className="bloomery-extensions-section-heading">
-        <div><p className="bloomery-eyebrow">MODEL CONTEXT PROTOCOL / CONTROLLED</p><h2 id="mcp-heading">{t("extensionsMcpTitle")}</h2></div>
+        <div><h2 id="mcp-heading">{t("extensionsMcpTitle")}</h2></div>
         <Server size={19} aria-hidden="true" />
       </div>
-      <p className="bloomery-extensions-copy">{t("extensionsMcpCopy")}</p>
       {error && <div className="bloomery-extensions-alert" role="alert"><CircleAlert size={17} aria-hidden="true" /><span>{error}</span></div>}
       {notice && <div className="bloomery-extensions-notice" role="status"><Check size={17} aria-hidden="true" /><span>{notice}</span></div>}
 
       <form className="bloomery-mcp-form" onSubmit={(event) => void save(event)}>
         <div className="bloomery-mcp-form-heading"><strong>{draft.id ? t("extensionsMcpEdit") : t("extensionsMcpAdd")}</strong><span>{t("extensionsMcpSecretNote")}</span></div>
+        {!draft.id && <label className="bloomery-mcp-wide"><span>{t("extensionsMcpPreset")}</span><select value={preset} onChange={(event) => applyPreset(event.target.value)}><option value="">{t("extensionsMcpPresetNone")}</option><option value="sqlserver">{t("extensionsMcpPresetSqlserver")}</option></select></label>}
         <div className="bloomery-mcp-fields">
           <label><span>{t("extensionsMcpDisplayName")}</span><input value={draft.display_name} onChange={(event) => setDraft({ ...draft, display_name: event.target.value })} required /></label>
           <label><span>{t("extensionsMcpServerId")}</span><input value={draft.server_id} onChange={(event) => setDraft({ ...draft, server_id: event.target.value })} required /></label>
@@ -238,7 +264,7 @@ export default function McpServersPanel() {
           <label className="bloomery-mcp-wide"><span>{t("extensionsMcpEnvironment")}</span><textarea value={environmentText} onChange={(event) => setEnvironmentText(event.target.value)} placeholder={t("extensionsMcpEnvironmentPlaceholder")} autoComplete="off" /></label>
           <label className="bloomery-mcp-checkbox bloomery-mcp-wide"><input type="checkbox" checked={draft.clear_environment_credentials} onChange={(event) => setDraft({ ...draft, clear_environment_credentials: event.target.checked })} /><span>{t("extensionsMcpClearEnvironment")}</span></label>
         </div>
-        <div className="bloomery-mcp-form-actions"><button type="submit" className="bloomery-secondary-button" disabled={busy === "save"}><Save size={15} aria-hidden="true" />{busy === "save" ? t("extensionsMcpSaving") : t("extensionsMcpSave")}</button>{draft.id && <button type="button" className="bloomery-icon-button" onClick={() => setDraft(emptyDraft())} aria-label={t("extensionsMcpCancelEdit")} title={t("extensionsMcpCancelEdit")}><CircleX size={17} aria-hidden="true" /></button>}</div>
+        <div className="bloomery-mcp-form-actions"><button type="submit" className="bloomery-secondary-button" disabled={busy === "save"}><Save size={15} aria-hidden="true" />{busy === "save" ? t("extensionsMcpSaving") : t("extensionsMcpSave")}</button>{draft.id && <button type="button" className="bloomery-icon-button" onClick={() => { setDraft(emptyDraft()); setPreset(""); }} aria-label={t("extensionsMcpCancelEdit")} title={t("extensionsMcpCancelEdit")}><CircleX size={17} aria-hidden="true" /></button>}</div>
       </form>
 
       {servers.length === 0 ? <div className="bloomery-extensions-empty"><Server size={18} aria-hidden="true" /><span>{t("extensionsMcpEmpty")}</span></div> : <div className="bloomery-mcp-list">

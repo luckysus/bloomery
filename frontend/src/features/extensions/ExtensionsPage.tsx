@@ -167,12 +167,10 @@ export default function ExtensionsPage() {
   };
 
   return (
-    <section className="bloomery-extensions" aria-labelledby="extensions-heading" aria-busy={loading}>
+    <section className="bloomery-extensions bloomery-page-surface" aria-labelledby="extensions-heading" aria-busy={loading}>
       <header className="bloomery-extensions-header">
         <div>
-          <p className="bloomery-eyebrow">LOCAL RUNTIME / EXTENSIONS</p>
           <h1 id="extensions-heading">{t("extensionsTitle")}</h1>
-          <p className="bloomery-lede">{t("extensionsLede")}</p>
         </div>
         <button type="button" className="bloomery-icon-button" onClick={() => void load()} disabled={loading} aria-label={t("extensionsRefresh")} title={t("extensionsRefresh")}>
           <RefreshCw size={18} aria-hidden="true" />
@@ -186,10 +184,9 @@ export default function ExtensionsPage() {
 
       <section className="bloomery-extensions-section" aria-labelledby="domains-heading">
         <div className="bloomery-extensions-section-heading">
-          <div><p className="bloomery-eyebrow">DECLARATIVE / VERIFIED</p><h2 id="domains-heading">{t("extensionsDomainsTitle")}</h2></div>
+          <div><h2 id="domains-heading">{t("extensionsDomainsTitle")}</h2></div>
           <PackageCheck size={19} aria-hidden="true" />
         </div>
-        <p className="bloomery-extensions-copy">{t("extensionsDomainsCopy")}</p>
         <div className="bloomery-domain-install">
           <PackageOpen size={17} aria-hidden="true" />
           <input
@@ -240,10 +237,9 @@ export default function ExtensionsPage() {
 
       <section className="bloomery-extensions-section" aria-labelledby="skills-heading">
         <div className="bloomery-extensions-section-heading">
-          <div><p className="bloomery-eyebrow">LOCAL INSTRUCTION PACKS</p><h2 id="skills-heading">{t("extensionsSkillsTitle")}</h2></div>
+          <div><h2 id="skills-heading">{t("extensionsSkillsTitle")}</h2></div>
           <ShieldCheck size={19} aria-hidden="true" />
         </div>
-        <p className="bloomery-extensions-copy">{t("extensionsSkillsCopy")}</p>
 
         {loading ? <div className="bloomery-extensions-loading"><LoaderCircle size={18} className="bloomery-spin" />{t("loading")}</div> : (
           <>
@@ -281,8 +277,7 @@ export default function ExtensionsPage() {
       </section>
 
       {catalog.errors.length > 0 && <section className="bloomery-extensions-errors" aria-labelledby="extensions-errors-heading">
-        <div className="bloomery-extensions-section-heading"><div><p className="bloomery-eyebrow">ISOLATED LOAD ERRORS</p><h2 id="extensions-errors-heading">{t("extensionsErrorsTitle")}</h2></div><TriangleAlert size={19} aria-hidden="true" /></div>
-        <p className="bloomery-extensions-copy">{t("extensionsErrorsCopy")}</p>
+        <div className="bloomery-extensions-section-heading"><div><h2 id="extensions-errors-heading">{t("extensionsErrorsTitle")}</h2></div><TriangleAlert size={19} aria-hidden="true" /></div>
         <div className="bloomery-extensions-error-list">
           {catalog.errors.map((item, index) => <div className="bloomery-extension-error" key={`${item.path}-${index}`}><strong>{item.code}</strong><span>{item.message}</span><code>{item.path}</code></div>)}
         </div>
