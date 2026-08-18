@@ -10,6 +10,8 @@ import {
   Table2,
   Trash2,
   PlugZap,
+  ToggleLeft,
+  ToggleRight,
 } from "lucide-react";
 import {
   desktop,
@@ -25,6 +27,8 @@ type Draft = {
   port: string;
   username: string;
   password: string;
+  timeout_ms: string;
+  enabled: boolean;
 };
 
 const emptyDraft = (): Draft => ({
@@ -34,6 +38,8 @@ const emptyDraft = (): Draft => ({
   port: "1433",
   username: "",
   password: "",
+  timeout_ms: "10000",
+  enabled: true,
 });
 
 function errorMessage(error: unknown, fallback: string) {
@@ -44,6 +50,19 @@ function updateConnection(connections: DatabaseConnectionSummary[], next: Databa
   const index = connections.findIndex((item) => item.id === next.id);
   if (index < 0) return [...connections, next];
   return connections.map((item) => (item.id === next.id ? next : item));
+}
+
+function payloadFor(draft: Draft): DatabaseConnectionInput {
+  return {
+    id: draft.id,
+    display_name: draft.display_name,
+    host: draft.host,
+    port: Number(draft.port) || undefined,
+    username: draft.username,
+    password: draft.password || undefined,
+    timeout_ms: Number(draft.timeout_ms) || undefined,
+    enabled: draft.enabled,
+  };
 }
 
 export default function DatabaseConnectionsPanel() {
@@ -79,18 +98,33 @@ export default function DatabaseConnectionsPanel() {
     setError(null);
     setNotice(null);
     try {
-      const payload: DatabaseConnectionInput = {
-        id: draft.id,
-        display_name: draft.display_name,
-        host: draft.host,
-        port: Number(draft.port) || undefined,
-        username: draft.username,
-        password: draft.password || undefined,
-      };
-      const saved = await desktop.saveDatabaseConnection(payload);
+      const saved = await desktop.saveDatabaseConnection(payloadFor(draft));
       setConnections((current) => updateConnection(current, saved));
       setDraft(emptyDraft());
       setNotice(t("settingsDatabaseSaved"));
+    } catch (cause) {
+      setError(errorMessage(cause, t("settingsDatabaseSaveError")));
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const saveExisting = async (connection: DatabaseConnectionSummary, enabled: boolean) => {
+    setBusy(`toggle:${connection.id}`);
+    setError(null);
+    setNotice(null);
+    try {
+      const saved = await desktop.saveDatabaseConnection({
+        id: connection.id,
+        display_name: connection.display_name,
+        host: connection.host,
+        port: connection.port,
+        username: connection.username,
+        password: undefined,
+        timeout_ms: connection.timeout_ms,
+        enabled,
+      });
+      setConnections((current) => updateConnection(current, saved));
     } catch (cause) {
       setError(errorMessage(cause, t("settingsDatabaseSaveError")));
     } finally {
@@ -106,6 +140,8 @@ export default function DatabaseConnectionsPanel() {
       port: String(connection.port),
       username: connection.username,
       password: "",
+      timeout_ms: String(connection.timeout_ms),
+      enabled: connection.enabled,
     });
     setNotice(t("settingsDatabaseEditing"));
   };
@@ -158,6 +194,13 @@ export default function DatabaseConnectionsPanel() {
     }
   };
 
+  const duplicate = connections.some((item) =>
+    item.id !== draft.id &&
+    item.host.trim() === draft.host.trim() &&
+    item.port === (Number(draft.port) || 0) &&
+    item.username.trim() === draft.username.trim(),
+  );
+
   return (
     <section className="bloomery-settings-databases" aria-labelledby="settings-databases-heading" aria-busy={loading}>
       <div className="bloomery-settings-permissions-heading">
@@ -175,7 +218,9 @@ export default function DatabaseConnectionsPanel() {
           <label><span>{t("settingsDatabasePort")}</span><input type="number" min="1" max="65535" value={draft.port} onChange={(event) => setDraft({ ...draft, port: event.target.value })} required /></label>
           <label><span>{t("settingsDatabaseUsername")}</span><input value={draft.username} onChange={(event) => setDraft({ ...draft, username: event.target.value })} required autoComplete="off" /></label>
           <label><span>{t("settingsDatabasePassword")}</span><input type="password" value={draft.password} onChange={(event) => setDraft({ ...draft, password: event.target.value })} placeholder={draft.id ? t("settingsDatabasePasswordPlaceholder") : undefined} autoComplete="new-password" /></label>
+          <label><span>{t("settingsDatabaseTimeout")}</span><input type="number" min="1000" max="60000" step="500" aria-label={t("settingsDatabaseTimeout")} value={draft.timeout_ms} onChange={(event) => setDraft({ ...draft, timeout_ms: event.target.value })} required /></label>
         </div>
+        {duplicate && <p className="bloomery-settings-alert" role="status">{t("settingsDatabaseDuplicate")}</p>}
         <div className="bloomery-mcp-form-actions"><button type="submit" className="bloomery-secondary-button" disabled={busy === "save"}><Save size={15} aria-hidden="true" />{busy === "save" ? t("settingsDatabaseSaving") : t("settingsDatabaseSave")}</button>{draft.id && <button type="button" className="bloomery-icon-button" onClick={() => setDraft(emptyDraft())} aria-label={t("settingsDatabaseCancelEdit")} title={t("settingsDatabaseCancelEdit")}><CircleX size={17} aria-hidden="true" /></button>}</div>
       </form>
 
@@ -186,11 +231,19 @@ export default function DatabaseConnectionsPanel() {
           return <article className="bloomery-mcp-item" key={connection.id}>
             <div className="bloomery-mcp-item-main">
               <div className="bloomery-extension-item-heading"><span className="bloomery-extension-icon"><Database size={17} aria-hidden="true" /></span><div><h3>{connection.display_name}</h3><p>{connection.host}:{connection.port} · {connection.username}</p></div></div>
+              {connection.last_checked_at && (
+                <p className={connection.last_error ? "bloomery-mcp-error" : "bloomery-mcp-health is-healthy"}>
+                  {connection.last_error
+                    ? `${t("settingsDatabaseLastChecked")}: ${connection.last_error}`
+                    : `${connection.last_version ?? ""} · ${t("settingsDatabaseLatency", { ms: connection.last_latency_ms ?? 0 })}`}
+                </p>
+              )}
               {result?.version && <p className="bloomery-mcp-health is-healthy"><CircleCheck size={14} aria-hidden="true" />{result.version.split("\n")[0]}</p>}
               {result?.error && <p className="bloomery-mcp-error">{result.error}</p>}
               {connectionTables.length > 0 && <details className="bloomery-mcp-tools"><summary>{t("settingsDatabaseTables")} ({connectionTables.length})</summary>{connectionTables.map((name) => <div key={name}><code>{name}</code></div>)}</details>}
             </div>
             <div className="bloomery-mcp-actions">
+              <button type="button" role="switch" aria-checked={connection.enabled} className="bloomery-icon-button" onClick={() => void saveExisting(connection, !connection.enabled)} disabled={busy !== null} aria-label={t("settingsDatabaseEnabled")} title={t("settingsDatabaseEnabled")}>{connection.enabled ? <ToggleRight size={16} aria-hidden="true" /> : <ToggleLeft size={16} aria-hidden="true" />}</button>
               <button type="button" className="bloomery-icon-button" onClick={() => void test(connection)} disabled={busy !== null} aria-label={t("settingsDatabaseTest")} title={t("settingsDatabaseTest")}><PlugZap size={16} aria-hidden="true" /></button>
               <button type="button" className="bloomery-icon-button" onClick={() => void listTables(connection)} disabled={busy !== null} aria-label={t("settingsDatabaseTables")} title={t("settingsDatabaseTables")}><Table2 size={16} aria-hidden="true" /></button>
               <button type="button" className="bloomery-icon-button" onClick={() => edit(connection)} disabled={busy !== null} aria-label={t("settingsDatabaseEdit")} title={t("settingsDatabaseEdit")}><Pencil size={16} aria-hidden="true" /></button>

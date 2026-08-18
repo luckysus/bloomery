@@ -5,7 +5,8 @@ import { desktop } from "../../bridge/desktop";
 
 vi.mock("../../i18n/locale", () => ({
   useLocale: () => ({
-    t: (key: string) => key,
+    t: (key: string, params?: Record<string, string | number>) =>
+      params ? `${key}:${JSON.stringify(params)}` : key,
   }),
 }));
 
@@ -140,5 +141,84 @@ describe("DatabaseConnectionsPanel", () => {
 
     await waitFor(() => expect(desktop.deleteDatabaseConnection).toHaveBeenCalledWith("db-1"));
     expect(await screen.findByText("settingsDatabaseDeleted")).toBeInTheDocument();
+  });
+
+  it("shows a health badge from persisted connection health", async () => {
+    vi.mocked(desktop.listDatabaseConnections).mockResolvedValue([
+      {
+        ...connection,
+        last_checked_at: "2026-08-18T09:00:00+08:00",
+        last_latency_ms: 120,
+        last_version: "Microsoft SQL Server 2022",
+        last_error: null,
+      },
+    ]);
+
+    render(<DatabaseConnectionsPanel />);
+
+    expect(await screen.findByText(/Microsoft SQL Server 2022/)).toBeInTheDocument();
+    expect(screen.getByText(/settingsDatabaseLatency/)).toBeInTheDocument();
+  });
+
+  it("shows the last failure reason from persisted health", async () => {
+    vi.mocked(desktop.listDatabaseConnections).mockResolvedValue([
+      {
+        ...connection,
+        last_checked_at: "2026-08-18T09:00:00+08:00",
+        last_latency_ms: null,
+        last_version: null,
+        last_error: "SQL Server login failed",
+      },
+    ]);
+
+    render(<DatabaseConnectionsPanel />);
+
+    expect(await screen.findByText(/SQL Server login failed/)).toBeInTheDocument();
+  });
+
+  it("toggles a connection enabled state", async () => {
+    vi.mocked(desktop.listDatabaseConnections).mockResolvedValue([connection]);
+    vi.mocked(desktop.saveDatabaseConnection).mockResolvedValue(connection);
+
+    render(<DatabaseConnectionsPanel />);
+
+    fireEvent.click(await screen.findByRole("switch", { name: "settingsDatabaseEnabled" }));
+
+    await waitFor(() =>
+      expect(desktop.saveDatabaseConnection).toHaveBeenCalledWith(
+        expect.objectContaining({ id: "db-1", enabled: false }),
+      ),
+    );
+  });
+
+  it("edits the timeout and warns about duplicates", async () => {
+    vi.mocked(desktop.listDatabaseConnections).mockResolvedValue([connection]);
+
+    render(<DatabaseConnectionsPanel />);
+
+    fireEvent.change(await screen.findByLabelText("settingsDatabaseTimeout"), {
+      target: { value: "20000" },
+    });
+    fireEvent.change(screen.getByLabelText("settingsDatabaseHost"), {
+      target: { value: connection.host },
+    });
+    fireEvent.change(screen.getByLabelText("settingsDatabasePort"), {
+      target: { value: String(connection.port) },
+    });
+    fireEvent.change(screen.getByLabelText("settingsDatabaseUsername"), {
+      target: { value: connection.username },
+    });
+    fireEvent.change(screen.getByLabelText("settingsDatabaseDisplayName"), {
+      target: { value: "重复检查" },
+    });
+
+    expect(await screen.findByText("settingsDatabaseDuplicate")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "settingsDatabaseSave" }));
+
+    await waitFor(() =>
+      expect(desktop.saveDatabaseConnection).toHaveBeenCalledWith(
+        expect.objectContaining({ timeout_ms: 20000 }),
+      ),
+    );
   });
 });
