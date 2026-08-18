@@ -23,7 +23,30 @@
     "citation_required": true,
     "max_evidence_items": 12
   },
-  "builtin_tool_allowlist": ["knowledge.query", "steel.carbon_equivalent", "steel.optimize_constrained", "steel.optimization_status"],
+  "builtin_tool_allowlist": [
+    "knowledge.query",
+    "steel.carbon_equivalent",
+    "steel.optimize_constrained",
+    "steel.optimization_status",
+    "steel.search_literature",
+    "steel.read_literature_section",
+    "steel.query_production_data",
+    "steel.query_composition_standard",
+    "steel.query_process_standard",
+    "steel.ask_llm_with_context",
+    "steel.get_model_status",
+    "steel.predict_performance",
+    "steel.optimize_process",
+    "steel.match_coil",
+    "steel.start_training",
+    "steel.process_literature",
+    "steel.export_data",
+    "steel.remember_memory",
+    "steel.read_memory",
+    "steel.search_memory",
+    "steel.list_memory",
+    "steel.forget_memory"
+  ],
   "mcp_recommendations": [
     {
       "id": "standards-reference",

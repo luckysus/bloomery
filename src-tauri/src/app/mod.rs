@@ -31,9 +31,12 @@ use crate::{db, tasks::scheduler::SchedulerState};
 use std::time::Duration;
 use tauri::{Manager, RunEvent};
 
+pub(crate) const BLOOMERY_TOKIO_WORKER_STACK_BYTES: usize = 8 * 1024 * 1024;
+
 pub fn run() {
     // 先安装脱敏 panic hook，确保任何崩溃报告在写入 stderr 前都经过 Redactor。
     crate::diagnostics::observability::install_panic_hook();
+    install_async_runtime();
 
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
@@ -73,4 +76,26 @@ pub fn run() {
         }
         _ => {}
     });
+}
+
+fn install_async_runtime() {
+    let runtime = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .thread_name("bloomery-async")
+        .thread_stack_size(BLOOMERY_TOKIO_WORKER_STACK_BYTES)
+        .build()
+        .expect("failed to build Bloomery async runtime");
+    let handle = runtime.handle().clone();
+    let _ = Box::leak(Box::new(runtime));
+    tauri::async_runtime::set(handle);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::BLOOMERY_TOKIO_WORKER_STACK_BYTES;
+
+    #[test]
+    fn async_runtime_stack_is_sized_for_desktop_agent_runs() {
+        assert!(BLOOMERY_TOKIO_WORKER_STACK_BYTES >= 8 * 1024 * 1024);
+    }
 }

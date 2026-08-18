@@ -50,6 +50,7 @@ fn domains_root(app: &tauri::AppHandle) -> Result<PathBuf, String> {
 }
 
 fn bundled_steel_package_candidates(resource_dir: &Path) -> [PathBuf; 3] {
+    let resource_dir = normalize_trusted_resource_path(resource_dir);
     [
         resource_dir.join(BUNDLED_STEEL_PACKAGE_RELATIVE_PATH),
         resource_dir
@@ -59,6 +60,22 @@ fn bundled_steel_package_candidates(resource_dir: &Path) -> [PathBuf; 3] {
             .join("..")
             .join(BUNDLED_STEEL_PACKAGE_RELATIVE_PATH),
     ]
+}
+
+fn normalize_trusted_resource_path(path: &Path) -> PathBuf {
+    #[cfg(windows)]
+    {
+        let text = path.to_string_lossy();
+        if let Some(stripped) = text.strip_prefix(r"\\?\") {
+            if !stripped
+                .get(..4)
+                .is_some_and(|prefix| prefix.eq_ignore_ascii_case("UNC\\"))
+            {
+                return PathBuf::from(stripped);
+            }
+        }
+    }
+    path.to_path_buf()
 }
 
 fn select_existing_directory(candidates: &[PathBuf]) -> Result<PathBuf, String> {
@@ -344,5 +361,22 @@ mod tests {
         );
 
         let _ = fs::remove_dir_all(root);
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn bundled_package_candidates_normalize_tauri_device_resource_paths() {
+        let candidates = bundled_steel_package_candidates(std::path::Path::new(
+            r"\\?\F:\steel-agent\bloomery\target\debug",
+        ));
+
+        assert_eq!(
+            candidates[0],
+            PathBuf::from(r"F:\steel-agent\bloomery\target\debug\domain-packs\steel")
+        );
+        assert!(
+            !candidates[0].to_string_lossy().starts_with(r"\\?\"),
+            "bundled resources are trusted app paths and must not trip user path rejection"
+        );
     }
 }

@@ -21,6 +21,34 @@ fn official_steel_package_fixture_is_declaration_only_and_loadable() {
         .manifest
         .builtin_tool_allowlist
         .contains(&"steel.carbon_equivalent".to_string()));
+    for tool_id in [
+        "steel.search_literature",
+        "steel.read_literature_section",
+        "steel.query_production_data",
+        "steel.query_composition_standard",
+        "steel.query_process_standard",
+        "steel.ask_llm_with_context",
+        "steel.get_model_status",
+        "steel.predict_performance",
+        "steel.optimize_process",
+        "steel.match_coil",
+        "steel.start_training",
+        "steel.process_literature",
+        "steel.export_data",
+        "steel.remember_memory",
+        "steel.read_memory",
+        "steel.search_memory",
+        "steel.list_memory",
+        "steel.forget_memory",
+    ] {
+        assert!(
+            package
+                .manifest
+                .builtin_tool_allowlist
+                .contains(&tool_id.to_string()),
+            "official steel package must allow {tool_id}"
+        );
+    }
     assert!(package
         .assets
         .iter()
