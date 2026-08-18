@@ -769,6 +769,10 @@ export interface DatabaseConnectionSummary {
   timeout_ms: number;
   enabled: boolean;
   secret_configured: boolean;
+  last_checked_at: string | null;
+  last_latency_ms: number | null;
+  last_version: string | null;
+  last_error: string | null;
 }
 
 export interface DatabaseConnectionInput {
@@ -780,6 +784,37 @@ export interface DatabaseConnectionInput {
   password?: string;
   timeout_ms?: number;
   enabled?: boolean;
+}
+
+export interface DatabaseQuerySubmitInput {
+  connection_id: string;
+  database?: string | null;
+  sql: string;
+  row_limit?: number;
+}
+
+export interface DatabaseQueryResult {
+  task_id: string;
+  connection_id: string;
+  database_name: string;
+  query_text: string;
+  row_count: number;
+  truncated: boolean;
+  duration_ms: number;
+  csv_path: string;
+  columns: string[];
+  rows: (string | null)[][];
+  created_at: string;
+}
+
+export interface DatabaseQuerySummary {
+  task_id: string;
+  database_name: string;
+  query_text: string;
+  row_count: number;
+  truncated: boolean;
+  duration_ms: number;
+  created_at: string;
 }
 
 export type FileDialogOptions = OpenDialogOptions;
@@ -954,8 +989,15 @@ getComputeOptimizationResult: (id: string) =>
     call<void>("delete_database_connection", { id }),
   testDatabaseConnection: (id: string) =>
     call<string>("test_database_connection", { id }),
-  listDatabaseTables: (id: string) =>
-    call<string[]>("list_database_tables", { id }),
+  listDatabases: (id: string) => call<string[]>("list_databases", { id }),
+  listDatabaseTables: (id: string, databaseName?: string) =>
+    call<string[]>("list_database_tables", { id, databaseName: databaseName ?? null }),
+  submitDatabaseQuery: (input: DatabaseQuerySubmitInput) =>
+    call<BackgroundTask>("submit_database_query", { input }),
+  getDatabaseQueryResult: (taskId: string) =>
+    call<DatabaseQueryResult | null>("get_database_query_result", { taskId }),
+  listDatabaseQueryResults: () =>
+    call<DatabaseQuerySummary[]>("list_database_query_results"),
   listKnowledgeBases: () => call<KnowledgeBaseRecord[]>("list_knowledge_bases"),
   createKnowledgeBase: (name: string) =>
     call<KnowledgeBaseRecord>("create_knowledge_base", { name }),

@@ -28,6 +28,10 @@ const connection = {
   timeout_ms: 10000,
   enabled: true,
   secret_configured: true,
+  last_checked_at: null,
+  last_latency_ms: null,
+  last_version: null,
+  last_error: null,
 };
 
 describe("DatabaseConnectionsPanel", () => {
