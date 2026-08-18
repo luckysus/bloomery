@@ -1,4 +1,4 @@
-use super::types::{DatabaseConnectionInput, DatabaseConnectionSummary};
+use super::types::{DatabaseConnectionInput, DatabaseConnectionSummary, DatabaseQuerySubmitInput};
 use crate::{
     db::{current_workspace_id, with_conn, DbState},
     storage::{
@@ -23,10 +23,14 @@ pub(super) fn summary(
         timeout_ms: record.timeout_ms,
         enabled: record.enabled,
         secret_configured: secret_configured(store, record.id),
+        last_checked_at: record.last_checked_at.clone(),
+        last_latency_ms: record.last_latency_ms,
+        last_version: record.last_version.clone(),
+        last_error: record.last_error.clone(),
     }
 }
 
-fn secret_configured(store: &dyn SecretStore, id: Uuid) -> bool {
+pub(super) fn secret_configured(store: &dyn SecretStore, id: Uuid) -> bool {
     SecretRef::new(id, PASSWORD_CREDENTIAL)
         .and_then(|reference| secrets::status(store, &reference).map(|status| status.configured))
         .unwrap_or(false)
@@ -106,6 +110,33 @@ pub(super) fn load_record(
             id,
         )?
         .ok_or_else(|| "database connection not found".to_string())
+    })
+}
+
+pub(super) struct PreparedQuerySubmission {
+    pub connection_id: Uuid,
+    pub sql: String,
+    pub database: Option<String>,
+    pub row_limit: u64,
+}
+
+pub(super) fn validate_submission(
+    input: &DatabaseQuerySubmitInput,
+) -> Result<PreparedQuerySubmission, String> {
+    let connection_id = super::types::parse_id(input.connection_id.trim())?;
+    let sql = crate::database::query::normalize_query(&input.sql)?;
+    let row_limit = crate::database::query::clamp_row_limit(input.row_limit);
+    let database = input
+        .database
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_string);
+    Ok(PreparedQuerySubmission {
+        connection_id,
+        sql,
+        database,
+        row_limit,
     })
 }
 
@@ -203,5 +234,45 @@ mod tests {
         let summary_after = summary(&record, &store);
         assert!(summary_after.secret_configured);
         assert!(!format!("{summary_after:?}").contains("secret-value"));
+    }
+
+    #[test]
+    fn validate_submission_rejects_guard_violations() {
+        let input = DatabaseQuerySubmitInput {
+            connection_id: "11111111-1111-1111-1111-111111111111".to_string(),
+            database: None,
+            sql: "DELETE FROM heats".to_string(),
+            row_limit: None,
+        };
+        assert!(validate_submission(&input).is_err());
+    }
+
+    #[test]
+    fn validate_submission_normalizes_sql_and_limit() {
+        let input = DatabaseQuerySubmitInput {
+            connection_id: " 11111111-1111-1111-1111-111111111111 ".to_string(),
+            database: Some("SteelWorks".to_string()),
+            sql: " SELECT 1; ".to_string(),
+            row_limit: Some(9_999_999),
+        };
+        let prepared = validate_submission(&input).expect("validate");
+        assert_eq!(prepared.sql, "SELECT 1");
+        assert_eq!(prepared.database.as_deref(), Some("SteelWorks"));
+        assert_eq!(prepared.row_limit, 5_000);
+        assert_eq!(
+            prepared.connection_id.to_string(),
+            "11111111-1111-1111-1111-111111111111"
+        );
+    }
+
+    #[test]
+    fn validate_submission_rejects_bad_uuid() {
+        let input = DatabaseQuerySubmitInput {
+            connection_id: "not-a-uuid".to_string(),
+            database: None,
+            sql: "SELECT 1".to_string(),
+            row_limit: None,
+        };
+        assert!(validate_submission(&input).is_err());
     }
 }
