@@ -4375,27 +4375,101 @@ body,
   background: var(--bloomery-sidebar) !important;
 }
 
+[data-theme="dark"] .bloomery-web-chat-embedded,
+[data-theme="dark"] .bloomery-web-chat-desktop-clean .web-agent-chat-panel,
+[data-theme="dark"] .bloomery-web-chat-desktop-clean .web-agent-chat-panel > div,
+[data-theme="dark"] .bloomery-web-chat-desktop-clean .web-agent-chat-panel header,
+[data-theme="dark"] .bloomery-web-chat-desktop-clean .web-agent-chat-panel form,
+[data-theme="dark"] .bloomery-web-chat-desktop-clean .web-agent-chat-panel [data-testid="web-agent-message-rail"],
+[data-theme="dark"] .bloomery-web-chat-desktop-clean [class*="bg-[#fbf7ef]"] {
+  background: var(--bloomery-bg) !important;
+  border-color: var(--bloomery-line) !important;
+  color: var(--bloomery-text) !important;
+}
+
+[data-theme="dark"] .bloomery-web-chat-desktop-clean .web-agent-chat-panel textarea {
+  background: transparent !important;
+  color: var(--bloomery-text) !important;
+  caret-color: var(--bloomery-amber);
+}
+
+[data-theme="dark"] .bloomery-web-chat-desktop-clean .web-agent-chat-panel textarea::placeholder {
+  color: var(--bloomery-text-muted) !important;
+  opacity: 1;
+}
+
 [data-theme="dark"] .bloomery-web-chat-desktop-clean [class*="bg-[#fffaf3]"],
-[data-theme="dark"] .bloomery-web-chat-desktop-clean [class*="bg-[#f7f1e8]"] {
+[data-theme="dark"] .bloomery-web-chat-desktop-clean .web-agent-chat-panel .bg-white,
+[data-theme="dark"] .bloomery-web-chat-desktop-clean .web-agent-chat-panel [role="menu"] {
   background: var(--bloomery-bg-raised) !important;
 }
 
+[data-theme="dark"] .bloomery-web-chat-desktop-clean [class~="bg-[#f0e5da]"],
+[data-theme="dark"] .bloomery-web-chat-desktop-clean [class~="bg-[#f7efe5]"],
+[data-theme="dark"] .bloomery-web-chat-desktop-clean [class~="bg-[#f7f1e8]"] {
+  background: var(--bloomery-bg-soft) !important;
+}
+
+[data-theme="dark"] .bloomery-web-chat-desktop-clean .web-agent-chat-panel .bg-amber-50,
+[data-theme="dark"] .bloomery-web-chat-desktop-clean .web-agent-chat-panel .bg-blue-50,
+[data-theme="dark"] .bloomery-web-chat-desktop-clean .web-agent-chat-panel .bg-emerald-50,
+[data-theme="dark"] .bloomery-web-chat-desktop-clean .web-agent-chat-panel .bg-red-50 {
+  background-color: var(--bloomery-bg-soft) !important;
+}
+
 [data-theme="dark"] .bloomery-web-chat-desktop-clean [class*="border-[#eadfd2]"],
-[data-theme="dark"] .bloomery-web-chat-desktop-clean [class*="border-[#e3d7ca]"] {
+[data-theme="dark"] .bloomery-web-chat-desktop-clean [class*="border-[#e3d7ca]"],
+[data-theme="dark"] .bloomery-web-chat-desktop-clean [class*="border-[#d9d9d9]"],
+[data-theme="dark"] .bloomery-web-chat-desktop-clean .web-agent-chat-panel .border-amber-200,
+[data-theme="dark"] .bloomery-web-chat-desktop-clean .web-agent-chat-panel .border-blue-200,
+[data-theme="dark"] .bloomery-web-chat-desktop-clean .web-agent-chat-panel .border-emerald-200,
+[data-theme="dark"] .bloomery-web-chat-desktop-clean .web-agent-chat-panel .border-red-200 {
   border-color: var(--bloomery-line) !important;
 }
 
 [data-theme="dark"] .bloomery-web-chat-desktop-clean [class*="text-[#2b2118]"],
+[data-theme="dark"] .bloomery-web-chat-desktop-clean [class*="text-[#4a3f35]"],
 [data-theme="dark"] .bloomery-web-chat-desktop-clean [class*="text-slate-700"],
-[data-theme="dark"] .bloomery-web-chat-desktop-clean [class*="text-slate-600"] {
+[data-theme="dark"] .bloomery-web-chat-desktop-clean [class*="text-slate-600"],
+[data-theme="dark"] .bloomery-web-chat-desktop-clean [class*="text-slate-900"] {
   color: var(--bloomery-text) !important;
 }
 
 [data-theme="dark"] .bloomery-web-chat-desktop-clean [class*="text-[#7d7065]"],
 [data-theme="dark"] .bloomery-web-chat-desktop-clean [class*="text-[#6f6258]"],
 [data-theme="dark"] .bloomery-web-chat-desktop-clean [class*="text-[#a39384]"],
+[data-theme="dark"] .bloomery-web-chat-desktop-clean [class*="text-[#a89684]"],
+[data-theme="dark"] .bloomery-web-chat-desktop-clean [class*="text-[#8b8b8b]"],
 [data-theme="dark"] .bloomery-web-chat-desktop-clean [class*="text-slate-500"] {
   color: var(--bloomery-text-muted) !important;
+}
+
+[data-theme="dark"] .bloomery-web-chat-desktop-clean .web-agent-chat-panel .text-amber-700,
+[data-theme="dark"] .bloomery-web-chat-desktop-clean .web-agent-chat-panel .text-amber-800,
+[data-theme="dark"] .bloomery-web-chat-desktop-clean .web-agent-chat-panel .text-blue-700,
+[data-theme="dark"] .bloomery-web-chat-desktop-clean .web-agent-chat-panel .text-blue-800 {
+  color: var(--bloomery-amber) !important;
+}
+
+[data-theme="dark"] .bloomery-web-chat-desktop-clean .web-agent-chat-panel .text-emerald-700 {
+  color: var(--bloomery-green) !important;
+}
+
+[data-theme="dark"] .bloomery-web-chat-desktop-clean .web-agent-chat-panel .text-red-700 {
+  color: var(--bloomery-red) !important;
+}
+
+[data-theme="dark"] .bloomery-web-chat-desktop-clean .web-agent-chat-panel button[class*="hover:bg-slate-100"]:hover,
+[data-theme="dark"] .bloomery-web-chat-desktop-clean .web-agent-chat-panel button[class*="hover:bg-[#f7efe5]"]:hover,
+[data-theme="dark"] .bloomery-web-chat-desktop-clean .web-agent-chat-panel button[class*="hover:bg-[#f7f1e8]"]:hover {
+  background: var(--bloomery-bg-hover) !important;
+  color: var(--bloomery-text) !important;
+}
+
+[data-theme="dark"] .bloomery-web-chat-desktop-clean .bloomery-web-chat-session-rename {
+  background: var(--bloomery-bg-raised) !important;
+  border-color: var(--bloomery-amber) !important;
+  color: var(--bloomery-text) !important;
 }
 
 [data-theme="dark"] .bloomery-web-chat-desktop-clean div[class*="rounded-2xl"][class*="border-[#e3d7ca]"] {
@@ -4464,4 +4538,182 @@ body,
   .bloomery-domain-install .bloomery-secondary-button:last-child {
     grid-column: 1 / -1;
   }
+}
+
+/* 数据库工作台 */
+.bloomery-db {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 22px;
+  min-height: 0;
+  height: 100%;
+}
+
+.bloomery-db-body {
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr);
+  gap: 16px;
+  min-height: 0;
+  flex: 1;
+}
+
+.bloomery-db-main {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+
+.bloomery-db-toolbar,
+.bloomery-db-actions {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  align-items: end;
+}
+
+.bloomery-db-toolbar label,
+.bloomery-db-actions label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--bloomery-text-muted);
+}
+
+.bloomery-db-toolbar select,
+.bloomery-db-actions select {
+  border-radius: var(--bloomery-radius-small);
+  border: 1px solid var(--bloomery-line);
+  padding: 7px 10px;
+  background: var(--bloomery-bg-raised);
+  color: var(--bloomery-text);
+}
+
+.bloomery-db-tables {
+  border: 1px solid var(--bloomery-line);
+  border-radius: var(--bloomery-radius);
+  padding: 12px;
+  overflow: auto;
+  background: var(--bloomery-bg-raised);
+}
+
+.bloomery-db-tables h2,
+.bloomery-db-history h2 {
+  font-size: 13px;
+  color: var(--bloomery-text-muted);
+  margin: 0 0 8px;
+  font-weight: 600;
+}
+
+.bloomery-db-table-button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 6px 8px;
+  border-radius: var(--bloomery-radius-small);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: var(--bloomery-text);
+}
+
+.bloomery-db-table-button:hover {
+  background: var(--bloomery-bg-hover);
+}
+
+.bloomery-db-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.bloomery-db-editor > label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--bloomery-text-muted);
+}
+
+.bloomery-db-sql-input {
+  font-family: var(--bloomery-mono);
+  width: 100%;
+  border-radius: var(--bloomery-radius-small);
+  border: 1px solid var(--bloomery-line);
+  padding: 10px;
+  resize: vertical;
+  background: var(--bloomery-bg-raised);
+  color: var(--bloomery-text);
+}
+
+.bloomery-db-running {
+  color: var(--bloomery-text-muted);
+  font-size: 13px;
+}
+
+.bloomery-db-result-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 0;
+}
+
+.bloomery-db-result-meta {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  font-size: 13px;
+  color: var(--bloomery-text-muted);
+}
+
+.bloomery-db-truncated {
+  color: var(--bloomery-amber);
+}
+
+.bloomery-db-result {
+  border: 1px solid var(--bloomery-line);
+  border-radius: var(--bloomery-radius);
+  overflow: auto;
+  max-height: 420px;
+  background: var(--bloomery-bg-raised);
+}
+
+.bloomery-db-result table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 13px;
+}
+
+.bloomery-db-result th,
+.bloomery-db-result td {
+  border-bottom: 1px solid var(--bloomery-line);
+  padding: 6px 10px;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.bloomery-db-result th {
+  position: sticky;
+  top: 0;
+  background: var(--bloomery-bg-soft);
+}
+
+.bloomery-db-history {
+  border-top: 1px solid var(--bloomery-line);
+  padding-top: 12px;
+}
+
+.bloomery-db-history-meta {
+  display: block;
+  font-size: 12px;
+  color: var(--bloomery-text-muted);
+  margin-top: 2px;
+}
+
+[data-theme="dark"] .bloomery-db-tables,
+[data-theme="dark"] .bloomery-db-result,
+[data-theme="dark"] .bloomery-db-sql-input {
+  background: var(--bloomery-bg-raised);
 }

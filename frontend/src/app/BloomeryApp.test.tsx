@@ -37,6 +37,15 @@ vi.mock("../bridge/desktop", () => ({
     desktopAgentChat: vi.fn(),
     cancelDesktopRun: vi.fn().mockResolvedValue(undefined),
     listProviderProfiles: vi.fn().mockResolvedValue([]),
+    listDatabaseConnections: vi.fn().mockResolvedValue([]),
+    listDatabases: vi.fn().mockResolvedValue([]),
+    listDatabaseTables: vi.fn().mockResolvedValue([]),
+    listDatabaseQueryResults: vi.fn().mockResolvedValue([]),
+    submitDatabaseQuery: vi.fn(),
+    getDatabaseQueryResult: vi.fn().mockResolvedValue(null),
+    cancelBackgroundTask: vi.fn(),
+    saveSteelDataset: vi.fn(),
+    activateSteelDataset: vi.fn(),
   },
 }));
 
@@ -78,13 +87,22 @@ describe("BloomeryApp", () => {
     expect(screen.queryByRole("main", { name: "首次启动配置" })).not.toBeInTheDocument();
   });
 
+  it("opens the databases section from navigation", async () => {
+    render(<BloomeryApp />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "数据库" }));
+
+    expect(await screen.findByRole("main", { name: "数据库" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "数据库工作台" })).toBeInTheDocument();
+  });
+
   it("exposes the complete desktop navigation with a single active section", async () => {
     render(<BloomeryApp />);
 
     await screen.findByRole("heading", { name: "工作台" });
 
     expect(screen.getByRole("navigation", { name: "主导航" })).toBeInTheDocument();
-    for (const label of ["工作台", "对话", "知识库", "数据分析", "扩展", "设置"]) {
+    for (const label of ["工作台", "对话", "知识库", "数据库", "数据分析", "扩展", "设置"]) {
       expect(screen.getByRole("button", { name: label })).toBeInTheDocument();
     }
     expect(screen.queryByRole("button", { name: "诊断" })).not.toBeInTheDocument();

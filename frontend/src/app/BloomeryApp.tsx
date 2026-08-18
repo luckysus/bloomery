@@ -6,6 +6,7 @@ import AnalysisPage from "../features/analysis/AnalysisPage";
 import DiagnosticsPage from "../features/diagnostics/DiagnosticsPage";
 import ExtensionsPage from "../features/extensions/ExtensionsPage";
 import KnowledgePage from "../features/knowledge/KnowledgePage";
+import DatabasePage from "../features/databases/DatabasePage";
 import SettingsPage from "../features/settings/SettingsPage";
 import SectionPlaceholder from "./SectionPlaceholder";
 import WorkbenchHome from "./WorkbenchHome";
@@ -143,6 +144,8 @@ function BloomeryAppShell() {
               <AnalysisPage />
             ) : activeSection === "knowledge" ? (
               <KnowledgePage />
+            ) : activeSection === "databases" ? (
+              <DatabasePage onOpenSection={setActiveSection} />
             ) : activeSection === "settings" ? (
               <SettingsPage onOpenDiagnostics={() => setActiveSection("diagnostics")} />
             ) : activeSection === "diagnostics" ? (
