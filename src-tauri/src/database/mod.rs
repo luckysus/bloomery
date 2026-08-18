@@ -1,3 +1,5 @@
+pub mod query;
+
 use crate::storage::repositories::database_connections::DatabaseConnectionRecord;
 use tiberius::{AuthMethod, Client, Config};
 use tokio::net::TcpStream;
