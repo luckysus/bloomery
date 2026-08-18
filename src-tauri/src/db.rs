@@ -272,7 +272,10 @@ fn rag_task_handlers_with_compute(
             postprocessor,
             std::time::Duration::from_secs(2),
         )),
-        Arc::new(IndexRebuildHandler::new(database, content_root)),
+        Arc::new(IndexRebuildHandler::new(database.clone(), content_root)),
+        Arc::new(crate::database::query_task::DatabaseQueryTaskHandler::new(
+            database,
+        )),
     ]
 }
 
@@ -353,7 +356,7 @@ mod tests {
         let handlers =
             rag_task_handlers_with_compute(root.join("bloomery.sqlite3"), root.clone(), None);
 
-        assert_eq!(handlers.len(), 9);
+        assert_eq!(handlers.len(), 10);
         assert!(handlers.iter().any(|handler| {
             handler.kind() == crate::compute::handler::COMPUTE_TRAIN_LINEAR_REGRESSION_KIND
         }));

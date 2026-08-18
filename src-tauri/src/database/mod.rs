@@ -1,5 +1,6 @@
 pub mod catalog;
 pub mod query;
+pub mod query_task;
 
 use crate::storage::repositories::database_connections::DatabaseConnectionRecord;
 use tiberius::{AuthMethod, Client, Config};
