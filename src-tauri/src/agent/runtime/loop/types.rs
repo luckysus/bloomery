@@ -256,6 +256,12 @@ pub enum HookDecision {
 }
 
 pub trait AgentHooks: Send + Sync {
+    fn before_model(&self) -> Option<crate::providers::capabilities::ChatMessage> {
+        None
+    }
+
+    fn after_tool_round(&self, _tool_names: &[String]) {}
+
     fn pre_tool_use(&self, _call: &ToolInvocation) -> Result<HookDecision, String> {
         Ok(HookDecision::Continue)
     }

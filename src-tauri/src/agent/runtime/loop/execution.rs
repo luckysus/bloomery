@@ -109,7 +109,13 @@ where
                 Some(tool_definitions(&tool_snapshot))
             };
             let chat_request = ChatRequest {
-                messages: messages.clone(),
+                messages: {
+                    let mut request_messages = messages.clone();
+                    if let Some(context) = self.hooks.before_model() {
+                        request_messages.push(context);
+                    }
+                    request_messages
+                },
                 temperature: 0.2,
                 tools: tool_payload.clone(),
                 response_format: None,
@@ -268,6 +274,11 @@ where
             }
             let mut approved = Vec::new();
             let mut denied = Vec::new();
+            let tool_names = repaired
+                .calls
+                .iter()
+                .map(|call| call.tool_name.clone())
+                .collect::<Vec<_>>();
             for call in repaired.calls {
                 if let Some((_, message)) = hook_blocked.iter().find(|(id, _)| *id == call.tool_call_id) {
                     denied.push((call, Some(message.clone())));
@@ -321,6 +332,7 @@ where
                 );
             }
             let mut observations = denied_observations(sink, denied)?;
+            self.hooks.after_tool_round(&tool_names);
             if approved.is_empty() {
                 if pending_permissions > 0 {
                     self.change_state_with_guards(

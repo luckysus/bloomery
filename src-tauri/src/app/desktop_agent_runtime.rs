@@ -1,7 +1,7 @@
 use crate::agent::desktop::{LocalAgentState, StreamedLlmAnswer};
 use crate::agent::protocol::{AgentEventData, RunOutcome};
 use crate::agent::runtime::{
-    AgentLoop, CompositeToolExecutor, DomainToolExecutor, ProviderModelAdapter,
+    AgentLoop, CompositeToolExecutor, DomainToolExecutor, ProviderModelAdapter, TodoTracker,
     SqliteAgentEventSink,
 };
 use crate::app::mcp_agent_runtime::load_enabled_tools_for_query;
@@ -14,6 +14,10 @@ use serde_json::{json, Value};
 use std::sync::{Arc, Mutex};
 use tauri::Emitter;
 use uuid::Uuid;
+
+fn should_load_agent_tools(smart_search_enabled: bool, has_evidence_pack: bool) -> bool {
+    smart_search_enabled && has_evidence_pack
+}
 
 pub(crate) async fn run_standard_agent(
     app: &tauri::AppHandle,
@@ -49,24 +53,40 @@ pub(crate) async fn run_standard_agent(
         .map_err(|error| format!("configure local chat provider failed: {error}"))?;
     let tool_calls_enabled = provider.capabilities().tool_calls;
     let model = ProviderModelAdapter::new(provider);
-    let optimization_gateway = std::sync::Arc::new(
-        crate::app::compute_commands::gateway::DesktopOptimizationGateway::new(database.clone()),
+    let retrieval_tools_enabled = should_load_agent_tools(
+        preparation.smart_search_enabled,
+        preparation.evidence_pack.is_some(),
     );
-    let steel_agent_gateway = std::sync::Arc::new(
-        crate::app::steel_agent_gateway::DesktopSteelAgentGateway::new(
-            database.clone(),
-            workspace_id,
-        ),
-    );
-    let steel_tools = SteelToolExecutor::with_agent_gateways(
-        optimization_gateway,
-        steel_agent_gateway,
-        tool_calls_enabled,
-    );
+    let steel_tools = if retrieval_tools_enabled {
+        let optimization_gateway = std::sync::Arc::new(
+            crate::app::compute_commands::gateway::DesktopOptimizationGateway::new(
+                database.clone(),
+            ),
+        );
+        let steel_agent_gateway = std::sync::Arc::new(
+            crate::app::steel_agent_gateway::DesktopSteelAgentGateway::new(
+                database.clone(),
+                workspace_id,
+            ),
+        );
+        SteelToolExecutor::with_agent_gateways(
+            optimization_gateway,
+            steel_agent_gateway,
+            tool_calls_enabled,
+        )
+    } else {
+        SteelToolExecutor::new(false)
+    };
+    let todo_tracker = TodoTracker::default();
     let mcp_configs = crate::storage::repositories::mcp::list(&connection, workspace_id)
         .map_err(|error| format!("load MCP configurations failed: {error}"))?;
-    let mcp_tools = load_enabled_tools_for_query(app, mcp_configs, &preparation.message).await?;
-    let combined_tools = CompositeToolExecutor::try_new(vec![&steel_tools, &mcp_tools])
+    let mcp_tools = if retrieval_tools_enabled {
+        load_enabled_tools_for_query(app, mcp_configs, &preparation.message).await?
+    } else {
+        crate::mcp::McpToolExecutor::from_bindings(Vec::new())
+            .map_err(|error| format!("create empty MCP tool set failed: {error}"))?
+    };
+    let combined_tools = CompositeToolExecutor::try_new(vec![&steel_tools, &mcp_tools, &todo_tracker])
         .map_err(|error| format!("combine Agent tools failed: {error}"))?;
     let domain_tools =
         DomainToolExecutor::new_for_domains(&combined_tools, &preparation.active_domains);
@@ -101,7 +121,7 @@ pub(crate) async fn run_standard_agent(
         Ok(())
     };
     let mut sink = SqliteAgentEventSink::new(&mut connection, workspace_id, run_id, &mut publisher);
-    let result = AgentLoop::new(&model, &domain_tools, &permissions)
+    let result = AgentLoop::new_with_hooks(&model, &domain_tools, &permissions, &todo_tracker)
         .run(
             request,
             &mut sink,
@@ -115,6 +135,8 @@ pub(crate) async fn run_standard_agent(
         .unwrap_or_default();
     Ok(StreamedLlmAnswer {
         text: result.answer,
+        reasoning: result.reasoning,
+        reasoning_ms: result.reasoning_ms,
         stopped: result.outcome == RunOutcome::Cancelled,
         tool_calls,
     })
@@ -173,6 +195,14 @@ mod tests {
     use crate::agent::protocol::{AgentEventData, ToolCompleted, ToolOutcome, ToolRequested};
     use serde_json::json;
     use uuid::Uuid;
+
+    #[test]
+    fn local_agent_tools_require_explicit_search_and_evidence() {
+        assert!(!super::should_load_agent_tools(false, false));
+        assert!(!super::should_load_agent_tools(true, false));
+        assert!(!super::should_load_agent_tools(false, true));
+        assert!(super::should_load_agent_tools(true, true));
+    }
 
     #[test]
     fn captures_tool_call_audit_from_agent_events() {

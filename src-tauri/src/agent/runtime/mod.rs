@@ -1,6 +1,7 @@
 mod composite;
 mod domain_tools;
 mod r#loop;
+mod todos;
 pub mod model_adapter;
 pub mod persistence;
 pub mod recovery;
@@ -21,3 +22,4 @@ pub use recovery::{
     AgentRecoveryService, PendingPermission, RecoveredRun, RecoveryAction, RunCommandResult,
     ToolCheckpoint,
 };
+pub use todos::TodoTracker;
