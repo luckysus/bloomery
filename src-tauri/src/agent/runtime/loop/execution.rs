@@ -75,6 +75,8 @@ where
         let mut messages =
             render_context_messages(&context, &request.context, &request.attachments);
         let mut answer = String::new();
+        let mut reasoning = String::new();
+        let mut reasoning_ms: u64 = 0;
         let mut usage = None;
         let mut tool_round = 0usize;
         loop {
@@ -87,7 +89,10 @@ where
                     answer,
                 );
             }
-            let tool_payload = if self.tools.registrations().is_empty() {
+            // Keep one registry snapshot for this model turn. A dynamic registry
+            // may refresh before the next turn, but schema and validation must agree.
+            let tool_snapshot = self.tools.registrations().to_vec();
+            let tool_payload = if tool_snapshot.is_empty() {
                 None
             } else {
                 if !self.model.capabilities().tool_calls {
@@ -100,15 +105,18 @@ where
                         ),
                     );
                 }
-                Some(tool_definitions(self.tools.registrations()))
+                Some(tool_definitions(&tool_snapshot))
             };
             let chat_request = ChatRequest {
                 messages: messages.clone(),
                 temperature: 0.2,
                 tools: tool_payload.clone(),
                 response_format: None,
+                reasoning_effort: None,
+                max_tokens: None,
+                stop: None,
             };
-            let (response, streamed_text) = match self
+            let (response, streamed_text, current_reasoning_ms) = match self
                 .generate(
                     chat_request,
                     request.assistant_message_id,
@@ -122,6 +130,13 @@ where
                     return self.fail(sink, machine.state(), request.assistant_message_id, error)
                 }
             };
+            if !response.reasoning.is_empty() {
+                if !reasoning.is_empty() {
+                    reasoning.push_str("\n\n");
+                }
+                reasoning.push_str(&response.reasoning);
+            }
+            reasoning_ms = reasoning_ms.saturating_add(current_reasoning_ms);
             answer = append_response_text(
                 answer,
                 &response,
@@ -165,6 +180,8 @@ where
                 return Ok(AgentLoopResult {
                     outcome: RunOutcome::Completed,
                     answer,
+                    reasoning,
+                    reasoning_ms,
                     usage,
                     context,
                 });
@@ -186,6 +203,7 @@ where
                     request.assistant_message_id,
                     sink,
                     &cancellation,
+                    &tool_snapshot,
                 )
                 .await
             {
@@ -194,8 +212,9 @@ where
                     return self.fail(sink, machine.state(), request.assistant_message_id, error)
                 }
             };
-            messages.push(ChatMessage::assistant_tool_calls(
+            messages.push(ChatMessage::assistant_tool_calls_with_reasoning(
                 repaired.model_calls.clone(),
+                response.reasoning.clone(),
             ));
             for call in &repaired.calls {
                 sink.record(AgentEventData::ToolRequested(ToolRequested {
@@ -440,6 +459,8 @@ where
         Ok(AgentLoopResult {
             outcome: RunOutcome::Cancelled,
             answer,
+            reasoning: String::new(),
+            reasoning_ms: 0,
             usage: None,
             context,
         })
