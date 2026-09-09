@@ -6,6 +6,7 @@ use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tokio::sync::oneshot;
+use serde_json::{Map, Value};
 use uuid::Uuid;
 
 #[derive(Clone, Default)]
@@ -201,12 +202,47 @@ pub fn permission_key_for(tool_id: &str, arguments: &serde_json::Value) -> Strin
     format!(
         "{}:{}",
         tool_id,
-        serde_json::to_string(arguments).unwrap_or_default()
+        serde_json::to_string(&canonical_json(arguments)).unwrap_or_default()
     )
+}
+
+fn canonical_json(value: &Value) -> Value {
+    match value {
+        Value::Object(object) => Value::Object(
+            object
+                .iter()
+                .map(|(key, value)| (key.clone(), canonical_json(value)))
+                .collect::<Map<_, _>>(),
+        ),
+        Value::Array(values) => Value::Array(values.iter().map(canonical_json).collect()),
+        value => value.clone(),
+    }
 }
 
 async fn wait_for_cancellation(cancellation: CancellationToken) {
     while !cancellation.is_cancelled() {
         tokio::time::sleep(Duration::from_millis(25)).await;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::permission_key_for;
+    use serde_json::json;
+
+    #[test]
+    fn permission_keys_are_stable_when_object_fields_are_reordered() {
+        let first = permission_key_for("steel.tool", &json!({"b": 2, "a": 1}));
+        let second = permission_key_for("steel.tool", &json!({"a": 1, "b": 2}));
+        assert_eq!(first, second);
+    }
+
+    #[test]
+    fn permission_keys_preserve_array_order_and_values() {
+        let first = permission_key_for("steel.tool", &json!({"items": [1, 2]}));
+        let reordered = permission_key_for("steel.tool", &json!({"items": [2, 1]}));
+        let changed = permission_key_for("steel.tool", &json!({"items": [1, 3]}));
+        assert_ne!(first, reordered);
+        assert_ne!(first, changed);
     }
 }
