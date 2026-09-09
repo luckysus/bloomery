@@ -2,6 +2,7 @@ mod composite;
 mod domain_tools;
 mod r#loop;
 mod todos;
+mod subagents;
 pub mod model_adapter;
 pub mod persistence;
 pub mod recovery;
@@ -23,3 +24,4 @@ pub use recovery::{
     ToolCheckpoint,
 };
 pub use todos::TodoTracker;
+pub use subagents::{SnapshotToolExecutor, SubagentTool, MAX_SUBAGENT_TOOL_ROUNDS};

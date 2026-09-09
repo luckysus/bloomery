@@ -1,8 +1,8 @@
 use crate::agent::desktop::{LocalAgentState, StreamedLlmAnswer};
 use crate::agent::protocol::{AgentEventData, RunOutcome};
 use crate::agent::runtime::{
-    AgentLoop, CompositeToolExecutor, DomainToolExecutor, ProviderModelAdapter, TodoTracker,
-    SqliteAgentEventSink,
+    AgentLoop, CompositeToolExecutor, DomainToolExecutor, ProviderModelAdapter, SnapshotToolExecutor,
+    SubagentTool, TodoTracker, SqliteAgentEventSink,
 };
 use crate::app::mcp_agent_runtime::load_enabled_tools_for_query;
 use crate::db::database_path;
@@ -52,7 +52,7 @@ pub(crate) async fn run_standard_agent(
     let provider = configured_chat_provider(profile, credential)
         .map_err(|error| format!("configure local chat provider failed: {error}"))?;
     let tool_calls_enabled = provider.capabilities().tool_calls;
-    let model = ProviderModelAdapter::new(provider);
+    let model = Arc::new(ProviderModelAdapter::new(provider));
     let retrieval_tools_enabled = should_load_agent_tools(
         preparation.smart_search_enabled,
         preparation.evidence_pack.is_some(),
@@ -77,7 +77,7 @@ pub(crate) async fn run_standard_agent(
     } else {
         SteelToolExecutor::new(false)
     };
-    let todo_tracker = TodoTracker::default();
+    let todo_tracker = Arc::new(TodoTracker::default());
     let mcp_configs = crate::storage::repositories::mcp::list(&connection, workspace_id)
         .map_err(|error| format!("load MCP configurations failed: {error}"))?;
     let mcp_tools = if retrieval_tools_enabled {
@@ -86,11 +86,23 @@ pub(crate) async fn run_standard_agent(
         crate::mcp::McpToolExecutor::from_bindings(Vec::new())
             .map_err(|error| format!("create empty MCP tool set failed: {error}"))?
     };
-    let combined_tools = CompositeToolExecutor::try_new(vec![&steel_tools, &mcp_tools, &todo_tracker])
+    let combined_tools = CompositeToolExecutor::try_new(vec![&steel_tools, &mcp_tools, todo_tracker.as_ref()])
         .map_err(|error| format!("combine Agent tools failed: {error}"))?;
     let domain_tools =
         DomainToolExecutor::new_for_domains(&combined_tools, &preparation.active_domains);
-    let permissions = agent_state.permission_resolver();
+    let child_tools: Arc<dyn crate::agent::runtime::ToolExecutor> =
+        Arc::new(SnapshotToolExecutor::from(&domain_tools));
+    let permissions: Arc<dyn crate::agent::runtime::PermissionResolver> =
+        Arc::new(agent_state.permission_resolver());
+    let subagent_hooks: Arc<dyn crate::agent::runtime::AgentHooks> = todo_tracker.clone();
+    let subagent = SubagentTool::new(
+        model.clone(),
+        child_tools,
+        permissions.clone(),
+        subagent_hooks,
+    );
+    let parent_tools = CompositeToolExecutor::try_new(vec![&domain_tools, &subagent])
+        .map_err(|error| format!("combine subagent tools failed: {error}"))?;
     let assistant_message_id = Uuid::new_v4();
     let request = crate::agent::desktop::build_agent_loop_request_with_attachments(
         assistant_message_id,
@@ -121,7 +133,12 @@ pub(crate) async fn run_standard_agent(
         Ok(())
     };
     let mut sink = SqliteAgentEventSink::new(&mut connection, workspace_id, run_id, &mut publisher);
-    let result = AgentLoop::new_with_hooks(&model, &domain_tools, &permissions, &todo_tracker)
+    let result = AgentLoop::new_with_hooks(
+        model.as_ref(),
+        &parent_tools,
+        permissions.as_ref(),
+        todo_tracker.as_ref(),
+    )
         .run(
             request,
             &mut sink,

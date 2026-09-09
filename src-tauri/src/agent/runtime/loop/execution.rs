@@ -30,6 +30,17 @@ where
         sink: &mut dyn AgentEventSink,
         cancellation: CancellationToken,
     ) -> Result<AgentLoopResult, AgentLoopError> {
+        self.run_with_max_tool_rounds(request, sink, cancellation, MAX_TOOL_ROUNDS)
+            .await
+    }
+
+    pub async fn run_with_max_tool_rounds(
+        &self,
+        request: AgentLoopRequest,
+        sink: &mut dyn AgentEventSink,
+        cancellation: CancellationToken,
+        max_tool_rounds: usize,
+    ) -> Result<AgentLoopResult, AgentLoopError> {
         self.model
             .capabilities()
             .require(ProviderCapability::Chat)
@@ -193,7 +204,7 @@ where
                     context,
                 });
             }
-            if tool_round >= MAX_TOOL_ROUNDS {
+            if tool_round >= max_tool_rounds {
                 return self.fail(
                     sink,
                     machine.state(),
