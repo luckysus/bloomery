@@ -2,7 +2,7 @@ use crate::agent::desktop::{LocalAgentState, StreamedLlmAnswer};
 use crate::agent::protocol::{AgentEventData, RunOutcome};
 use crate::agent::runtime::{
     AgentLoop, CompositeToolExecutor, DomainToolExecutor, ProviderModelAdapter, SnapshotToolExecutor,
-    SubagentTool, TodoTracker, SqliteAgentEventSink,
+    SkillTool, SubagentTool, TodoTracker, SqliteAgentEventSink,
 };
 use crate::app::mcp_agent_runtime::load_enabled_tools_for_query;
 use crate::db::database_path;
@@ -78,6 +78,7 @@ pub(crate) async fn run_standard_agent(
         SteelToolExecutor::new(false)
     };
     let todo_tracker = Arc::new(TodoTracker::default());
+    let skill_tool = SkillTool::default();
     let mcp_configs = crate::storage::repositories::mcp::list(&connection, workspace_id)
         .map_err(|error| format!("load MCP configurations failed: {error}"))?;
     let mcp_tools = if retrieval_tools_enabled {
@@ -86,7 +87,12 @@ pub(crate) async fn run_standard_agent(
         crate::mcp::McpToolExecutor::from_bindings(Vec::new())
             .map_err(|error| format!("create empty MCP tool set failed: {error}"))?
     };
-    let combined_tools = CompositeToolExecutor::try_new(vec![&steel_tools, &mcp_tools, todo_tracker.as_ref()])
+    let combined_tools = CompositeToolExecutor::try_new(vec![
+        &steel_tools,
+        &mcp_tools,
+        todo_tracker.as_ref(),
+        &skill_tool,
+    ])
         .map_err(|error| format!("combine Agent tools failed: {error}"))?;
     let domain_tools =
         DomainToolExecutor::new_for_domains(&combined_tools, &preparation.active_domains);
