@@ -4,7 +4,8 @@ use bloomery::agent::protocol::{
     RunStateChanged,
 };
 use bloomery::agent::runtime::{
-    AgentEventSink, AgentLoop, AgentLoopRequest, CancellationToken, ContextEntry, DenyPermissions,
+    AgentEventSink, AgentHooks, AgentLoop, AgentLoopRequest, CancellationToken, ContextEntry,
+    DenyPermissions, HookDecision,
     ModelAdapter, ModelFuture, NoopToolExecutor, PermissionRequest, PermissionResolver,
     ToolExecutionError, ToolExecutor, ToolFuture, ToolHandler, ToolInvocation, ToolRegistration,
 };
@@ -41,6 +42,8 @@ impl ScriptedModel {
                     prompt_tokens: 5,
                     completion_tokens: 3,
                     total_tokens: 8,
+                    cache_read_tokens: 0,
+                    reasoning_tokens: 0,
                 }),
                 ..ChatResponse::default()
             })]),
@@ -85,6 +88,55 @@ impl ModelAdapter for ScriptedModel {
             .pop()
             .expect("scripted response");
         Box::pin(async move { response })
+    }
+}
+
+struct StreamingReasoningModel {
+    capabilities: ProviderCapabilities,
+}
+
+impl StreamingReasoningModel {
+    fn new() -> Self {
+        Self {
+            capabilities: ProviderCapabilities::chat(ProviderKind::DeepSeek, "deepseek-reasoner"),
+        }
+    }
+}
+
+impl ModelAdapter for StreamingReasoningModel {
+    fn capabilities(&self) -> &ProviderCapabilities {
+        &self.capabilities
+    }
+
+    fn generate<'a>(
+        &'a self,
+        _request: ChatRequest,
+        on_event: &'a mut (dyn FnMut(ChatEvent) + Send),
+        _is_cancelled: &'a (dyn Fn() -> bool + Send + Sync),
+    ) -> ModelFuture<'a> {
+        on_event(ChatEvent::ReasoningDelta("先检查材料牌号。".to_string()));
+        on_event(ChatEvent::TextDelta("Q355B 是结构钢。".to_string()));
+        on_event(ChatEvent::Usage(ChatUsage {
+            prompt_tokens: 5,
+            completion_tokens: 8,
+            total_tokens: 13,
+            cache_read_tokens: 0,
+            reasoning_tokens: 3,
+        }));
+        Box::pin(async {
+            Ok(ChatResponse {
+                text: "Q355B 是结构钢。".to_string(),
+                reasoning: "先检查材料牌号。".to_string(),
+                usage: Some(ChatUsage {
+                    prompt_tokens: 5,
+                    completion_tokens: 8,
+                    total_tokens: 13,
+                    cache_read_tokens: 0,
+                    reasoning_tokens: 3,
+                }),
+                ..ChatResponse::default()
+            })
+        })
     }
 }
 
@@ -200,6 +252,65 @@ fn response(text: &str, tool_calls: Vec<ChatToolCall>) -> Result<ChatResponse, P
         tool_calls,
         ..ChatResponse::default()
     })
+}
+
+#[test]
+fn hooks_rewrite_tool_input_and_output_before_next_model_round() {
+    let calls = Arc::new(Mutex::new(Vec::new()));
+    let tools = TestTools {
+        registrations: vec![tool(
+            "search.v1",
+            "search",
+            bloomery::agent::protocol::PermissionRisk::Automatic,
+            true,
+            Arc::new(StaticHandler {
+                output: json!({"answer": "original"}),
+                calls: Arc::clone(&calls),
+            }),
+        )],
+    };
+    let model = ScriptedModel::script(vec![
+        response("", vec![call("call-1", "search", r#"{"query":"raw"}"#)]),
+        response("hook output observed", vec![]),
+    ]);
+    let mut sink = RecordingSink::new();
+
+    let result = tauri::async_runtime::block_on(
+        AgentLoop::new_with_hooks(
+            &model,
+            &tools,
+            &AllowPermissions,
+            &RewriteHooks,
+        )
+        .run(request(None), &mut sink, CancellationToken::new(|| false)),
+    )
+    .expect("hooked tool run succeeds");
+
+    assert_eq!(result.answer, "hook output observed");
+    assert_eq!(calls.lock().unwrap().as_slice(), &[json!({"query": "rewritten"})]);
+    assert!(model.requests.lock().unwrap().iter().any(|request| {
+        request.messages.iter().any(|message| {
+            message.role == "tool" && message.content.contains("hooked")
+        })
+    }));
+}
+
+struct RewriteHooks;
+
+impl AgentHooks for RewriteHooks {
+    fn pre_tool_use(&self, call: &ToolInvocation) -> Result<HookDecision, String> {
+        let mut arguments = call.arguments.clone();
+        arguments["query"] = json!("rewritten");
+        Ok(HookDecision::Replace(arguments))
+    }
+
+    fn post_tool_use(
+        &self,
+        _call: &ToolInvocation,
+        _result: &Result<Value, ToolExecutionError>,
+    ) -> Result<HookDecision, String> {
+        Ok(HookDecision::Replace(json!({"answer": "hooked"})))
+    }
 }
 
 fn request(evidence: Option<bloomery::agent::runtime::EvidenceAttachment>) -> AgentLoopRequest {
@@ -342,6 +453,45 @@ fn direct_answer_streams_usage_and_completes_once() {
 }
 
 #[test]
+fn deepseek_reasoning_streams_as_separate_events_before_the_answer() {
+    let model = StreamingReasoningModel::new();
+    let mut sink = RecordingSink::new();
+
+    let result = tauri::async_runtime::block_on(
+        AgentLoop::new(&model, &NoopToolExecutor, &DenyPermissions).run(
+            request(None),
+            &mut sink,
+            CancellationToken::new(|| false),
+        ),
+    )
+    .expect("reasoning answer succeeds");
+
+    assert_eq!(result.reasoning, "先检查材料牌号。");
+    assert!(result.reasoning_ms <= 1_000);
+    let reasoning_delta = sink
+        .events
+        .iter()
+        .position(|event| matches!(event.data, AgentEventData::ReasoningDelta(_)))
+        .expect("reasoning delta event");
+    let reasoning_completed = sink
+        .events
+        .iter()
+        .position(|event| matches!(event.data, AgentEventData::ReasoningCompleted(_)))
+        .expect("reasoning completed event");
+    let answer_delta = sink
+        .events
+        .iter()
+        .position(|event| matches!(event.data, AgentEventData::MessageDelta(_)))
+        .expect("answer delta event");
+    assert!(reasoning_delta < reasoning_completed);
+    assert!(reasoning_completed < answer_delta);
+    assert!(sink.events.iter().any(|event| matches!(
+        &event.data,
+        AgentEventData::ReasoningCompleted(completed) if completed.duration_ms <= 1_000
+    )));
+}
+
+#[test]
 fn one_automatic_tool_is_observed_before_the_final_answer() {
     let calls = Arc::new(Mutex::new(Vec::new()));
     let tools = TestTools {
@@ -379,6 +529,51 @@ fn one_automatic_tool_is_observed_before_the_final_answer() {
             if completed.outcome == bloomery::agent::protocol::ToolOutcome::Succeeded
     )));
     assert!(model.requests.lock().unwrap().len() >= 2);
+}
+
+#[test]
+fn deepseek_reasoning_is_replayed_on_the_next_tool_round() {
+    let calls = Arc::new(Mutex::new(Vec::new()));
+    let tools = TestTools {
+        registrations: vec![tool(
+            "search.v1",
+            "search",
+            bloomery::agent::protocol::PermissionRisk::Automatic,
+            true,
+            Arc::new(StaticHandler {
+                output: json!({"answer": "Q355B"}),
+                calls: Arc::clone(&calls),
+            }),
+        )],
+    };
+    let model = ScriptedModel::script(vec![
+        Ok(ChatResponse {
+            reasoning: "first reasoning".to_string(),
+            tool_calls: vec![call("call-1", "search", r#"{"query":"Q355B"}"#)],
+            ..ChatResponse::default()
+        }),
+        response("Q355B is structural steel.", vec![]),
+    ]);
+    let mut sink = RecordingSink::new();
+
+    tauri::async_runtime::block_on(AgentLoop::new(&model, &tools, &AllowPermissions).run(
+        request(None),
+        &mut sink,
+        CancellationToken::new(|| false),
+    ))
+    .expect("DeepSeek tool round succeeds");
+
+    let requests = model.requests.lock().expect("scripted requests");
+    let replayed = requests
+        .iter()
+        .flat_map(|request| request.messages.iter())
+        .find(|message| message.role == "assistant" && !message.tool_calls.is_empty())
+        .expect("assistant tool-call history");
+    assert_eq!(
+        replayed.reasoning_content.as_deref(),
+        Some("first reasoning")
+    );
+    assert_eq!(calls.lock().unwrap().len(), 1);
 }
 
 #[test]

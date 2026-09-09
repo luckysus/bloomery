@@ -13,8 +13,9 @@ pub use persistence::{AgentEventPublisher, NoopAgentEventPublisher, SqliteAgentE
 pub use r#loop::{
     AgentEventSink, AgentLoop, AgentLoopAttachment, AgentLoopError, AgentLoopRequest,
     AgentLoopResult, CancellationToken, ContextEntry, DenyPermissions, EvidenceAttachment,
-    NoopToolExecutor, PermissionFuture, PermissionRequest, PermissionResolver, ToolExecutionError,
-    ToolExecutor, ToolFuture, ToolHandler, ToolInvocation, ToolRegistration,
+    AgentHooks, HookDecision, NoopAgentHooks, NoopToolExecutor, PermissionFuture,
+    PermissionRequest, PermissionResolver, ToolExecutionError, ToolExecutor, ToolFuture,
+    ToolHandler, ToolInvocation, ToolRegistration,
 };
 pub use recovery::{
     AgentRecoveryService, PendingPermission, RecoveredRun, RecoveryAction, RunCommandResult,

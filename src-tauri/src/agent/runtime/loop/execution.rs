@@ -2,7 +2,8 @@ use super::helpers::*;
 use super::types::MAX_TOOL_ROUNDS;
 use super::types::{
     AgentEventSink, AgentLoop, AgentLoopError, AgentLoopRequest, AgentLoopResult,
-    CancellationToken, PermissionRequest, PermissionResolver, ToolExecutor, ToolInvocation,
+    CancellationToken, PermissionRequest, PermissionResolver, ToolExecutionError, ToolExecutor,
+    ToolInvocation,
 };
 use crate::agent::context::budget_context;
 use crate::agent::protocol::{
@@ -195,7 +196,7 @@ where
                 );
             }
             tool_round += 1;
-            let repaired = match self
+            let mut repaired = match self
                 .repair_tool_calls(
                     &messages,
                     &response.tool_calls,
@@ -212,6 +213,29 @@ where
                     return self.fail(sink, machine.state(), request.assistant_message_id, error)
                 }
             };
+            let mut hook_blocked = Vec::new();
+            for call in &mut repaired.calls {
+                let invocation = ToolInvocation {
+                    tool_call_id: call.tool_call_id,
+                    tool_id: call.tool_id.clone(),
+                    tool_name: call.tool_name.clone(),
+                    arguments: call.arguments.clone(),
+                };
+                match self.hooks.pre_tool_use(&invocation) {
+                    Ok(super::types::HookDecision::Continue) => {}
+                    Ok(super::types::HookDecision::Replace(arguments)) => {
+                        if !arguments.is_object() {
+                            hook_blocked.push((call.tool_call_id, "hook replacement must be an object".to_string()));
+                        } else {
+                            call.arguments = arguments;
+                        }
+                    }
+                    Ok(super::types::HookDecision::Block(message)) => {
+                        hook_blocked.push((call.tool_call_id, message));
+                    }
+                    Err(error) => hook_blocked.push((call.tool_call_id, format!("pre-tool hook failed: {error}"))),
+                }
+            }
             messages.push(ChatMessage::assistant_tool_calls_with_reasoning(
                 repaired.model_calls.clone(),
                 response.reasoning.clone(),
@@ -245,6 +269,10 @@ where
             let mut approved = Vec::new();
             let mut denied = Vec::new();
             for call in repaired.calls {
+                if let Some((_, message)) = hook_blocked.iter().find(|(id, _)| *id == call.tool_call_id) {
+                    denied.push((call, Some(message.clone())));
+                    continue;
+                }
                 if call.risk == PermissionRisk::Automatic {
                     approved.push(call);
                     continue;
@@ -278,7 +306,7 @@ where
                 }))
                 .map_err(AgentLoopError::EventSink)?;
                 if decision == PermissionDecision::Deny {
-                    denied.push(call);
+                    denied.push((call, None));
                 } else {
                     approved.push(call);
                 }
@@ -313,10 +341,7 @@ where
                     },
                     sink,
                 )?;
-                observations.extend(
-                    self.execute_tool_batch(&approved, &cancellation, sink)
-                        .await?,
-                );
+                observations.extend(self.execute_tool_batch(&approved, &cancellation, sink).await?);
                 if cancellation.is_cancelled() {
                     return self.cancel(
                         &mut machine,
@@ -366,7 +391,11 @@ where
                 });
                 let results = join_all(futures).await;
                 for (call, result) in calls[start..index].iter().zip(results) {
-                    observations.push(record_tool_result(sink, call, result)?);
+                    observations.push(record_tool_result(
+                        sink,
+                        call,
+                        self.apply_post_hook(call, result),
+                    )?);
                 }
             } else {
                 let call = &calls[index];
@@ -386,11 +415,39 @@ where
                         cancellation.clone(),
                     )
                     .await;
-                observations.push(record_tool_result(sink, call, result)?);
+                observations.push(record_tool_result(
+                    sink,
+                    call,
+                    self.apply_post_hook(call, result),
+                )?);
                 index += 1;
             }
         }
         Ok(observations)
+    }
+
+    fn apply_post_hook(
+        &self,
+        call: &super::types::PreparedToolCall,
+        result: Result<serde_json::Value, ToolExecutionError>,
+    ) -> Result<serde_json::Value, ToolExecutionError> {
+        let invocation = ToolInvocation {
+            tool_call_id: call.tool_call_id,
+            tool_id: call.tool_id.clone(),
+            tool_name: call.tool_name.clone(),
+            arguments: call.arguments.clone(),
+        };
+        match self.hooks.post_tool_use(&invocation, &result) {
+            Ok(super::types::HookDecision::Continue) => result,
+            Ok(super::types::HookDecision::Replace(output)) => Ok(output),
+            Ok(super::types::HookDecision::Block(message)) => {
+                Err(ToolExecutionError::new("hook_blocked", message))
+            }
+            Err(error) => Err(ToolExecutionError::new(
+                "hook_execution",
+                format!("post-tool hook failed: {error}"),
+            )),
+        }
     }
 
     fn change_state(

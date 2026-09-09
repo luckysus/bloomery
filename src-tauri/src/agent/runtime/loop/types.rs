@@ -146,6 +146,8 @@ pub struct AgentLoopRequest {
 pub struct AgentLoopResult {
     pub outcome: RunOutcome,
     pub answer: String,
+    pub reasoning: String,
+    pub reasoning_ms: u64,
     pub usage: Option<ChatUsage>,
     pub context: ContextReport,
 }
@@ -243,7 +245,33 @@ pub struct AgentLoop<'a, M: ?Sized, T: ?Sized, P: ?Sized> {
     pub(super) model: &'a M,
     pub(super) tools: &'a T,
     pub(super) permissions: &'a P,
+    pub(super) hooks: &'a dyn AgentHooks,
 }
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum HookDecision {
+    Continue,
+    Replace(Value),
+    Block(String),
+}
+
+pub trait AgentHooks: Send + Sync {
+    fn pre_tool_use(&self, _call: &ToolInvocation) -> Result<HookDecision, String> {
+        Ok(HookDecision::Continue)
+    }
+
+    fn post_tool_use(
+        &self,
+        _call: &ToolInvocation,
+        _result: &Result<Value, ToolExecutionError>,
+    ) -> Result<HookDecision, String> {
+        Ok(HookDecision::Continue)
+    }
+}
+
+pub struct NoopAgentHooks;
+
+impl AgentHooks for NoopAgentHooks {}
 
 #[derive(Debug, Clone)]
 pub(super) struct PreparedToolCall {

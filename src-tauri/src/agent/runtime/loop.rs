@@ -6,8 +6,9 @@ mod types;
 pub use types::{
     AgentEventSink, AgentLoop, AgentLoopAttachment, AgentLoopError, AgentLoopRequest,
     AgentLoopResult, CancellationToken, ContextEntry, DenyPermissions, EvidenceAttachment,
-    NoopToolExecutor, PermissionFuture, PermissionRequest, PermissionResolver, ToolExecutionError,
-    ToolExecutor, ToolFuture, ToolHandler, ToolInvocation, ToolRegistration,
+    AgentHooks, HookDecision, NoopAgentHooks, NoopToolExecutor, PermissionFuture,
+    PermissionRequest, PermissionResolver, ToolExecutionError, ToolExecutor, ToolFuture,
+    ToolHandler, ToolInvocation, ToolRegistration,
 };
 
 use types::AgentLoop as AgentLoopType;
@@ -18,6 +19,21 @@ impl<'a, M: ?Sized, T: ?Sized, P: ?Sized> AgentLoopType<'a, M, T, P> {
             model,
             tools,
             permissions,
+            hooks: &NoopAgentHooks,
+        }
+    }
+
+    pub fn new_with_hooks(
+        model: &'a M,
+        tools: &'a T,
+        permissions: &'a P,
+        hooks: &'a dyn types::AgentHooks,
+    ) -> Self {
+        Self {
+            model,
+            tools,
+            permissions,
+            hooks,
         }
     }
 }
