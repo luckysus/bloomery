@@ -25,6 +25,14 @@ impl<'a> CompositeToolExecutor<'a> {
                 registrations.push(registration.clone());
             }
         }
+        // Keep the tool prefix deterministic. Sources may be assembled from
+        // dynamic MCP responses, so source order is not a stable contract.
+        registrations.sort_by(|left, right| {
+            left.spec
+                .id
+                .cmp(&right.spec.id)
+                .then_with(|| left.spec.name.cmp(&right.spec.name))
+        });
         Ok(Self {
             sources,
             registrations,
