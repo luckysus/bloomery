@@ -14,6 +14,7 @@ const MEMORY_BODY_CHAR_LIMIT: usize = 1200;
 const MEMORY_INDEX_TITLE_CHAR_LIMIT: usize = 120;
 const MEMORY_INDEX_DESCRIPTION_CHAR_LIMIT: usize = 240;
 const MEMORY_INDEX_TAGS_CHAR_LIMIT: usize = 240;
+const MEMORY_INDEX_LIMIT: usize = 40;
 const HISTORY_READ_LIMIT: i64 = 300;
 const HISTORY_HIT_LIMIT: usize = 3;
 const HISTORY_HIT_CHAR_LIMIT: usize = 900;
@@ -241,8 +242,21 @@ fn load_enabled_memories(
 }
 
 fn build_memory_index(memories: &[MemoryCandidate]) -> Vec<serde_json::Value> {
-    let _ = memories;
-    Vec::new()
+    memories
+        .iter()
+        .take(MEMORY_INDEX_LIMIT)
+        .map(|memory| {
+            serde_json::json!({
+                "id": memory.id,
+                "scope": memory.scope,
+                "type": memory.memory_type,
+                "layer": memory_layer(&memory.scope, &memory.memory_type),
+                "title": truncate_chars(&memory.title, MEMORY_INDEX_TITLE_CHAR_LIMIT),
+                "description": truncate_chars(&memory.description, MEMORY_INDEX_DESCRIPTION_CHAR_LIMIT),
+                "tags_json": truncate_chars(&memory.tags_json, MEMORY_INDEX_TAGS_CHAR_LIMIT),
+            })
+        })
+        .collect()
 }
 
 fn select_memories(memories: &[MemoryCandidate], query: &str) -> Vec<serde_json::Value> {
@@ -391,7 +405,7 @@ mod tests {
     }
 
     #[test]
-    fn memory_index_is_not_injected_into_context_prompt() {
+    fn memory_index_contains_bounded_catalog_without_bodies() {
         let long_text = "x".repeat(500);
         let memories = (0..100)
             .map(|index| MemoryCandidate {
@@ -407,7 +421,11 @@ mod tests {
 
         let index = build_memory_index(&memories);
 
-        assert!(index.is_empty());
+        assert_eq!(index.len(), MEMORY_INDEX_LIMIT);
+        assert!(index[0].get("body").is_none());
+        assert!(index[0]["title"].as_str().unwrap().chars().count() <= MEMORY_INDEX_TITLE_CHAR_LIMIT + 1);
+        assert!(index[0]["description"].as_str().unwrap().chars().count() <= MEMORY_INDEX_DESCRIPTION_CHAR_LIMIT + 1);
+        assert!(index[0]["tags_json"].as_str().unwrap().chars().count() <= MEMORY_INDEX_TAGS_CHAR_LIMIT + 1);
     }
 
     #[test]
@@ -523,7 +541,8 @@ mod tests {
             .map(|item| item["id"].as_str().unwrap_or_default())
             .collect::<Vec<_>>();
         assert_eq!(selected, vec!["confirmed-memory"]);
-        assert!(packet.memory_index.is_empty());
+        assert_eq!(packet.memory_index.len(), 1);
+        assert!(packet.memory_index[0].get("body").is_none());
     }
 
     #[test]
