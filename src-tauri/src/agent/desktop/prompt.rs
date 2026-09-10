@@ -42,6 +42,7 @@ pub fn build_desktop_context_prompt_for_domains(
         "conversation_summary",
         packet.get("conversation_summary"),
     );
+    push_json_section(&mut sections, "memory_index", packet.get("memory_index"));
     push_json_section(
         &mut sections,
         "selected_memories",

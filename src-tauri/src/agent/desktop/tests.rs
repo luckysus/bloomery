@@ -102,6 +102,8 @@ fn cancellation_token_reads_the_shared_run_state() {
 fn stopped_answers_are_marked_partial() {
     let answer = assistant_content_for_stream_result(&StreamedLlmAnswer {
         text: "partial answer".to_string(),
+        reasoning: String::new(),
+        reasoning_ms: 0,
         stopped: true,
         tool_calls: Vec::new(),
     });
@@ -174,6 +176,8 @@ fn desktop_response_exposes_loaded_skill_audit() {
         "run-1",
         "conversation-1",
         "answer",
+        "",
+        0,
         "ollama",
         "qwen",
         false,
@@ -225,6 +229,8 @@ fn desktop_response_exposes_selected_memory_audit() {
         "run-1",
         "conversation-1",
         "answer",
+        "",
+        0,
         "ollama",
         "qwen",
         false,
@@ -249,6 +255,8 @@ fn desktop_response_exposes_tool_call_audit() {
         "run-1",
         "conversation-1",
         "answer",
+        "",
+        0,
         "ollama",
         "qwen",
         false,
@@ -335,6 +343,19 @@ fn desktop_prompt_omits_domain_sections_without_active_package() {
     assert!(!prompt.contains("domain_system:"));
     assert!(!prompt.contains("domain_terminology:"));
     assert!(!prompt.contains("domain_citation_policy:"));
+}
+
+#[test]
+fn desktop_prompt_includes_memory_catalog_before_selected_memory_body() {
+    let packet = json!({
+        "memory_index": [{"id": "memory-1", "title": "Q355B rule"}],
+        "selected_memories": [{"id": "memory-1", "body": "Use the local rule."}],
+    });
+    let prompt = build_desktop_context_prompt_for_domains(&packet, &[]);
+
+    assert!(prompt.contains("memory_index:"));
+    assert!(prompt.contains("selected_memories:"));
+    assert!(prompt.find("memory_index:").unwrap() < prompt.find("selected_memories:").unwrap());
 }
 
 #[test]
