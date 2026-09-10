@@ -88,12 +88,24 @@ pub(crate) async fn run_standard_agent(
         crate::mcp::McpToolExecutor::from_bindings(Vec::new())
             .map_err(|error| format!("create empty MCP tool set failed: {error}"))?
     };
-    let combined_tools = CompositeToolExecutor::try_new(vec![
+    let background_tasks = if retrieval_tools_enabled {
+        Some(
+            crate::agent::runtime::BackgroundTasksTool::from_connection(&connection, workspace_id)
+                .map_err(|error| format!("load background task snapshot failed: {error}"))?,
+        )
+    } else {
+        None
+    };
+    let mut tool_sources: Vec<&dyn crate::agent::runtime::ToolExecutor> = vec![
         &steel_tools,
         &mcp_tools,
         todo_tracker.as_ref(),
         &skill_tool,
-    ])
+    ];
+    if let Some(tasks) = &background_tasks {
+        tool_sources.push(tasks);
+    }
+    let combined_tools = CompositeToolExecutor::try_new(tool_sources)
         .map_err(|error| format!("combine Agent tools failed: {error}"))?;
     let domain_tools =
         DomainToolExecutor::new_for_domains(&combined_tools, &preparation.active_domains);

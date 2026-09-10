@@ -4,6 +4,7 @@ mod r#loop;
 mod todos;
 mod subagents;
 mod skills_tool;
+mod tasks_tool;
 pub mod model_adapter;
 pub mod persistence;
 pub mod recovery;
@@ -27,3 +28,4 @@ pub use recovery::{
 pub use todos::TodoTracker;
 pub use subagents::{SnapshotToolExecutor, SubagentTool, MAX_SUBAGENT_TOOL_ROUNDS};
 pub use skills_tool::SkillTool;
+pub use tasks_tool::BackgroundTasksTool;
