@@ -738,11 +738,18 @@ fn rag_answer_attaches_evidence_and_accepts_known_citations() {
 
 #[test]
 fn provider_error_is_persisted_before_failed_completion() {
-    let model = ScriptedModel::script(vec![Err(ProviderError::new(
-        ProviderErrorCode::Network,
-        None,
-        "provider offline",
-    ))]);
+    let model = ScriptedModel::script(vec![
+        Err(ProviderError::new(
+            ProviderErrorCode::Network,
+            None,
+            "provider offline",
+        )),
+        Err(ProviderError::new(
+            ProviderErrorCode::Network,
+            None,
+            "provider offline",
+        )),
+    ]);
     let mut sink = RecordingSink::new();
 
     let error = tauri::async_runtime::block_on(

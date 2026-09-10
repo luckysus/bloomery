@@ -16,6 +16,8 @@ use crate::agent::runtime::state_machine::{RunGuards, RunStateMachine};
 use crate::providers::capabilities::{ChatMessage, ChatRequest};
 use crate::providers::profiles::ProviderCapability;
 use futures_util::future::join_all;
+use crate::providers::http::ProviderErrorCode;
+use std::time::Duration;
 use uuid::Uuid;
 
 impl<'a, M: ?Sized, T: ?Sized, P: ?Sized> AgentLoop<'a, M, T, P>
@@ -134,20 +136,25 @@ where
                 max_tokens: None,
                 stop: None,
             };
-            let (response, streamed_text, current_reasoning_ms) = match self
-                .generate(
+            let (response, streamed_text, current_reasoning_ms) =
+                match self.generate_with_recovery(
                     chat_request,
                     request.assistant_message_id,
                     sink,
                     &cancellation,
                 )
                 .await
-            {
-                Ok(result) => result,
-                Err(error) => {
-                    return self.fail(sink, machine.state(), request.assistant_message_id, error)
-                }
-            };
+                {
+                    Ok(result) => result,
+                    Err(error) => {
+                        return self.fail(
+                            sink,
+                            machine.state(),
+                            request.assistant_message_id,
+                            error,
+                        )
+                    }
+                };
             if !response.reasoning.is_empty() {
                 if !reasoning.is_empty() {
                     reasoning.push_str("\n\n");
@@ -377,6 +384,36 @@ where
                 self.change_state(&mut machine, AgentRunState::Generating, sink)?;
             }
             messages.extend(observations);
+        }
+    }
+
+    async fn generate_with_recovery(
+        &self,
+        chat_request: ChatRequest,
+        message_id: Uuid,
+        sink: &mut dyn AgentEventSink,
+        cancellation: &CancellationToken,
+    ) -> Result<(crate::providers::capabilities::ChatResponse, String, u64), AgentLoopError> {
+        let mut retried = false;
+        loop {
+            match self
+                .generate(chat_request.clone(), message_id, sink, cancellation)
+                .await
+            {
+                Ok(result) => return Ok(result),
+                Err(AgentLoopError::Provider(error))
+                    if !retried
+                        && matches!(
+                            error.code(),
+                            ProviderErrorCode::Network | ProviderErrorCode::Timeout
+                        )
+                        && !cancellation.is_cancelled() =>
+                {
+                    retried = true;
+                    tokio::time::sleep(Duration::from_millis(250)).await;
+                }
+                Err(error) => return Err(error),
+            }
         }
     }
 
