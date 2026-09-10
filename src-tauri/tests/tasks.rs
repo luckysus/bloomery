@@ -1247,9 +1247,15 @@ fn scheduler_emits_progress_only_after_successful_checkpoint_persistence() {
     });
 
     let events = sink.events.lock().unwrap();
-    assert_eq!(events.len(), 1);
-    let SchedulerEvent::Progress(event) = &events[0];
-    assert_eq!(event.progress, 55);
+    assert_eq!(events.len(), 3);
+    let progress = events
+        .iter()
+        .map(|event| match event {
+            SchedulerEvent::Progress(progress) => progress,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(progress[1].progress, 55);
+    assert_eq!(progress[2].progress, 100);
     let stored = repository::get(&database.connect(), "workspace-a", created.id)
         .unwrap()
         .unwrap();

@@ -79,6 +79,41 @@ export function useWorkbenchOverview(enabled: boolean): WorkbenchOverview {
     };
   }, [enabled, revision]);
 
+  useEffect(() => {
+    if (!enabled) return;
+    let mounted = true;
+    let dispose: (() => void) | undefined;
+    void desktop.listenSchedulerProgress((progress) => {
+      if (!mounted) return;
+      setOverview((current) => {
+        const existing = current.backgroundTasks.find((task) => task.id === progress.id);
+        if (existing && (progress.attempt < existing.attempt || progress.updated_at < existing.updated_at)) {
+          return current;
+        }
+        const task: BackgroundTask = existing
+          ? { ...existing, ...progress }
+          : {
+              ...progress,
+              can_cancel: progress.state === "queued" || progress.state === "running" || progress.state === "waiting_external" || progress.state === "paused" || progress.state === "interrupted",
+              can_retry: progress.state === "failed" || progress.state === "cancelled" || progress.state === "interrupted" || progress.state === "paused",
+            };
+        return {
+          ...current,
+          backgroundTasks: existing
+            ? current.backgroundTasks.map((item) => item.id === progress.id ? task : item)
+            : [task, ...current.backgroundTasks],
+        };
+      });
+    }).then((unlisten) => {
+      if (mounted) dispose = unlisten;
+      else unlisten();
+    });
+    return () => {
+      mounted = false;
+      dispose?.();
+    };
+  }, [enabled]);
+
   return {
     ...overview,
     loading,

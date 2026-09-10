@@ -10,6 +10,7 @@ vi.mock("../bridge/desktop", () => ({
     listBackgroundTasks: vi.fn(),
     getKnowledgeHealth: vi.fn(),
     listProviderProfiles: vi.fn().mockResolvedValue([]),
+    listenSchedulerProgress: vi.fn().mockResolvedValue(() => undefined),
   },
 }));
 

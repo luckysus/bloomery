@@ -896,6 +896,13 @@ export const desktop = {
     if (!isDesktopRuntime()) return Promise.resolve(() => undefined);
     return listen<AgentEventEnvelope>("agent-event", (event) => handler(event.payload));
   },
+  listenSchedulerProgress: (handler: (event: SchedulerProgressEvent) => void) => {
+    if (!isDesktopRuntime()) return Promise.resolve(() => undefined);
+    return listen<{ Progress: SchedulerProgressEvent }>("scheduler:progress", (event) => {
+      const progress = event.payload.Progress;
+      if (progress) handler(progress);
+    });
+  },
   replayAgentRun: (runId: string, afterSequence = 0) =>
     call<AgentEventEnvelope[]>("replay_agent_run", {
       request: { runId, afterSequence },

@@ -273,6 +273,11 @@ pub struct Scheduler {
 }
 
 impl Scheduler {
+    fn emit_progress(&self, task: &TaskRecord) {
+        self.sink
+            .emit(SchedulerEvent::Progress(TaskProgress::from(task)));
+    }
+
     pub fn new(
         path: PathBuf,
         workspace_id: String,
@@ -342,7 +347,7 @@ impl Scheduler {
                 } else {
                     TaskState::Interrupted
                 };
-                repository::transition(
+                let updated = repository::transition(
                     &mut connection,
                     &self.workspace_id,
                     task.id,
@@ -351,6 +356,7 @@ impl Scheduler {
                     target,
                     None,
                 )?;
+                self.emit_progress(&updated);
             }
         }
         for task in repository::list(&connection, &self.workspace_id)? {
@@ -358,7 +364,7 @@ impl Scheduler {
                 continue;
             }
             if task.cancel_requested {
-                repository::transition(
+                let updated = repository::transition(
                     &mut connection,
                     &self.workspace_id,
                     task.id,
@@ -367,12 +373,13 @@ impl Scheduler {
                     TaskState::Cancelled,
                     None,
                 )?;
+                self.emit_progress(&updated);
             } else if self
                 .handlers
                 .get(&task.kind)
                 .is_some_and(|handler| handler.resumable())
             {
-                repository::transition(
+                let updated = repository::transition(
                     &mut connection,
                     &self.workspace_id,
                     task.id,
@@ -381,6 +388,7 @@ impl Scheduler {
                     TaskState::Queued,
                     None,
                 )?;
+                self.emit_progress(&updated);
             }
         }
         Ok(())
@@ -412,6 +420,7 @@ impl Scheduler {
             let Some(task) = task else {
                 break;
             };
+            self.emit_progress(&task);
             let Some(handler) = self.handlers.get(&task.kind).cloned() else {
                 self.fail_unknown(task)?;
                 continue;
@@ -598,7 +607,7 @@ impl Scheduler {
         target: TaskState,
         error_code: Option<&str>,
     ) -> Result<(), TaskError> {
-        repository::transition(
+        let updated = repository::transition(
             connection,
             &self.workspace_id,
             task.id,
@@ -607,6 +616,7 @@ impl Scheduler {
             target,
             error_code,
         )?;
+        self.emit_progress(&updated);
         Ok(())
     }
 
@@ -628,7 +638,7 @@ impl Scheduler {
             + chrono::Duration::from_std(delay)
                 .map_err(|value| TaskError::new("invalid_scheduler", value.to_string()))?;
         let due = format_time(due);
-        repository::schedule_retry(
+        let updated = repository::schedule_retry(
             connection,
             &self.workspace_id,
             task.id,
@@ -638,6 +648,7 @@ impl Scheduler {
             &due,
             &format_time(now),
         )?;
+        self.emit_progress(&updated);
         Ok(())
     }
 
@@ -653,6 +664,7 @@ impl Scheduler {
     }
 
     fn cancel_active(&mut self) -> Result<(), TaskError> {
+        let sink = Arc::clone(&self.sink);
         let mut connection = open_connection(&self.path)?;
         for active in &mut self.active {
             if active.fenced {
@@ -666,7 +678,7 @@ impl Scheduler {
             if current.attempt != active.claim.attempt || current.state != TaskState::Running {
                 active.fenced = true;
             } else if current.cancel_requested {
-                repository::transition(
+                let updated = repository::transition(
                     &mut connection,
                     &self.workspace_id,
                     current.id,
@@ -675,6 +687,7 @@ impl Scheduler {
                     TaskState::Cancelled,
                     None,
                 )?;
+                sink.emit(SchedulerEvent::Progress(TaskProgress::from(&updated)));
                 active.fenced = true;
             }
         }
@@ -685,6 +698,7 @@ impl Scheduler {
         if self.active.iter().all(|active| active.fenced) {
             return Ok(());
         }
+        let sink = Arc::clone(&self.sink);
         let mut connection = open_connection(&self.path)?;
         for active in &mut self.active {
             if active.fenced {
@@ -704,7 +718,7 @@ impl Scheduler {
             } else {
                 TaskState::Interrupted
             };
-            repository::transition(
+            let updated = repository::transition(
                 &mut connection,
                 &self.workspace_id,
                 current.id,
@@ -713,6 +727,7 @@ impl Scheduler {
                 target,
                 None,
             )?;
+            sink.emit(SchedulerEvent::Progress(TaskProgress::from(&updated)));
             active.fenced = true;
         }
         Ok(())
