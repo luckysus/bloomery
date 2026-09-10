@@ -20,6 +20,7 @@ impl<'a, M: ?Sized, T: ?Sized, P: ?Sized> AgentLoopType<'a, M, T, P> {
             tools,
             permissions,
             hooks: &NoopAgentHooks,
+            artifact_store: None,
         }
     }
 
@@ -34,6 +35,23 @@ impl<'a, M: ?Sized, T: ?Sized, P: ?Sized> AgentLoopType<'a, M, T, P> {
             tools,
             permissions,
             hooks,
+            artifact_store: None,
+        }
+    }
+
+    pub fn new_with_hooks_and_artifact_store(
+        model: &'a M,
+        tools: &'a T,
+        permissions: &'a P,
+        hooks: &'a dyn types::AgentHooks,
+        artifact_store: &'a dyn crate::tools::ArtifactStore,
+    ) -> Self {
+        Self {
+            model,
+            tools,
+            permissions,
+            hooks,
+            artifact_store: Some(artifact_store),
         }
     }
 }

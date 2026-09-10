@@ -246,6 +246,7 @@ pub struct AgentLoop<'a, M: ?Sized, T: ?Sized, P: ?Sized> {
     pub(super) tools: &'a T,
     pub(super) permissions: &'a P,
     pub(super) hooks: &'a dyn AgentHooks,
+    pub(super) artifact_store: Option<&'a dyn crate::tools::ArtifactStore>,
 }
 
 #[derive(Debug, Clone, PartialEq)]

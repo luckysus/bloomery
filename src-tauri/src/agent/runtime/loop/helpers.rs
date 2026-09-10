@@ -151,11 +151,12 @@ pub(super) fn denied_observations(
 pub(super) fn record_tool_result(
     sink: &mut dyn AgentEventSink,
     call: &PreparedToolCall,
+    artifact_store: Option<&dyn crate::tools::ArtifactStore>,
     result: Result<Value, ToolExecutionError>,
 ) -> Result<ChatMessage, AgentLoopError> {
     match result {
         Ok(value) => {
-            let (output, observation) = bounded_tool_output(value)?;
+            let (output, observation) = bounded_tool_output(value, artifact_store)?;
             sink.record(AgentEventData::ToolCompleted(ToolCompleted {
                 tool_call_id: call.tool_call_id,
                 outcome: ToolOutcome::Succeeded,
@@ -196,12 +197,37 @@ pub(super) fn record_tool_result(
     }
 }
 
-fn bounded_tool_output(value: Value) -> Result<(Value, String), AgentLoopError> {
+fn bounded_tool_output(
+    value: Value,
+    artifact_store: Option<&dyn crate::tools::ArtifactStore>,
+) -> Result<(Value, String), AgentLoopError> {
     let serialized = serde_json::to_string(&value).map_err(|error| {
         AgentLoopError::Tool(format!("tool output serialization failed: {error}"))
     })?;
     if serialized.len() <= super::types::MAX_TOOL_OUTPUT_BYTES {
         return Ok((value, serialized));
+    }
+    if let Some(store) = artifact_store {
+        let output = crate::tools::bound_output(value, store)
+            .map_err(|error| AgentLoopError::Tool(error.to_string()))?;
+        if let Some(artifact) = output.artifact {
+            let file_name = artifact
+                .path
+                .file_name()
+                .and_then(|name| name.to_str())
+                .ok_or_else(|| AgentLoopError::Tool("tool artifact path is invalid".to_string()))?;
+            let bounded = json!({
+                "truncated": true,
+                "bytes": serialized.len(),
+                "artifact_id": artifact.id,
+                "path": format!(".agent/artifacts/{file_name}"),
+                "message": "完整工具结果已持久化，可按 path 读取"
+            });
+            let observation = serde_json::to_string(&bounded)
+                .map_err(|error| AgentLoopError::Tool(format!("bounded tool output failed: {error}")))?;
+            return Ok((output.model_output, observation));
+        }
+        return Ok((output.model_output, serialized));
     }
     let preview = truncate_utf8(&serialized, super::types::MAX_TOOL_OUTPUT_BYTES);
     let bounded = json!({"truncated": true, "bytes": serialized.len(), "preview": preview});

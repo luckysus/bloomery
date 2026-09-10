@@ -12,6 +12,7 @@ use crate::providers::configured_chat_provider;
 use crate::steel::SteelToolExecutor;
 use serde_json::{json, Value};
 use std::sync::{Arc, Mutex};
+use std::path::PathBuf;
 use tauri::Emitter;
 use uuid::Uuid;
 
@@ -139,11 +140,18 @@ pub(crate) async fn run_standard_agent(
         Ok(())
     };
     let mut sink = SqliteAgentEventSink::new(&mut connection, workspace_id, run_id, &mut publisher);
-    let result = AgentLoop::new_with_hooks(
+    let artifact_root = database
+        .parent()
+        .map(|parent| parent.join(".agent").join("artifacts"))
+        .ok_or_else(|| "agent artifact workspace is unavailable".to_string())?;
+    let artifact_store = crate::tools::FileArtifactStore::new(PathBuf::from(artifact_root))
+        .map_err(|error| format!("create agent artifact store failed: {error}"))?;
+    let result = AgentLoop::new_with_hooks_and_artifact_store(
         model.as_ref(),
         &parent_tools,
         permissions.as_ref(),
         todo_tracker.as_ref(),
+        &artifact_store,
     )
         .run(
             request,

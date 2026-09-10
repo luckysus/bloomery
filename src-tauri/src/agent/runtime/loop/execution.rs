@@ -417,6 +417,7 @@ where
                     observations.push(record_tool_result(
                         sink,
                         call,
+                        self.artifact_store,
                         self.apply_post_hook(call, result),
                     )?);
                 }
@@ -441,6 +442,7 @@ where
                 observations.push(record_tool_result(
                     sink,
                     call,
+                    self.artifact_store,
                     self.apply_post_hook(call, result),
                 )?);
                 index += 1;
