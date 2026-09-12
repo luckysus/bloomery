@@ -25,6 +25,8 @@ base64 = "0.22"
 rusqlite = { version = "0.32", features = ["bundled"] }
 uuid = { version = "1", features = ["v4", "serde"] }
 chrono = { version = "0.4", features = ["serde"] }
+chrono-tz = "0.10"
+cron = "0.15"
 dirs = "5"
 futures-util = "0.3"
 http = "1"
