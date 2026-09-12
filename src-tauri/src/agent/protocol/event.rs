@@ -23,6 +23,8 @@ pub struct AgentEventEnvelope {
 pub enum AgentEventData {
     RunCreated(RunCreated),
     RunStateChanged(RunStateChanged),
+    ReasoningDelta(ReasoningDelta),
+    ReasoningCompleted(ReasoningCompleted),
     MessageDelta(MessageDelta),
     MessageCompleted(MessageCompleted),
     ToolRequested(ToolRequested),
@@ -124,6 +126,18 @@ pub struct RunStateChanged {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ReasoningDelta {
+    pub message_id: Uuid,
+    pub delta: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ReasoningCompleted {
+    pub message_id: Uuid,
+    pub duration_ms: u64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MessageDelta {
     pub message_id: Uuid,
     pub role: AgentMessageRole,
@@ -192,6 +206,10 @@ pub struct UsageUpdated {
     pub prompt_tokens: u64,
     pub completion_tokens: u64,
     pub total_tokens: u64,
+    #[serde(default)]
+    pub cache_read_tokens: u64,
+    #[serde(default)]
+    pub reasoning_tokens: u64,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

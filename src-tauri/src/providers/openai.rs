@@ -85,6 +85,12 @@ struct OpenAiChatRequest<'a> {
     temperature: f32,
     stream_options: Value,
     #[serde(skip_serializing_if = "Option::is_none")]
+    reasoning_effort: Option<&'a str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    max_tokens: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    stop: Option<&'a [String]>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     tools: Option<&'a Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
     response_format: Option<&'a Value>,
@@ -94,6 +100,8 @@ struct OpenAiChatRequest<'a> {
 struct OpenAiChatMessage<'a> {
     role: &'a str,
     content: Value,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    reasoning_content: Option<&'a str>,
     #[serde(skip_serializing_if = "Option::is_none")]
     tool_call_id: Option<&'a str>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
@@ -144,6 +152,9 @@ impl ChatProvider for OpenAiProvider {
             stream: true,
             temperature: request.temperature,
             stream_options: serde_json::json!({"include_usage": true}),
+            reasoning_effort: request.reasoning_effort.as_deref(),
+            max_tokens: request.max_tokens,
+            stop: request.stop.as_deref(),
             tools: request.tools.as_ref(),
             response_format: request.response_format.as_ref(),
         };
@@ -217,6 +228,10 @@ fn openai_message(message: &ChatMessage) -> OpenAiChatMessage<'_> {
     OpenAiChatMessage {
         role: &message.role,
         content: openai_message_content(message),
+        reasoning_content: message
+            .reasoning_content
+            .as_deref()
+            .filter(|value| !value.is_empty() && !message.tool_calls.is_empty()),
         tool_call_id: message.tool_call_id.as_deref(),
         tool_calls: message
             .tool_calls
@@ -296,6 +311,7 @@ fn append_bounded(buffer: &mut Vec<u8>, bytes: &[u8], limit: usize) -> Result<()
 #[derive(Default)]
 struct ChatAccumulator {
     text: String,
+    reasoning: String,
     tool_calls: BTreeMap<usize, ChatToolCall>,
     usage: Option<ChatUsage>,
     finish_reason: Option<String>,
@@ -305,6 +321,7 @@ impl ChatAccumulator {
     fn response(self, cancelled: bool) -> ChatResponse {
         ChatResponse {
             text: self.text,
+            reasoning: self.reasoning,
             tool_calls: self.tool_calls.into_values().collect(),
             usage: self.usage,
             finish_reason: self.finish_reason,
@@ -485,6 +502,12 @@ fn apply_openai_value(
         on_event(ChatEvent::TextDelta(content.to_string()));
     }
 
+    if let Some(reasoning) = delta["reasoning_content"].as_str() {
+        accumulator.reasoning.push_str(reasoning);
+        if !reasoning.is_empty() {
+            on_event(ChatEvent::ReasoningDelta(reasoning.to_string()));
+        }
+    }
     if let Some(tool_calls) = delta["tool_calls"].as_array() {
         for (position, tool_call) in tool_calls.iter().enumerate() {
             let index = tool_call["index"]
@@ -521,6 +544,13 @@ fn apply_openai_value(
             prompt_tokens: value["usage"]["prompt_tokens"].as_u64().unwrap_or(0),
             completion_tokens: value["usage"]["completion_tokens"].as_u64().unwrap_or(0),
             total_tokens: value["usage"]["total_tokens"].as_u64().unwrap_or(0),
+            cache_read_tokens: value["usage"]["prompt_tokens_details"]["cached_tokens"]
+                .as_u64()
+                .or_else(|| value["usage"]["prompt_cache_hit_tokens"].as_u64())
+                .unwrap_or(0),
+            reasoning_tokens: value["usage"]["completion_tokens_details"]["reasoning_tokens"]
+                .as_u64()
+                .unwrap_or(0),
         };
         accumulator.usage = Some(usage.clone());
         on_event(ChatEvent::Usage(usage));
@@ -646,5 +676,37 @@ mod tests {
         .unwrap();
 
         assert_eq!(accumulator.text, "joined");
+    }
+
+    #[test]
+    fn reasoning_and_cached_usage_preserve_total_token_accounting() {
+        let mut accumulator = ChatAccumulator::default();
+        let mut events = Vec::new();
+        apply_openai_value(
+            &serde_json::json!({
+                "choices": [{"delta": {"reasoning_content": "check evidence", "content": "answer"}}],
+                "usage": {"prompt_tokens": 100, "completion_tokens": 20, "total_tokens": 120,
+                    "prompt_tokens_details": {"cached_tokens": 80},
+                    "completion_tokens_details": {"reasoning_tokens": 10}}
+            }),
+            &mut accumulator,
+            &mut |event| events.push(event),
+            &Redactor::new(),
+        ).unwrap();
+        let response = accumulator.response(false);
+        assert_eq!(response.reasoning, "check evidence");
+        assert_eq!(response.text, "answer");
+        let usage = response.usage.unwrap();
+        assert_eq!(
+            (
+                usage.prompt_tokens,
+                usage.total_tokens,
+                usage.cache_read_tokens
+            ),
+            (100, 120, 80)
+        );
+        assert!(events
+            .iter()
+            .any(|event| matches!(event, ChatEvent::ReasoningDelta(_))));
     }
 }

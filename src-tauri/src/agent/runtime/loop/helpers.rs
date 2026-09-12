@@ -104,6 +104,8 @@ pub(super) fn record_usage(
         prompt_tokens: usage.prompt_tokens,
         completion_tokens: usage.completion_tokens,
         total_tokens: usage.total_tokens,
+        cache_read_tokens: usage.cache_read_tokens,
+        reasoning_tokens: usage.reasoning_tokens,
     }))
     .map_err(AgentLoopError::EventSink)?;
     Ok(())
@@ -116,20 +118,28 @@ pub(super) fn add_usage(previous: Option<ChatUsage>, current: &ChatUsage) -> Cha
         .completion_tokens
         .saturating_add(current.completion_tokens);
     total.total_tokens = total.total_tokens.saturating_add(current.total_tokens);
+    total.cache_read_tokens = total
+        .cache_read_tokens
+        .saturating_add(current.cache_read_tokens);
+    total.reasoning_tokens = total
+        .reasoning_tokens
+        .saturating_add(current.reasoning_tokens);
     total
 }
 
 pub(super) fn denied_observations(
     sink: &mut dyn AgentEventSink,
-    calls: Vec<PreparedToolCall>,
+    calls: Vec<(PreparedToolCall, Option<String>)>,
 ) -> Result<Vec<ChatMessage>, AgentLoopError> {
     calls
         .into_iter()
-        .map(|call| {
+        .map(|(call, reason)| {
+            let message =
+                reason.unwrap_or_else(|| format!("permission denied for tool {}", call.tool_name));
             let error = AgentError {
                 code: "permission_denied".to_string(),
                 category: AgentErrorCategory::ToolPermission,
-                message: format!("permission denied for tool {}", call.tool_name),
+                message: message.clone(),
                 retryable: false,
                 details: None,
             };
@@ -142,7 +152,7 @@ pub(super) fn denied_observations(
             .map_err(AgentLoopError::EventSink)?;
             Ok(ChatMessage::tool_result(
                 call.model_call_id,
-                format!("tool {} was denied: {}", call.tool_name, error.message),
+                format!("tool {} was denied: {}", call.tool_name, message),
             ))
         })
         .collect()
@@ -223,8 +233,9 @@ fn bounded_tool_output(
                 "path": format!(".agent/artifacts/{file_name}"),
                 "message": "完整工具结果已持久化，可按 path 读取"
             });
-            let observation = serde_json::to_string(&bounded)
-                .map_err(|error| AgentLoopError::Tool(format!("bounded tool output failed: {error}")))?;
+            let observation = serde_json::to_string(&bounded).map_err(|error| {
+                AgentLoopError::Tool(format!("bounded tool output failed: {error}"))
+            })?;
             return Ok((output.model_output, observation));
         }
         return Ok((output.model_output, serialized));

@@ -53,6 +53,8 @@ pub async fn desktop_agent_chat(
         &run_id,
         &conversation_id,
         &answer,
+        &streamed.reasoning,
+        streamed.reasoning_ms,
         &preparation.config.provider,
         &preparation.config.model_name,
         preparation.config.has_credential(),

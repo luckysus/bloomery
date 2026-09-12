@@ -111,6 +111,8 @@ fn event_allocation_is_monotonic_and_duplicate_ids_do_not_consume_sequences() {
             prompt_tokens: 10,
             completion_tokens: 2,
             total_tokens: 12,
+            cache_read_tokens: 0,
+            reasoning_tokens: 0,
         }),
     )
     .unwrap_err();
@@ -126,6 +128,8 @@ fn event_allocation_is_monotonic_and_duplicate_ids_do_not_consume_sequences() {
             prompt_tokens: 10,
             completion_tokens: 2,
             total_tokens: 12,
+            cache_read_tokens: 0,
+            reasoning_tokens: 0,
         }),
     )
     .unwrap();
@@ -167,6 +171,8 @@ fn generic_event_append_rejects_run_state_events_without_consuming_a_sequence() 
             prompt_tokens: 10,
             completion_tokens: 2,
             total_tokens: 12,
+            cache_read_tokens: 0,
+            reasoning_tokens: 0,
         }),
     )
     .unwrap();
@@ -187,6 +193,8 @@ fn replay_is_ordered_incremental_and_workspace_scoped() {
             prompt_tokens: 10,
             completion_tokens: 2,
             total_tokens: 12,
+            cache_read_tokens: 0,
+            reasoning_tokens: 0,
         }),
     )
     .unwrap();
@@ -376,6 +384,8 @@ fn concurrent_connections_allocate_distinct_monotonic_sequences() {
                 prompt_tokens: 10,
                 completion_tokens: 2,
                 total_tokens: 12,
+                cache_read_tokens: 0,
+                reasoning_tokens: 0,
             }),
         )
         .unwrap()
@@ -394,6 +404,8 @@ fn concurrent_connections_allocate_distinct_monotonic_sequences() {
                 prompt_tokens: 20,
                 completion_tokens: 4,
                 total_tokens: 24,
+                cache_read_tokens: 0,
+                reasoning_tokens: 0,
             }),
         )
         .unwrap()

@@ -106,6 +106,26 @@ pub fn json_schema() -> String {
         ),
     );
     definitions.insert(
+        "reasoning_delta".to_string(),
+        object(
+            json!({
+                "message_id": uuid_schema(),
+                "delta": string_schema(),
+            }),
+            &["message_id", "delta"],
+        ),
+    );
+    definitions.insert(
+        "reasoning_completed".to_string(),
+        object(
+            json!({
+                "message_id": uuid_schema(),
+                "duration_ms": integer_schema(),
+            }),
+            &["message_id", "duration_ms"],
+        ),
+    );
+    definitions.insert(
         "message_delta".to_string(),
         object(
             json!({
@@ -207,8 +227,16 @@ pub fn json_schema() -> String {
                 "prompt_tokens": integer_schema(),
                 "completion_tokens": integer_schema(),
                 "total_tokens": integer_schema(),
+                "cache_read_tokens": integer_schema(),
+                "reasoning_tokens": integer_schema(),
             }),
-            &["prompt_tokens", "completion_tokens", "total_tokens"],
+            &[
+                "prompt_tokens",
+                "completion_tokens",
+                "total_tokens",
+                "cache_read_tokens",
+                "reasoning_tokens",
+            ],
         ),
     );
     definitions.insert(
@@ -247,6 +275,8 @@ pub fn json_schema() -> String {
     let event_types = [
         ("run_created", "run_created"),
         ("run_state_changed", "run_state_changed"),
+        ("reasoning_delta", "reasoning_delta"),
+        ("reasoning_completed", "reasoning_completed"),
         ("message_delta", "message_delta"),
         ("message_completed", "message_completed"),
         ("tool_requested", "tool_requested"),
@@ -448,6 +478,16 @@ export interface RunStateChanged {
   reason: string | null;
 }
 
+export interface ReasoningDelta {
+  message_id: UUID;
+  delta: string;
+}
+
+export interface ReasoningCompleted {
+  message_id: UUID;
+  duration_ms: number;
+}
+
 export interface MessageDelta {
   message_id: UUID;
   role: AgentMessageRole;
@@ -507,6 +547,8 @@ export interface UsageUpdated {
   prompt_tokens: number;
   completion_tokens: number;
   total_tokens: number;
+  cache_read_tokens: number;
+  reasoning_tokens: number;
 }
 
 export interface TaskProgress {
@@ -529,6 +571,8 @@ export interface ErrorRaised {
 export type AgentEventType =
   | "run_created"
   | "run_state_changed"
+  | "reasoning_delta"
+  | "reasoning_completed"
   | "message_delta"
   | "message_completed"
   | "tool_requested"
@@ -546,6 +590,8 @@ export type AgentEventType =
 export type AgentEventData =
   | { type: "run_created"; data: RunCreated }
   | { type: "run_state_changed"; data: RunStateChanged }
+  | { type: "reasoning_delta"; data: ReasoningDelta }
+  | { type: "reasoning_completed"; data: ReasoningCompleted }
   | { type: "message_delta"; data: MessageDelta }
   | { type: "message_completed"; data: MessageCompleted }
   | { type: "tool_requested"; data: ToolRequested }

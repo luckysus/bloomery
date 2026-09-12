@@ -1,14 +1,15 @@
 mod execution;
 mod generation;
 mod helpers;
+mod operations;
 mod types;
 
 pub use types::{
-    AgentEventSink, AgentLoop, AgentLoopAttachment, AgentLoopError, AgentLoopRequest,
+    AgentEventSink, AgentHooks, AgentLoop, AgentLoopAttachment, AgentLoopError, AgentLoopRequest,
     AgentLoopResult, CancellationToken, ContextEntry, DenyPermissions, EvidenceAttachment,
-    AgentHooks, HookDecision, NoopAgentHooks, NoopToolExecutor, PermissionFuture,
-    PermissionRequest, PermissionResolver, ToolExecutionError, ToolExecutor, ToolFuture,
-    ToolHandler, ToolInvocation, ToolRegistration,
+    HookDecision, NoopAgentHooks, NoopToolExecutor, PermissionFuture, PermissionRequest,
+    PermissionResolver, ToolExecutionError, ToolExecutor, ToolFuture, ToolHandler, ToolInvocation,
+    ToolRegistration,
 };
 
 use types::AgentLoop as AgentLoopType;

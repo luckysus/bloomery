@@ -64,6 +64,8 @@ pub struct ChatMessage {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub images: Vec<ChatImage>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reasoning_content: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tool_call_id: Option<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub tool_calls: Vec<ChatToolCall>,
@@ -75,6 +77,7 @@ impl ChatMessage {
             role: role.into(),
             content: content.into(),
             images: Vec::new(),
+            reasoning_content: None,
             tool_call_id: None,
             tool_calls: Vec::new(),
         }
@@ -89,6 +92,7 @@ impl ChatMessage {
             role: role.into(),
             content: content.into(),
             images,
+            reasoning_content: None,
             tool_call_id: None,
             tool_calls: Vec::new(),
         }
@@ -99,8 +103,20 @@ impl ChatMessage {
             role: "assistant".to_string(),
             content: String::new(),
             images: Vec::new(),
+            reasoning_content: None,
             tool_call_id: None,
             tool_calls,
+        }
+    }
+
+    pub fn assistant_tool_calls_with_reasoning(
+        tool_calls: Vec<ChatToolCall>,
+        reasoning_content: impl Into<String>,
+    ) -> Self {
+        let reasoning_content = reasoning_content.into();
+        Self {
+            reasoning_content: (!reasoning_content.is_empty()).then_some(reasoning_content),
+            ..Self::assistant_tool_calls(tool_calls)
         }
     }
 
@@ -109,6 +125,7 @@ impl ChatMessage {
             role: "tool".to_string(),
             content: content.into(),
             images: Vec::new(),
+            reasoning_content: None,
             tool_call_id: Some(tool_call_id.into()),
             tool_calls: Vec::new(),
         }
@@ -121,6 +138,9 @@ pub struct ChatRequest {
     pub temperature: f32,
     pub tools: Option<Value>,
     pub response_format: Option<Value>,
+    pub reasoning_effort: Option<String>,
+    pub max_tokens: Option<usize>,
+    pub stop: Option<Vec<String>>,
 }
 
 impl ChatRequest {
@@ -133,6 +153,9 @@ impl ChatRequest {
             temperature: 0.2,
             tools: None,
             response_format: None,
+            reasoning_effort: None,
+            max_tokens: None,
+            stop: None,
         }
     }
 }
@@ -142,6 +165,10 @@ pub struct ChatUsage {
     pub prompt_tokens: u64,
     pub completion_tokens: u64,
     pub total_tokens: u64,
+    #[serde(default)]
+    pub cache_read_tokens: u64,
+    #[serde(default)]
+    pub reasoning_tokens: u64,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -163,6 +190,7 @@ pub struct ChatToolCall {
 #[serde(tag = "type", content = "data", rename_all = "snake_case")]
 pub enum ChatEvent {
     TextDelta(String),
+    ReasoningDelta(String),
     ToolCallDelta(ToolCallDelta),
     Usage(ChatUsage),
 }
@@ -170,6 +198,7 @@ pub enum ChatEvent {
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ChatResponse {
     pub text: String,
+    pub reasoning: String,
     pub tool_calls: Vec<ChatToolCall>,
     pub usage: Option<ChatUsage>,
     pub finish_reason: Option<String>,

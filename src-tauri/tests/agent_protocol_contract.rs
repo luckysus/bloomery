@@ -54,6 +54,6 @@ fn envelope_schema_composes_common_and_event_fields() {
             .as_array()
             .expect("event variants")
             .len(),
-        15
+        17
     );
 }

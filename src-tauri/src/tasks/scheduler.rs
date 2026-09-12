@@ -552,28 +552,10 @@ impl Scheduler {
             return Ok(());
         }
         if current.cancel_requested {
-            repository::transition(
-                &mut connection,
-                &self.workspace_id,
-                current.id,
-                current.attempt,
-                TaskState::Running,
-                TaskState::Cancelled,
-                None,
-            )?;
-            return Ok(());
+            return self.transition_active(&mut connection, &current, TaskState::Cancelled, None);
         }
         if self.control.shutdown_requested() {
-            repository::transition(
-                &mut connection,
-                &self.workspace_id,
-                current.id,
-                current.attempt,
-                TaskState::Running,
-                TaskState::Interrupted,
-                None,
-            )?;
-            return Ok(());
+            return self.transition_active(&mut connection, &current, TaskState::Interrupted, None);
         }
         match result {
             Ok(HandlerOutcome::Completed) => {

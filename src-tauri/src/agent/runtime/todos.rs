@@ -1,6 +1,6 @@
 use super::{
-    CancellationToken, ToolExecutionError, ToolExecutor, ToolFuture, ToolHandler, ToolInvocation,
-    AgentHooks, ToolRegistration,
+    AgentHooks, CancellationToken, ToolExecutionError, ToolExecutor, ToolFuture, ToolHandler,
+    ToolInvocation, ToolRegistration,
 };
 use crate::agent::protocol::PermissionRisk;
 use crate::agent::tool_repair::ToolSpec;
@@ -103,7 +103,10 @@ impl ToolExecutor for TodoTracker {
     fn execute(&self, invocation: ToolInvocation, cancellation: CancellationToken) -> ToolFuture {
         if invocation.tool_id != "agent.todo_write" || invocation.tool_name != "todo_write" {
             return Box::pin(async {
-                Err(ToolExecutionError::new("tool_not_registered", "TODO tool is not registered"))
+                Err(ToolExecutionError::new(
+                    "tool_not_registered",
+                    "TODO tool is not registered",
+                ))
             });
         }
         let handler = TodoHandler {
@@ -181,9 +184,11 @@ impl ToolHandler for TodoHandler {
             todos
                 .lock()
                 .map_err(|_| ToolExecutionError::new("todo_state", "todo state is unavailable"))?
-                .clone_from(&serde_json::from_value(output["todos"].clone()).map_err(|error| {
-                    ToolExecutionError::new("todo_state", error.to_string())
-                })?);
+                .clone_from(
+                    &serde_json::from_value(output["todos"].clone()).map_err(|error| {
+                        ToolExecutionError::new("todo_state", error.to_string())
+                    })?,
+                );
             Ok(json!({"todos": output["todos"].clone()}))
         })
     }
@@ -198,7 +203,10 @@ mod tests {
         let tracker = TodoTracker::default();
         let tool = tracker.tool();
         assert_eq!(tool.spec.name, "todo_write");
-        assert_eq!(tool.spec.input_schema["properties"]["todos"]["maxItems"], MAX_TODOS);
+        assert_eq!(
+            tool.spec.input_schema["properties"]["todos"]["maxItems"],
+            MAX_TODOS
+        );
     }
 
     #[test]
@@ -212,8 +220,14 @@ mod tests {
             CancellationToken::new(|| false),
         ))
         .expect("todo write succeeds");
-        assert_eq!(result, json!({"todos": [{"content": "inspect data", "status": "in_progress"}]}));
-        assert_eq!(tracker.snapshot(), vec![json!({"content": "inspect data", "status": "in_progress"})]);
+        assert_eq!(
+            result,
+            json!({"todos": [{"content": "inspect data", "status": "in_progress"}]})
+        );
+        assert_eq!(
+            tracker.snapshot(),
+            vec![json!({"content": "inspect data", "status": "in_progress"})]
+        );
 
         for _ in 0..3 {
             tracker.after_tool_round(&["search".to_string()]);

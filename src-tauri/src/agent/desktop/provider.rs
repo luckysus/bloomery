@@ -122,6 +122,8 @@ where
     let response = response.map_err(|error| error.to_string())?;
     Ok(StreamedLlmAnswer {
         text: response.text,
+        reasoning: response.reasoning,
+        reasoning_ms: 0,
         stopped: response.cancelled,
         tool_calls: Vec::new(),
     })

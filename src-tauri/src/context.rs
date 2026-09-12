@@ -423,9 +423,18 @@ mod tests {
 
         assert_eq!(index.len(), MEMORY_INDEX_LIMIT);
         assert!(index[0].get("body").is_none());
-        assert!(index[0]["title"].as_str().unwrap().chars().count() <= MEMORY_INDEX_TITLE_CHAR_LIMIT + 1);
-        assert!(index[0]["description"].as_str().unwrap().chars().count() <= MEMORY_INDEX_DESCRIPTION_CHAR_LIMIT + 1);
-        assert!(index[0]["tags_json"].as_str().unwrap().chars().count() <= MEMORY_INDEX_TAGS_CHAR_LIMIT + 1);
+        assert!(
+            index[0]["title"].as_str().unwrap().chars().count()
+                <= MEMORY_INDEX_TITLE_CHAR_LIMIT + 1
+        );
+        assert!(
+            index[0]["description"].as_str().unwrap().chars().count()
+                <= MEMORY_INDEX_DESCRIPTION_CHAR_LIMIT + 1
+        );
+        assert!(
+            index[0]["tags_json"].as_str().unwrap().chars().count()
+                <= MEMORY_INDEX_TAGS_CHAR_LIMIT + 1
+        );
     }
 
     #[test]

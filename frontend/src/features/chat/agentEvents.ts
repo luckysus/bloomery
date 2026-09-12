@@ -45,6 +45,9 @@ export interface AgentRunView {
   state: AgentRunState;
   assistantMessageId: string | null;
   assistantText: string;
+  reasoning: string;
+  reasoningMs: number | null;
+  reasoningStreaming: boolean;
   partial: boolean;
   toolCalls: AgentToolView[];
   permissions: AgentPermissionView[];
@@ -65,6 +68,9 @@ export function createAgentRunView(runId: string, conversationId: string): Agent
     state: "created",
     assistantMessageId: null,
     assistantText: "",
+    reasoning: "",
+    reasoningMs: null,
+    reasoningStreaming: false,
     partial: false,
     toolCalls: [],
     permissions: [],
@@ -126,6 +132,16 @@ function applyAgentEvent(state: AgentRunView, event: AgentEventEnvelope): AgentR
     case "run_state_changed":
       next.state = event.data.current;
       break;
+    case "reasoning_delta":
+      next.reasoning += event.data.delta;
+      next.reasoningStreaming = true;
+      next.assistantMessageId = event.data.message_id;
+      break;
+    case "reasoning_completed":
+      next.reasoningMs = (next.reasoningMs ?? 0) + event.data.duration_ms;
+      next.reasoningStreaming = false;
+      next.assistantMessageId = event.data.message_id;
+      break;
     case "message_delta":
       if (event.data.role === "assistant") {
         next.assistantMessageId = event.data.message_id;
@@ -137,6 +153,7 @@ function applyAgentEvent(state: AgentRunView, event: AgentEventEnvelope): AgentR
         next.assistantMessageId = event.data.message_id;
         next.assistantText = event.data.content;
         next.partial = event.data.partial;
+        next.reasoningStreaming = false;
       }
       break;
     case "tool_requested":
@@ -208,6 +225,7 @@ function applyAgentEvent(state: AgentRunView, event: AgentEventEnvelope): AgentR
       next.outcome = event.data.outcome;
       next.state = outcomeState(event.data.outcome);
       next.assistantMessageId = event.data.assistant_message_id;
+      next.reasoningStreaming = false;
       break;
     case "error_raised":
       next.error = event.data.error;

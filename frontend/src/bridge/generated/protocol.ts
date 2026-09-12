@@ -66,6 +66,16 @@ export interface RunStateChanged {
   reason: string | null;
 }
 
+export interface ReasoningDelta {
+  message_id: UUID;
+  delta: string;
+}
+
+export interface ReasoningCompleted {
+  message_id: UUID;
+  duration_ms: number;
+}
+
 export interface MessageDelta {
   message_id: UUID;
   role: AgentMessageRole;
@@ -125,6 +135,8 @@ export interface UsageUpdated {
   prompt_tokens: number;
   completion_tokens: number;
   total_tokens: number;
+  cache_read_tokens: number;
+  reasoning_tokens: number;
 }
 
 export interface TaskProgress {
@@ -147,6 +159,8 @@ export interface ErrorRaised {
 export type AgentEventType =
   | "run_created"
   | "run_state_changed"
+  | "reasoning_delta"
+  | "reasoning_completed"
   | "message_delta"
   | "message_completed"
   | "tool_requested"
@@ -164,6 +178,8 @@ export type AgentEventType =
 export type AgentEventData =
   | { type: "run_created"; data: RunCreated }
   | { type: "run_state_changed"; data: RunStateChanged }
+  | { type: "reasoning_delta"; data: ReasoningDelta }
+  | { type: "reasoning_completed"; data: ReasoningCompleted }
   | { type: "message_delta"; data: MessageDelta }
   | { type: "message_completed"; data: MessageCompleted }
   | { type: "tool_requested"; data: ToolRequested }

@@ -1,4 +1,7 @@
-use super::{CancellationToken, ToolExecutionError, ToolExecutor, ToolFuture, ToolHandler, ToolInvocation, ToolRegistration};
+use super::{
+    CancellationToken, ToolExecutionError, ToolExecutor, ToolFuture, ToolHandler, ToolInvocation,
+    ToolRegistration,
+};
 use crate::agent::protocol::PermissionRisk;
 use crate::agent::tool_repair::ToolSpec;
 use crate::tasks::{repository, TaskRecord};
@@ -15,7 +18,8 @@ pub struct BackgroundTasksTool {
 
 impl BackgroundTasksTool {
     pub fn from_connection(connection: &Connection, workspace_id: &str) -> Result<Self, String> {
-        let tasks = repository::list(connection, workspace_id).map_err(|error| error.to_string())?;
+        let tasks =
+            repository::list(connection, workspace_id).map_err(|error| error.to_string())?;
         Ok(Self {
             registration: ToolRegistration::new(
                 ToolSpec {
@@ -42,7 +46,9 @@ impl ToolExecutor for BackgroundTasksTool {
     }
 
     fn execute(&self, invocation: ToolInvocation, cancellation: CancellationToken) -> ToolFuture {
-        self.registration.handler.execute(invocation.arguments, cancellation)
+        self.registration
+            .handler
+            .execute(invocation.arguments, cancellation)
     }
 }
 
@@ -57,7 +63,9 @@ impl ToolHandler for BackgroundTasksHandler {
             if cancellation.is_cancelled() {
                 return Err(ToolExecutionError::cancelled());
             }
-            if !arguments.is_object() || arguments.as_object().is_some_and(|value| !value.is_empty()) {
+            if !arguments.is_object()
+                || arguments.as_object().is_some_and(|value| !value.is_empty())
+            {
                 return Err(ToolExecutionError::new(
                     "invalid_task_query",
                     "list_background_tasks does not accept arguments",

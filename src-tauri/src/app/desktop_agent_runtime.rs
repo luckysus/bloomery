@@ -1,8 +1,8 @@
 use crate::agent::desktop::{LocalAgentState, StreamedLlmAnswer};
 use crate::agent::protocol::{AgentEventData, RunOutcome};
 use crate::agent::runtime::{
-    AgentLoop, CompositeToolExecutor, DomainToolExecutor, ProviderModelAdapter, SnapshotToolExecutor,
-    SkillTool, SubagentTool, TodoTracker, SqliteAgentEventSink,
+    AgentLoop, CompositeToolExecutor, DomainToolExecutor, ProviderModelAdapter, SkillTool,
+    SnapshotToolExecutor, SqliteAgentEventSink, SubagentTool, TodoTracker,
 };
 use crate::app::mcp_agent_runtime::load_enabled_tools_for_query;
 use crate::db::database_path;
@@ -11,8 +11,8 @@ use crate::providers::capabilities::ChatProvider;
 use crate::providers::configured_chat_provider;
 use crate::steel::SteelToolExecutor;
 use serde_json::{json, Value};
-use std::sync::{Arc, Mutex};
 use std::path::PathBuf;
+use std::sync::{Arc, Mutex};
 use tauri::Emitter;
 use uuid::Uuid;
 
@@ -96,12 +96,8 @@ pub(crate) async fn run_standard_agent(
     } else {
         None
     };
-    let mut tool_sources: Vec<&dyn crate::agent::runtime::ToolExecutor> = vec![
-        &steel_tools,
-        &mcp_tools,
-        todo_tracker.as_ref(),
-        &skill_tool,
-    ];
+    let mut tool_sources: Vec<&dyn crate::agent::runtime::ToolExecutor> =
+        vec![&steel_tools, &mcp_tools, todo_tracker.as_ref(), &skill_tool];
     if let Some(tasks) = &background_tasks {
         tool_sources.push(tasks);
     }
@@ -165,13 +161,13 @@ pub(crate) async fn run_standard_agent(
         todo_tracker.as_ref(),
         &artifact_store,
     )
-        .run(
-            request,
-            &mut sink,
-            agent_state.cancellation_token(&run_id.to_string()),
-        )
-        .await
-        .map_err(|error| error.to_string())?;
+    .run(
+        request,
+        &mut sink,
+        agent_state.cancellation_token(&run_id.to_string()),
+    )
+    .await
+    .map_err(|error| error.to_string())?;
     let tool_calls = tool_call_audit
         .lock()
         .map(|calls| calls.clone())

@@ -16,6 +16,8 @@ pub struct LocalAgentChatRequest {
     pub run_id: Option<String>,
     pub evidence_pack_id: Option<String>,
     #[serde(default)]
+    pub smart_search_enabled: bool,
+    #[serde(default)]
     pub attachments: Vec<LocalAgentAttachment>,
 }
 
@@ -85,6 +87,8 @@ pub struct ExistingSummary {
 #[derive(Debug, Clone)]
 pub struct StreamedLlmAnswer {
     pub text: String,
+    pub reasoning: String,
+    pub reasoning_ms: u64,
     pub stopped: bool,
     pub tool_calls: Vec<serde_json::Value>,
 }

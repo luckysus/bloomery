@@ -84,6 +84,36 @@
         {
           "properties": {
             "data": {
+              "$ref": "#/$defs/reasoning_delta"
+            },
+            "type": {
+              "const": "reasoning_delta"
+            }
+          },
+          "required": [
+            "type",
+            "data"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "data": {
+              "$ref": "#/$defs/reasoning_completed"
+            },
+            "type": {
+              "const": "reasoning_completed"
+            }
+          },
+          "required": [
+            "type",
+            "data"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "data": {
               "$ref": "#/$defs/message_delta"
             },
             "type": {
@@ -487,6 +517,41 @@
       ],
       "type": "string"
     },
+    "reasoning_completed": {
+      "additionalProperties": false,
+      "properties": {
+        "duration_ms": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "message_id": {
+          "format": "uuid",
+          "type": "string"
+        }
+      },
+      "required": [
+        "message_id",
+        "duration_ms"
+      ],
+      "type": "object"
+    },
+    "reasoning_delta": {
+      "additionalProperties": false,
+      "properties": {
+        "delta": {
+          "type": "string"
+        },
+        "message_id": {
+          "format": "uuid",
+          "type": "string"
+        }
+      },
+      "required": [
+        "message_id",
+        "delta"
+      ],
+      "type": "object"
+    },
     "run_completed": {
       "additionalProperties": false,
       "properties": {
@@ -718,11 +783,19 @@
     "usage_updated": {
       "additionalProperties": false,
       "properties": {
+        "cache_read_tokens": {
+          "minimum": 0,
+          "type": "integer"
+        },
         "completion_tokens": {
           "minimum": 0,
           "type": "integer"
         },
         "prompt_tokens": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "reasoning_tokens": {
           "minimum": 0,
           "type": "integer"
         },
@@ -734,7 +807,9 @@
       "required": [
         "prompt_tokens",
         "completion_tokens",
-        "total_tokens"
+        "total_tokens",
+        "cache_read_tokens",
+        "reasoning_tokens"
       ],
       "type": "object"
     }

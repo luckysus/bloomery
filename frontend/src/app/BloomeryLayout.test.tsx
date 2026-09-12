@@ -19,6 +19,7 @@ vi.mock("../bridge/desktop", () => ({
     listKnowledgeBases: vi.fn().mockResolvedValue([]),
     listKnowledgeDocuments: vi.fn().mockResolvedValue([]),
     listBackgroundTasks: vi.fn().mockResolvedValue([]),
+    listenSchedulerProgress: vi.fn().mockResolvedValue(() => undefined),
     getKnowledgeHealth: vi.fn().mockResolvedValue({
       knowledge_base_count: 0,
       document_count: 0,

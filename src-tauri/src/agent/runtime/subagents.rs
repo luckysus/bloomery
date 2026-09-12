@@ -1,7 +1,7 @@
 use super::{
     AgentEventSink, AgentHooks, AgentLoop, AgentLoopRequest, CancellationToken, ContextEntry,
-    ModelAdapter, PermissionResolver,
-    ToolExecutionError, ToolExecutor, ToolFuture, ToolHandler, ToolInvocation, ToolRegistration,
+    ModelAdapter, PermissionResolver, ToolExecutionError, ToolExecutor, ToolFuture, ToolHandler,
+    ToolInvocation, ToolRegistration,
 };
 use crate::agent::context::{ContextItem, ContextSource};
 use crate::agent::protocol::{AgentEventData, AgentEventEnvelope, RunOutcome, RunStateChanged};
@@ -65,7 +65,9 @@ impl ToolExecutor for SubagentTool {
     }
 
     fn execute(&self, invocation: ToolInvocation, cancellation: CancellationToken) -> ToolFuture {
-        self.registration.handler.execute(invocation.arguments, cancellation)
+        self.registration
+            .handler
+            .execute(invocation.arguments, cancellation)
     }
 }
 
@@ -184,13 +186,19 @@ impl ToolExecutor for SnapshotToolExecutor {
 
     fn execute(&self, invocation: ToolInvocation, cancellation: CancellationToken) -> ToolFuture {
         let Some(registration) = self.registrations.iter().find(|registration| {
-            registration.spec.id == invocation.tool_id && registration.spec.name == invocation.tool_name
+            registration.spec.id == invocation.tool_id
+                && registration.spec.name == invocation.tool_name
         }) else {
             return Box::pin(async {
-                Err(ToolExecutionError::new("tool_not_registered", "tool is not registered"))
+                Err(ToolExecutionError::new(
+                    "tool_not_registered",
+                    "tool is not registered",
+                ))
             });
         };
-        registration.handler.execute(invocation.arguments, cancellation)
+        registration
+            .handler
+            .execute(invocation.arguments, cancellation)
     }
 }
 
@@ -225,17 +233,21 @@ mod tests {
             Box::pin(async move {
                 self.responses
                     .lock()
-                    .map_err(|_| crate::providers::http::ProviderError::new(
-                        crate::providers::http::ProviderErrorCode::ProviderResponse,
-                        None,
-                        "test model poisoned",
-                    ))?
+                    .map_err(|_| {
+                        crate::providers::http::ProviderError::new(
+                            crate::providers::http::ProviderErrorCode::ProviderResponse,
+                            None,
+                            "test model poisoned",
+                        )
+                    })?
                     .pop()
-                    .ok_or_else(|| crate::providers::http::ProviderError::new(
-                        crate::providers::http::ProviderErrorCode::ProviderResponse,
-                        None,
-                        "test model exhausted",
-                    ))
+                    .ok_or_else(|| {
+                        crate::providers::http::ProviderError::new(
+                            crate::providers::http::ProviderErrorCode::ProviderResponse,
+                            None,
+                            "test model exhausted",
+                        )
+                    })
             })
         }
     }
@@ -249,8 +261,14 @@ mod tests {
             std::slice::from_ref(&self.registration)
         }
 
-        fn execute(&self, invocation: ToolInvocation, cancellation: CancellationToken) -> ToolFuture {
-            self.registration.handler.execute(invocation.arguments, cancellation)
+        fn execute(
+            &self,
+            invocation: ToolInvocation,
+            cancellation: CancellationToken,
+        ) -> ToolFuture {
+            self.registration
+                .handler
+                .execute(invocation.arguments, cancellation)
         }
     }
 
@@ -307,7 +325,10 @@ mod tests {
             Arc::new(NoopAgentHooks),
         );
         assert_eq!(task.registrations()[0].spec.name, TASK_TOOL_NAME);
-        assert_eq!(task.registrations()[0].spec.input_schema["required"], json!(["task"]));
+        assert_eq!(
+            task.registrations()[0].spec.input_schema["required"],
+            json!(["task"])
+        );
     }
 
     #[test]

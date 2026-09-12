@@ -1,9 +1,10 @@
 use bloomery::agent::protocol::{
     AgentError, AgentErrorCategory, AgentEventData, AgentEventEnvelope, AgentMessageRole,
     AgentRunState, ErrorRaised, EvidenceAttached, MessageCompleted, MessageDelta,
-    PermissionDecision, PermissionRequested, PermissionResolved, PermissionRisk, RunCompleted,
-    RunCreated, RunOutcome, RunStateChanged, TaskProgress, TaskProgressState, ToolCompleted,
-    ToolOutcome, ToolProgress, ToolRequested, ToolStarted, UsageUpdated, PROTOCOL_VERSION,
+    PermissionDecision, PermissionRequested, PermissionResolved, PermissionRisk,
+    ReasoningCompleted, ReasoningDelta, RunCompleted, RunCreated, RunOutcome, RunStateChanged,
+    TaskProgress, TaskProgressState, ToolCompleted, ToolOutcome, ToolProgress, ToolRequested,
+    ToolStarted, UsageUpdated, PROTOCOL_VERSION,
 };
 use chrono::{DateTime, Utc};
 use serde_json::{json, Value};
@@ -79,6 +80,34 @@ fn message_event_snapshots_are_stable() {
             "role": "assistant",
             "content": "Q355 has a nominal yield strength of 355 MPa.",
             "partial": false,
+        }),
+    );
+}
+
+#[test]
+fn reasoning_event_snapshots_are_stable() {
+    assert_snapshot(
+        16,
+        AgentEventData::ReasoningDelta(ReasoningDelta {
+            message_id: id(MESSAGE_ID),
+            delta: "先检查材料牌号。".to_string(),
+        }),
+        "reasoning_delta",
+        json!({
+            "message_id": MESSAGE_ID,
+            "delta": "先检查材料牌号。",
+        }),
+    );
+    assert_snapshot(
+        17,
+        AgentEventData::ReasoningCompleted(ReasoningCompleted {
+            message_id: id(MESSAGE_ID),
+            duration_ms: 1842,
+        }),
+        "reasoning_completed",
+        json!({
+            "message_id": MESSAGE_ID,
+            "duration_ms": 1842,
         }),
     );
 }
@@ -195,12 +224,16 @@ fn evidence_usage_task_completion_and_error_snapshots_are_stable() {
             prompt_tokens: 1200,
             completion_tokens: 240,
             total_tokens: 1440,
+            cache_read_tokens: 0,
+            reasoning_tokens: 0,
         }),
         "usage_updated",
         json!({
             "prompt_tokens": 1200,
             "completion_tokens": 240,
             "total_tokens": 1440,
+            "cache_read_tokens": 0,
+            "reasoning_tokens": 0,
         }),
     );
     assert_snapshot(
@@ -255,6 +288,21 @@ fn evidence_usage_task_completion_and_error_snapshots_are_stable() {
             "fatal": true,
         }),
     );
+}
+
+#[test]
+fn usage_protocol_exposes_cache_and_reasoning_tokens() {
+    let value = serde_json::to_value(AgentEventData::UsageUpdated(UsageUpdated {
+        prompt_tokens: 70,
+        completion_tokens: 20,
+        total_tokens: 90,
+        cache_read_tokens: 30,
+        reasoning_tokens: 12,
+    }))
+    .expect("usage event serializes");
+
+    assert_eq!(value["data"]["cache_read_tokens"], 30);
+    assert_eq!(value["data"]["reasoning_tokens"], 12);
 }
 
 fn assert_snapshot(sequence: u64, data: AgentEventData, event_type: &str, payload: Value) {

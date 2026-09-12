@@ -5,9 +5,9 @@ use bloomery::agent::protocol::{
 };
 use bloomery::agent::runtime::{
     AgentEventSink, AgentHooks, AgentLoop, AgentLoopRequest, CancellationToken, ContextEntry,
-    DenyPermissions, HookDecision,
-    ModelAdapter, ModelFuture, NoopToolExecutor, PermissionRequest, PermissionResolver,
-    ToolExecutionError, ToolExecutor, ToolFuture, ToolHandler, ToolInvocation, ToolRegistration,
+    DenyPermissions, HookDecision, ModelAdapter, ModelFuture, NoopToolExecutor, PermissionRequest,
+    PermissionResolver, ToolExecutionError, ToolExecutor, ToolFuture, ToolHandler, ToolInvocation,
+    ToolRegistration,
 };
 use bloomery::providers::capabilities::{
     ChatEvent, ChatRequest, ChatResponse, ChatToolCall, ChatUsage, ProviderCapabilities,
@@ -98,7 +98,10 @@ struct StreamingReasoningModel {
 impl StreamingReasoningModel {
     fn new() -> Self {
         Self {
-            capabilities: ProviderCapabilities::chat(ProviderKind::DeepSeek, "deepseek-reasoner"),
+            capabilities: ProviderCapabilities::chat(
+                ProviderKind::OpenAiCompatible,
+                "deepseek-reasoner",
+            ),
         }
     }
 }
@@ -276,22 +279,24 @@ fn hooks_rewrite_tool_input_and_output_before_next_model_round() {
     let mut sink = RecordingSink::new();
 
     let result = tauri::async_runtime::block_on(
-        AgentLoop::new_with_hooks(
-            &model,
-            &tools,
-            &AllowPermissions,
-            &RewriteHooks,
-        )
-        .run(request(None), &mut sink, CancellationToken::new(|| false)),
+        AgentLoop::new_with_hooks(&model, &tools, &AllowPermissions, &RewriteHooks).run(
+            request(None),
+            &mut sink,
+            CancellationToken::new(|| false),
+        ),
     )
     .expect("hooked tool run succeeds");
 
     assert_eq!(result.answer, "hook output observed");
-    assert_eq!(calls.lock().unwrap().as_slice(), &[json!({"query": "rewritten"})]);
+    assert_eq!(
+        calls.lock().unwrap().as_slice(),
+        &[json!({"query": "rewritten"})]
+    );
     assert!(model.requests.lock().unwrap().iter().any(|request| {
-        request.messages.iter().any(|message| {
-            message.role == "tool" && message.content.contains("hooked")
-        })
+        request
+            .messages
+            .iter()
+            .any(|message| message.role == "tool" && message.content.contains("hooked"))
     }));
 }
 

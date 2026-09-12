@@ -2,11 +2,11 @@ use crate::agent::protocol::PermissionDecision;
 use crate::agent::runtime::{
     CancellationToken, PermissionFuture, PermissionRequest, PermissionResolver,
 };
+use serde_json::{Map, Value};
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tokio::sync::oneshot;
-use serde_json::{Map, Value};
 use uuid::Uuid;
 
 #[derive(Clone, Default)]

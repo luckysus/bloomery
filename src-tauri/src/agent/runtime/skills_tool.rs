@@ -1,4 +1,7 @@
-use super::{CancellationToken, ToolExecutionError, ToolExecutor, ToolFuture, ToolHandler, ToolInvocation, ToolRegistration};
+use super::{
+    CancellationToken, ToolExecutionError, ToolExecutor, ToolFuture, ToolHandler, ToolInvocation,
+    ToolRegistration,
+};
 use crate::agent::protocol::PermissionRisk;
 use crate::agent::tool_repair::ToolSpec;
 use crate::skills::{default_skill_roots, discover_skills};
@@ -43,7 +46,9 @@ impl SkillTool {
 }
 
 impl Default for SkillTool {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl ToolExecutor for SkillTool {
@@ -52,7 +57,9 @@ impl ToolExecutor for SkillTool {
     }
 
     fn execute(&self, invocation: ToolInvocation, cancellation: CancellationToken) -> ToolFuture {
-        self.registration.handler.execute(invocation.arguments, cancellation)
+        self.registration
+            .handler
+            .execute(invocation.arguments, cancellation)
     }
 }
 
@@ -68,12 +75,19 @@ impl ToolHandler for LoadSkillHandler {
                 .map_err(|error| ToolExecutionError::new("invalid_skill", error.to_string()))?;
             let name = request.name.trim();
             if !valid_skill_name(name) {
-                return Err(ToolExecutionError::new("invalid_skill", "skill name is invalid"));
+                return Err(ToolExecutionError::new(
+                    "invalid_skill",
+                    "skill name is invalid",
+                ));
             }
             let report = discover_skills(&default_skill_roots(), env!("CARGO_PKG_VERSION"));
-            let skill = report.skills.into_iter().find(|skill| skill.name == name).ok_or_else(|| {
-                ToolExecutionError::new("skill_not_found", "requested skill is not available")
-            })?;
+            let skill = report
+                .skills
+                .into_iter()
+                .find(|skill| skill.name == name)
+                .ok_or_else(|| {
+                    ToolExecutionError::new("skill_not_found", "requested skill is not available")
+                })?;
             Ok(json!({"name": skill.name, "version": skill.version, "content": skill.body}))
         })
     }
@@ -82,7 +96,9 @@ impl ToolHandler for LoadSkillHandler {
 fn valid_skill_name(name: &str) -> bool {
     !name.is_empty()
         && name.len() <= MAX_SKILL_NAME_LENGTH
-        && name.bytes().all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.'))
+        && name
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.'))
 }
 
 #[cfg(test)]
