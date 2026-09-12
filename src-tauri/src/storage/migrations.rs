@@ -110,6 +110,10 @@ const MIGRATIONS: &[Migration] = &[
         version: 24,
         sql: include_str!("migrations/0024_database_workspace.sql"),
     },
+    Migration {
+        version: 25,
+        sql: include_str!("migrations/0025_cron.sql"),
+    },
 ];
 
 pub fn latest_version() -> u32 {

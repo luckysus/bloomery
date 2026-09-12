@@ -18,6 +18,8 @@
 
 第14章起步：新增 `CronPlan`，验证五字段表达式和 IANA 时区，并把下一次槽位统一计算为严格晚于当前时间的 UTC instant；durable 计划、outbox、leader 和 Agent event pump 接入仍待完成。
 
+第14章数据层：SQLite 迁移 25 新增 `cron_jobs` 与 `cron_outbox`，待确认事件按工作区和槽位排序，ack 使用条件更新保证重复确认幂等。
+
 ## 验证纪律
 
 2026-09-12：`e47f94c` 的 GitHub Actions（run `34679826442`）全部成功；独立检出 Rust 全套 777 项通过，1 项原有忽略。后续修复工作台监听失败状态：快照请求成功不能覆盖订阅失败，重新订阅后才清除此错误，并添加异步回归测试。
