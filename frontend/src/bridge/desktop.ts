@@ -458,6 +458,18 @@ export interface BackgroundTask {
   file_name?: string | null;
 }
 
+export interface SchedulerProgressEvent {
+  id: string;
+  kind: string;
+  state: BackgroundTask["state"];
+  progress: number;
+  attempt: number;
+  error_code: string | null;
+  cancel_requested: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
 export type SourceLocation =
   | { kind: "pdf_page"; page: number; bbox: { x: number; y: number; width: number; height: number } | null }
   | { kind: "sheet_range"; sheet: string; range: string }
