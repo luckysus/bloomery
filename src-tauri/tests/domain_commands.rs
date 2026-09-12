@@ -138,6 +138,7 @@ fn bundled_steel_resource_is_valid_and_has_declared_asset_integrity() {
     assert_eq!(
         package.manifest.builtin_tool_allowlist,
         vec![
+            "agent.list_background_tasks".to_string(),
             "knowledge.query".to_string(),
             "steel.carbon_equivalent".to_string(),
             "steel.optimize_constrained".to_string(),

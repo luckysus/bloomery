@@ -24,6 +24,7 @@
     "max_evidence_items": 12
   },
   "builtin_tool_allowlist": [
+    "agent.list_background_tasks",
     "knowledge.query",
     "steel.carbon_equivalent",
     "steel.optimize_constrained",

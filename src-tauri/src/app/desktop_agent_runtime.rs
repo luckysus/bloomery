@@ -88,10 +88,10 @@ pub(crate) async fn run_standard_agent(
         crate::mcp::McpToolExecutor::from_bindings(Vec::new())
             .map_err(|error| format!("create empty MCP tool set failed: {error}"))?
     };
-    let background_tasks = if retrieval_tools_enabled {
+    let background_tasks = if tool_calls_enabled {
         Some(
             crate::agent::runtime::BackgroundTasksTool::from_connection(&connection, workspace_id)
-                .map_err(|error| format!("load background task snapshot failed: {error}"))?,
+                .map_err(|error| format!("configure background task query failed: {error}"))?,
         )
     } else {
         None
