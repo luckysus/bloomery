@@ -39,6 +39,7 @@ export function useWorkbenchOverview(enabled: boolean): WorkbenchOverview {
   const [revision, setRevision] = useState(0);
   const [overview, setOverview] = useState(emptyOverview);
   const [loading, setLoading] = useState(enabled);
+  const [listenerFailed, setListenerFailed] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -80,6 +81,7 @@ export function useWorkbenchOverview(enabled: boolean): WorkbenchOverview {
   }, [enabled, revision]);
 
   useEffect(() => {
+    setListenerFailed(false);
     if (!enabled) return;
     let mounted = true;
     let dispose: (() => void) | undefined;
@@ -98,10 +100,7 @@ export function useWorkbenchOverview(enabled: boolean): WorkbenchOverview {
         refresh();
       } else unlisten();
     }).catch(() => {
-      if (mounted) setOverview((current) => ({
-        ...current,
-        failedSources: [...new Set<WorkbenchOverviewSource>([...current.failedSources, "backgroundTasks"])],
-      }));
+      if (mounted) setListenerFailed(true);
     });
     return () => {
       mounted = false;
@@ -112,6 +111,9 @@ export function useWorkbenchOverview(enabled: boolean): WorkbenchOverview {
 
   return {
     ...overview,
+    failedSources: listenerFailed
+      ? [...new Set<WorkbenchOverviewSource>([...overview.failedSources, "backgroundTasks"])]
+      : overview.failedSources,
     loading,
     refresh: () => setRevision((current) => current + 1),
   };
