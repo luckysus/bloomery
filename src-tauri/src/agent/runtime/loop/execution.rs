@@ -239,13 +239,19 @@ where
                 match self.hooks.pre_tool_use(&invocation) {
                     Ok(super::types::HookDecision::Continue) => {}
                     Ok(super::types::HookDecision::Replace(arguments)) => {
-                        if !arguments.is_object() {
-                            hook_blocked.push((
-                                call.tool_call_id,
-                                "hook replacement must be an object".to_string(),
-                            ));
-                        } else {
-                            call.arguments = arguments;
+                        let validation = tool_snapshot
+                            .iter()
+                            .find(|registration| registration.spec.id == call.tool_id)
+                            .ok_or_else(|| "hook tool is not registered".to_string())
+                            .and_then(|registration| {
+                                registration
+                                    .spec
+                                    .validate_arguments(&arguments)
+                                    .map_err(|error| format!("invalid hook replacement: {error}"))
+                            });
+                        match validation {
+                            Ok(()) => call.arguments = arguments,
+                            Err(error) => hook_blocked.push((call.tool_call_id, error)),
                         }
                     }
                     Ok(super::types::HookDecision::Block(message)) => {

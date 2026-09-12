@@ -14,6 +14,10 @@ pub struct ToolSpec {
 }
 
 impl ToolSpec {
+    pub(crate) fn validate_arguments(&self, arguments: &Value) -> Result<(), ToolRepairError> {
+        validate_schema(arguments, &self.input_schema, "arguments")
+    }
+
     /// Built-in and MCP tools share one typed-schema contract: every input
     /// schema must be a JSON Schema object declaration so repair, permission
     /// summaries, and model adapters can rely on it.

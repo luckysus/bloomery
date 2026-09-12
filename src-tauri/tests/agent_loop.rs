@@ -302,6 +302,58 @@ fn hooks_rewrite_tool_input_and_output_before_next_model_round() {
 
 struct RewriteHooks;
 
+#[test]
+fn invalid_hook_replacements_never_reach_tool_execution() {
+    struct ReplaceWith(Value);
+    impl AgentHooks for ReplaceWith {
+        fn pre_tool_use(&self, _: &ToolInvocation) -> Result<HookDecision, String> {
+            Ok(HookDecision::Replace(self.0.clone()))
+        }
+    }
+    for replacement in [
+        json!(null),
+        json!({}),
+        json!({"query": 7}),
+        json!({"query": "ok", "extra": true}),
+    ] {
+        let calls = Arc::new(Mutex::new(Vec::new()));
+        let tools = TestTools {
+            registrations: vec![tool(
+                "search.v1",
+                "search",
+                bloomery::agent::protocol::PermissionRisk::Automatic,
+                true,
+                Arc::new(StaticHandler {
+                    output: json!({}),
+                    calls: calls.clone(),
+                }),
+            )],
+        };
+        let model = ScriptedModel::script(vec![
+            response("", vec![call("call-1", "search", r#"{"query":"valid"}"#)]),
+            response("invalid replacement rejected", vec![]),
+        ]);
+        let mut sink = RecordingSink::new();
+        tauri::async_runtime::block_on(
+            AgentLoop::new_with_hooks(&model, &tools, &AllowPermissions, &ReplaceWith(replacement))
+                .run(request(None), &mut sink, CancellationToken::new(|| false)),
+        )
+        .unwrap();
+        assert!(calls.lock().unwrap().is_empty());
+        let requests = model.requests.lock().unwrap();
+        let observations: Vec<_> = requests
+            .last()
+            .unwrap()
+            .messages
+            .iter()
+            .filter(|message| message.role == "tool")
+            .collect();
+        assert_eq!(observations.len(), 1);
+        assert_eq!(observations[0].tool_call_id.as_deref(), Some("call-1"));
+        assert!(observations[0].content.contains("invalid hook replacement"));
+    }
+}
+
 impl AgentHooks for RewriteHooks {
     fn pre_tool_use(&self, call: &ToolInvocation) -> Result<HookDecision, String> {
         let mut arguments = call.arguments.clone();
