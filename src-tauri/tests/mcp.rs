@@ -64,7 +64,7 @@ async fn converts_mcp_tool_schema_to_bloomery_definition() {
     assert_eq!(definitions[0].input_schema["type"], "object");
     assert_eq!(
         definitions[0].risk,
-        bloomery::agent::protocol::PermissionRisk::Automatic
+        bloomery::agent::protocol::PermissionRisk::ConfirmationRequired
     );
     assert!(definitions[0].read_only);
     assert!(matches!(

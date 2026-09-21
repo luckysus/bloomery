@@ -112,6 +112,7 @@ impl McpClient {
         tools
             .into_iter()
             .map(|tool| {
+                validate_input_schema(&tool.input_schema)?;
                 let id = stable_tool_id(&self.config.server_id, &tool.name)?;
                 Ok(ToolDefinition {
                     id,
@@ -192,16 +193,11 @@ impl McpClient {
 }
 
 fn mcp_permission_risk(
-    read_only_hint: bool,
-    destructive_hint: Option<bool>,
+    _read_only_hint: bool,
+    _destructive_hint: Option<bool>,
 ) -> crate::agent::protocol::PermissionRisk {
-    if read_only_hint {
-        crate::agent::protocol::PermissionRisk::Automatic
-    } else if destructive_hint == Some(true) {
-        crate::agent::protocol::PermissionRisk::Dangerous
-    } else {
-        crate::agent::protocol::PermissionRisk::ConfirmationRequired
-    }
+    // Remote annotations are published data, not Bloomery policy.
+    crate::agent::protocol::PermissionRisk::ConfirmationRequired
 }
 
 #[cfg(test)]
@@ -211,10 +207,13 @@ mod tests {
 
     #[test]
     fn mcp_permission_risk_uses_tool_annotations() {
-        assert_eq!(mcp_permission_risk(true, None), PermissionRisk::Automatic);
+        assert_eq!(
+            mcp_permission_risk(true, None),
+            PermissionRisk::ConfirmationRequired
+        );
         assert_eq!(
             mcp_permission_risk(false, Some(true)),
-            PermissionRisk::Dangerous
+            PermissionRisk::ConfirmationRequired
         );
         assert_eq!(
             mcp_permission_risk(false, Some(false)),
@@ -280,6 +279,39 @@ fn normalize_input_schema(schema: serde_json::Value) -> serde_json::Value {
             serde_json::Value::Object(map)
         }
         _ => serde_json::json!({"type": "object"}),
+    }
+}
+
+fn validate_input_schema(schema: &serde_json::Value) -> Result<(), McpError> {
+    let Some(object) = schema.as_object() else {
+        return Err(McpError::InvalidConfiguration(
+            "MCP tool input schema must be an object schema".to_string(),
+        ));
+    };
+    if object
+        .get("type")
+        .and_then(serde_json::Value::as_str)
+        .is_some_and(|kind| kind != "object")
+    {
+        return Err(McpError::InvalidConfiguration(
+            "MCP tool input schema must declare type object".to_string(),
+        ));
+    }
+    if contains_external_ref(schema) {
+        return Err(McpError::InvalidConfiguration(
+            "MCP tool input schema must not contain external references".to_string(),
+        ));
+    }
+    Ok(())
+}
+
+fn contains_external_ref(value: &serde_json::Value) -> bool {
+    match value {
+        serde_json::Value::Object(map) => {
+            map.get("$ref").is_some() || map.values().any(contains_external_ref)
+        }
+        serde_json::Value::Array(values) => values.iter().any(contains_external_ref),
+        _ => false,
     }
 }
 

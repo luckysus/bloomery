@@ -77,6 +77,13 @@ impl McpToolExecutor {
 
     pub fn from_bindings(bindings: Vec<McpToolBinding>) -> Result<Self, String> {
         let mut registry = ToolRegistry::new();
+        let definitions = bindings
+            .iter()
+            .map(|binding| binding.definition.clone())
+            .collect::<Vec<_>>();
+        registry
+            .register_many(definitions)
+            .map_err(|error| error.to_string())?;
         let mut registrations = Vec::with_capacity(bindings.len());
         for binding in bindings {
             if !matches!(binding.definition.source, ToolSource::Mcp { .. }) {
@@ -85,9 +92,6 @@ impl McpToolExecutor {
                     binding.definition.id
                 ));
             }
-            registry
-                .register(binding.definition.clone())
-                .map_err(|error| error.to_string())?;
             let definition = binding.definition;
             let handler = ForwardingHandler {
                 caller: binding.caller,

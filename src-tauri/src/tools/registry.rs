@@ -34,6 +34,7 @@ impl std::error::Error for RegistryError {}
 pub struct ToolRegistry {
     definitions: BTreeMap<ToolId, ToolDefinition>,
     enabled: BTreeSet<ToolId>,
+    version: u64,
 }
 
 impl ToolRegistry {
@@ -49,7 +50,62 @@ impl ToolRegistry {
         let id = definition.id.clone();
         self.definitions.insert(id.clone(), definition);
         self.enabled.insert(id);
+        self.version = self.version.wrapping_add(1);
         Ok(())
+    }
+
+    /// Validate the complete change before publishing any of it.
+    pub fn register_many<I>(&mut self, definitions: I) -> Result<(), RegistryError>
+    where
+        I: IntoIterator<Item = ToolDefinition>,
+    {
+        let definitions = definitions.into_iter().collect::<Vec<_>>();
+        if definitions.is_empty() {
+            return Ok(());
+        }
+        let mut candidate = self.clone();
+        for definition in definitions {
+            candidate.register(definition)?;
+        }
+        candidate.version = self.version.wrapping_add(1);
+        *self = candidate;
+        Ok(())
+    }
+
+    /// Remove only the exact definitions supplied by the owner of a dynamic batch.
+    pub fn unregister_many<I>(&mut self, definitions: I) -> Result<(), RegistryError>
+    where
+        I: IntoIterator<Item = ToolDefinition>,
+    {
+        let definitions = definitions.into_iter().collect::<Vec<_>>();
+        for definition in &definitions {
+            match self.definitions.get(&definition.id) {
+                Some(current) if current == definition => {}
+                Some(_) => {
+                    return Err(RegistryError::InvalidDefinition {
+                        field: "id".to_string(),
+                        message: format!("tool definition changed: {}", definition.id),
+                    })
+                }
+                None => {
+                    return Err(RegistryError::UnknownId {
+                        id: definition.id.clone(),
+                    })
+                }
+            }
+        }
+        if !definitions.is_empty() {
+            for definition in definitions {
+                self.definitions.remove(&definition.id);
+                self.enabled.remove(&definition.id);
+            }
+            self.version = self.version.wrapping_add(1);
+        }
+        Ok(())
+    }
+
+    pub fn version(&self) -> u64 {
+        self.version
     }
 
     pub fn set_enabled(&mut self, id: &ToolId, enabled: bool) -> Result<(), RegistryError> {
@@ -230,4 +286,60 @@ fn validate_type(type_value: &Value) -> Result<(), String> {
         return Err("type contains an unsupported JSON type".to_string());
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::agent::protocol::PermissionRisk;
+    use crate::tools::{ConcurrencyPolicy, ToolVersion};
+    use std::time::Duration;
+
+    fn definition(id: &str) -> ToolDefinition {
+        ToolDefinition {
+            id: ToolId::new(id).expect("valid tool id"),
+            version: ToolVersion {
+                major: 1,
+                minor: 0,
+                patch: 0,
+            },
+            name: id.to_string(),
+            description: "test tool".to_string(),
+            input_schema: serde_json::json!({"type": "object"}),
+            output_schema: serde_json::json!({"type": "object"}),
+            risk: PermissionRisk::Automatic,
+            read_only: true,
+            concurrency: ConcurrencyPolicy::ParallelRead,
+            timeout: Duration::from_secs(1),
+            source: ToolSource::Builtin,
+            domains: BTreeSet::new(),
+        }
+    }
+
+    #[test]
+    fn batch_registration_and_identity_checked_removal_are_atomic() {
+        let mut registry = ToolRegistry::new();
+        registry.register(definition("one")).expect("seed");
+        let version = registry.version();
+        assert!(registry
+            .register_many([definition("two"), definition("one")])
+            .is_err());
+        assert_eq!(registry.version(), version);
+        assert!(registry
+            .snapshot()
+            .iter()
+            .all(|tool| tool.id.as_str() != "two"));
+
+        let mut changed = definition("one");
+        changed.description = "changed".to_string();
+        assert!(registry.unregister_many([changed]).is_err());
+        assert!(registry
+            .snapshot()
+            .iter()
+            .any(|tool| tool.id.as_str() == "one"));
+        registry
+            .unregister_many([definition("one")])
+            .expect("remove exact batch");
+        assert!(registry.snapshot().tools.is_empty());
+    }
 }

@@ -1,13 +1,13 @@
 pub mod cron;
 pub mod cron_repository;
 pub mod mailbox;
-pub mod protocol;
-pub mod work_stealing;
-pub mod workspace;
 pub mod model;
+pub mod protocol;
 pub mod repository;
 pub mod scheduler;
 pub mod sources;
+pub mod work_stealing;
+pub mod workspace;
 
 pub use model::{NewTask, TaskError, TaskRecord, TaskState};
 
