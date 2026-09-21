@@ -99,6 +99,12 @@ impl ProtocolStore {
             .max_by_key(|request| request.created_at_utc))
     }
 
+    pub fn allows_effectful(&self, sender: &str) -> Result<bool, String> {
+        Ok(self
+            .latest_plan(sender)?
+            .is_none_or(|request| request.status == ProtocolStatus::Approved))
+    }
+
     pub fn consume_response(
         &self,
         message: &ProtocolMailboxMessage,

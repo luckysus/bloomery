@@ -18,6 +18,7 @@ fn protocol_state_is_persistent_and_response_is_idempotent() {
             now,
         )
         .unwrap();
+    assert!(!store.allows_effectful("alice").unwrap());
     let request_message = ProtocolStore::to_message(&request);
     assert_eq!(
         request_message.kind,
@@ -34,6 +35,7 @@ fn protocol_state_is_persistent_and_response_is_idempotent() {
     };
     let resolved = store.consume_response(&response, now).unwrap();
     assert_eq!(resolved.status, ProtocolStatus::Approved);
+    assert!(store.allows_effectful("alice").unwrap());
     assert_eq!(store.consume_response(&response, now).unwrap(), resolved);
     assert_eq!(
         ProtocolStore::new(&root).unwrap().get(request.id).unwrap(),
