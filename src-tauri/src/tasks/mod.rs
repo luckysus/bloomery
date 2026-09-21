@@ -1,6 +1,7 @@
 pub mod cron;
 pub mod cron_repository;
 pub mod mailbox;
+pub mod protocol;
 pub mod model;
 pub mod repository;
 pub mod scheduler;

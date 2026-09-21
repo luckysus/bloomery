@@ -12,6 +12,26 @@ pub enum MailboxMessageKind {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ProtocolMessageKind {
+    ShutdownRequest,
+    ShutdownResponse,
+    PlanApprovalRequest,
+    PlanApprovalResponse,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ProtocolMailboxMessage {
+    pub id: Uuid,
+    pub sender: String,
+    pub recipient: String,
+    pub kind: ProtocolMessageKind,
+    pub content: String,
+    pub request_id: Uuid,
+    pub approved: Option<bool>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MailboxMessage {
     pub id: Uuid,
     pub sender: String,
