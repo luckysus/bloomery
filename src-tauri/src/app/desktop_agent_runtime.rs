@@ -83,7 +83,7 @@ pub(crate) async fn run_standard_agent(
     let skill_tool = SkillTool::default();
     let mcp_configs = crate::storage::repositories::mcp::list(&connection, workspace_id)
         .map_err(|error| format!("load MCP configurations failed: {error}"))?;
-    let mcp_tools = if retrieval_tools_enabled {
+    let mcp_tools = if tool_calls_enabled {
         load_enabled_tools_for_query(app, mcp_configs, &preparation.message).await?
     } else {
         crate::mcp::McpToolExecutor::from_bindings(Vec::new())

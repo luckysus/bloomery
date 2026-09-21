@@ -7,12 +7,14 @@ pub(crate) type ActiveSupervisor = Arc<AsyncMutex<McpSupervisor>>;
 
 pub(crate) struct McpRuntimeState {
     supervisors: std::sync::Mutex<HashMap<Uuid, ActiveSupervisor>>,
+    order: std::sync::Mutex<Vec<Uuid>>,
 }
 
 impl Default for McpRuntimeState {
     fn default() -> Self {
         Self {
             supervisors: std::sync::Mutex::new(HashMap::new()),
+            order: std::sync::Mutex::new(Vec::new()),
         }
     }
 }
@@ -26,42 +28,72 @@ impl McpRuntimeState {
     }
 
     pub(crate) fn insert(&self, id: Uuid, supervisor: McpSupervisor) -> Result<(), String> {
-        self.supervisors
+        let inserted = self
+            .supervisors
             .lock()
             .map(|mut supervisors| {
+                let inserted = !supervisors.contains_key(&id);
                 supervisors.insert(id, Arc::new(AsyncMutex::new(supervisor)));
+                inserted
             })
-            .map_err(|_| "MCP runtime state poisoned".to_string())
+            .map_err(|_| "MCP runtime state poisoned".to_string())?;
+        if inserted {
+            self.order
+                .lock()
+                .map(|mut order| order.push(id))
+                .map_err(|_| "MCP runtime order state poisoned".to_string())?;
+        }
+        Ok(())
     }
 
     pub(crate) fn remove(&self, id: Uuid) -> Result<Option<ActiveSupervisor>, String> {
-        self.supervisors
+        let removed = self
+            .supervisors
             .lock()
             .map(|mut supervisors| supervisors.remove(&id))
-            .map_err(|_| "MCP runtime state poisoned".to_string())
+            .map_err(|_| "MCP runtime state poisoned".to_string())?;
+        if removed.is_some() {
+            self.order
+                .lock()
+                .map(|mut order| order.retain(|current| *current != id))
+                .map_err(|_| "MCP runtime order state poisoned".to_string())?;
+        }
+        Ok(removed)
     }
 
     pub(crate) async fn shutdown_all(&self) -> Result<(), String> {
+        let ids = self
+            .order
+            .lock()
+            .map(|mut order| {
+                let ids = order.iter().rev().copied().collect::<Vec<_>>();
+                order.clear();
+                ids
+            })
+            .map_err(|_| "MCP runtime order state poisoned".to_string())?;
         let supervisors = self
             .supervisors
             .lock()
             .map(|mut supervisors| {
-                supervisors
-                    .drain()
-                    .map(|(_, value)| value)
+                ids.iter()
+                    .filter_map(|id| supervisors.remove(id))
                     .collect::<Vec<_>>()
             })
             .map_err(|_| "MCP runtime state poisoned".to_string())?;
-        let mut first_error = None;
+        let mut errors = Vec::new();
         for supervisor in supervisors {
             let result = {
                 let mut guard = supervisor.lock().await;
                 guard.shutdown().await
             };
             if let Err(error) = result {
-                first_error.get_or_insert_with(|| error.to_string());
+                errors.push(error.to_string());
             }
         }
-        first_error.map_or(Ok(()), Err)
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            Err(format!("MCP shutdown failures: {}", errors.join("; ")))
+        }
     }
 }
