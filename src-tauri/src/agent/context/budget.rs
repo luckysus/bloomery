@@ -12,6 +12,7 @@ pub enum ContextSource {
     Domain,
     Permission,
     CurrentRequest,
+    Mailbox,
     RecentTurn { newest_first_rank: usize },
     ToolEvidence,
     ExplicitMemory,
@@ -22,7 +23,7 @@ impl ContextSource {
     const fn priority(self) -> u8 {
         match self {
             Self::Security | Self::System | Self::Domain | Self::Permission => 0,
-            Self::CurrentRequest => 1,
+            Self::CurrentRequest | Self::Mailbox => 1,
             Self::RecentTurn { .. } => 2,
             Self::ToolEvidence => 3,
             Self::ExplicitMemory => 4,

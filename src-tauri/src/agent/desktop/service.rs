@@ -13,6 +13,7 @@ use crate::context::build_context_packet_for_connection;
 use crate::rag::citation::{load_evidence_pack, EvidencePack};
 use crate::skills::SkillContext;
 use crate::storage::secrets::SecretStore;
+use crate::tasks::mailbox::MailboxMessage;
 use rusqlite::Connection;
 use serde_json::Value;
 use uuid::Uuid;
@@ -79,6 +80,20 @@ pub fn build_agent_loop_request_with_attachments(
             })
             .collect(),
     }
+}
+
+pub fn add_mailbox_context(request: &mut AgentLoopRequest, message: &MailboxMessage) {
+    request.context.insert(
+        1,
+        ContextEntry::with_role(
+            ContextItem::new(
+                format!("mailbox-{}", message.id),
+                ContextSource::Mailbox,
+                format!("来自 {} 的协作消息：{}", message.sender, message.content),
+            ),
+            crate::agent::protocol::AgentMessageRole::User,
+        ),
+    );
 }
 
 pub fn prepare_chat(

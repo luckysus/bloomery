@@ -10,6 +10,7 @@ use crate::permissions::{ParameterScope, RuleEffect};
 use crate::providers::capabilities::ChatProvider;
 use crate::providers::configured_chat_provider;
 use crate::steel::SteelToolExecutor;
+use crate::tasks::mailbox::MailboxStore;
 use serde_json::{json, Value};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
@@ -119,13 +120,26 @@ pub(crate) async fn run_standard_agent(
     let parent_tools = CompositeToolExecutor::try_new(vec![&domain_tools, &subagent])
         .map_err(|error| format!("combine subagent tools failed: {error}"))?;
     let assistant_message_id = Uuid::new_v4();
-    let request = crate::agent::desktop::build_agent_loop_request_with_attachments(
+    let mailbox = MailboxStore::new(
+        database
+            .parent()
+            .map(|parent| parent.join(".agent").join("mailboxes"))
+            .ok_or_else(|| "agent mailbox root is unavailable".to_string())?,
+    )
+    .map_err(|error| format!("create agent mailbox failed: {error}"))?;
+    let mailbox_message = mailbox
+        .claim("lead")
+        .map_err(|error| format!("claim lead mailbox failed: {error}"))?;
+    let mut request = crate::agent::desktop::build_agent_loop_request_with_attachments(
         assistant_message_id,
         &preparation.prompt,
         &preparation.message,
         preparation.evidence_pack.as_ref(),
         &preparation.attachments,
     );
+    if let Some(message) = mailbox_message.as_ref() {
+        crate::agent::desktop::add_mailbox_context(&mut request, message);
+    }
     let run_id = preparation.run_id;
     let run_id_text = run_id.to_string();
     let app_for_events = app.clone();
@@ -166,8 +180,21 @@ pub(crate) async fn run_standard_agent(
         &mut sink,
         agent_state.cancellation_token(&run_id.to_string()),
     )
-    .await
-    .map_err(|error| error.to_string())?;
+    .await;
+    let result = match result {
+        Ok(result) => result,
+        Err(error) => {
+            if let Some(message) = mailbox_message.as_ref() {
+                let _ = mailbox.release(message);
+            }
+            return Err(error.to_string());
+        }
+    };
+    if let Some(message) = mailbox_message.as_ref() {
+        mailbox
+            .ack(message)
+            .map_err(|error| format!("ack lead mailbox failed: {error}"))?;
+    }
     let tool_calls = tool_call_audit
         .lock()
         .map(|calls| calls.clone())
