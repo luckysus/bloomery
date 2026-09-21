@@ -3,6 +3,7 @@ pub mod cron_repository;
 pub mod mailbox;
 pub mod protocol;
 pub mod work_stealing;
+pub mod workspace;
 pub mod model;
 pub mod repository;
 pub mod scheduler;
