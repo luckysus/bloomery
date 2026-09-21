@@ -114,6 +114,10 @@ const MIGRATIONS: &[Migration] = &[
         version: 25,
         sql: include_str!("migrations/0025_cron.sql"),
     },
+    Migration {
+        version: 26,
+        sql: include_str!("migrations/0026_agent_task_sources.sql"),
+    },
 ];
 
 pub fn latest_version() -> u32 {

@@ -2,6 +2,7 @@ pub mod cron;
 pub mod model;
 pub mod repository;
 pub mod scheduler;
+pub mod sources;
 
 pub use model::{NewTask, TaskError, TaskRecord, TaskState};
 

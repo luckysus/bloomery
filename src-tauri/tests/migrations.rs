@@ -130,6 +130,10 @@ fn seed_database_at_version(connection: &mut Connection, version: u32) {
             include_str!("../src/storage/migrations/0024_database_workspace.sql"),
         ),
         (25, include_str!("../src/storage/migrations/0025_cron.sql")),
+        (
+            26,
+            include_str!("../src/storage/migrations/0026_agent_task_sources.sql"),
+        ),
     ];
 
     for (migration_version, sql) in migrations.into_iter().take(version as usize) {
@@ -448,6 +452,10 @@ fn version_twelve_database_receives_summary_source_backfill() {
         DROP TABLE database_query_results;
         DROP TABLE cron_outbox;
         DROP TABLE cron_jobs;
+        DROP INDEX idx_agent_task_sources_task;
+        DROP INDEX idx_agent_runs_workspace_id;
+        DROP INDEX idx_background_tasks_workspace_id;
+        DROP TABLE agent_task_sources;
         ALTER TABLE background_tasks DROP COLUMN started_at;
         ALTER TABLE background_tasks DROP COLUMN finished_at;
         DELETE FROM schema_migrations WHERE version > 12;
