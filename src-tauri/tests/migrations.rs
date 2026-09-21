@@ -134,6 +134,10 @@ fn seed_database_at_version(connection: &mut Connection, version: u32) {
             26,
             include_str!("../src/storage/migrations/0026_agent_task_sources.sql"),
         ),
+        (
+            27,
+            include_str!("../src/storage/migrations/0027_task_claims.sql"),
+        ),
     ];
 
     for (migration_version, sql) in migrations.into_iter().take(version as usize) {
@@ -456,6 +460,11 @@ fn version_twelve_database_receives_summary_source_backfill() {
         DROP INDEX idx_agent_runs_workspace_id;
         DROP INDEX idx_background_tasks_workspace_id;
         DROP TABLE agent_task_sources;
+        DROP INDEX idx_background_tasks_claim_token;
+        DROP TABLE task_claim_tokens;
+        ALTER TABLE background_tasks DROP COLUMN lease_expires_at;
+        ALTER TABLE background_tasks DROP COLUMN claim_token;
+        ALTER TABLE background_tasks DROP COLUMN owner;
         ALTER TABLE background_tasks DROP COLUMN started_at;
         ALTER TABLE background_tasks DROP COLUMN finished_at;
         DELETE FROM schema_migrations WHERE version > 12;
