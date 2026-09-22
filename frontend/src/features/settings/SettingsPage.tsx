@@ -11,8 +11,7 @@ import { useLocale } from "../../i18n/locale";
 import LanguageSelect from "../../components/common/LanguageSelect";
 import ThemeSelect from "../../components/common/ThemeSelect";
 import PermissionRulesPanel from "./PermissionRulesPanel";
-import DatabaseConnectionsPanel from "./DatabaseConnectionsPanel";
-import KnowledgeDatabasePanel from "./KnowledgeDatabasePanel";
+import SettingsDatabasesPanel from "./SettingsDatabasesPanel";
 import SettingsProvidersPanel from "./SettingsProvidersPanel";
 import SettingsTabList, { type SettingsTabOption } from "./SettingsTabList";
 import {
@@ -279,10 +278,7 @@ export default function SettingsPage({ onOpenDiagnostics }: SettingsPageProps) {
           />
         )}
         {activeTab === "databases" && (
-          <>
-            <KnowledgeDatabasePanel />
-            <DatabaseConnectionsPanel />
-          </>
+          <SettingsDatabasesPanel />
         )}
         {activeTab === "providers" && (
           <SettingsProvidersPanel
