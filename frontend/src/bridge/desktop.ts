@@ -1251,7 +1251,7 @@ getComputeOptimizationResult: (id: string) =>
   deleteKnowledgeDocument: (id: string) =>
     call<void>("delete_postgres_document", { documentId: id }),
   mergeKnowledgeBases: (request: KnowledgeBaseMergeRequest) =>
-    call<KnowledgeBaseRecord>("merge_knowledge_bases", { request }),
+    call<KnowledgeBaseRecord>("merge_postgres_knowledge_bases", { request }),
   getKnowledgeDocumentPreview: (documentId: string) =>
     call<KnowledgeDocumentPreview>("get_postgres_document_preview", { documentId }),
   getKnowledgeDocumentRaw: (documentId: string) =>

@@ -56,6 +56,14 @@ pub struct PostgresKnowledgeBaseRecord {
     pub updated_at: String,
 }
 
+#[derive(Debug, Clone, Deserialize)]
+pub struct PostgresKnowledgeBaseMergeRequest {
+    pub source_id: Uuid,
+    pub target_id: Uuid,
+    pub mode: String,
+    pub destination_name: Option<String>,
+}
+
 #[derive(Debug, Clone, Serialize)]
 pub struct PostgresKnowledgeBaseDeleteImpact {
     pub knowledge_base_id: String,
@@ -2611,6 +2619,109 @@ pub async fn delete_postgres_knowledge_edge(
         return Err("知识边不存在".to_string());
     }
     Ok(())
+}
+
+#[tauri::command]
+pub async fn merge_postgres_knowledge_bases(
+    state: tauri::State<'_, KnowledgeDatabaseState>,
+    request: PostgresKnowledgeBaseMergeRequest,
+) -> Result<PostgresKnowledgeBaseRecord, String> {
+    if request.source_id == request.target_id {
+        return Err("源知识库和目标知识库必须不同".to_string());
+    }
+    let mode = request.mode.trim();
+    if mode != "existing" && mode != "new" {
+        return Err("知识库合并模式无效".to_string());
+    }
+    let pool = active_pool(&state)?;
+    let mut transaction = pool.begin().await.map_err(|error| error.to_string())?;
+    for id in [request.source_id, request.target_id] {
+        let exists: bool = sqlx::query_scalar(
+            "SELECT EXISTS(SELECT 1 FROM knowledge_bases WHERE id = $1 AND deleted_at IS NULL)",
+        )
+        .bind(id)
+        .fetch_one(&mut *transaction)
+        .await
+        .map_err(|error| {
+            format!(
+                "检查 PostgreSQL 知识库失败: {}",
+                safe_error(&error.to_string())
+            )
+        })?;
+        if !exists {
+            return Err("PostgreSQL 知识库不存在".to_string());
+        }
+    }
+    let destination_id = if mode == "existing" {
+        request.target_id
+    } else {
+        let name = request
+            .destination_name
+            .as_deref()
+            .map(str::trim)
+            .filter(|name| !name.is_empty())
+            .ok_or_else(|| "新知识库名称不能为空".to_string())?;
+        let id = Uuid::new_v4();
+        sqlx::query("INSERT INTO knowledge_bases (id, name) VALUES ($1, $2)")
+            .bind(id)
+            .bind(name)
+            .execute(&mut *transaction)
+            .await
+            .map_err(|error| {
+                format!(
+                    "创建 PostgreSQL 合并知识库失败: {}",
+                    safe_error(&error.to_string())
+                )
+            })?;
+        id
+    };
+    let source_ids = if mode == "existing" {
+        vec![request.source_id]
+    } else {
+        vec![request.source_id, request.target_id]
+    };
+    sqlx::query(
+        "UPDATE source_documents
+         SET knowledge_base_id = $1, updated_at = now()
+         WHERE knowledge_base_id = ANY($2::uuid[]) AND deleted_at IS NULL",
+    )
+    .bind(destination_id)
+    .bind(source_ids)
+    .execute(&mut *transaction)
+    .await
+    .map_err(|error| {
+        format!(
+            "合并 PostgreSQL 文档失败: {}",
+            safe_error(&error.to_string())
+        )
+    })?;
+    let row = sqlx::query(
+        "SELECT id, name, created_at::text, updated_at::text
+         FROM knowledge_bases WHERE id = $1 AND deleted_at IS NULL",
+    )
+    .bind(destination_id)
+    .fetch_one(&mut *transaction)
+    .await
+    .map_err(|error| {
+        format!(
+            "读取 PostgreSQL 合并知识库失败: {}",
+            safe_error(&error.to_string())
+        )
+    })?;
+    transaction
+        .commit()
+        .await
+        .map_err(|error| error.to_string())?;
+    Ok(PostgresKnowledgeBaseRecord {
+        id: row.try_get("id").map_err(|error| error.to_string())?,
+        name: row.try_get("name").map_err(|error| error.to_string())?,
+        created_at: row
+            .try_get("created_at")
+            .map_err(|error| error.to_string())?,
+        updated_at: row
+            .try_get("updated_at")
+            .map_err(|error| error.to_string())?,
+    })
 }
 
 #[tauri::command]

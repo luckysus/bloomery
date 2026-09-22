@@ -78,6 +78,7 @@ macro_rules! handler {
             crate::knowledge_db::get_postgres_knowledge_health,
             crate::knowledge_db::list_postgres_knowledge_bases,
             crate::knowledge_db::create_postgres_knowledge_base,
+            crate::knowledge_db::merge_postgres_knowledge_bases,
             crate::knowledge_db::rename_postgres_knowledge_base,
             crate::knowledge_db::preview_delete_postgres_knowledge_base,
             crate::knowledge_db::delete_postgres_knowledge_base,
