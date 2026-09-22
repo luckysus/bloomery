@@ -216,6 +216,25 @@ pub struct PostgresDocumentRecord {
     pub updated_at: String,
 }
 
+#[derive(Debug, Clone, Serialize)]
+pub struct PostgresDocumentVersionRecord {
+    pub id: Uuid,
+    pub document_id: Uuid,
+    pub content_sha256: String,
+    pub mime_type: String,
+    pub parser: String,
+    pub parser_version: String,
+    pub chunk_policy_version: String,
+    pub embedding_profile_id: String,
+    pub embedding_model_id: String,
+    pub embedding_dimension: i32,
+    pub expected_asset_count: i64,
+    pub expected_chunk_count: i64,
+    pub manifest_sealed: bool,
+    pub created_at: String,
+    pub activated_at: Option<String>,
+}
+
 #[derive(Debug, Clone, Deserialize)]
 pub struct PostgresChunkEmbeddingInput {
     pub chunk_id: Uuid,
@@ -1733,6 +1752,68 @@ pub async fn get_postgres_document_preview(
         "raw_data_url": null,
         "raw_sheets": []
     }))
+}
+
+#[tauri::command]
+pub async fn list_postgres_document_versions(
+    state: tauri::State<'_, KnowledgeDatabaseState>,
+    document_id: Uuid,
+) -> Result<Vec<PostgresDocumentVersionRecord>, String> {
+    let pool = active_pool(&state)?;
+    let rows = sqlx::query(
+        "SELECT v.id, v.document_id, v.content_sha256, v.mime_type, v.parser,
+                v.created_at::text, v.activated_at::text,
+                (SELECT COUNT(*) FROM document_assets a WHERE a.version_id = v.id) AS asset_count,
+                (SELECT COUNT(*) FROM document_chunks c WHERE c.version_id = v.id) AS chunk_count
+         FROM document_versions v
+         JOIN source_documents d ON d.id = v.document_id
+         WHERE v.document_id = $1 AND d.deleted_at IS NULL
+         ORDER BY v.created_at DESC, v.id",
+    )
+    .bind(document_id)
+    .fetch_all(&pool)
+    .await
+    .map_err(|error| {
+        format!(
+            "读取 PostgreSQL 文档版本失败: {}",
+            safe_error(&error.to_string())
+        )
+    })?;
+    rows.into_iter()
+        .map(|row| {
+            Ok(PostgresDocumentVersionRecord {
+                id: row.try_get("id").map_err(|error| error.to_string())?,
+                document_id: row
+                    .try_get("document_id")
+                    .map_err(|error| error.to_string())?,
+                content_sha256: row
+                    .try_get("content_sha256")
+                    .map_err(|error| error.to_string())?,
+                mime_type: row
+                    .try_get("mime_type")
+                    .map_err(|error| error.to_string())?,
+                parser: row.try_get("parser").map_err(|error| error.to_string())?,
+                parser_version: "postgresql".to_string(),
+                chunk_policy_version: "postgresql-v1".to_string(),
+                embedding_profile_id: String::new(),
+                embedding_model_id: String::new(),
+                embedding_dimension: 0,
+                expected_asset_count: row
+                    .try_get("asset_count")
+                    .map_err(|error| error.to_string())?,
+                expected_chunk_count: row
+                    .try_get("chunk_count")
+                    .map_err(|error| error.to_string())?,
+                manifest_sealed: true,
+                created_at: row
+                    .try_get("created_at")
+                    .map_err(|error| error.to_string())?,
+                activated_at: row
+                    .try_get("activated_at")
+                    .map_err(|error| error.to_string())?,
+            })
+        })
+        .collect()
 }
 
 #[tauri::command]

@@ -1245,7 +1245,7 @@ getComputeOptimizationResult: (id: string) =>
   listKnowledgeDocuments: (knowledgeBaseId: string) =>
     call<SourceDocumentRecord[]>("list_postgres_documents", { knowledgeBaseId }),
   listDocumentVersions: (documentId: string) =>
-    call<DocumentVersionRecord[]>("list_document_versions", { documentId }),
+    call<DocumentVersionRecord[]>("list_postgres_document_versions", { documentId }),
   renameKnowledgeDocument: (id: string, displayName: string) =>
     call<SourceDocumentRecord>("rename_postgres_document", { documentId: id, displayName }),
   deleteKnowledgeDocument: (id: string) =>
@@ -1256,8 +1256,6 @@ getComputeOptimizationResult: (id: string) =>
     call<KnowledgeDocumentPreview>("get_postgres_document_preview", { documentId }),
   getKnowledgeDocumentRaw: (documentId: string) =>
     call<KnowledgeDocumentRaw>("get_postgres_document_raw", { documentId }),
-  importLocalDocument: (request: DocumentImportRequest) =>
-    call<DocumentImportResponse>("import_local_document", { request }),
   listBackgroundTasks: () => call<BackgroundTask[]>("list_background_tasks"),
   cancelBackgroundTask: (id: string) =>
     call<BackgroundTask>("cancel_background_task", { id }),

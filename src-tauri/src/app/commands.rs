@@ -95,6 +95,7 @@ macro_rules! handler {
             crate::knowledge_db::retry_postgres_ingestion_job,
             crate::knowledge_db::list_postgres_documents,
             crate::knowledge_db::get_postgres_document_preview,
+            crate::knowledge_db::list_postgres_document_versions,
             crate::knowledge_db::get_postgres_document_raw,
             crate::knowledge_db::rename_postgres_document,
             crate::knowledge_db::delete_postgres_document,

@@ -27,7 +27,6 @@ vi.mock("../../bridge/desktop", () => ({
     renameKnowledgeDocument: vi.fn(),
     deleteKnowledgeDocument: vi.fn(),
     getKnowledgeDocumentPreview: vi.fn(),
-    importLocalDocument: vi.fn(),
     cancelBackgroundTask: vi.fn(),
     retryBackgroundTask: vi.fn(),
     rebuildKnowledgeIndex: vi.fn(),
@@ -122,14 +121,6 @@ describe("KnowledgePage", () => {
       id: `kb-${name}`,
       name,
     }));
-    vi.mocked(desktop.importLocalDocument).mockResolvedValue({
-      knowledge_base_id: base.id,
-      document_id: "document-1",
-      version_id: "version-1",
-      ingest_attempt_id: "attempt-1",
-      task_id: "task-1",
-      duplicate_content: false,
-    });
   });
 
   it("uses the copied Web upload flow to create and import local files", async () => {
