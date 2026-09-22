@@ -458,7 +458,7 @@ export default function WebAgentChatPanel({
 
   return (
     <section
-      className="web-agent-chat-panel bloomery-chat is-embedded flex min-h-0 flex-1 overflow-hidden bg-[#fbf7ef]"
+      className="web-agent-chat-panel flex min-h-0 flex-1 overflow-hidden bg-[#fbf7ef]"
       aria-label="Web 风格对话面板"
     >
       <div className="flex h-full min-h-0 flex-1 flex-col">
@@ -533,9 +533,12 @@ export default function WebAgentChatPanel({
                           <WebAnswerRenderer
                             message={{
                               role: "agent",
-                              content: activeRun?.assistantText || t("contextPreparing"),
+                              content: activeRun?.assistantText
+                                || (activeRun?.reasoning ? "" : t("contextPreparing")),
                               response: null,
                               streamEvidence: [],
+                              reasoning: activeRun?.reasoning,
+                              reasoningMs: activeRun?.reasoningMs ?? undefined,
                             }}
                           />
                           {activeRun?.assistantText && <span className="ai-typing-cursor" aria-hidden="true" />}

@@ -8,6 +8,7 @@ pub mod diagnostics;
 pub mod domains;
 pub mod mcp;
 pub mod models;
+pub mod knowledge_db;
 pub mod permissions;
 pub mod providers;
 pub mod rag;

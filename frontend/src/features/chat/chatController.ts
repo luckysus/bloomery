@@ -96,7 +96,7 @@ export function useChatController(): ChatControllerProps {
   const [knowledgeBaseIds, setKnowledgeBaseIds] = useState<string[]>([]);
   const [chatProfiles, setChatProfiles] = useState<ProviderProfileResponse[]>([]);
   const [activeChatProfileId, setActiveChatProfileId] = useState<string | null>(null);
-  const [smartSearchEnabled, setSmartSearchEnabled] = useState(true);
+  const [smartSearchEnabled, setSmartSearchEnabled] = useState(false);
   const [attachments, setAttachments] = useState<LocalAgentAttachment[]>([]);
   const [draft, setDraft] = useState("");
   const [pendingQuestion, setPendingQuestion] = useState<string | null>(null);
@@ -155,7 +155,7 @@ export function useChatController(): ChatControllerProps {
       .then(async ([bases, profiles]) => {
         if (!mounted) return;
         setKnowledgeBaseIds(bases.map((base) => base.id));
-        const available = profiles.filter((profile) => profile.enabled && profile.model_id && ["open_ai_compatible", "ollama"].includes(profile.kind));
+        const available = profiles.filter((profile) => profile.enabled && profile.model_id && ["deepseek", "open_ai_compatible", "ollama"].includes(profile.kind));
         setChatProfiles(available);
         setActiveChatProfileId((current) => current && available.some((profile) => profile.id === current)
           ? current
@@ -297,6 +297,7 @@ export function useChatController(): ChatControllerProps {
         message: submittedMessage,
         runId,
         evidencePackId,
+        smartSearchEnabled,
         attachments: submittedAttachments,
       });
       setAgentRun((current) => {

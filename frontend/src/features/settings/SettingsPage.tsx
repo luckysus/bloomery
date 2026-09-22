@@ -12,6 +12,7 @@ import LanguageSelect from "../../components/common/LanguageSelect";
 import ThemeSelect from "../../components/common/ThemeSelect";
 import PermissionRulesPanel from "./PermissionRulesPanel";
 import DatabaseConnectionsPanel from "./DatabaseConnectionsPanel";
+import KnowledgeDatabasePanel from "./KnowledgeDatabasePanel";
 import SettingsProvidersPanel from "./SettingsProvidersPanel";
 import SettingsTabList, { type SettingsTabOption } from "./SettingsTabList";
 import {
@@ -32,9 +33,7 @@ import {
 interface SettingsPageProps {
   onOpenDiagnostics?: () => void;
 }
-
 type SettingsTab = "providers" | "general" | "permissions" | "databases";
-
 const settingsTabs: SettingsTabOption<SettingsTab>[] = [
   { id: "providers", labelKey: "settingsTabProviders" },
   { id: "general", labelKey: "settingsTabGeneral" },
@@ -48,6 +47,7 @@ export default function SettingsPage({ onOpenDiagnostics }: SettingsPageProps) {
   const [editors, setEditors] = useState<SettingsEditor[]>([]);
   const [plan, setPlan] = useState<RetrievalPlan>("free");
   const [retrievalIds, setRetrievalIds] = useState<RetrievalIds>(defaultRetrievalIds);
+  const [completed, setCompleted] = useState<Record<string, unknown>>({});
   const [permissionRules, setPermissionRules] = useState<PermissionRuleRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [busySlot, setBusySlot] = useState<ProviderSlot | null>(null);
@@ -55,7 +55,6 @@ export default function SettingsPage({ onOpenDiagnostics }: SettingsPageProps) {
   const [permissionBusyId, setPermissionBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-
   const load = async () => {
     setLoading(true);
     setError(null);
@@ -73,6 +72,7 @@ export default function SettingsPage({ onOpenDiagnostics }: SettingsPageProps) {
         reranker: parseId(retrieval.reranker_profile_id),
         mineru: parseId(retrieval.mineru_profile_id),
       };
+      setCompleted(completed);
       setRetrievalIds(nextIds);
       setPermissionRules(permissions);
       setPlan(retrieval.plan === "pro" ? "pro" : "free");
@@ -85,11 +85,9 @@ export default function SettingsPage({ onOpenDiagnostics }: SettingsPageProps) {
       setLoading(false);
     }
   };
-
   useEffect(() => {
     void load();
   }, []);
-
   const persistRetrieval = async (nextPlan: RetrievalPlan, ids: RetrievalIds) => {
     await desktop.setSetting("onboarding.retrieval", JSON.stringify({
       version: 1,
@@ -100,18 +98,15 @@ export default function SettingsPage({ onOpenDiagnostics }: SettingsPageProps) {
       mineru_profile_id: ids.mineru,
     }));
   };
-
   const updateEditor = (next: SettingsEditor) => {
     setEditors((current) => current.map((editor) => editor.slot === next.slot ? next : editor));
   };
-
   const capabilityForSlot: Record<ProviderSlot, ProviderCapability> = {
     chat: "chat",
     embedding: "embedding",
     reranker: "rerank",
     mineru: "document_parser",
   };
-
   const changePlan = async (nextPlan: RetrievalPlan) => {
     const previousPlan = plan;
     setPlan(nextPlan);
@@ -124,7 +119,6 @@ export default function SettingsPage({ onOpenDiagnostics }: SettingsPageProps) {
       setError(errorMessage(cause, t("settingsSaveError")));
     }
   };
-
   const saveEditor = async (event: FormEvent<HTMLFormElement>, editor: SettingsEditor) => {
     event.preventDefault();
     setBusySlot(editor.slot);
@@ -149,11 +143,20 @@ export default function SettingsPage({ onOpenDiagnostics }: SettingsPageProps) {
         capabilityForSlot[editor.slot],
         editor.enabled ? saved.id : null,
       );
-      const nextIds = editor.slot === "chat"
-        ? retrievalIds
-        : { ...retrievalIds, [editor.slot]: saved.id } as RetrievalIds;
-      setRetrievalIds(nextIds);
-      await persistRetrieval(plan, nextIds);
+      if (editor.slot === "chat") {
+        const nextCompleted = {
+          ...completed,
+          version: typeof completed.version === "number" ? completed.version : 1,
+          completed: true,
+          llm_profile_id: editor.enabled ? saved.id : null,
+        };
+        await desktop.setSetting("onboarding.completed", JSON.stringify(nextCompleted));
+        setCompleted(nextCompleted);
+      } else {
+        const nextIds = { ...retrievalIds, [editor.slot]: saved.id } as RetrievalIds;
+        setRetrievalIds(nextIds);
+        await persistRetrieval(plan, nextIds);
+      }
       updateEditor({
         ...editor,
         id: saved.id,
@@ -167,7 +170,6 @@ export default function SettingsPage({ onOpenDiagnostics }: SettingsPageProps) {
       });
       setNotice(t("settingsSaved"));
     } catch (cause) {
-      await load();
       setError(errorMessage(cause, t("settingsSaveError")));
     } finally {
       setBusySlot(null);
@@ -276,7 +278,12 @@ export default function SettingsPage({ onOpenDiagnostics }: SettingsPageProps) {
             onRevoke={(rule) => void revokePermission(rule)}
           />
         )}
-        {activeTab === "databases" && <DatabaseConnectionsPanel />}
+        {activeTab === "databases" && (
+          <>
+            <KnowledgeDatabasePanel />
+            <DatabaseConnectionsPanel />
+          </>
+        )}
         {activeTab === "providers" && (
           <SettingsProvidersPanel
             plan={plan}

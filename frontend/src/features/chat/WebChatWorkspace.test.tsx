@@ -48,7 +48,9 @@ describe("WebChatWorkspace", () => {
     render(<ChatPage onOpenSection={onOpenSection} />);
 
     expect(await screen.findByTitle("钢铁智能体")).toBeInTheDocument();
-    expect(screen.getByRole("region", { name: "Web 风格对话面板" })).toBeInTheDocument();
+    const chatPanel = screen.getByRole("region", { name: "Web 风格对话面板" });
+    expect(chatPanel).toBeInTheDocument();
+    expect(chatPanel).not.toHaveClass("bloomery-chat");
     expect(screen.queryByRole("button", { name: "知识库" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "模型训练" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "工艺优化" })).not.toBeInTheDocument();

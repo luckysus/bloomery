@@ -25,19 +25,21 @@ function ReasoningBlock({
     : `已思考（用时 ${Math.max(1, Math.round(reasoningMs / 1000))} 秒）`;
 
   return (
-    <div className="mb-2">
+    <div className="bloomery-reasoning-block mb-2">
       <button
         type="button"
         onClick={() => setOpen((value) => !value)}
-        className="inline-flex items-center gap-2 bg-transparent py-0.5 text-sm font-medium text-[#6f6258]"
+        className="bloomery-reasoning-toggle inline-flex items-center gap-2 bg-transparent py-0.5 text-sm font-medium"
         aria-expanded={open}
       >
-        <Atom size={16} className="text-[#cc785c]" />
+        <Atom size={16} className="bloomery-reasoning-icon" />
         <span>{label}</span>
-        {open ? <ChevronDown size={16} className="text-[#a89684]" /> : <ChevronRight size={16} className="text-[#a89684]" />}
+        {open
+          ? <ChevronDown size={16} className="bloomery-reasoning-chevron" />
+          : <ChevronRight size={16} className="bloomery-reasoning-chevron" />}
       </button>
       {open && (
-        <div className="mt-1 border-l-2 border-[#d9d9d9] pl-3 text-[15px] leading-relaxed text-[#8b8b8b]">
+        <div className="agent-reasoning-md bloomery-reasoning-content mt-1 border-l-2 pl-3 text-[15px] leading-relaxed">
           <ReactMarkdown remarkPlugins={[remarkGfm]}>{reasoning}</ReactMarkdown>
         </div>
       )}
@@ -84,7 +86,8 @@ function WebSourcesBar({ sources }: { sources: WebSource[] }) {
 
 export default function WebAnswerRenderer({ message }: { message: WebMessage }) {
   const response = message.response;
-  const reasoning = response?.reasoning?.trim() ?? "";
+  const reasoning = (message.reasoning ?? response?.reasoning ?? "").trim();
+  const reasoningMs = message.reasoningMs ?? response?.reasoning_ms;
   const webSources = response?.web_sources ?? [];
   const evidence = response?.evidence ?? message.streamEvidence;
   const literatureResults = useMemo<AnswerReferenceResult[]>(
@@ -101,7 +104,7 @@ export default function WebAnswerRenderer({ message }: { message: WebMessage }) 
 
   return (
     <>
-      {reasoning ? <ReasoningBlock reasoning={reasoning} reasoningMs={response?.reasoning_ms} /> : null}
+      {reasoning ? <ReasoningBlock reasoning={reasoning} reasoningMs={reasoningMs} /> : null}
       {!reasoning && webSources.length > 0 ? <WebSourcesBar sources={webSources} /> : null}
       <AIAnswerRenderer
         answer={stripInternalAgentBlocks(message.content)}

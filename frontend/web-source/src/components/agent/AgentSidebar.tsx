@@ -68,6 +68,7 @@ interface AgentSidebarProps {
   onShareConversation: (conversation: AgentConversation) => void;
   onBeginRename: (conversation: AgentConversation) => void;
   onDeleteConversation: (conversation: AgentConversation) => void;
+  onBrandClick?: () => void;
   onOpenProfile?: () => void;
   onLogout?: () => void;
   onSwitchRetrieval?: () => void;
@@ -104,6 +105,7 @@ export default function AgentSidebar({
   onShareConversation,
   onBeginRename,
   onDeleteConversation,
+  onBrandClick,
   onOpenProfile,
   onLogout,
   onSwitchRetrieval,
@@ -134,6 +136,7 @@ export default function AgentSidebar({
               type="button"
               onClick={() => {
                 if (isCollapsed) onExpand();
+                else onBrandClick?.();
               }}
               className={`group relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition-colors ${
                 isCollapsed

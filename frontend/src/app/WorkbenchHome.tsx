@@ -85,7 +85,7 @@ export default function WorkbenchHome({ initializationState, onOpenSection }: Wo
       .then((profiles) => {
         if (!mounted) return;
         const chat = profiles.find(
-          (profile) => profile.enabled && (profile.kind === "open_ai_compatible" || profile.kind === "ollama"),
+          (profile) => profile.enabled && (profile.kind === "deepseek" || profile.kind === "open_ai_compatible" || profile.kind === "ollama"),
         );
         if (!chat) {
           setProviderStatus("missing");

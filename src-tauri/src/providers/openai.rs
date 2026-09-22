@@ -4,7 +4,9 @@ use crate::providers::capabilities::{
     ProviderCapabilities, ToolCallDelta,
 };
 use crate::providers::http::{build_client, HttpClientConfig, ProviderError, ProviderErrorCode};
-use crate::providers::profiles::{validate_bearer_transport, ProviderCapability, ProviderProfile};
+use crate::providers::profiles::{
+    validate_bearer_transport, ProviderCapability, ProviderKind, ProviderProfile,
+};
 use crate::storage::secrets::SecretValue;
 use futures_util::StreamExt;
 use reqwest::header::CONTENT_TYPE;
@@ -18,6 +20,8 @@ use tokio::time::timeout;
 const CANCELLATION_POLL_INTERVAL: Duration = Duration::from_millis(50);
 const MAX_RESPONSE_BODY_BYTES: usize = 16 * 1024 * 1024;
 const MAX_SSE_BUFFER_BYTES: usize = 1024 * 1024;
+
+pub const DEFAULT_DEEPSEEK_MODELS: &[&str] = &["deepseek-v4-flash", "deepseek-v4-pro"];
 
 pub struct OpenAiProvider {
     profile: ProviderProfile,
@@ -85,6 +89,8 @@ struct OpenAiChatRequest<'a> {
     temperature: f32,
     stream_options: Value,
     #[serde(skip_serializing_if = "Option::is_none")]
+    thinking: Option<Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     reasoning_effort: Option<&'a str>,
     #[serde(skip_serializing_if = "Option::is_none")]
     max_tokens: Option<usize>,
@@ -140,6 +146,18 @@ impl ChatProvider for OpenAiProvider {
                 ..ChatResponse::default()
             });
         }
+        if self.profile.kind == ProviderKind::DeepSeek
+            && request
+                .messages
+                .iter()
+                .any(|message| !message.images.is_empty())
+        {
+            return Err(ProviderError::new(
+                ProviderErrorCode::UnsupportedCapability,
+                None,
+                "DeepSeek chat-completions does not support image content",
+            ));
+        }
 
         let messages = request
             .messages
@@ -152,7 +170,11 @@ impl ChatProvider for OpenAiProvider {
             stream: true,
             temperature: request.temperature,
             stream_options: serde_json::json!({"include_usage": true}),
-            reasoning_effort: request.reasoning_effort.as_deref(),
+            thinking: deepseek_thinking(&self.profile.kind, request.reasoning_effort.as_deref())?,
+            reasoning_effort: deepseek_reasoning_effort(
+                &self.profile.kind,
+                request.reasoning_effort.as_deref(),
+            )?,
             max_tokens: request.max_tokens,
             stop: request.stop.as_deref(),
             tools: request.tools.as_ref(),
@@ -179,6 +201,7 @@ impl ChatProvider for OpenAiProvider {
         };
         let status = response.status();
         if !status.is_success() {
+            let headers = response.headers().clone();
             let body = match read_bounded_body(response, is_cancelled).await? {
                 BodyRead::Complete(body) => body,
                 BodyRead::Cancelled => {
@@ -188,8 +211,9 @@ impl ChatProvider for OpenAiProvider {
                     });
                 }
             };
-            return Err(ProviderError::from_status(
+            return Err(ProviderError::from_status_with_headers(
                 status,
+                &headers,
                 &String::from_utf8_lossy(&body),
                 &redactor,
             ));
@@ -201,7 +225,14 @@ impl ChatProvider for OpenAiProvider {
             .and_then(|value| value.to_str().ok())
             .is_some_and(|value| value.to_ascii_lowercase().contains("text/event-stream"));
         if is_event_stream {
-            read_sse_response(response, on_event, is_cancelled, &redactor).await
+            read_sse_response(
+                response,
+                on_event,
+                is_cancelled,
+                &redactor,
+                self.profile.kind == ProviderKind::DeepSeek,
+            )
+            .await
         } else {
             let body = match read_bounded_body(response, is_cancelled).await? {
                 BodyRead::Complete(body) => body,
@@ -335,6 +366,7 @@ async fn read_sse_response(
     on_event: &mut (dyn FnMut(ChatEvent) + Send),
     is_cancelled: &(dyn Fn() -> bool + Send + Sync),
     redactor: &Redactor,
+    strict: bool,
 ) -> Result<ChatResponse, ProviderError> {
     let mut accumulator = ChatAccumulator::default();
     let mut buffer = Vec::new();
@@ -365,35 +397,43 @@ async fn read_sse_response(
                 "provider response exceeded size limit",
             ));
         }
-        if process_sse_bytes(
+        if process_sse_bytes_with_mode(
             &chunk,
             &mut buffer,
             &mut event_data,
             &mut accumulator,
             on_event,
             redactor,
+            strict,
         )? {
             return Ok(accumulator.response(false));
         }
     }
     if !buffer.is_empty()
-        && process_sse_bytes(
+        && process_sse_bytes_with_mode(
             b"\n",
             &mut buffer,
             &mut event_data,
             &mut accumulator,
             on_event,
             redactor,
+            strict,
         )?
     {
         return Ok(accumulator.response(false));
     }
     if !event_data.is_empty()
-        && process_sse_event(&mut event_data, &mut accumulator, on_event, redactor)?
+        && process_sse_event(
+            &mut event_data,
+            &mut accumulator,
+            on_event,
+            redactor,
+            strict,
+        )?
     {
         return Ok(accumulator.response(false));
     }
-    if accumulator.finish_reason.is_some() {
+    if !strict && accumulator.finish_reason.is_some() {
         Ok(accumulator.response(false))
     } else {
         Err(ProviderError::new(
@@ -404,6 +444,7 @@ async fn read_sse_response(
     }
 }
 
+#[cfg(test)]
 fn process_sse_bytes(
     bytes: &[u8],
     buffer: &mut Vec<u8>,
@@ -411,6 +452,26 @@ fn process_sse_bytes(
     accumulator: &mut ChatAccumulator,
     on_event: &mut (dyn FnMut(ChatEvent) + Send),
     redactor: &Redactor,
+) -> Result<bool, ProviderError> {
+    process_sse_bytes_with_mode(
+        bytes,
+        buffer,
+        event_data,
+        accumulator,
+        on_event,
+        redactor,
+        false,
+    )
+}
+
+fn process_sse_bytes_with_mode(
+    bytes: &[u8],
+    buffer: &mut Vec<u8>,
+    event_data: &mut Vec<String>,
+    accumulator: &mut ChatAccumulator,
+    on_event: &mut (dyn FnMut(ChatEvent) + Send),
+    redactor: &Redactor,
+    strict: bool,
 ) -> Result<bool, ProviderError> {
     append_bounded(buffer, bytes, MAX_SSE_BUFFER_BYTES)?;
     while let Some(index) = buffer.iter().position(|byte| *byte == b'\n') {
@@ -423,7 +484,7 @@ fn process_sse_bytes(
             continue;
         };
         if line.is_empty() {
-            if process_sse_event(event_data, accumulator, on_event, redactor)? {
+            if process_sse_event(event_data, accumulator, on_event, redactor, strict)? {
                 return Ok(true);
             }
         } else if let Some(data) = line.strip_prefix("data:") {
@@ -438,6 +499,7 @@ fn process_sse_event(
     accumulator: &mut ChatAccumulator,
     on_event: &mut (dyn FnMut(ChatEvent) + Send),
     redactor: &Redactor,
+    strict: bool,
 ) -> Result<bool, ProviderError> {
     if event_data.is_empty() {
         return Ok(false);
@@ -450,8 +512,16 @@ fn process_sse_event(
     if data == "[DONE]" {
         return Ok(true);
     }
-    let Ok(value) = serde_json::from_str::<Value>(data) else {
-        return Ok(false);
+    let value = match serde_json::from_str::<Value>(data) {
+        Ok(value) => value,
+        Err(error) if strict => {
+            return Err(ProviderError::new(
+                ProviderErrorCode::ProviderResponse,
+                None,
+                format!("provider returned malformed SSE JSON: {error}"),
+            ))
+        }
+        Err(_) => return Ok(false),
     };
     apply_openai_value(&value, accumulator, on_event, redactor)?;
     Ok(false)
@@ -508,6 +578,7 @@ fn apply_openai_value(
             on_event(ChatEvent::ReasoningDelta(reasoning.to_string()));
         }
     }
+
     if let Some(tool_calls) = delta["tool_calls"].as_array() {
         for (position, tool_call) in tool_calls.iter().enumerate() {
             let index = tool_call["index"]
@@ -540,14 +611,19 @@ fn apply_openai_value(
         accumulator.finish_reason = Some(reason.to_string());
     }
     if value["usage"].is_object() {
+        let prompt_tokens = value["usage"]["prompt_tokens"].as_u64().unwrap_or(0);
+        let cache_read_tokens = value["usage"]["prompt_tokens_details"]["cached_tokens"]
+            .as_u64()
+            .or_else(|| value["usage"]["prompt_cache_hit_tokens"].as_u64())
+            .unwrap_or(0);
+        let completion_tokens = value["usage"]["completion_tokens"].as_u64().unwrap_or(0);
         let usage = ChatUsage {
-            prompt_tokens: value["usage"]["prompt_tokens"].as_u64().unwrap_or(0),
-            completion_tokens: value["usage"]["completion_tokens"].as_u64().unwrap_or(0),
-            total_tokens: value["usage"]["total_tokens"].as_u64().unwrap_or(0),
-            cache_read_tokens: value["usage"]["prompt_tokens_details"]["cached_tokens"]
-                .as_u64()
-                .or_else(|| value["usage"]["prompt_cache_hit_tokens"].as_u64())
-                .unwrap_or(0),
+            prompt_tokens: prompt_tokens.saturating_sub(cache_read_tokens),
+            completion_tokens,
+            total_tokens: prompt_tokens
+                .saturating_sub(cache_read_tokens)
+                .saturating_add(completion_tokens),
+            cache_read_tokens,
             reasoning_tokens: value["usage"]["completion_tokens_details"]["reasoning_tokens"]
                 .as_u64()
                 .unwrap_or(0),
@@ -556,6 +632,42 @@ fn apply_openai_value(
         on_event(ChatEvent::Usage(usage));
     }
     Ok(())
+}
+
+fn deepseek_thinking(
+    kind: &ProviderKind,
+    effort: Option<&str>,
+) -> Result<Option<Value>, ProviderError> {
+    if *kind != ProviderKind::DeepSeek {
+        return Ok(None);
+    }
+    match effort.unwrap_or("high") {
+        "off" => Ok(Some(serde_json::json!({"type": "disabled"}))),
+        "high" | "max" => Ok(Some(serde_json::json!({"type": "enabled"}))),
+        value => Err(ProviderError::new(
+            ProviderErrorCode::UnsupportedCapability,
+            None,
+            format!("unsupported DeepSeek reasoning effort: {value}"),
+        )),
+    }
+}
+
+fn deepseek_reasoning_effort<'a>(
+    kind: &ProviderKind,
+    effort: Option<&'a str>,
+) -> Result<Option<&'a str>, ProviderError> {
+    if *kind != ProviderKind::DeepSeek {
+        return Ok(None);
+    }
+    match effort.unwrap_or("high") {
+        "off" => Ok(None),
+        "high" | "max" => Ok(Some(effort.unwrap_or("high"))),
+        value => Err(ProviderError::new(
+            ProviderErrorCode::UnsupportedCapability,
+            None,
+            format!("unsupported DeepSeek reasoning effort: {value}"),
+        )),
+    }
 }
 
 pub fn normalize_openai_chat_url(base_url: &str) -> String {

@@ -25,7 +25,7 @@ use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::mpsc;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
 use uuid::Uuid;
@@ -1876,7 +1876,7 @@ fn siliconflow_rejects_duplicate_or_missing_rerank_indexes() {
 #[test]
 fn chat_cancellation_capabilities_and_endpoints_are_normalized() {
     let deepseek = resolve_chat_profile("deepseek", "", "deepseek-chat").unwrap();
-    assert_eq!(deepseek.kind, ProviderKind::OpenAiCompatible);
+    assert_eq!(deepseek.kind, ProviderKind::DeepSeek);
     assert_eq!(deepseek.base_url, "https://api.deepseek.com");
     let ollama = resolve_chat_profile("ollama", "", "qwen3").unwrap();
     assert_eq!(ollama.kind, ProviderKind::Ollama);
@@ -1929,6 +1929,167 @@ fn chat_cancellation_capabilities_and_endpoints_are_normalized() {
         .require(ProviderCapability::DocumentParser)
         .unwrap_err();
     assert_eq!(error.code(), ProviderErrorCode::UnsupportedCapability);
+}
+
+#[test]
+fn deepseek_chat_rejects_image_content_before_network_request() {
+    let provider = OpenAiProvider::new(
+        profile(
+            ProviderKind::DeepSeek,
+            "http://127.0.0.1:9",
+            Some("deepseek-v4-flash"),
+        ),
+        None,
+    )
+    .unwrap();
+    let request = ChatRequest {
+        messages: vec![bloomery::providers::capabilities::ChatMessage::with_images(
+            "user",
+            "describe this image",
+            vec![bloomery::providers::capabilities::ChatImage {
+                data: "ZmFrZQ==".to_string(),
+                mime: "image/png".to_string(),
+            }],
+        )],
+        temperature: 0.2,
+        tools: None,
+        response_format: None,
+        reasoning_effort: None,
+        max_tokens: None,
+        stop: None,
+    };
+
+    let error =
+        tauri::async_runtime::block_on(provider.chat(request, &mut |_| {}, &|| false)).unwrap_err();
+
+    assert_eq!(error.code(), ProviderErrorCode::UnsupportedCapability);
+    assert!(error.to_string().contains("image"));
+}
+
+#[test]
+fn deepseek_chat_serializes_thinking_history_and_maps_reasoning_usage() {
+    let body = concat!(
+        "data: {\"choices\":[{\"delta\":{\"reasoning_content\":\"step \"}}]}\n\n",
+        "data: {\"choices\":[{\"delta\":{\"reasoning_content\":\"one\",\"content\":\"answer\"}}]}\n\n",
+        "data: {\"choices\":[{\"delta\":{\"tool_calls\":[{\"index\":0,\"id\":\"call-1\",\"function\":{\"name\":\"search\",\"arguments\":\"{\\\"q\\\":\"}}]}}]}\n\n",
+        "data: {\"choices\":[{\"delta\":{\"tool_calls\":[{\"index\":0,\"function\":{\"arguments\":\"\\\"Q355B\\\"}\"}}]},\"finish_reason\":\"tool_calls\"}],\"usage\":{\"prompt_tokens\":100,\"completion_tokens\":20,\"total_tokens\":120,\"prompt_tokens_details\":{\"cached_tokens\":30},\"completion_tokens_details\":{\"reasoning_tokens\":12}}}\n\n",
+        "data: [DONE]\n\n"
+    );
+    let (base_url, server, captured) =
+        chat_server_capture("text/event-stream", body, "/chat/completions");
+    let provider = OpenAiProvider::new(
+        profile(ProviderKind::DeepSeek, &base_url, Some("deepseek-v4-flash")),
+        Some(SecretValue::new("sk-test").unwrap()),
+    )
+    .unwrap();
+    let mut assistant = bloomery::providers::capabilities::ChatMessage::assistant_tool_calls(vec![
+        bloomery::providers::capabilities::ChatToolCall {
+            id: "prior-call".to_string(),
+            name: "search".to_string(),
+            arguments: r#"{"q":"Q235"}"#.to_string(),
+        },
+    ]);
+    assistant.reasoning_content = Some("previous reasoning".to_string());
+    let request = ChatRequest {
+        messages: vec![
+            bloomery::providers::capabilities::ChatMessage::new("system", "Answer accurately."),
+            assistant,
+        ],
+        temperature: 0.2,
+        tools: Some(serde_json::json!([])),
+        response_format: None,
+        reasoning_effort: None,
+        max_tokens: Some(256),
+        stop: Some(vec!["<END>".to_string()]),
+    };
+    let mut events = Vec::new();
+
+    let response = tauri::async_runtime::block_on(provider.chat(
+        request,
+        &mut |event| events.push(event),
+        &|| false,
+    ))
+    .expect("DeepSeek stream succeeds");
+    join_server(server);
+
+    let captured = captured
+        .lock()
+        .expect("captured request mutex")
+        .clone()
+        .expect("captured request");
+    let payload: serde_json::Value =
+        serde_json::from_slice(request_body(&captured)).expect("request JSON");
+    assert_eq!(payload["thinking"]["type"], "enabled");
+    assert_eq!(payload["reasoning_effort"], "high");
+    assert_eq!(payload["max_tokens"], 256);
+    assert_eq!(payload["stop"][0], "<END>");
+    assert_eq!(
+        payload["messages"][1]["reasoning_content"],
+        "previous reasoning"
+    );
+    assert_eq!(response.text, "answer");
+    assert_eq!(response.reasoning, "step one");
+    assert_eq!(response.tool_calls[0].arguments, r#"{"q":"Q355B"}"#);
+    let usage = response.usage.expect("DeepSeek usage");
+    assert_eq!(usage.prompt_tokens, 70);
+    assert_eq!(usage.cache_read_tokens, 30);
+    assert_eq!(usage.reasoning_tokens, 12);
+    assert_eq!(usage.total_tokens, 90);
+    assert!(events
+        .iter()
+        .any(|event| matches!(event, ChatEvent::ReasoningDelta(delta) if delta == "step ")));
+}
+
+#[test]
+fn deepseek_maps_legacy_prompt_cache_hit_tokens() {
+    let body = concat!(
+        "data: {\"choices\":[{\"delta\":{\"content\":\"answer\"},\"finish_reason\":\"stop\"}],\"usage\":{\"prompt_tokens\":100,\"prompt_cache_hit_tokens\":25,\"completion_tokens\":10,\"total_tokens\":110}}\n\n",
+        "data: [DONE]\n\n"
+    );
+    let (base_url, server) = chat_server("text/event-stream", body, "/chat/completions");
+    let provider = OpenAiProvider::new(
+        profile(ProviderKind::DeepSeek, &base_url, Some("deepseek-v4-flash")),
+        None,
+    )
+    .unwrap();
+
+    let response = tauri::async_runtime::block_on(provider.chat(
+        ChatRequest::single_turn("system", "user"),
+        &mut |_| {},
+        &|| false,
+    ))
+    .expect("DeepSeek stream succeeds");
+    join_server(server);
+
+    let usage = response.usage.expect("DeepSeek usage");
+    assert_eq!(usage.prompt_tokens, 75);
+    assert_eq!(usage.cache_read_tokens, 25);
+    assert_eq!(usage.total_tokens, 85);
+}
+
+#[test]
+fn deepseek_chat_rejects_malformed_sse_and_missing_done() {
+    for body in [
+        "data: {not-json}\n\ndata: [DONE]\n\n",
+        "data: {\"choices\":[{\"delta\":{\"content\":\"partial\"},\"finish_reason\":\"stop\"}]}\n\n",
+    ] {
+        let (base_url, server) = chat_server("text/event-stream", body, "/chat/completions");
+        let provider = OpenAiProvider::new(
+            profile(ProviderKind::DeepSeek, &base_url, Some("deepseek-v4-pro")),
+            None,
+        )
+        .unwrap();
+
+        let error = tauri::async_runtime::block_on(provider.chat(
+            ChatRequest::single_turn("system", "user"),
+            &mut |_| {},
+            &|| false,
+        ))
+        .unwrap_err();
+
+        assert_eq!(error.code(), ProviderErrorCode::ProviderResponse);
+        join_server(server);
+    }
 }
 
 #[test]
@@ -2011,6 +2172,25 @@ fn chat_server(
         stream.write_all(response.as_bytes()).unwrap();
     });
     (format!("http://{address}"), server)
+}
+
+fn chat_server_capture(
+    content_type: &'static str,
+    body: &'static str,
+    expected_path: &'static str,
+) -> (String, thread::JoinHandle<()>, Arc<Mutex<Option<Vec<u8>>>>) {
+    let listener = TcpListener::bind("127.0.0.1:0").expect("bind capture provider");
+    let address = listener.local_addr().unwrap();
+    let captured = Arc::new(Mutex::new(None));
+    let server_captured = Arc::clone(&captured);
+    let server = thread::spawn(move || {
+        let mut stream = accept_request(&listener);
+        let request = read_http_request(&mut stream);
+        assert!(String::from_utf8_lossy(&request).starts_with(&format!("POST {expected_path} ")));
+        *server_captured.lock().expect("capture request mutex") = Some(request);
+        write_http_response(&mut stream, "200 OK", content_type, &[], body);
+    });
+    (format!("http://{address}"), server, captured)
 }
 
 fn status_server(

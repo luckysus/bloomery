@@ -138,7 +138,7 @@ describe("BloomeryApp", () => {
     expect(screen.getByRole("button", { name: "工作台" })).not.toHaveAttribute("aria-current", "page");
   });
 
-  it("switches the chat route to the complete Web conversation shell", async () => {
+  it("switches the chat route to the full-window Web conversation shell", async () => {
     render(<BloomeryApp />);
 
     await screen.findByRole("heading", { name: "工作台" });
@@ -151,31 +151,21 @@ describe("BloomeryApp", () => {
     expect(within(chatPanel).queryByRole("button", { name: "模型训练" })).not.toBeInTheDocument();
     expect(within(chatPanel).queryByRole("button", { name: "工艺优化" })).not.toBeInTheDocument();
     expect(within(chatPanel).queryByRole("button", { name: /账户与设置/ })).not.toBeInTheDocument();
-    expect(screen.getByRole("navigation", { name: "主导航" })).toBeInTheDocument();
-    expect(screen.getByRole("main", { name: "对话" })).toBeInTheDocument();
-    expect(screen.getByRole("main", { name: "对话" }).querySelector(".bloomery-main-inner.is-chat-shell")).not.toBeNull();
-    expect(screen.getByTestId("utility-navigation")).toContainElement(
-      screen.getByRole("button", { name: "设置" }),
-    );
+    expect(screen.queryByRole("navigation", { name: "主导航" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("main", { name: "工作台" })).not.toBeInTheDocument();
+    expect(document.querySelector(".bloomery-app-chat")).toBeInTheDocument();
   });
 
-  it("keeps outer navigation usable after entering and leaving chat", async () => {
+  it("returns to the workbench from the full-window Web chat shell", async () => {
     render(<BloomeryApp />);
 
     await screen.findByRole("heading", { name: "工作台" });
-    const mainNavigation = screen.getByRole("navigation", { name: "主导航" });
-    const chatButton = mainNavigation.querySelector('button[aria-label="对话"]') as HTMLButtonElement;
-    const knowledgeButton = mainNavigation.querySelector('button[aria-label="知识库"]') as HTMLButtonElement;
+    fireEvent.click(screen.getByRole("button", { name: "对话" }));
+    expect(await screen.findByRole("region", { name: "Web 风格对话面板" })).toBeInTheDocument();
+    expect(screen.queryByRole("navigation", { name: "主导航" })).not.toBeInTheDocument();
 
-    fireEvent.click(chatButton);
-    expect(await screen.findByRole("main", { name: "对话" })).toBeInTheDocument();
-
-    fireEvent.click(knowledgeButton);
-    expect(await screen.findByRole("heading", { name: "知识库" })).toBeInTheDocument();
-    expect(screen.getByRole("main", { name: "知识库" })).toBeInTheDocument();
-
-    fireEvent.click(chatButton);
-    expect(await screen.findByRole("main", { name: "对话" })).toBeInTheDocument();
+    fireEvent.click(screen.getByTitle("钢铁智能体"));
+    expect(await screen.findByRole("heading", { name: "工作台" })).toBeInTheDocument();
     expect(screen.getByRole("navigation", { name: "主导航" })).toBeInTheDocument();
   });
 

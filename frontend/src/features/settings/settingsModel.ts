@@ -32,10 +32,10 @@ export const defaultRetrievalIds: RetrievalIds = {
 
 export const defaults: Record<ProviderSlot, Omit<SettingsEditor, "slot" | "id" | "apiKey" | "secretConfigured">> = {
   chat: {
-    kind: "open_ai_compatible",
-    displayName: "OpenAI Compatible",
-    baseUrl: "https://api.openai.com/v1",
-    modelId: "gpt-4o-mini",
+    kind: "deepseek",
+    displayName: "DeepSeek",
+    baseUrl: "https://api.deepseek.com",
+    modelId: "deepseek-v4-flash",
     enabled: true,
   },
   embedding: {
@@ -95,7 +95,11 @@ export function profileForSlot(
   if (byId) return byId;
 
   return profiles.find((profile) => {
-    if (slot === "chat") return profile.kind === "open_ai_compatible" || profile.kind === "ollama";
+    if (slot === "chat") {
+      return profile.kind === "deepseek"
+        || profile.kind === "open_ai_compatible"
+        || profile.kind === "ollama";
+    }
     if (slot === "mineru") return profile.kind === "mineru";
     if (profile.kind !== "siliconflow") return false;
     return slot === "embedding"

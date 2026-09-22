@@ -149,13 +149,15 @@ describe("Bloomery desktop layout", () => {
   });
 
   it("keeps the desktop Web chat focused on conversation controls", () => {
-    expect(polishCss).toContain(".bloomery-web-chat-desktop-clean > aside > div > div:first-child > div > button:first-child");
     expect(polishCss).toContain(".bloomery-web-chat-desktop-clean > aside > div > div:nth-child(2) > div > div:last-child");
     expect(polishCss).toContain(".bloomery-web-chat-desktop-clean > main > section:first-child");
     expect(polishCss).toContain(".bloomery-web-chat-desktop-clean h3 + p");
     expect(polishCss).toContain("--agent-turn-gutter: clamp(24px, 4vw, 64px);");
-    expect(polishCss).toContain("min-height: 88px !important;");
-    expect(polishCss).toContain("max-height: 220px !important;");
+    expect(polishCss).not.toContain(".bloomery-web-chat-desktop-clean > aside > div > div:first-child > div > button:first-child");
+    expect(polishCss).not.toContain("div[class*=\"rounded-2xl\"][class*=\"border-[#e3d7ca]\"]");
+    expect(polishCss).not.toContain("min-height: 88px !important;");
+    expect(polishCss).not.toContain("max-height: 220px !important;");
+    expect(polishCss).not.toContain(".bloomery-web-chat-desktop-clean .web-agent-chat-panel textarea {\n  resize: vertical;");
   });
 
   it("uses a complete domain package install grid", () => {
@@ -186,7 +188,7 @@ describe("Bloomery desktop layout", () => {
     expect(polishCss).toContain('[data-theme="dark"] .bloomery-topbar');
     expect(polishCss).toContain('[data-theme="dark"] .bloomery-settings-card');
     expect(polishCss).toContain('[data-theme="dark"] .bloomery-app input');
-    expect(polishCss).toContain("background-color: var(--bloomery-bg-raised) !important;");
+    expect(polishCss).toContain("background: var(--bloomery-bg-raised) !important;");
   });
 
   it("keeps the copied Web chat surfaces dark in dark mode", () => {

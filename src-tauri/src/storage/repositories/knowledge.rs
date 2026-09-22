@@ -12,9 +12,10 @@ mod versions;
 pub use activation::{activate_document_version, activate_document_version_for_task};
 pub use attempts::{create_ingest_attempt, finish_ingest_attempt, get_ingest_attempt};
 pub use catalog::{
-    delete_knowledge_base_confirmed, list_document_versions, list_source_documents,
-    preview_delete_knowledge_base, read_knowledge_health, rename_knowledge_base,
-    KnowledgeBaseDeleteImpact, KnowledgeHealth,
+    delete_knowledge_base_confirmed, delete_knowledge_document, list_document_versions,
+    list_source_documents, merge_knowledge_bases, preview_delete_knowledge_base,
+    read_knowledge_health, rename_knowledge_base, rename_knowledge_document,
+    KnowledgeBaseDeleteImpact, KnowledgeBaseMergeMode, KnowledgeBaseMergeRequest, KnowledgeHealth,
 };
 pub use content::{
     add_asset, add_chunk, index_chunk_fts, record_chunk_embedding, set_vector_watermark,

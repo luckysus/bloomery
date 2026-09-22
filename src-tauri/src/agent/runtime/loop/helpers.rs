@@ -386,6 +386,7 @@ pub(super) fn to_agent_error(error: &AgentLoopError) -> AgentError {
                 ProviderErrorCode::Network | ProviderErrorCode::Timeout => {
                     AgentErrorCategory::Network
                 }
+                ProviderErrorCode::ContextLimit => AgentErrorCategory::ModelCapability,
                 ProviderErrorCode::UnsupportedCapability => AgentErrorCategory::ModelCapability,
                 ProviderErrorCode::Cancelled => AgentErrorCategory::Network,
                 ProviderErrorCode::ProviderResponse => AgentErrorCategory::Internal,
@@ -427,7 +428,10 @@ pub(super) fn to_agent_error(error: &AgentLoopError) -> AgentError {
         category,
         message: error.to_string(),
         retryable,
-        details: None,
+        details: match error {
+            AgentLoopError::Provider(provider) => provider.details(),
+            _ => None,
+        },
     }
 }
 

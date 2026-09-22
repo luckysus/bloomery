@@ -62,6 +62,14 @@ function BloomeryAppShell() {
     };
   }, []);
 
+  if (activeSection === "chat") {
+    return (
+      <div className="bloomery-app bloomery-app-chat">
+        <ChatPage onOpenSection={setActiveSection} />
+      </div>
+    );
+  }
+
   return (
     <div className={`bloomery-app ${collapsed ? "is-collapsed" : ""}`}>
       <header className="bloomery-topbar">
@@ -134,7 +142,7 @@ function BloomeryAppShell() {
         </nav>
 
         <main className="bloomery-main" aria-label={t(active.labelKey)}>
-          <div className={`bloomery-main-inner ${activeSection === "chat" ? "is-chat-shell" : ""}`}>
+          <div className="bloomery-main-inner">
             {activeSection === "workbench" ? (
               <WorkbenchHome
                 initializationState={initializationState}
@@ -152,8 +160,6 @@ function BloomeryAppShell() {
               <DiagnosticsPage />
             ) : activeSection === "extensions" ? (
               <ExtensionsPage />
-            ) : activeSection === "chat" ? (
-              <ChatPage onOpenSection={setActiveSection} />
             ) : (
               <SectionPlaceholder section={active} />
             )}

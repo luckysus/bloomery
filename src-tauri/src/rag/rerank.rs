@@ -151,6 +151,7 @@ fn provider_degradation(error: ProviderError) -> RerankDegradationReason {
         ProviderErrorCode::Quota => RerankDegradationReason::Quota,
         ProviderErrorCode::Timeout => RerankDegradationReason::Timeout,
         ProviderErrorCode::ProviderResponse => RerankDegradationReason::ProviderResponse,
+        ProviderErrorCode::ContextLimit => RerankDegradationReason::ProviderResponse,
         ProviderErrorCode::Cancelled => RerankDegradationReason::Cancelled,
         ProviderErrorCode::UnsupportedCapability => RerankDegradationReason::UnsupportedCapability,
     }

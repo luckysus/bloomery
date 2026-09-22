@@ -3291,8 +3291,14 @@ body {
 
 /* ========================= Full Web conversation replica ========================= */
 .bloomery-app-chat {
+  height: 100dvh;
   min-height: 100dvh;
   overflow: hidden;
+}
+
+.bloomery-app-chat > .bloomery-web-chat-embedded {
+  height: 100dvh;
+  min-height: 0;
 }
 
 .bloomery-web-chat {
@@ -4268,10 +4274,28 @@ body,
   border-color: var(--bloomery-line) !important;
 }
 
-.bloomery-web-chat-desktop-clean > aside > div > div:first-child > div > button:first-child,
 .bloomery-web-chat-desktop-clean > aside > div > div:first-child > div > div.relative.min-w-0.flex-1,
 .bloomery-web-chat-desktop-clean > aside > div > div:nth-child(2) > div > div:last-child {
   display: none !important;
+}
+
+/* The copied Web composer owns its visual styles; keep the host form skin away. */
+.bloomery-web-chat-desktop-clean .web-agent-chat-panel textarea {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  color: #2b2118;
+  min-height: 44px;
+  outline: none;
+  padding: 0.5rem 0.75rem;
+  transition: none;
+}
+
+.bloomery-web-chat-desktop-clean .web-agent-chat-panel textarea:hover,
+.bloomery-web-chat-desktop-clean .web-agent-chat-panel textarea:focus {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
 }
 
 .bloomery-web-chat-desktop-clean > main,
@@ -4302,28 +4326,6 @@ body,
   margin: 0 auto;
   max-width: 1040px;
   width: 100%;
-}
-
-.bloomery-web-chat-desktop-clean div[class*="rounded-2xl"][class*="border-[#e3d7ca]"] {
-  background: var(--bloomery-bg-raised) !important;
-  border-color: var(--bloomery-line-strong) !important;
-  box-shadow: var(--bloomery-shadow-soft) !important;
-  margin: 0 auto;
-  max-width: 960px;
-  width: 100%;
-}
-
-.bloomery-web-chat-desktop-clean div[class*="rounded-2xl"][class*="border-[#e3d7ca]"] > textarea {
-  background: transparent !important;
-  color: var(--bloomery-text) !important;
-  max-height: 220px !important;
-  min-height: 88px !important;
-  overflow-y: auto;
-  resize: vertical;
-}
-
-.bloomery-web-chat-desktop-clean div[class*="rounded-2xl"][class*="border-[#e3d7ca]"] > textarea::placeholder {
-  color: var(--bloomery-text-muted) !important;
 }
 
 .bloomery-web-chat-history-search-shell [class*="fixed"][class*="inset-0"] > div {
@@ -4469,15 +4471,6 @@ body,
 [data-theme="dark"] .bloomery-web-chat-desktop-clean .bloomery-web-chat-session-rename {
   background: var(--bloomery-bg-raised) !important;
   border-color: var(--bloomery-amber) !important;
-  color: var(--bloomery-text) !important;
-}
-
-[data-theme="dark"] .bloomery-web-chat-desktop-clean div[class*="rounded-2xl"][class*="border-[#e3d7ca]"] {
-  background-color: var(--bloomery-bg-raised) !important;
-}
-
-[data-theme="dark"] .bloomery-web-chat-desktop-clean div[class*="rounded-2xl"][class*="border-[#e3d7ca]"] > textarea {
-  background-color: transparent !important;
   color: var(--bloomery-text) !important;
 }
 

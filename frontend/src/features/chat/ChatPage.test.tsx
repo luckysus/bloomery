@@ -217,6 +217,7 @@ describe("ChatPage", () => {
 
     await screen.findByRole("button", { name: "Q355B 标准" });
     fireEvent.click(screen.getByRole("button", { name: "智能搜索" }));
+    fireEvent.click(screen.getByRole("button", { name: "智能搜索" }));
     fireEvent.change(screen.getByRole("textbox"), { target: { value: "只使用当前对话回答" } });
     fireEvent.click(screen.getByRole("button", { name: "发送" }));
 
@@ -237,6 +238,21 @@ describe("ChatPage", () => {
     await waitFor(() => expect(desktop.desktopAgentChat).toHaveBeenCalledWith(expect.objectContaining({
       message: "你好",
       evidencePackId: undefined,
+    })));
+    expect(desktop.queryLocalKnowledge).not.toHaveBeenCalled();
+  });
+
+  it("keeps ordinary long questions on the direct chat path by default", async () => {
+    render(<ChatPage />);
+
+    await screen.findByRole("button", { name: "Q355B 标准" });
+    fireEvent.change(screen.getByRole("textbox"), { target: { value: "介绍一下东北大学" } });
+    fireEvent.click(screen.getByRole("button", { name: "发送" }));
+
+    await waitFor(() => expect(desktop.desktopAgentChat).toHaveBeenCalledWith(expect.objectContaining({
+      message: "介绍一下东北大学",
+      evidencePackId: undefined,
+      smartSearchEnabled: false,
     })));
     expect(desktop.queryLocalKnowledge).not.toHaveBeenCalled();
   });
@@ -281,6 +297,7 @@ describe("ChatPage", () => {
     vi.mocked(desktop.queryLocalKnowledge).mockResolvedValue(evidencePack);
     render(<ChatPage />);
     await screen.findByRole("button", { name: "Q355B 标准" });
+    fireEvent.click(screen.getByRole("button", { name: "智能搜索" }));
     fireEvent.change(screen.getByRole("textbox"), { target: { value: "Q355B strength" } });
     fireEvent.click(screen.getByRole("button", { name: "发送" }));
 
@@ -290,6 +307,7 @@ describe("ChatPage", () => {
     })));
     await waitFor(() => expect(desktop.desktopAgentChat).toHaveBeenCalledWith(expect.objectContaining({
       evidencePackId: evidencePack.id,
+      smartSearchEnabled: true,
     })));
   });
 

@@ -15,6 +15,7 @@ use serde_json::{json, Value};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use tauri::Emitter;
+use tauri::Manager;
 use uuid::Uuid;
 
 fn should_load_agent_tools(smart_search_enabled: bool, has_evidence_pack: bool) -> bool {
@@ -65,12 +66,17 @@ pub(crate) async fn run_standard_agent(
                 database.clone(),
             ),
         );
-        let steel_agent_gateway = std::sync::Arc::new(
+        let mut steel_agent_gateway =
             crate::app::steel_agent_gateway::DesktopSteelAgentGateway::new(
                 database.clone(),
                 workspace_id,
-            ),
-        );
+            );
+        if let Ok(pool) = crate::knowledge_db::pool_for_query(
+            app.state::<crate::knowledge_db::KnowledgeDatabaseState>().inner(),
+        ) {
+            steel_agent_gateway = steel_agent_gateway.with_postgres_pool(app.clone(), pool);
+        }
+        let steel_agent_gateway = std::sync::Arc::new(steel_agent_gateway);
         SteelToolExecutor::with_agent_gateways(
             optimization_gateway,
             steel_agent_gateway,

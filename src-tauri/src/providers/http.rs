@@ -1,6 +1,9 @@
 use crate::diagnostics::redaction::Redactor;
+use chrono::{DateTime, Utc};
+use reqwest::header::{HeaderMap, RETRY_AFTER};
 use reqwest::{redirect, Client, StatusCode};
 use serde::Serialize;
+use serde_json::{Map, Value};
 use std::time::Duration;
 use std::{fmt, sync::Once};
 
@@ -115,6 +118,7 @@ pub enum ProviderErrorCode {
     Quota,
     Timeout,
     ProviderResponse,
+    ContextLimit,
     Cancelled,
     UnsupportedCapability,
 }
@@ -127,6 +131,7 @@ impl ProviderErrorCode {
             Self::Quota => "quota",
             Self::Timeout => "timeout",
             Self::ProviderResponse => "provider_response",
+            Self::ContextLimit => "context_limit",
             Self::Cancelled => "cancelled",
             Self::UnsupportedCapability => "unsupported_capability",
         }
@@ -138,6 +143,8 @@ pub struct ProviderError {
     code: ProviderErrorCode,
     status: Option<u16>,
     message: String,
+    retry_after_seconds: Option<u64>,
+    request_id: Option<String>,
 }
 
 impl ProviderError {
@@ -146,14 +153,31 @@ impl ProviderError {
             code,
             status,
             message: message.into(),
+            retry_after_seconds: None,
+            request_id: None,
         }
     }
 
     pub fn from_status(status: StatusCode, body: &str, redactor: &Redactor) -> Self {
-        let code = match status {
-            StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN => ProviderErrorCode::Authentication,
-            StatusCode::TOO_MANY_REQUESTS => ProviderErrorCode::Quota,
-            _ => ProviderErrorCode::ProviderResponse,
+        Self::from_status_with_headers(status, &HeaderMap::new(), body, redactor)
+    }
+
+    pub fn from_status_with_headers(
+        status: StatusCode,
+        headers: &HeaderMap,
+        body: &str,
+        redactor: &Redactor,
+    ) -> Self {
+        let code = if is_context_limit(status, body) {
+            ProviderErrorCode::ContextLimit
+        } else {
+            match status {
+                StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN => {
+                    ProviderErrorCode::Authentication
+                }
+                StatusCode::TOO_MANY_REQUESTS => ProviderErrorCode::Quota,
+                _ => ProviderErrorCode::ProviderResponse,
+            }
         };
         let message = redactor.redact_body(body);
         let message = if message.trim().is_empty() {
@@ -164,7 +188,16 @@ impl ProviderError {
         } else {
             message.chars().take(4096).collect()
         };
-        Self::new(code, Some(status.as_u16()), message)
+        Self {
+            code,
+            status: Some(status.as_u16()),
+            message,
+            retry_after_seconds: headers
+                .get(RETRY_AFTER)
+                .and_then(|value| value.to_str().ok())
+                .and_then(parse_retry_after_seconds),
+            request_id: request_id(headers),
+        }
     }
 
     pub fn from_reqwest(error: &reqwest::Error) -> Self {
@@ -198,6 +231,74 @@ impl ProviderError {
     pub fn status(&self) -> Option<u16> {
         self.status
     }
+
+    pub fn request_id(&self) -> Option<&str> {
+        self.request_id.as_deref()
+    }
+
+    pub fn retry_after_seconds(&self) -> Option<u64> {
+        self.retry_after_seconds
+    }
+
+    pub fn details(&self) -> Option<Value> {
+        let mut details = Map::new();
+        if let Some(status) = self.status {
+            details.insert("status".to_string(), Value::from(status));
+        }
+        if let Some(request_id) = &self.request_id {
+            details.insert("request_id".to_string(), Value::from(request_id.clone()));
+        }
+        if let Some(seconds) = self.retry_after_seconds {
+            details.insert("retry_after_seconds".to_string(), Value::from(seconds));
+        }
+        (!details.is_empty()).then_some(Value::Object(details))
+    }
+}
+
+fn is_context_limit(status: StatusCode, body: &str) -> bool {
+    if status != StatusCode::BAD_REQUEST {
+        return false;
+    }
+    let body = body.to_ascii_lowercase();
+    [
+        "context_length_exceeded",
+        "context length",
+        "maximum context",
+        "prompt is too long",
+        "input is too long",
+        "too many tokens",
+        "token limit",
+    ]
+    .iter()
+    .any(|needle| body.contains(needle))
+}
+
+fn request_id(headers: &HeaderMap) -> Option<String> {
+    ["x-deepseek-request-id", "x-request-id"]
+        .iter()
+        .find_map(|name| {
+            headers
+                .get(*name)
+                .and_then(|value| value.to_str().ok())
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+                .map(|value| value.chars().take(256).collect())
+        })
+}
+
+fn parse_retry_after_seconds(value: &str) -> Option<u64> {
+    let value = value.trim();
+    if let Ok(seconds) = value.parse::<u64>() {
+        return Some(seconds);
+    }
+    let deadline = DateTime::parse_from_rfc2822(value)
+        .ok()?
+        .with_timezone(&Utc);
+    deadline
+        .signed_duration_since(Utc::now())
+        .num_seconds()
+        .try_into()
+        .ok()
 }
 
 impl fmt::Display for ProviderError {
@@ -232,6 +333,31 @@ mod tests {
         assert!(!is_cross_origin_redirect(Some(&origin), &same_origin));
         assert!(is_cross_origin_redirect(Some(&origin), &different_host));
         assert!(is_cross_origin_redirect(Some(&origin), &different_port));
+    }
+
+    #[test]
+    fn classifies_context_limit_and_preserves_deepseek_request_diagnostics() {
+        let mut headers = reqwest::header::HeaderMap::new();
+        headers.insert("x-deepseek-request-id", "ds-123".parse().unwrap());
+        headers.insert(reqwest::header::RETRY_AFTER, "7".parse().unwrap());
+        let error = ProviderError::from_status_with_headers(
+            StatusCode::BAD_REQUEST,
+            &headers,
+            r#"{"error":{"code":"context_length_exceeded","message":"prompt is too long"}}"#,
+            &Redactor::new(),
+        );
+
+        assert_eq!(error.code(), ProviderErrorCode::ContextLimit);
+        assert_eq!(error.request_id(), Some("ds-123"));
+        assert_eq!(error.retry_after_seconds(), Some(7));
+        assert_eq!(
+            error.details().unwrap(),
+            serde_json::json!({
+                "status": 400,
+                "request_id": "ds-123",
+                "retry_after_seconds": 7,
+            })
+        );
     }
 
     #[test]

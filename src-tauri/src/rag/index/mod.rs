@@ -362,6 +362,7 @@ fn provider(error: ProviderError) -> EmbeddingError {
         ProviderErrorCode::Cancelled => ("embedding_cancelled", false),
         ProviderErrorCode::Authentication => ("embedding_authentication", false),
         ProviderErrorCode::UnsupportedCapability => ("embedding_unsupported", false),
+        ProviderErrorCode::ContextLimit => ("embedding_context_limit", false),
         ProviderErrorCode::ProviderResponse
             if error.status().is_some_and(|status| status >= 500) =>
         {

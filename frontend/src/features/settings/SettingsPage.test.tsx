@@ -166,6 +166,25 @@ describe("SettingsPage", () => {
     expect(desktop.setDefaultProvider).toHaveBeenCalledWith("chat", chatProfile.id);
   });
 
+  it("persists the selected chat provider in onboarding state", async () => {
+    renderSettings();
+
+    const name = await screen.findByDisplayValue("Steel LLM");
+    const chatForm = name.closest("form");
+    if (!chatForm) throw new Error("chat provider form is missing");
+    fireEvent.change(within(chatForm).getByRole("combobox"), {
+      target: { value: "deepseek" },
+    });
+    fireEvent.click(within(chatForm).getByRole("button", { name: "settingsSave" }));
+
+    await waitFor(() =>
+      expect(desktop.setSetting).toHaveBeenCalledWith(
+        "onboarding.completed",
+        expect.stringContaining(`"llm_profile_id":"${chatProfile.id}"`),
+      ),
+    );
+  });
+
   it("persists the SiliconFlow free or Pro selection without exposing credentials", async () => {
     renderSettings();
 
@@ -191,7 +210,7 @@ describe("SettingsPage", () => {
     expect(screen.getByRole("alert")).toBeInTheDocument();
   });
 
-  it("reloads provider state when a secret write fails after profile save", async () => {
+  it("keeps the edited provider visible when a secret write fails", async () => {
     vi.mocked(desktop.setProviderSecret).mockRejectedValueOnce(new Error("keyring unavailable"));
     renderSettings();
 
@@ -204,9 +223,8 @@ describe("SettingsPage", () => {
     });
     fireEvent.click(within(chatForm).getByRole("button", { name: "settingsSave" }));
 
-    await waitFor(() => expect(desktop.listProviderProfiles).toHaveBeenCalledTimes(2));
-    expect(screen.getByDisplayValue("Steel LLM")).toBeInTheDocument();
-    expect(screen.queryByDisplayValue("Unsaved Steel LLM")).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.getByDisplayValue("Unsaved Steel LLM")).toBeInTheDocument());
+    expect(desktop.listProviderProfiles).toHaveBeenCalledTimes(1);
     expect(screen.getByRole("alert")).toBeInTheDocument();
   });
 

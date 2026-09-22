@@ -9,6 +9,7 @@ use uuid::Uuid;
 #[serde(rename_all = "snake_case")]
 pub enum ProviderKind {
     OpenAiCompatible,
+    DeepSeek,
     Ollama,
     #[serde(rename = "siliconflow")]
     SiliconFlow,
@@ -20,6 +21,7 @@ impl ProviderKind {
     pub fn as_str(self) -> &'static str {
         match self {
             Self::OpenAiCompatible => "open_ai_compatible",
+            Self::DeepSeek => "deepseek",
             Self::Ollama => "ollama",
             Self::SiliconFlow => "siliconflow",
             Self::MinerU => "mineru",
@@ -34,6 +36,7 @@ impl ProviderKind {
                     ProviderCapability::Chat | ProviderCapability::Embedding
                 )
             }
+            Self::DeepSeek => capability == ProviderCapability::Chat,
             Self::SiliconFlow => matches!(
                 capability,
                 ProviderCapability::Chat
@@ -51,6 +54,7 @@ impl FromStr for ProviderKind {
     fn from_str(value: &str) -> Result<Self, Self::Err> {
         match value {
             "open_ai_compatible" => Ok(Self::OpenAiCompatible),
+            "deepseek" => Ok(Self::DeepSeek),
             "ollama" => Ok(Self::Ollama),
             "siliconflow" => Ok(Self::SiliconFlow),
             "mineru" => Ok(Self::MinerU),
@@ -150,7 +154,9 @@ pub fn resolve_chat_profile(
     model_id: &str,
 ) -> Result<ProviderProfile, String> {
     let provider = provider.trim();
-    let kind = if provider.eq_ignore_ascii_case("ollama") {
+    let kind = if provider.eq_ignore_ascii_case("deepseek") {
+        ProviderKind::DeepSeek
+    } else if provider.eq_ignore_ascii_case("ollama") {
         ProviderKind::Ollama
     } else if provider.eq_ignore_ascii_case("siliconflow") {
         ProviderKind::SiliconFlow

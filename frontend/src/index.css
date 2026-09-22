@@ -326,6 +326,29 @@ input[type="range"]::-moz-range-thumb {
 .agent-reasoning-md li { margin: 0.2em 0; }
 .agent-reasoning-md strong { font-weight: 600; }
 
+.bloomery-reasoning-toggle {
+  color: var(--bloomery-text-muted);
+  transition: color 160ms ease;
+}
+.bloomery-reasoning-toggle:hover { color: var(--bloomery-text); }
+.bloomery-reasoning-icon { color: var(--bloomery-amber); }
+.bloomery-reasoning-chevron { color: var(--bloomery-text-muted); }
+.bloomery-reasoning-content {
+  border-left-color: var(--bloomery-line-strong);
+}
+
+[data-theme="dark"] .agent-reasoning-md,
+[data-theme="dark"] .agent-reasoning-md p,
+[data-theme="dark"] .agent-reasoning-md li,
+[data-theme="dark"] .agent-reasoning-md h1,
+[data-theme="dark"] .agent-reasoning-md h2,
+[data-theme="dark"] .agent-reasoning-md h3,
+[data-theme="dark"] .agent-reasoning-md h4,
+[data-theme="dark"] .agent-reasoning-md strong,
+[data-theme="dark"] .agent-reasoning-md code {
+  color: var(--bloomery-text-muted) !important;
+}
+
 /* ========================= Dark content surfaces ========================= */
 [data-theme="dark"] .ai-markdown-body h1,
 [data-theme="dark"] .ai-markdown-body h2,

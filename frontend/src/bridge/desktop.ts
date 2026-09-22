@@ -43,6 +43,7 @@ export interface LocalAgentChatRequest {
   message: string;
   runId?: string;
   evidencePackId?: string;
+  smartSearchEnabled?: boolean;
   attachments?: LocalAgentAttachment[];
 }
 
@@ -439,6 +440,179 @@ export interface KnowledgeHealth {
   active_task_count: number;
 }
 
+export interface KnowledgeDatabaseConfig {
+  host: string;
+  port: number;
+  database: string;
+  username: string;
+}
+
+export interface KnowledgeDatabaseHealth {
+  configured: boolean;
+  connected: boolean;
+  vector_extension: boolean;
+  migration_version: number | null;
+  message: string;
+}
+
+export interface PostgresKnowledgeBase {
+  id: string;
+  name: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PostgresDocumentImportRequest {
+  knowledge_base_id: string;
+  source_path: string;
+}
+
+export interface PostgresDocumentImportResponse {
+  knowledge_base_id: string;
+  document_id: string;
+  version_id: string;
+  chunk_count: number;
+  asset_count: number;
+  duplicate_content: boolean;
+}
+
+export interface PostgresKnowledgeSearchRequest {
+  knowledge_base_id: string;
+  query: string;
+  limit: number;
+}
+
+export interface PostgresKnowledgeSearchHit {
+  knowledge_base_id: string;
+  chunk_id: string;
+  version_id: string;
+  document_id: string;
+  document_name: string;
+  text: string;
+  source_location: Record<string, unknown>;
+  rank: number;
+}
+
+export interface PostgresCitation {
+  audit_id: string;
+  citation_number: number;
+  source_state: string;
+  hit: PostgresKnowledgeSearchHit;
+}
+
+export interface PostgresRerankRequest {
+  query: string;
+  rerank_profile_id: string;
+  hits: PostgresKnowledgeSearchHit[];
+}
+
+export interface PostgresIngestionJob {
+  id: string;
+  knowledge_base_id: string;
+  source_document_id: string | null;
+  state: string;
+  attempts: number;
+  error_message: string | null;
+  next_attempt_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PostgresProcessingFailure {
+  id: string;
+  job_id: string;
+  error_code: string;
+  error_message: string;
+  details: Record<string, unknown>;
+  created_at: string;
+}
+
+export interface PostgresDocument {
+  id: string;
+  knowledge_base_id: string;
+  display_name: string;
+  source_kind: string;
+  source_path: string;
+  content_sha256: string;
+  active_version_id: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PostgresChunkEmbeddingInput {
+  chunk_id: string;
+  model_id: string;
+  embedding: number[];
+}
+
+export interface PostgresVectorSearchRequest {
+  knowledge_base_id: string;
+  embedding: number[];
+  limit: number;
+}
+
+export interface PostgresHybridSearchRequest {
+  knowledge_base_id: string;
+  query: string;
+  embedding: number[];
+  limit: number;
+  rrf_k: number;
+}
+
+export interface PostgresWikiPage {
+  id: string;
+  knowledge_base_id: string;
+  slug: string;
+  title: string;
+  body_markdown: string;
+  source_document_id: string | null;
+  revision: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PostgresWikiPageInput {
+  knowledge_base_id: string;
+  slug: string;
+  title: string;
+  body_markdown: string;
+  source_document_id?: string | null;
+  tags?: string[];
+}
+
+export interface PostgresWikiRevision {
+  id: string;
+  page_id: string;
+  revision: number;
+  title: string;
+  body_markdown: string;
+  created_at: string;
+}
+
+export interface PostgresKnowledgeEdge {
+  id: string;
+  knowledge_base_id: string;
+  source_page_id: string | null;
+  target_page_id: string | null;
+  relation: string;
+  metadata: Record<string, unknown>;
+  created_at: string;
+}
+
+export interface PostgresTag {
+  id: string;
+  knowledge_base_id: string;
+  name: string;
+}
+
+export interface PostgresKnowledgeEdgeInput {
+  knowledge_base_id: string;
+  source_page_id?: string | null;
+  target_page_id?: string | null;
+  relation: string;
+  metadata?: Record<string, unknown>;
+}
+
 export interface BackgroundTask {
   id: string;
   kind: string;
@@ -612,7 +786,39 @@ export interface DocumentImportResponse {
   duplicate_content: boolean;
 }
 
-export type ProviderKind = "open_ai_compatible" | "ollama" | "siliconflow" | "mineru";
+export type KnowledgeBaseMergeMode = "new" | "existing";
+
+export interface KnowledgeBaseMergeRequest {
+  source_id: string;
+  target_id: string;
+  mode: KnowledgeBaseMergeMode;
+  destination_name: string | null;
+}
+
+export interface KnowledgePreviewBlock {
+  content: string;
+}
+
+export interface KnowledgePreviewSheet {
+  name: string;
+  html: string;
+}
+
+export interface KnowledgeDocumentPreview {
+  processed: boolean;
+  source?: string | null;
+  content?: string | null;
+  blocks: KnowledgePreviewBlock[];
+  raw_data_url?: string | null;
+  raw_sheets?: KnowledgePreviewSheet[];
+}
+
+export interface KnowledgeDocumentRaw {
+  data_url: string;
+  sheets: KnowledgePreviewSheet[];
+}
+
+export type ProviderKind = "open_ai_compatible" | "deepseek" | "ollama" | "siliconflow" | "mineru";
 export type ProviderCapability = "chat" | "embedding" | "rerank" | "document_parser";
 
 export interface ProviderProfileInput {
@@ -1027,19 +1233,29 @@ getComputeOptimizationResult: (id: string) =>
     call<DatabaseQueryResult | null>("get_database_query_result", { taskId }),
   listDatabaseQueryResults: () =>
     call<DatabaseQuerySummary[]>("list_database_query_results"),
-  listKnowledgeBases: () => call<KnowledgeBaseRecord[]>("list_knowledge_bases"),
+  listKnowledgeBases: () => call<KnowledgeBaseRecord[]>("list_postgres_knowledge_bases"),
   createKnowledgeBase: (name: string) =>
-    call<KnowledgeBaseRecord>("create_knowledge_base", { name }),
+    call<KnowledgeBaseRecord>("create_postgres_knowledge_base", { name }),
   renameKnowledgeBase: (id: string, name: string) =>
-    call<KnowledgeBaseRecord>("rename_knowledge_base", { id, name }),
+    call<KnowledgeBaseRecord>("rename_postgres_knowledge_base", { id, name }),
   previewDeleteKnowledgeBase: (id: string) =>
-    call<KnowledgeBaseDeleteImpact>("preview_delete_knowledge_base", { id }),
+    call<KnowledgeBaseDeleteImpact>("preview_delete_postgres_knowledge_base", { id }),
   deleteKnowledgeBaseConfirmed: (id: string) =>
-    call<void>("delete_knowledge_base_confirmed", { id }),
+    call<void>("delete_postgres_knowledge_base", { id }),
   listKnowledgeDocuments: (knowledgeBaseId: string) =>
     call<SourceDocumentRecord[]>("list_knowledge_documents", { knowledgeBaseId }),
   listDocumentVersions: (documentId: string) =>
     call<DocumentVersionRecord[]>("list_document_versions", { documentId }),
+  renameKnowledgeDocument: (id: string, displayName: string) =>
+    call<SourceDocumentRecord>("rename_knowledge_document", { id, displayName }),
+  deleteKnowledgeDocument: (id: string) =>
+    call<void>("delete_knowledge_document", { id }),
+  mergeKnowledgeBases: (request: KnowledgeBaseMergeRequest) =>
+    call<KnowledgeBaseRecord>("merge_knowledge_bases", { request }),
+  getKnowledgeDocumentPreview: (documentId: string) =>
+    call<KnowledgeDocumentPreview>("get_knowledge_document_preview", { documentId }),
+  getKnowledgeDocumentRaw: (documentId: string) =>
+    call<KnowledgeDocumentRaw>("get_knowledge_document_raw", { documentId }),
   importLocalDocument: (request: DocumentImportRequest) =>
     call<DocumentImportResponse>("import_local_document", { request }),
   listBackgroundTasks: () => call<BackgroundTask[]>("list_background_tasks"),
@@ -1056,6 +1272,73 @@ getComputeOptimizationResult: (id: string) =>
   resolveKnowledgeCitation: (auditId: string, citationNumber: number) =>
     call<ResolvedCitation | null>("resolve_knowledge_citation", { auditId, citationNumber }),
   getKnowledgeHealth: () => call<KnowledgeHealth>("get_knowledge_health"),
+  testKnowledgeDatabase: (config: KnowledgeDatabaseConfig, password: string) =>
+    call<KnowledgeDatabaseHealth>("test_knowledge_database", { config, password }),
+  configureKnowledgeDatabase: (config: KnowledgeDatabaseConfig, password: string) =>
+    call<KnowledgeDatabaseHealth>("configure_knowledge_database", { config, password }),
+  initializeKnowledgeDatabase: () =>
+    call<KnowledgeDatabaseHealth>("initialize_knowledge_database"),
+  getKnowledgeDatabaseHealth: () =>
+    call<KnowledgeDatabaseHealth>("get_knowledge_database_health"),
+  disconnectKnowledgeDatabase: () => call<void>("disconnect_knowledge_database"),
+  listPostgresKnowledgeBases: () =>
+    call<PostgresKnowledgeBase[]>("list_postgres_knowledge_bases"),
+  createPostgresKnowledgeBase: (name: string) =>
+    call<PostgresKnowledgeBase>("create_postgres_knowledge_base", { name }),
+  importPostgresDocument: (request: PostgresDocumentImportRequest) =>
+    call<PostgresDocumentImportResponse>("import_postgres_document", { request }),
+  searchPostgresKnowledge: (request: PostgresKnowledgeSearchRequest) =>
+    call<PostgresKnowledgeSearchHit[]>("search_postgres_knowledge", { request }),
+  storePostgresChunkEmbeddings: (modelId: string, embeddings: PostgresChunkEmbeddingInput[]) =>
+    call<number>("store_postgres_chunk_embeddings", { modelId, embeddings }),
+  embedPostgresDocument: (request: { version_id: string; embedding_profile_id: string }) =>
+    call<number>("embed_postgres_document", { request }),
+  searchPostgresVectors: (request: PostgresVectorSearchRequest) =>
+    call<PostgresKnowledgeSearchHit[]>("search_postgres_vectors", { request }),
+  searchPostgresHybrid: (request: PostgresHybridSearchRequest) =>
+    call<PostgresKnowledgeSearchHit[]>("search_postgres_hybrid", { request }),
+  resolvePostgresCitation: (auditId: string, citationNumber: number) =>
+    call<PostgresCitation | null>("resolve_postgres_citation", { auditId, citationNumber }),
+  rerankPostgresKnowledge: (request: PostgresRerankRequest) =>
+    call<PostgresKnowledgeSearchHit[]>("rerank_postgres_knowledge", { request }),
+  listPostgresIngestionJobs: (knowledgeBaseId: string) =>
+    call<PostgresIngestionJob[]>("list_postgres_ingestion_jobs", { knowledgeBaseId }),
+  listPostgresProcessingFailures: (jobId: string) =>
+    call<PostgresProcessingFailure[]>("list_postgres_processing_failures", { jobId }),
+  retryPostgresIngestionJob: (jobId: string) =>
+    call<PostgresIngestionJob>("retry_postgres_ingestion_job", { jobId }),
+  listPostgresDocuments: (knowledgeBaseId: string) =>
+    call<PostgresDocument[]>("list_postgres_documents", { knowledgeBaseId }),
+  deletePostgresDocument: (documentId: string) =>
+    call<void>("delete_postgres_document", { documentId }),
+  listPostgresWikiPages: (knowledgeBaseId: string) =>
+    call<PostgresWikiPage[]>("list_postgres_wiki_pages", { knowledgeBaseId }),
+  createPostgresWikiPage: (input: PostgresWikiPageInput) =>
+    call<PostgresWikiPage>("create_postgres_wiki_page", { input }),
+  updatePostgresWikiPage: (pageId: string, title: string, bodyMarkdown: string, tags?: string[], sourceDocumentId?: string | null) =>
+    call<PostgresWikiPage>("update_postgres_wiki_page", {
+      pageId,
+      title,
+      bodyMarkdown,
+      tags,
+      sourceDocumentId: sourceDocumentId ?? null,
+    }),
+  listPostgresWikiRevisions: (pageId: string) =>
+    call<PostgresWikiRevision[]>("list_postgres_wiki_revisions", { pageId }),
+  restorePostgresWikiRevision: (pageId: string, revision: number) =>
+    call<PostgresWikiPage>("restore_postgres_wiki_revision", { pageId, revision }),
+  listPostgresKnowledgeEdges: (knowledgeBaseId: string) =>
+    call<PostgresKnowledgeEdge[]>("list_postgres_knowledge_edges", { knowledgeBaseId }),
+  listPostgresTags: (knowledgeBaseId: string) =>
+    call<PostgresTag[]>("list_postgres_tags", { knowledgeBaseId }),
+  listPostgresWikiPageTags: (pageId: string) =>
+    call<PostgresTag[]>("list_postgres_wiki_page_tags", { pageId }),
+  setPostgresWikiPageTags: (pageId: string, names: string[]) =>
+    call<PostgresTag[]>("set_postgres_wiki_page_tags", { pageId, names }),
+  createPostgresKnowledgeEdge: (input: PostgresKnowledgeEdgeInput) =>
+    call<PostgresKnowledgeEdge>("create_postgres_knowledge_edge", { input }),
+  deletePostgresKnowledgeEdge: (edgeId: string) =>
+    call<void>("delete_postgres_knowledge_edge", { edgeId }),
   getStorageHealth: () => call<StorageHealth>("get_storage_health"),
   exportDiagnostics: (lastErrorKind?: string) =>
     call<Record<string, unknown>>("export_diagnostics", lastErrorKind ? { lastErrorKind } : undefined),

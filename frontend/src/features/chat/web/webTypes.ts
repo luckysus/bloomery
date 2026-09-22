@@ -48,6 +48,8 @@ export interface WebMessage {
   content: string;
   response: WebResponse | null;
   streamEvidence: EvidenceItem[];
+  reasoning?: string;
+  reasoningMs?: number;
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -149,10 +151,13 @@ export function parseWebResponse(message: Message): WebResponse | null {
 }
 
 export function toWebMessage(message: Message): WebMessage {
+  const response = parseWebResponse(message);
   return {
     role: message.role === "user" ? "user" : "agent",
     content: message.content,
-    response: parseWebResponse(message),
-    streamEvidence: parseWebResponse(message)?.evidence ?? [],
+    response,
+    streamEvidence: response?.evidence ?? [],
+    reasoning: response?.reasoning,
+    reasoningMs: response?.reasoning_ms,
   };
 }

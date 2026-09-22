@@ -65,6 +65,49 @@ pub fn list_document_versions(
 }
 
 #[tauri::command]
+pub fn rename_knowledge_document(
+    db: tauri::State<DbState>,
+    id: String,
+    display_name: String,
+) -> Result<SourceDocumentRecord, String> {
+    logic::rename_knowledge_document(db, id, display_name)
+}
+
+#[tauri::command]
+pub fn delete_knowledge_document(
+    db: tauri::State<DbState>,
+    id: String,
+) -> Result<(), String> {
+    logic::delete_knowledge_document(db, id)
+}
+
+#[tauri::command]
+pub fn merge_knowledge_bases(
+    db: tauri::State<DbState>,
+    request: crate::storage::repositories::knowledge::KnowledgeBaseMergeRequest,
+) -> Result<KnowledgeBaseRecord, String> {
+    logic::merge_knowledge_bases(db, request)
+}
+
+#[tauri::command]
+pub fn get_knowledge_document_preview(
+    app: tauri::AppHandle,
+    db: tauri::State<DbState>,
+    document_id: String,
+) -> Result<logic::KnowledgeDocumentPreview, String> {
+    logic::get_knowledge_document_preview(app, db, document_id)
+}
+
+#[tauri::command]
+pub fn get_knowledge_document_raw(
+    app: tauri::AppHandle,
+    db: tauri::State<DbState>,
+    document_id: String,
+) -> Result<logic::KnowledgeDocumentRaw, String> {
+    logic::get_knowledge_document_raw(app, db, document_id)
+}
+
+#[tauri::command]
 pub fn import_local_document(
     app: tauri::AppHandle,
     db: tauri::State<DbState>,
@@ -99,9 +142,9 @@ pub fn get_knowledge_health(db: tauri::State<DbState>) -> Result<KnowledgeHealth
 #[tauri::command]
 pub async fn query_local_knowledge(
     app: tauri::AppHandle,
-    db: tauri::State<'_, DbState>,
     secrets: tauri::State<'_, SecretState>,
+    postgres: tauri::State<'_, crate::knowledge_db::KnowledgeDatabaseState>,
     request: LocalKnowledgeQueryRequest,
 ) -> Result<EvidencePack, String> {
-    logic::query_local_knowledge(app, db, secrets, request).await
+    logic::query_local_knowledge(app, secrets, postgres, request).await
 }

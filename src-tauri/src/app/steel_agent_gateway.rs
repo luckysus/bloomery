@@ -3,7 +3,7 @@ use crate::app::compute_commands::logic::{
     self, OptimizeSteelProcessRequest, PredictSteelModelRequest, TrainSteelDatasetRequest,
 };
 use crate::app::knowledge_commands::logic::{
-    query_local_knowledge_from_path, LocalKnowledgeQueryRequest,
+    query_local_knowledge_from_path, query_postgres_knowledge_with_pool, LocalKnowledgeQueryRequest,
 };
 use crate::app::task_commands::tasks::background_task_response;
 use crate::models::MemoryInput;
@@ -28,6 +28,8 @@ use std::str::FromStr;
 pub struct DesktopSteelAgentGateway {
     database: PathBuf,
     workspace_id: String,
+    postgres_pool: Option<sqlx::PgPool>,
+    app: Option<tauri::AppHandle>,
 }
 
 impl DesktopSteelAgentGateway {
@@ -35,7 +37,15 @@ impl DesktopSteelAgentGateway {
         Self {
             database,
             workspace_id: workspace_id.into(),
+            postgres_pool: None,
+            app: None,
         }
+    }
+
+    pub fn with_postgres_pool(mut self, app: tauri::AppHandle, pool: sqlx::PgPool) -> Self {
+        self.postgres_pool = Some(pool);
+        self.app = Some(app);
+        self
     }
 
     fn open(&self) -> Result<Connection, String> {
@@ -125,6 +135,33 @@ impl DesktopSteelAgentGateway {
         knowledge_base_ids: Vec<KnowledgeBaseId>,
         limit: usize,
     ) -> Result<Value, String> {
+        if let (Some(pool), Some(app)) = (&self.postgres_pool, &self.app) {
+            let pack = query_postgres_knowledge_with_pool(
+                app,
+                pool.clone(),
+                LocalKnowledgeQueryRequest {
+                    query,
+                    knowledge_base_ids,
+                    lexical_limit: (limit * 3).min(50),
+                    dense_limit: 0,
+                    candidate_limit: limit,
+                    rrf_k: 60,
+                    rerank_limit: 0,
+                },
+            )
+            .await?;
+            let results = pack.evidence.into_iter().map(compact_evidence_item).collect::<Vec<_>>();
+            return Ok(json!({
+                "success": true,
+                "mode": "postgresql_fts",
+                "evidence_pack_id": pack.id,
+                "created_at": pack.created_at,
+                "results": results,
+                "literature_results": results,
+                "image_results": [],
+                "experimental_images": [],
+            }));
+        }
         let pack = query_local_knowledge_from_path(
             self.database.clone(),
             &self.workspace_id,

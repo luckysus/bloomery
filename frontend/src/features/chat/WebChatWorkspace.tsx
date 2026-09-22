@@ -38,7 +38,7 @@ function historyHitToConversation(hit: HistoryHit): AgentConversation {
 }
 
 export default function WebChatWorkspace({
-  onOpenSection: _onOpenSection,
+  onOpenSection,
   ...controller
 }: WebChatWorkspaceProps) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -127,8 +127,8 @@ export default function WebChatWorkspace({
         conversationMenuId={conversationMenuId}
         profileInitial="D"
         profileUsername="DSL"
-        showModeSwitcher={false}
         showProfileMenu={false}
+        onBrandClick={onOpenSection ? () => onOpenSection("workbench") : undefined}
         setRenamingConversationTitle={setRenamingConversationTitle}
         onExpand={() => {
           setSidebarCollapsed(false);

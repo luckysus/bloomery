@@ -52,6 +52,7 @@ pub fn run() {
         .manage(mcp_runtime::McpRuntimeState::default())
         .manage(crate::agent::desktop::LocalAgentState::default())
         .manage(crate::storage::secrets::SecretState::default())
+        .manage(crate::knowledge_db::KnowledgeDatabaseState::default())
         .manage(SchedulerState::default())
         .invoke_handler(commands::handler!())
         .build(tauri::generate_context!())

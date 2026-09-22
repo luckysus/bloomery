@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { Download, FileWarning, Minus, Plus } from "lucide-react";
-import * as XLSX from "xlsx";
 import { renderAsync } from "docx-preview";
 import PdfCanvasViewer from "./PdfCanvasViewer";
 
 type RawDocumentViewerProps = {
   url: string;
   title: string;
+  sheets?: { name: string; html: string }[];
 };
 
 const IMAGE_EXTS = ["png", "jpg", "jpeg", "gif", "webp", "bmp", "svg"];
@@ -25,18 +25,17 @@ function guessImageMime(ext: string) {
   return `image/${ext}`;
 }
 
-export default function RawDocumentViewer({ url, title }: RawDocumentViewerProps) {
+export default function RawDocumentViewer({ url, title, sheets = [] }: RawDocumentViewerProps) {
   const ext = useMemo(() => getExtension(title), [title]);
   const isImage = IMAGE_EXTS.includes(ext);
   const isDocx = ext === "docx";
   const isXlsx = ext === "xlsx";
   const isPdf = ext === "pdf";
   const isPptx = ext === "pptx" || ext === "ppt";
-  const needsFetch = isImage || isDocx || isXlsx;
+  const needsFetch = isImage || isDocx;
 
   const [status, setStatus] = useState<"idle" | "loading" | "ready" | "error">(needsFetch ? "loading" : "ready");
   const [imageUrl, setImageUrl] = useState("");
-  const [sheets, setSheets] = useState<{ name: string; html: string }[]>([]);
   const [zoom, setZoom] = useState(1);
   const blobRef = useRef<Blob | null>(null);
   const docxRef = useRef<HTMLDivElement | null>(null);
@@ -44,7 +43,6 @@ export default function RawDocumentViewer({ url, title }: RawDocumentViewerProps
   useEffect(() => {
     blobRef.current = null;
     setImageUrl("");
-    setSheets([]);
     setZoom(1);
 
     if (!needsFetch) {
@@ -71,19 +69,6 @@ export default function RawDocumentViewer({ url, title }: RawDocumentViewerProps
           return;
         }
 
-        if (isXlsx) {
-          const buffer = await blob.arrayBuffer();
-          if (cancelled) return;
-          const workbook = XLSX.read(buffer, { type: "array" });
-          const parsed = workbook.SheetNames.map(name => ({
-            name,
-            html: XLSX.utils.sheet_to_html(workbook.Sheets[name], { editable: false }),
-          }));
-          setSheets(parsed);
-          setStatus("ready");
-          return;
-        }
-
         if (isDocx) {
           // docx 内容在下方 effect 里等容器挂载后渲染
           setStatus("ready");
@@ -101,7 +86,7 @@ export default function RawDocumentViewer({ url, title }: RawDocumentViewerProps
       cancelled = true;
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, [url, ext, isImage, isDocx, isXlsx, needsFetch]);
+  }, [url, ext, isImage, isDocx, needsFetch]);
 
   useEffect(() => {
     if (!isDocx || status !== "ready") return;
@@ -197,6 +182,11 @@ export default function RawDocumentViewer({ url, title }: RawDocumentViewerProps
                 <div className="xlsx-preview overflow-auto text-sm text-[#241b15]" dangerouslySetInnerHTML={{ __html: sheet.html }} />
               </div>
             ))}
+            {sheets.length === 0 && (
+              <div className="mx-auto mt-16 max-w-sm text-center text-sm text-[#8f8174]">
+                该表格暂无可用预览
+              </div>
+            )}
           </div>
         ) : isDocx ? (
           <div style={zoomStyle}>

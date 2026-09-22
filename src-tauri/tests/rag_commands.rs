@@ -31,6 +31,7 @@ fn command_registry_exposes_complete_local_knowledge_surface() {
         "rename_knowledge_base",
         "preview_delete_knowledge_base",
         "delete_knowledge_base_confirmed",
+        "merge_knowledge_bases",
         "list_knowledge_documents",
         "list_document_versions",
         "import_local_document",
@@ -51,6 +52,53 @@ fn command_registry_exposes_complete_local_knowledge_surface() {
     let bridge = include_str!("../../frontend/src/bridge/desktop.ts");
     assert!(bridge.contains("getIndexHealth"));
     assert!(bridge.contains("\"get_index_health\""));
+}
+
+#[test]
+fn knowledge_merge_to_new_base_copies_documents_versions_chunks_and_fts() {
+    let mut connection = database();
+    let source = knowledge::create_knowledge_base(&connection, WORKSPACE, "Source").unwrap();
+    let target = knowledge::create_knowledge_base(&connection, WORKSPACE, "Target").unwrap();
+    seed_active_document(&mut connection, source.id, "source.pdf", "Q355 source evidence");
+    seed_active_document(&mut connection, target.id, "target.pdf", "Q460 target evidence");
+
+    let merged = knowledge::merge_knowledge_bases(
+        &mut connection,
+        WORKSPACE,
+        knowledge::KnowledgeBaseMergeRequest {
+            source_id: source.id,
+            target_id: target.id,
+            mode: knowledge::KnowledgeBaseMergeMode::New,
+            destination_name: Some("Merged".to_string()),
+        },
+    )
+    .unwrap();
+
+    assert_eq!(merged.name, "Merged");
+    assert_eq!(
+        knowledge::list_source_documents(&connection, WORKSPACE, source.id)
+            .unwrap()
+            .len(),
+        1
+    );
+    assert_eq!(
+        knowledge::list_source_documents(&connection, WORKSPACE, target.id)
+            .unwrap()
+            .len(),
+        1
+    );
+    let merged_documents =
+        knowledge::list_source_documents(&connection, WORKSPACE, merged.id).unwrap();
+    assert_eq!(merged_documents.len(), 2);
+    assert!(merged_documents.iter().all(|document| document.active_version_id.is_some()));
+    let fts_count: u32 = connection
+        .query_row(
+            "SELECT COUNT(*) FROM knowledge_chunks_fts WHERE knowledge_base_id = ?1",
+            [merged.id.to_string()],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(fts_count, 2);
 }
 
 #[test]
@@ -137,6 +185,33 @@ fn knowledge_catalog_supports_crud_versions_and_confirmed_delete_preview() {
             .unwrap()
             .is_none()
     );
+}
+
+#[test]
+fn knowledge_document_rename_and_delete_keep_fts_in_sync() {
+    let mut connection = database();
+    let base = knowledge::create_knowledge_base(&connection, WORKSPACE, "Steel").unwrap();
+    let document = seed_active_document(&mut connection, base.id, "old-name.pdf", "Q355 source");
+
+    let renamed =
+        knowledge::rename_knowledge_document(&connection, WORKSPACE, document.id, "new-name.pdf")
+            .unwrap();
+    assert_eq!(renamed.display_name, "new-name.pdf");
+
+    knowledge::delete_knowledge_document(&mut connection, WORKSPACE, document.id).unwrap();
+    assert!(
+        knowledge::get_source_document(&connection, WORKSPACE, document.id)
+            .unwrap()
+            .is_none()
+    );
+    let fts_count: u32 = connection
+        .query_row(
+            "SELECT COUNT(*) FROM knowledge_chunks_fts WHERE document_id = ?1",
+            [document.id.to_string()],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(fts_count, 0);
 }
 
 #[test]
@@ -249,6 +324,63 @@ fn database() -> Connection {
         .unwrap();
     migrate(&mut connection).unwrap();
     connection
+}
+
+fn seed_active_document(
+    connection: &mut Connection,
+    base_id: bloomery::rag::model::KnowledgeBaseId,
+    name: &str,
+    text: &str,
+) -> bloomery::storage::repositories::knowledge::SourceDocumentRecord {
+    let document = knowledge::create_source_document(
+        connection,
+        WORKSPACE,
+        NewSourceDocument {
+            knowledge_base_id: base_id,
+            display_name: name.to_string(),
+            source_kind: "pdf".to_string(),
+        },
+    )
+    .unwrap();
+    let version = knowledge::create_document_version(
+        connection,
+        WORKSPACE,
+        NewDocumentVersion {
+            document_id: document.id,
+            content_sha256: format!("{:0<64}", name.replace('.', "")),
+            mime_type: "application/pdf".to_string(),
+            parser: "test".to_string(),
+            parser_version: "1".to_string(),
+            chunk_policy_version: "steel-v1".to_string(),
+            embedding_profile_id: PROFILE.to_string(),
+            embedding_model_id: "BAAI/bge-m3".to_string(),
+            embedding_dimension: 2,
+            expected_asset_count: 0,
+            expected_chunk_count: 1,
+        },
+    )
+    .unwrap();
+    let chunk_id = ChunkId::new("chunk-1").unwrap();
+    knowledge::add_chunk(
+        connection,
+        WORKSPACE,
+        NewChunk {
+            id: chunk_id.clone(),
+            version_id: version.id,
+            ordinal: 0,
+            text: text.to_string(),
+            source_location: SourceLocation::PdfPage {
+                page: 1,
+                bbox: None,
+            },
+            content_sha256: format!("{:1<64}", name.replace('.', "")),
+            policy_version: "steel-v1".to_string(),
+        },
+    )
+    .unwrap();
+    knowledge::index_chunk_fts(connection, WORKSPACE, version.id, &chunk_id).unwrap();
+    knowledge::activate_document_version(connection, WORKSPACE, document.id, version.id).unwrap();
+    document
 }
 
 fn seed_indexed_chunk(connection: &mut Connection) {

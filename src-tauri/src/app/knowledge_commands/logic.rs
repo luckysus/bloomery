@@ -16,8 +16,11 @@ use crate::rag::index::lifecycle::open_with_flat_fallback;
 use crate::rag::index::rebuild::{
     index_root, load_index_snapshot, queue_index_rebuild, IndexRebuildRequest,
 };
-use crate::rag::ingest::{queue_document_import, DocumentImportRequest, DocumentImportResponse};
+use crate::rag::ingest::{
+    queue_document_import, DocumentImportRequest, DocumentImportResponse, SourceFormat,
+};
 use crate::rag::model::{KnowledgeBaseId, SourceDocumentId};
+use crate::rag::parse::{parse_document, DocumentBlock, ParseLimits};
 use crate::rag::rerank::{rerank_candidates, RerankDegradationReason, RerankProviderState};
 use crate::rag::retrieve::{retrieve, HybridSearchRequest, RetrievedChunk};
 use crate::storage::repositories::domains;
@@ -27,8 +30,11 @@ use crate::storage::repositories::knowledge::{
 };
 use crate::storage::repositories::{provider_profiles, settings};
 use crate::storage::secrets::{SecretRef, SecretState, SecretStore, SecretValue};
+use crate::knowledge_db::KnowledgeDatabaseState;
 use rusqlite::Connection;
+use sqlx::Row;
 use serde::Deserialize;
+use serde::Serialize;
 use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
@@ -39,6 +45,33 @@ const DEFAULT_DENSE_LIMIT: usize = 40;
 const DEFAULT_CANDIDATE_LIMIT: usize = 20;
 const DEFAULT_RRF_K: u32 = 60;
 const DEFAULT_RERANK_LIMIT: usize = 20;
+
+#[derive(Debug, Clone, Serialize)]
+pub struct KnowledgePreviewBlock {
+    pub content: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct KnowledgePreviewSheet {
+    pub name: String,
+    pub html: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct KnowledgeDocumentPreview {
+    pub processed: bool,
+    pub source: Option<String>,
+    pub content: Option<String>,
+    pub blocks: Vec<KnowledgePreviewBlock>,
+    pub raw_data_url: Option<String>,
+    pub raw_sheets: Vec<KnowledgePreviewSheet>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct KnowledgeDocumentRaw {
+    pub data_url: String,
+    pub sheets: Vec<KnowledgePreviewSheet>,
+}
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct LocalKnowledgeQueryRequest {
@@ -166,6 +199,189 @@ pub(crate) fn list_document_versions(
     })
 }
 
+pub(crate) fn rename_knowledge_document(
+    db: tauri::State<DbState>,
+    id: String,
+    display_name: String,
+) -> Result<SourceDocumentRecord, String> {
+    let id = SourceDocumentId::from_str(&id).map_err(|error| error.to_string())?;
+    with_conn(&db, |connection| {
+        knowledge::rename_knowledge_document(
+            connection,
+            current_workspace_id(),
+            id,
+            &display_name,
+        )
+    })
+}
+
+pub(crate) fn delete_knowledge_document(
+    db: tauri::State<DbState>,
+    id: String,
+) -> Result<(), String> {
+    let id = SourceDocumentId::from_str(&id).map_err(|error| error.to_string())?;
+    with_conn_mut(&db, |connection| {
+        knowledge::delete_knowledge_document(connection, current_workspace_id(), id)
+    })
+}
+
+pub(crate) fn merge_knowledge_bases(
+    db: tauri::State<DbState>,
+    request: knowledge::KnowledgeBaseMergeRequest,
+) -> Result<KnowledgeBaseRecord, String> {
+    with_conn_mut(&db, |connection| {
+        knowledge::merge_knowledge_bases(connection, current_workspace_id(), request)
+    })
+}
+
+pub(crate) fn get_knowledge_document_preview(
+    app: tauri::AppHandle,
+    db: tauri::State<DbState>,
+    document_id: String,
+) -> Result<KnowledgeDocumentPreview, String> {
+    let document_id =
+        SourceDocumentId::from_str(&document_id).map_err(|error| error.to_string())?;
+    with_conn(&db, |connection| {
+        let document = knowledge::get_source_document(connection, current_workspace_id(), document_id)?
+            .ok_or_else(|| "source document not found".to_string())?;
+        let Some(version_id) = document.active_version_id else {
+            return Ok(KnowledgeDocumentPreview {
+                processed: false,
+                source: None,
+                content: None,
+                blocks: Vec::new(),
+                raw_data_url: None,
+                raw_sheets: Vec::new(),
+            });
+        };
+        let version = knowledge::get_document_version(connection, current_workspace_id(), version_id)?
+            .ok_or_else(|| "document version not found".to_string())?;
+        let mut statement = connection
+            .prepare(
+                "SELECT text FROM knowledge_chunks
+                 WHERE workspace_id = ?1 AND version_id = ?2
+                 ORDER BY ordinal, id",
+            )
+            .map_err(|error| error.to_string())?;
+        let chunks = statement
+            .query_map(
+                rusqlite::params![current_workspace_id(), version_id.to_string()],
+                |row| row.get::<_, String>(0),
+            )
+            .map_err(|error| error.to_string())?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|error| error.to_string())?;
+        let blocks = chunks
+            .iter()
+            .cloned()
+            .map(|content| KnowledgePreviewBlock { content })
+            .collect::<Vec<_>>();
+        Ok(KnowledgeDocumentPreview {
+            processed: true,
+            source: Some(version.parser),
+            content: (!chunks.is_empty()).then(|| chunks.join("\n\n")),
+            blocks,
+            raw_data_url: None,
+            raw_sheets: Vec::new(),
+        })
+    })
+    .map_err(|error| error.to_string())
+    .and_then(|preview| {
+        let _ = app;
+        Ok(preview)
+    })
+}
+
+pub(crate) fn get_knowledge_document_raw(
+    app: tauri::AppHandle,
+    db: tauri::State<DbState>,
+    document_id: String,
+) -> Result<KnowledgeDocumentRaw, String> {
+    let document_id =
+        SourceDocumentId::from_str(&document_id).map_err(|error| error.to_string())?;
+    let database = database_path(&app)?;
+    let content_root = database
+        .parent()
+        .map(std::path::Path::to_path_buf)
+        .ok_or_else(|| "resolve RAG content root failed".to_string())?;
+    with_conn(&db, |connection| {
+        let document = knowledge::get_source_document(connection, current_workspace_id(), document_id)?
+            .ok_or_else(|| "source document not found".to_string())?;
+        let version_id = document
+            .active_version_id
+            .ok_or_else(|| "document is still processing".to_string())?;
+        let version = knowledge::get_document_version(connection, current_workspace_id(), version_id)?
+            .ok_or_else(|| "document version not found".to_string())?;
+        let source_path = content_root.join(format!(
+            "objects/sha256/{}/{}",
+            &version.content_sha256[..2],
+            version.content_sha256
+        ));
+        let bytes = std::fs::read(&source_path)
+            .map_err(|error| format!("read source document failed: {error}"))?;
+        let sheets = SourceFormat::from_mime_type(&version.mime_type)
+            .filter(|format| matches!(format, SourceFormat::Xlsx))
+            .map(|format| {
+                parse_document(&source_path, format, ParseLimits::default())
+                    .map(|parsed| render_sheets(&parsed))
+                    .map_err(|error| error.to_string())
+            })
+            .transpose()?
+            .unwrap_or_default();
+        use base64::{engine::general_purpose::STANDARD, Engine as _};
+        Ok(KnowledgeDocumentRaw {
+            data_url: format!(
+                "data:{};base64,{}",
+                version.mime_type,
+                STANDARD.encode(bytes)
+            ),
+            sheets,
+        })
+    })
+}
+
+fn render_sheets(document: &crate::rag::parse::ParsedDocument) -> Vec<KnowledgePreviewSheet> {
+    let mut sheets = Vec::new();
+    for block in &document.blocks {
+        let DocumentBlock::Table {
+            rows,
+            location: crate::rag::model::SourceLocation::SheetRange { sheet, .. },
+        } = block
+        else {
+            continue;
+        };
+        let body = rows
+            .iter()
+            .map(|row| {
+                let cells = row
+                    .iter()
+                    .map(|cell| format!("<td>{}</td>", escape_html(cell)))
+                    .collect::<String>();
+                format!("<tr>{cells}</tr>")
+            })
+            .collect::<String>();
+        let html = format!("<table><tbody>{body}</tbody></table>");
+        if let Some(existing) = sheets.iter_mut().find(|item: &&mut KnowledgePreviewSheet| item.name == *sheet) {
+            existing.html.push_str(&html);
+        } else {
+            sheets.push(KnowledgePreviewSheet {
+                name: sheet.clone(),
+                html,
+            });
+        }
+    }
+    sheets
+}
+
+fn escape_html(value: &str) -> String {
+    value
+        .replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('"', "&quot;")
+        .replace('\'', "&#39;")
+}
+
 pub(crate) fn import_local_document(
     app: tauri::AppHandle,
     db: tauri::State<DbState>,
@@ -221,12 +437,195 @@ pub(crate) fn get_knowledge_health(db: tauri::State<DbState>) -> Result<Knowledg
 
 pub(crate) async fn query_local_knowledge(
     app: tauri::AppHandle,
-    _db: tauri::State<'_, DbState>,
     secrets: tauri::State<'_, SecretState>,
+    postgres: tauri::State<'_, KnowledgeDatabaseState>,
     request: LocalKnowledgeQueryRequest,
 ) -> Result<EvidencePack, String> {
+    if crate::knowledge_db::pool_for_query(&postgres).is_ok() {
+        return query_postgres_knowledge(&app, &secrets, &postgres, request).await;
+    }
     let path = database_path(&app)?;
     query_local_knowledge_from_path(path, current_workspace_id(), secrets.store(), request).await
+}
+
+async fn query_postgres_knowledge(
+    app: &tauri::AppHandle,
+    secrets: &tauri::State<'_, SecretState>,
+    state: &KnowledgeDatabaseState,
+    mut request: LocalKnowledgeQueryRequest,
+) -> Result<EvidencePack, String> {
+    request.validate()?;
+    let pool = crate::knowledge_db::pool_for_query(state)?;
+    if request.dense_limit > 0 {
+        let database = database_path(app)?;
+        let connection = open_query_connection(&database)?;
+        let embedding_record = provider_profiles::get_default_record(
+            &connection,
+            current_workspace_id(),
+            ProviderCapability::Embedding,
+        )?;
+        let rerank_record = provider_profiles::get_default_record(
+            &connection,
+            current_workspace_id(),
+            ProviderCapability::Rerank,
+        )?;
+        let retrieval_plan = SiliconFlowPlan::from_setting(
+            settings::get(&connection, current_workspace_id(), "onboarding.retrieval")?.as_deref(),
+        );
+        drop(connection);
+        if let Some(record) = embedding_record {
+            if let Ok(provider) = prepare_embedding_provider(&record, secrets.store(), retrieval_plan) {
+                if let Ok(response) = provider.embed(vec![request.query.clone()]).await {
+                    if let Some(vector) = response.vectors.into_iter().next() {
+                        if !vector.is_empty() && vector.iter().all(|value| value.is_finite()) {
+                            let mut hits = Vec::new();
+                            for knowledge_base_id in &request.knowledge_base_ids {
+                                let id = Uuid::parse_str(&knowledge_base_id.to_string()).map_err(|e| e.to_string())?;
+                                hits.extend(crate::knowledge_db::search_postgres_hybrid_pool(
+                                    &pool,
+                                    id,
+                                    &request.query,
+                                    &vector,
+                                    request.candidate_limit,
+                                    request.rrf_k,
+                                ).await?);
+                            }
+                            hits.sort_by(|left, right| right.rank.total_cmp(&left.rank));
+                            hits.truncate(request.candidate_limit);
+                            let chunks = postgres_hits_to_chunks(hits)?;
+                            let reranker = prepare_reranker(rerank_record, secrets.store(), retrieval_plan);
+                            let reranked = rerank_candidates(
+                                &request.query,
+                                chunks,
+                                reranker.state(),
+                                request.rerank_limit,
+                                &|| false,
+                            )
+                            .await;
+                            let connection = open_query_connection(&database_path(app)?)?;
+                            return persist_evidence_pack(
+                                &connection,
+                                current_workspace_id(),
+                                &request.query,
+                                RetrievalConfigSnapshot {
+                                    knowledge_base_ids: request.knowledge_base_ids,
+                                    lexical_limit: request.lexical_limit,
+                                    dense_limit: request.dense_limit,
+                                    candidate_limit: request.candidate_limit,
+                                    rrf_k: request.rrf_k,
+                                    embedding_provider_profile_id: record.profile.id.to_string(),
+                                    embedding_model_id: response.model_id,
+                                    rerank_provider_profile_id: reranker.profile_id,
+                                    rerank_model_id: reranker.model_id,
+                                    rerank_degradation: reranked.degradation,
+                                },
+                                reranked.chunks,
+                            )
+                            .map_err(|error| error.to_string());
+                        }
+                    }
+                }
+            }
+        }
+    }
+    query_postgres_knowledge_with_pool(app, pool, request).await
+}
+
+fn postgres_hits_to_chunks(
+    hits: Vec<crate::knowledge_db::PostgresKnowledgeSearchHit>,
+) -> Result<Vec<RetrievedChunk>, String> {
+    hits.into_iter()
+        .enumerate()
+        .map(|(index, hit)| {
+            Ok(RetrievedChunk {
+            knowledge_base_id: KnowledgeBaseId::from_str(&hit.knowledge_base_id.to_string()).map_err(|e| e.to_string())?,
+            document_id: SourceDocumentId::from_str(&hit.document_id.to_string()).map_err(|e| e.to_string())?,
+            version_id: crate::rag::model::DocumentVersionId::from_str(&hit.version_id.to_string()).map_err(|e| e.to_string())?,
+            chunk_id: crate::rag::model::ChunkId::from_str(&hit.chunk_id.to_string())?,
+            source_name: hit.document_name,
+            source_location: serde_json::from_value(hit.source_location).map_err(|e| e.to_string())?,
+            text: hit.text,
+            lexical_rank: Some(index + 1),
+            dense_rank: Some(index + 1),
+            rrf_score: hit.rank as f64,
+            rerank_score: None,
+            })
+        })
+        .collect()
+}
+
+pub(crate) async fn query_postgres_knowledge_with_pool(
+    app: &tauri::AppHandle,
+    pool: sqlx::PgPool,
+    mut request: LocalKnowledgeQueryRequest,
+) -> Result<EvidencePack, String> {
+    request.validate()?;
+    let ids = request
+        .knowledge_base_ids
+        .iter()
+        .map(|id| Uuid::parse_str(&id.to_string()).map_err(|error| error.to_string()))
+        .collect::<Result<Vec<_>, _>>()?;
+    let limit = request.candidate_limit.min(request.lexical_limit.max(1)).min(100);
+    let rows = sqlx::query(
+        "SELECT c.id, c.version_id, d.id AS document_id, d.knowledge_base_id,
+                d.display_name, c.text, c.source_location,
+                ts_rank_cd(c.search_vector, plainto_tsquery('simple', $1))::real AS rank
+         FROM document_chunks c
+         JOIN document_versions v ON v.id = c.version_id AND v.activated_at IS NOT NULL
+         JOIN source_documents d ON d.id = v.document_id
+         WHERE d.knowledge_base_id = ANY($2::uuid[]) AND d.deleted_at IS NULL
+           AND c.search_vector @@ plainto_tsquery('simple', $1)
+         ORDER BY rank DESC, c.ordinal
+         LIMIT $3",
+    )
+    .bind(request.query.trim())
+    .bind(&ids)
+    .bind(i64::try_from(limit).map_err(|_| "检索数量无效")?)
+    .fetch_all(&pool)
+    .await
+    .map_err(|error| format!("PostgreSQL 检索失败: {}", error))?;
+    let mut chunks = Vec::with_capacity(rows.len());
+    for (index, row) in rows.into_iter().enumerate() {
+        let kb = KnowledgeBaseId::from_str(&row.try_get::<Uuid, _>("knowledge_base_id").map_err(|e| e.to_string())?.to_string()).map_err(|e| e.to_string())?;
+        let document_id = SourceDocumentId::from_str(&row.try_get::<Uuid, _>("document_id").map_err(|e| e.to_string())?.to_string()).map_err(|e| e.to_string())?;
+        let version_id = crate::rag::model::DocumentVersionId::from_str(&row.try_get::<Uuid, _>("version_id").map_err(|e| e.to_string())?.to_string()).map_err(|e| e.to_string())?;
+        let chunk_id = crate::rag::model::ChunkId::from_str(&row.try_get::<Uuid, _>("id").map_err(|e| e.to_string())?.to_string())?;
+        let source_location = serde_json::from_value(row.try_get::<serde_json::Value, _>("source_location").map_err(|e| e.to_string())?)
+            .map_err(|e| format!("PostgreSQL 来源定位无效: {e}"))?;
+        chunks.push(RetrievedChunk {
+            knowledge_base_id: kb,
+            document_id,
+            version_id,
+            chunk_id,
+            source_name: row.try_get("display_name").map_err(|e| e.to_string())?,
+            source_location,
+            text: row.try_get("text").map_err(|e| e.to_string())?,
+            lexical_rank: Some(index + 1),
+            dense_rank: None,
+            rrf_score: row.try_get::<f32, _>("rank").map_err(|e| e.to_string())? as f64,
+            rerank_score: None,
+        });
+    }
+    let connection = open_query_connection(&database_path(app)?)?;
+    persist_evidence_pack(
+        &connection,
+        current_workspace_id(),
+        &request.query,
+        RetrievalConfigSnapshot {
+            knowledge_base_ids: request.knowledge_base_ids,
+            lexical_limit: request.lexical_limit,
+            dense_limit: 0,
+            candidate_limit: request.candidate_limit,
+            rrf_k: request.rrf_k,
+            embedding_provider_profile_id: "postgresql".to_string(),
+            embedding_model_id: "tsvector".to_string(),
+            rerank_provider_profile_id: None,
+            rerank_model_id: None,
+            rerank_degradation: None,
+        },
+        chunks,
+    )
+    .map_err(|error| error.to_string())
 }
 
 pub(crate) async fn query_local_knowledge_from_path(
@@ -538,6 +937,7 @@ fn provider_degradation(error: &ProviderError) -> RerankDegradationReason {
         ProviderErrorCode::Quota => RerankDegradationReason::Quota,
         ProviderErrorCode::Timeout => RerankDegradationReason::Timeout,
         ProviderErrorCode::ProviderResponse => RerankDegradationReason::ProviderResponse,
+        ProviderErrorCode::ContextLimit => RerankDegradationReason::ProviderResponse,
         ProviderErrorCode::Cancelled => RerankDegradationReason::Cancelled,
         ProviderErrorCode::UnsupportedCapability => RerankDegradationReason::UnsupportedCapability,
     }

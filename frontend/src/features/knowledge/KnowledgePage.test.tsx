@@ -18,6 +18,10 @@ vi.mock("../../bridge/desktop", () => ({
     renameKnowledgeBase: vi.fn(),
     previewDeleteKnowledgeBase: vi.fn(),
     deleteKnowledgeBaseConfirmed: vi.fn(),
+    mergeKnowledgeBases: vi.fn(),
+    renameKnowledgeDocument: vi.fn(),
+    deleteKnowledgeDocument: vi.fn(),
+    getKnowledgeDocumentPreview: vi.fn(),
     importLocalDocument: vi.fn(),
     cancelBackgroundTask: vi.fn(),
     retryBackgroundTask: vi.fn(),
@@ -67,6 +71,16 @@ describe("KnowledgePage", () => {
       rebuild_task_id: null,
     });
     vi.mocked(desktop.rebuildKnowledgeIndex).mockResolvedValue("task-rebuild");
+    vi.mocked(desktop.mergeKnowledgeBases).mockImplementation(async (request) => ({
+      ...base,
+      id: request.mode === "new" ? "kb-merged" : request.target_id,
+      name: request.mode === "new" ? request.destination_name || "合并知识库" : "目标知识库",
+    }));
+    vi.mocked(desktop.getKnowledgeDocumentPreview).mockResolvedValue({
+      processed: true,
+      content: "本地解析内容",
+      blocks: [],
+    });
     vi.mocked(desktop.getKnowledgeHealth).mockResolvedValue({
       knowledge_base_count: 0,
       document_count: 0,
@@ -91,23 +105,53 @@ describe("KnowledgePage", () => {
     });
   });
 
-  it("creates a knowledge base from the empty state", async () => {
+  it("uses the copied Web upload flow to create and import local files", async () => {
+    vi.mocked(desktop.openFileDialog).mockResolvedValue("F:\\docs\\GB 50632.pdf");
     render(<KnowledgePage />);
 
     expect(await screen.findByRole("heading", { name: "知识库" })).toBeInTheDocument();
-    expect(screen.getByText("还没有知识库")).toBeInTheDocument();
+    expect(screen.getByText("暂无知识库")).toBeInTheDocument();
     expect(screen.queryByText("LOCAL KNOWLEDGE / STEEL DOMAIN")).not.toBeInTheDocument();
     expect(screen.queryByText("管理标准、论文和工艺资料，让每一次检索都能回到原始文档。")).not.toBeInTheDocument();
     expect(screen.queryByText("知识库会保存文档、版本和可追溯的检索证据。")).not.toBeInTheDocument();
+    expect(screen.getByText("点击上传或拖拽文档到这里")).toBeInTheDocument();
+    expect(screen.queryByText("上传本地文档")).not.toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText("知识库名称"), { target: { value: "钢铁标准" } });
-    fireEvent.click(screen.getByRole("button", { name: "创建知识库" }));
+    fireEvent.click(screen.getByRole("button", { name: "点击上传或拖拽文档到这里" }));
 
-    await waitFor(() => expect(desktop.createKnowledgeBase).toHaveBeenCalledWith("钢铁标准"));
-    expect(await screen.findByRole("button", { name: "钢铁标准" })).toBeInTheDocument();
+    expect(await screen.findByText("GB 50632.pdf")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "下一步" }));
+    expect(await screen.findByText("解析内容")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "确认" }));
+
+    await waitFor(() => expect(desktop.importLocalDocument).toHaveBeenCalledWith({
+      source_path: "F:\\docs\\GB 50632.pdf",
+      knowledge_base: { mode: "create", name: "钢铁标准" },
+      mineru_profile_id: "mineru-1",
+      embedding_profile_id: "embedding-1",
+      embedding_dimension: 1024,
+    }));
+    expect(await screen.findByText("本地处理中")).toBeInTheDocument();
   });
 
-  it("shows selected documents and active task state", async () => {
+  it("uses the migrated Web knowledge workspace shell", async () => {
+    render(<KnowledgePage />);
+
+    const workspace = await screen.findByTestId("knowledge-web-workspace");
+    expect(workspace).toHaveClass("fixed", "inset-0", "z-50");
+    expect(screen.getByRole("button", { name: "新建知识库" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "合并知识库" })).toBeInTheDocument();
+    expect(screen.queryByLabelText("知识库统计")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "关闭侧栏" }));
+    expect(screen.getByRole("button", { name: "打开边栏" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "打开边栏" }));
+    expect(screen.getByRole("button", { name: "关闭侧栏" })).toBeInTheDocument();
+  });
+
+  it("shows selected documents without adding local status panels", async () => {
     vi.mocked(desktop.listKnowledgeBases).mockResolvedValue([base]);
     vi.mocked(desktop.listKnowledgeDocuments).mockResolvedValue([{
       id: "document-1",
@@ -146,117 +190,12 @@ describe("KnowledgePage", () => {
 
     render(<KnowledgePage />);
 
-    expect(await screen.findByText("GB 50632.pdf")).toBeInTheDocument();
-    expect(screen.getByText(/处理中/)).toBeInTheDocument();
-    expect(screen.getByText("8 / 12")).toBeInTheDocument();
+    expect((await screen.findAllByText("GB 50632.pdf")).length).toBeGreaterThan(0);
+    expect(screen.queryByText(/处理中/)).not.toBeInTheDocument();
+    expect(screen.queryByText("8 / 12")).not.toBeInTheDocument();
   });
 
-  it("imports a local document with the configured retrieval profiles", async () => {
-    vi.mocked(desktop.listKnowledgeBases).mockResolvedValue([base]);
-    render(<KnowledgePage />);
-
-    await screen.findByRole("button", { name: "钢铁标准" });
-    fireEvent.change(screen.getByLabelText("文件路径"), { target: { value: "F:\\docs\\GB 50632.pdf" } });
-    fireEvent.click(screen.getByRole("button", { name: "导入文档" }));
-
-    await waitFor(() => expect(desktop.importLocalDocument).toHaveBeenCalledWith({
-      source_path: "F:\\docs\\GB 50632.pdf",
-      knowledge_base: { mode: "existing", id: base.id },
-      mineru_profile_id: "mineru-1",
-      embedding_profile_id: "embedding-1",
-      embedding_dimension: 1024,
-    }));
-    expect(await screen.findByText("导入任务已创建")).toBeInTheDocument();
-  });
-
-  it("imports with local parsing when MinerU is not configured", async () => {
-    vi.mocked(desktop.listKnowledgeBases).mockResolvedValue([base]);
-    vi.mocked(desktop.getSetting).mockResolvedValue(JSON.stringify({
-      state: "partial",
-      embedding_profile_id: "embedding-1",
-      mineru_profile_id: null,
-    }));
-    render(<KnowledgePage />);
-
-    await screen.findByRole("button", { name: "钢铁标准" });
-    fireEvent.change(screen.getByLabelText("文件路径"), { target: { value: "F:\\docs\\GB 50632.pdf" } });
-    fireEvent.click(screen.getByRole("button", { name: "导入文档" }));
-
-    await waitFor(() => expect(desktop.importLocalDocument).toHaveBeenCalledWith({
-      source_path: "F:\\docs\\GB 50632.pdf",
-      knowledge_base: { mode: "existing", id: base.id },
-      mineru_profile_id: null,
-      embedding_profile_id: "embedding-1",
-      embedding_dimension: 1024,
-    }));
-    expect(await screen.findByText("导入任务已创建")).toBeInTheDocument();
-  });
-
-  it("uses the native file picker to fill a document path", async () => {
-    vi.mocked(desktop.listKnowledgeBases).mockResolvedValue([base]);
-    vi.mocked(desktop.openFileDialog).mockResolvedValue("F:\\docs\\GB 50632.pdf");
-    render(<KnowledgePage />);
-
-    await screen.findByRole("button", { name: "钢铁标准" });
-    fireEvent.click(screen.getByRole("button", { name: "选择文件" }));
-
-    await waitFor(() => expect(desktop.openFileDialog).toHaveBeenCalled());
-    expect(screen.getByLabelText("文件路径")).toHaveValue("F:\\docs\\GB 50632.pdf");
-  });
-  it("offers cancellation and retry for recoverable background tasks", async () => {
-    vi.mocked(desktop.listKnowledgeBases).mockResolvedValue([base]);
-    const runningTask = {
-      id: "task-running",
-      kind: "mineru_parse",
-      state: "running" as const,
-      progress: 42,
-      attempt: 1,
-      error_code: null,
-      cancel_requested: false,
-      can_cancel: true,
-      can_retry: false,
-      created_at: base.created_at,
-      updated_at: base.updated_at,
-      started_at: null,
-      finished_at: null,
-      file_name: "spec-sheet.pdf",
-    };
-    const failedTask = {
-      ...runningTask,
-      id: "task-failed",
-      state: "failed" as const,
-      progress: 18,
-      error_code: "provider_timeout",
-      can_cancel: false,
-      can_retry: true,
-    };
-    vi.mocked(desktop.listBackgroundTasks).mockResolvedValue([runningTask, failedTask]);
-    vi.mocked(desktop.cancelBackgroundTask).mockResolvedValue({
-      ...runningTask,
-      state: "cancelled",
-      can_cancel: false,
-      can_retry: true,
-    });
-    vi.mocked(desktop.retryBackgroundTask).mockResolvedValue({
-      ...failedTask,
-      state: "queued",
-      can_cancel: true,
-      can_retry: false,
-      attempt: 2,
-    });
-
-    render(<KnowledgePage />);
-
-    expect(await screen.findByRole("button", { name: "取消任务" })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "取消任务" }));
-    await waitFor(() => expect(desktop.cancelBackgroundTask).toHaveBeenCalledWith("task-running"));
-
-    const retryButtons = screen.getAllByRole("button", { name: "重试任务" });
-    fireEvent.click(retryButtons[retryButtons.length - 1]);
-    await waitFor(() => expect(desktop.retryBackgroundTask).toHaveBeenCalledWith("task-failed"));
-  });
-
-  it("shows document versions and queues a rebuild for an unhealthy index", async () => {
+  it("keeps the migrated Web detail view free of client-only panels", async () => {
     vi.mocked(desktop.listKnowledgeBases).mockResolvedValue([base]);
     vi.mocked(desktop.listKnowledgeDocuments).mockResolvedValue([{
       id: "document-1",
@@ -267,22 +206,105 @@ describe("KnowledgePage", () => {
       created_at: base.created_at,
       updated_at: base.updated_at,
     }]);
-    vi.mocked(desktop.listDocumentVersions).mockResolvedValue([{
-      id: "version-1",
-      document_id: "document-1",
-      content_sha256: "a".repeat(64),
-      mime_type: "application/pdf",
-      parser: "mineru",
-      parser_version: "2",
-      chunk_policy_version: "steel-v1",
+
+    render(<KnowledgePage />);
+
+    expect(await screen.findByRole("heading", { name: "GB 50632.pdf" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "索引健康" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "后台任务" })).not.toBeInTheDocument();
+  });
+
+  it("adds a local document to an existing base through the Web add flow", async () => {
+    vi.mocked(desktop.listKnowledgeBases).mockResolvedValue([base]);
+    vi.mocked(desktop.openFileDialog).mockResolvedValue("F:\\docs\\GB 50632.pdf");
+    render(<KnowledgePage />);
+
+    await screen.findByRole("button", { name: "钢铁标准" });
+    fireEvent.click(screen.getByRole("button", { name: "钢铁标准" }));
+    fireEvent.click(screen.getByRole("button", { name: "添加" }));
+    fireEvent.click(screen.getByRole("button", { name: "点击上传或拖拽文档到这里" }));
+    expect(await screen.findByText("GB 50632.pdf")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "下一步" }));
+    fireEvent.click(await screen.findByRole("button", { name: "确认" }));
+
+    await waitFor(() => expect(desktop.importLocalDocument).toHaveBeenCalledWith({
+      source_path: "F:\\docs\\GB 50632.pdf",
+      knowledge_base: { mode: "existing", id: base.id },
+      mineru_profile_id: "mineru-1",
       embedding_profile_id: "embedding-1",
-      embedding_model_id: "BAAI/bge-m3",
       embedding_dimension: 1024,
-      expected_asset_count: 0,
-      expected_chunk_count: 12,
-      manifest_sealed: true,
+    }));
+    expect(await screen.findByText("本地处理中")).toBeInTheDocument();
+  });
+
+  it("imports with local parsing when MinerU is not configured", async () => {
+    vi.mocked(desktop.listKnowledgeBases).mockResolvedValue([base]);
+    vi.mocked(desktop.openFileDialog).mockResolvedValue("F:\\docs\\GB 50632.pdf");
+    vi.mocked(desktop.getSetting).mockResolvedValue(JSON.stringify({
+      state: "partial",
+      embedding_profile_id: "embedding-1",
+      mineru_profile_id: null,
+    }));
+    render(<KnowledgePage />);
+
+    await screen.findByRole("button", { name: "钢铁标准" });
+    fireEvent.click(screen.getByRole("button", { name: "钢铁标准" }));
+    fireEvent.click(screen.getByRole("button", { name: "添加" }));
+    fireEvent.click(screen.getByRole("button", { name: "点击上传或拖拽文档到这里" }));
+    await screen.findByText("GB 50632.pdf");
+    fireEvent.click(screen.getByRole("button", { name: "下一步" }));
+    fireEvent.click(await screen.findByRole("button", { name: "确认" }));
+
+    await waitFor(() => expect(desktop.importLocalDocument).toHaveBeenCalledWith({
+      source_path: "F:\\docs\\GB 50632.pdf",
+      knowledge_base: { mode: "existing", id: base.id },
+      mineru_profile_id: null,
+      embedding_profile_id: "embedding-1",
+      embedding_dimension: 1024,
+    }));
+    expect(await screen.findByText("本地处理中")).toBeInTheDocument();
+  });
+
+  it("uses the native file picker to fill a document path", async () => {
+    vi.mocked(desktop.listKnowledgeBases).mockResolvedValue([base]);
+    vi.mocked(desktop.openFileDialog).mockResolvedValue("F:\\docs\\GB 50632.pdf");
+    render(<KnowledgePage />);
+
+    await screen.findByRole("button", { name: "钢铁标准" });
+    fireEvent.click(screen.getByRole("button", { name: "点击上传或拖拽文档到这里" }));
+
+    await waitFor(() => expect(desktop.openFileDialog).toHaveBeenCalled());
+    expect(await screen.findByText("GB 50632.pdf")).toBeInTheDocument();
+  });
+
+  it("merges knowledge bases through the copied Web dialog using Rust", async () => {
+    const target: KnowledgeBaseRecord = { ...base, id: "kb-target", name: "耐磨钢" };
+    vi.mocked(desktop.listKnowledgeBases).mockResolvedValue([base, target]);
+    render(<KnowledgePage />);
+
+    expect(await screen.findByRole("button", { name: "合并知识库" })).toBeEnabled();
+    fireEvent.click(screen.getByRole("button", { name: "合并知识库" }));
+    expect(await screen.findByRole("heading", { name: "合并知识库" })).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("新知识库名称"), { target: { value: "钢铁合并库" } });
+    fireEvent.click(screen.getByRole("button", { name: "合并" }));
+
+    await waitFor(() => expect(desktop.mergeKnowledgeBases).toHaveBeenCalledWith({
+      source_id: base.id,
+      target_id: target.id,
+      mode: "new",
+      destination_name: "钢铁合并库",
+    }));
+  });
+  it("keeps the migrated Web detail view free of local index settings", async () => {
+    vi.mocked(desktop.listKnowledgeBases).mockResolvedValue([base]);
+    vi.mocked(desktop.listKnowledgeDocuments).mockResolvedValue([{
+      id: "document-1",
+      knowledge_base_id: base.id,
+      display_name: "GB 50632.pdf",
+      source_kind: "pdf",
+      active_version_id: "version-1",
       created_at: base.created_at,
-      activated_at: base.updated_at,
+      updated_at: base.updated_at,
     }]);
     vi.mocked(desktop.getIndexHealth).mockResolvedValue({
       state: "rebuild_required",
@@ -297,22 +319,7 @@ describe("KnowledgePage", () => {
 
     render(<KnowledgePage />);
 
-    expect(await screen.findByText("BAAI/bge-m3")).toBeInTheDocument();
-    expect(await screen.findByRole("heading", { name: "索引健康" })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "重建索引" }));
-
-    await waitFor(() => expect(desktop.rebuildKnowledgeIndex).toHaveBeenCalledWith({
-      provider_profile_id: "embedding-1",
-      model_id: "BAAI/bge-m3",
-      dimension: 1024,
-    }));
-  });
-
-  it("keeps the retrieval setup guidance when the index is unavailable", async () => {
-    vi.mocked(desktop.listProviderProfiles).mockResolvedValue([]);
-
-    render(<KnowledgePage />);
-
-    expect(await screen.findByText("导入文档前需要先配置 SiliconFlow Embedding。未配置 MinerU 时将使用本地基础解析。")).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "GB 50632.pdf" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "索引健康" })).not.toBeInTheDocument();
   });
 });

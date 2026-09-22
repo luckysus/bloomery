@@ -131,6 +131,7 @@ impl RerankProvider for ConfiguredRerankProvider {
 
 pub enum ConfiguredChatProvider {
     OpenAi(OpenAiProvider),
+    DeepSeek(OpenAiProvider),
     Ollama(OllamaProvider),
 }
 
@@ -140,6 +141,9 @@ pub fn configured_chat_provider(
 ) -> Result<ConfiguredChatProvider, ProviderError> {
     match profile.kind {
         ProviderKind::Ollama => OllamaProvider::new(profile).map(ConfiguredChatProvider::Ollama),
+        ProviderKind::DeepSeek => {
+            OpenAiProvider::new(profile, credential).map(ConfiguredChatProvider::DeepSeek)
+        }
         _ if profile.kind.supports(ProviderCapability::Chat) => {
             OpenAiProvider::new(profile, credential).map(ConfiguredChatProvider::OpenAi)
         }
@@ -155,6 +159,7 @@ impl ChatProvider for ConfiguredChatProvider {
     fn capabilities(&self) -> &ProviderCapabilities {
         match self {
             Self::OpenAi(provider) => provider.capabilities(),
+            Self::DeepSeek(provider) => provider.capabilities(),
             Self::Ollama(provider) => provider.capabilities(),
         }
     }
@@ -167,6 +172,7 @@ impl ChatProvider for ConfiguredChatProvider {
     ) -> Result<ChatResponse, ProviderError> {
         match self {
             Self::OpenAi(provider) => provider.chat(request, on_event, is_cancelled).await,
+            Self::DeepSeek(provider) => provider.chat(request, on_event, is_cancelled).await,
             Self::Ollama(provider) => provider.chat(request, on_event, is_cancelled).await,
         }
     }
