@@ -615,6 +615,7 @@ pub async fn import_postgres_document(
         });
     }
     let source_path = request.source_path.to_string_lossy().to_string();
+    let storage_path = source.stored_path.to_string_lossy().to_string();
     let document_id: Uuid = sqlx::query_scalar(
         "SELECT id FROM source_documents
          WHERE knowledge_base_id = $1 AND source_path = $2 AND deleted_at IS NULL
@@ -635,11 +636,12 @@ pub async fn import_postgres_document(
     if existing_document {
         sqlx::query(
             "UPDATE source_documents SET display_name = $1, source_kind = $2,
-                    content_sha256 = $3, updated_at = now()
-             WHERE id = $4 AND deleted_at IS NULL",
+                    storage_path = $3, content_sha256 = $4, updated_at = now()
+             WHERE id = $5 AND deleted_at IS NULL",
         )
         .bind(&display_name)
         .bind(source.format.as_str())
+        .bind(&source_path)
         .bind(&source.content_sha256)
         .bind(document_id)
         .execute(&mut *transaction)
@@ -658,14 +660,16 @@ pub async fn import_postgres_document(
     } else {
         sqlx::query(
             "INSERT INTO source_documents
-                (id, knowledge_base_id, display_name, source_kind, source_path, content_sha256)
-             VALUES ($1, $2, $3, $4, $5, $6)",
+                (id, knowledge_base_id, display_name, source_kind, source_path,
+                 storage_path, content_sha256)
+             VALUES ($1, $2, $3, $4, $5, $6, $7)",
         )
         .bind(document_id)
         .bind(request.knowledge_base_id)
         .bind(&display_name)
         .bind(source.format.as_str())
         .bind(&source_path)
+        .bind(&storage_path)
         .bind(&source.content_sha256)
         .execute(&mut *transaction)
         .await
@@ -1823,7 +1827,7 @@ pub async fn get_postgres_document_raw(
 ) -> Result<serde_json::Value, String> {
     let pool = active_pool(&state)?;
     let source_path: String = sqlx::query_scalar(
-        "SELECT source_path FROM source_documents
+        "SELECT COALESCE(NULLIF(storage_path, ''), source_path) FROM source_documents
          WHERE id = $1 AND deleted_at IS NULL",
     )
     .bind(document_id)
