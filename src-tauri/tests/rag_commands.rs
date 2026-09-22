@@ -59,8 +59,18 @@ fn knowledge_merge_to_new_base_copies_documents_versions_chunks_and_fts() {
     let mut connection = database();
     let source = knowledge::create_knowledge_base(&connection, WORKSPACE, "Source").unwrap();
     let target = knowledge::create_knowledge_base(&connection, WORKSPACE, "Target").unwrap();
-    seed_active_document(&mut connection, source.id, "source.pdf", "Q355 source evidence");
-    seed_active_document(&mut connection, target.id, "target.pdf", "Q460 target evidence");
+    seed_active_document(
+        &mut connection,
+        source.id,
+        "source.pdf",
+        "Q355 source evidence",
+    );
+    seed_active_document(
+        &mut connection,
+        target.id,
+        "target.pdf",
+        "Q460 target evidence",
+    );
 
     let merged = knowledge::merge_knowledge_bases(
         &mut connection,
@@ -90,7 +100,9 @@ fn knowledge_merge_to_new_base_copies_documents_versions_chunks_and_fts() {
     let merged_documents =
         knowledge::list_source_documents(&connection, WORKSPACE, merged.id).unwrap();
     assert_eq!(merged_documents.len(), 2);
-    assert!(merged_documents.iter().all(|document| document.active_version_id.is_some()));
+    assert!(merged_documents
+        .iter()
+        .all(|document| document.active_version_id.is_some()));
     let fts_count: u32 = connection
         .query_row(
             "SELECT COUNT(*) FROM knowledge_chunks_fts WHERE knowledge_base_id = ?1",

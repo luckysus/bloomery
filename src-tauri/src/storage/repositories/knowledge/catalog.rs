@@ -1,12 +1,10 @@
 use super::records::{DocumentVersionRecord, KnowledgeBaseRecord, SourceDocumentRecord};
 use super::support::{now, parse, scope};
 use super::{create_knowledge_base, get_document_version, get_knowledge_base};
-use crate::rag::model::{
-    required, DocumentVersionId, KnowledgeBaseId, SourceDocumentId,
-};
-use serde::Serialize;
-use serde::Deserialize;
+use crate::rag::model::{required, DocumentVersionId, KnowledgeBaseId, SourceDocumentId};
 use rusqlite::{params, Connection, OptionalExtension, TransactionBehavior};
+use serde::Deserialize;
+use serde::Serialize;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct KnowledgeBaseDeleteImpact {
@@ -244,12 +242,7 @@ pub fn merge_knowledge_bases(
     for base_id in bases {
         let documents = list_source_documents(&transaction, workspace_id, base_id)?;
         for document in documents {
-            copy_document(
-                &transaction,
-                workspace_id,
-                &document,
-                destination.id,
-            )?;
+            copy_document(&transaction, workspace_id, &document, destination.id)?;
         }
     }
     transaction.commit().map_err(|error| error.to_string())?;

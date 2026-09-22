@@ -1,13 +1,15 @@
 use crate::db::{current_workspace_id, with_conn, with_conn_mut, DbState};
-use crate::storage::repositories::settings;
-use crate::storage::repositories::provider_profiles;
-use crate::storage::secrets::{SecretRef, SecretState, SecretValue};
 use crate::providers::capabilities::{EmbeddingProvider, RerankProvider};
-use crate::providers::{configured_embedding_provider, configured_rerank_provider, SiliconFlowPlan};
 use crate::providers::profiles::{ProviderKind, ProviderProfileRecord};
+use crate::providers::{
+    configured_embedding_provider, configured_rerank_provider, SiliconFlowPlan,
+};
 use crate::rag::chunk::{chunk_document, ChunkPolicy};
 use crate::rag::ingest::{ingest_file, IngestLimits};
 use crate::rag::parse::{parse_document, ParseLimits};
+use crate::storage::repositories::provider_profiles;
+use crate::storage::repositories::settings;
+use crate::storage::secrets::{SecretRef, SecretState, SecretValue};
 use serde::{Deserialize, Serialize};
 use sqlx::{postgres::PgPoolOptions, PgPool, Postgres, Row, Transaction};
 use std::sync::Mutex;
@@ -256,7 +258,10 @@ fn provider_credential(
         .ok_or_else(|| "Embedding provider 凭据未配置".to_string())?;
     let reference = SecretRef::at_generation(record.profile.id, name, record.secret_generation)
         .map_err(|error| error.to_string())?;
-    secrets.store().get(&reference).map_err(|error| error.to_string())
+    secrets
+        .store()
+        .get(&reference)
+        .map_err(|error| error.to_string())
 }
 
 #[derive(Default)]
@@ -393,7 +398,12 @@ pub async fn import_postgres_document(
     .bind(request.knowledge_base_id)
     .fetch_one(&pool)
     .await
-    .map_err(|error| format!("检查 PostgreSQL 知识库失败: {}", safe_error(&error.to_string())))?;
+    .map_err(|error| {
+        format!(
+            "检查 PostgreSQL 知识库失败: {}",
+            safe_error(&error.to_string())
+        )
+    })?;
     if !kb_exists {
         return Err("PostgreSQL 知识库不存在".to_string());
     }
@@ -408,7 +418,12 @@ pub async fn import_postgres_document(
     .bind(request.knowledge_base_id)
     .execute(&pool)
     .await
-    .map_err(|error| format!("创建 PostgreSQL 导入任务失败: {}", safe_error(&error.to_string())))?;
+    .map_err(|error| {
+        format!(
+            "创建 PostgreSQL 导入任务失败: {}",
+            safe_error(&error.to_string())
+        )
+    })?;
     sqlx::query(
         "INSERT INTO ingestion_attempts (id, job_id, state, started_at)
          VALUES ($1, $2, 'running', now())",
@@ -417,7 +432,12 @@ pub async fn import_postgres_document(
     .bind(job_id)
     .execute(&pool)
     .await
-    .map_err(|error| format!("创建 PostgreSQL 导入尝试失败: {}", safe_error(&error.to_string())))?;
+    .map_err(|error| {
+        format!(
+            "创建 PostgreSQL 导入尝试失败: {}",
+            safe_error(&error.to_string())
+        )
+    })?;
     let content_root = match crate::db::database_path(&app)
         .ok()
         .and_then(|path| path.parent().map(std::path::Path::to_path_buf))
@@ -425,14 +445,28 @@ pub async fn import_postgres_document(
         Some(path) => path,
         None => {
             let error = "解析本地内容目录失败";
-            record_postgres_ingestion_failure(&pool, job_id, attempt_id, "storage_path_failed", error).await?;
+            record_postgres_ingestion_failure(
+                &pool,
+                job_id,
+                attempt_id,
+                "storage_path_failed",
+                error,
+            )
+            .await?;
             return Err(error.to_string());
         }
     };
     let source = match ingest_file(&request.source_path, &content_root, IngestLimits::default()) {
         Ok(source) => source,
         Err(error) => {
-            record_postgres_ingestion_failure(&pool, job_id, attempt_id, "ingest_failed", &error.to_string()).await?;
+            record_postgres_ingestion_failure(
+                &pool,
+                job_id,
+                attempt_id,
+                "ingest_failed",
+                &error.to_string(),
+            )
+            .await?;
             return Err(error.to_string());
         }
     };
@@ -440,21 +474,42 @@ pub async fn import_postgres_document(
         Some(value) => value.to_string_lossy().into_owned(),
         None => {
             let error = "源文件名不能为空";
-            record_postgres_ingestion_failure(&pool, job_id, attempt_id, "source_name_failed", error).await?;
+            record_postgres_ingestion_failure(
+                &pool,
+                job_id,
+                attempt_id,
+                "source_name_failed",
+                error,
+            )
+            .await?;
             return Err(error.to_string());
         }
     };
     let parsed = match parse_document(&source.stored_path, source.format, ParseLimits::default()) {
         Ok(parsed) => parsed,
         Err(error) => {
-            record_postgres_ingestion_failure(&pool, job_id, attempt_id, "parse_failed", &error.to_string()).await?;
+            record_postgres_ingestion_failure(
+                &pool,
+                job_id,
+                attempt_id,
+                "parse_failed",
+                &error.to_string(),
+            )
+            .await?;
             return Err(error.to_string());
         }
     };
     let chunks = match chunk_document(&parsed, &ChunkPolicy::default()) {
         Ok(chunks) => chunks,
         Err(error) => {
-            record_postgres_ingestion_failure(&pool, job_id, attempt_id, "chunk_failed", &error.to_string()).await?;
+            record_postgres_ingestion_failure(
+                &pool,
+                job_id,
+                attempt_id,
+                "chunk_failed",
+                &error.to_string(),
+            )
+            .await?;
             return Err(error.to_string());
         }
     };
@@ -467,8 +522,7 @@ pub async fn import_postgres_document(
     .bind(&source.content_sha256)
     .fetch_optional(&mut *transaction)
     .await
-    .map_err(|error| format!("检查文档 hash 失败: {}", safe_error(&error.to_string())))?
-    ;
+    .map_err(|error| format!("检查文档 hash 失败: {}", safe_error(&error.to_string())))?;
     if let Some(document_id) = hash_document_id {
         let version_id: Uuid = sqlx::query_scalar(
             "SELECT id FROM document_versions
@@ -489,7 +543,12 @@ pub async fn import_postgres_document(
         .bind(job_id)
         .execute(&mut *transaction)
         .await
-        .map_err(|error| format!("更新重复文档导入任务失败: {}", safe_error(&error.to_string())))?;
+        .map_err(|error| {
+            format!(
+                "更新重复文档导入任务失败: {}",
+                safe_error(&error.to_string())
+            )
+        })?;
         sqlx::query(
             "UPDATE ingestion_attempts SET state = 'completed', finished_at = now()
              WHERE id = $1 AND job_id = $2",
@@ -498,8 +557,16 @@ pub async fn import_postgres_document(
         .bind(job_id)
         .execute(&mut *transaction)
         .await
-        .map_err(|error| format!("更新重复文档导入尝试失败: {}", safe_error(&error.to_string())))?;
-        transaction.commit().await.map_err(|error| error.to_string())?;
+        .map_err(|error| {
+            format!(
+                "更新重复文档导入尝试失败: {}",
+                safe_error(&error.to_string())
+            )
+        })?;
+        transaction
+            .commit()
+            .await
+            .map_err(|error| error.to_string())?;
         return Ok(PostgresDocumentImportResponse {
             knowledge_base_id: request.knowledge_base_id,
             document_id,
@@ -521,13 +588,12 @@ pub async fn import_postgres_document(
     .await
     .map_err(|error| format!("检查已有源文档失败: {}", safe_error(&error.to_string())))?
     .unwrap_or_else(Uuid::new_v4);
-    let existing_document: bool = sqlx::query_scalar(
-        "SELECT EXISTS (SELECT 1 FROM source_documents WHERE id = $1)",
-    )
-    .bind(document_id)
-    .fetch_one(&mut *transaction)
-    .await
-    .map_err(|error| error.to_string())?;
+    let existing_document: bool =
+        sqlx::query_scalar("SELECT EXISTS (SELECT 1 FROM source_documents WHERE id = $1)")
+            .bind(document_id)
+            .fetch_one(&mut *transaction)
+            .await
+            .map_err(|error| error.to_string())?;
     if existing_document {
         sqlx::query(
             "UPDATE source_documents SET display_name = $1, source_kind = $2,
@@ -540,7 +606,12 @@ pub async fn import_postgres_document(
         .bind(document_id)
         .execute(&mut *transaction)
         .await
-        .map_err(|error| format!("更新 PostgreSQL 源文档失败: {}", safe_error(&error.to_string())))?;
+        .map_err(|error| {
+            format!(
+                "更新 PostgreSQL 源文档失败: {}",
+                safe_error(&error.to_string())
+            )
+        })?;
         sqlx::query("UPDATE document_versions SET activated_at = NULL WHERE document_id = $1 AND activated_at IS NOT NULL")
             .bind(document_id)
             .execute(&mut *transaction)
@@ -560,7 +631,12 @@ pub async fn import_postgres_document(
         .bind(&source.content_sha256)
         .execute(&mut *transaction)
         .await
-        .map_err(|error| format!("写入 PostgreSQL 源文档失败: {}", safe_error(&error.to_string())))?;
+        .map_err(|error| {
+            format!(
+                "写入 PostgreSQL 源文档失败: {}",
+                safe_error(&error.to_string())
+            )
+        })?;
     }
     let version_id = Uuid::new_v4();
     sqlx::query(
@@ -578,7 +654,12 @@ pub async fn import_postgres_document(
     .bind(ChunkPolicy::default().version)
     .execute(&mut *transaction)
     .await
-    .map_err(|error| format!("写入 PostgreSQL 文档版本失败: {}", safe_error(&error.to_string())))?;
+    .map_err(|error| {
+        format!(
+            "写入 PostgreSQL 文档版本失败: {}",
+            safe_error(&error.to_string())
+        )
+    })?;
     for asset in &parsed.assets {
         sqlx::query(
             "INSERT INTO document_assets
@@ -590,15 +671,23 @@ pub async fn import_postgres_document(
         .bind(&asset.kind)
         .bind(source.storage_key.as_str())
         .bind(&asset.media_type)
-        .bind(serde_json::json!({ "original_name": asset.original_name, "location": asset.location }))
+        .bind(
+            serde_json::json!({ "original_name": asset.original_name, "location": asset.location }),
+        )
         .execute(&mut *transaction)
         .await
-        .map_err(|error| format!("写入 PostgreSQL 文档资产失败: {}", safe_error(&error.to_string())))?;
+        .map_err(|error| {
+            format!(
+                "写入 PostgreSQL 文档资产失败: {}",
+                safe_error(&error.to_string())
+            )
+        })?;
     }
     let mut chunk_ids = Vec::with_capacity(chunks.len());
     let mut parent_by_location: Vec<(serde_json::Value, Uuid)> = Vec::new();
     for chunk in &chunks {
-        let location = serde_json::to_value(&chunk.source_location).map_err(|error| error.to_string())?;
+        let location =
+            serde_json::to_value(&chunk.source_location).map_err(|error| error.to_string())?;
         let chunk_id = Uuid::new_v4();
         let parent_id = parent_by_location
             .iter()
@@ -610,7 +699,8 @@ pub async fn import_postgres_document(
         chunk_ids.push((chunk_id, parent_id));
     }
     for (chunk, (chunk_id, parent_id)) in chunks.iter().zip(chunk_ids) {
-        let location = serde_json::to_value(&chunk.source_location).map_err(|error| error.to_string())?;
+        let location =
+            serde_json::to_value(&chunk.source_location).map_err(|error| error.to_string())?;
         sqlx::query(
             "INSERT INTO document_chunks
                 (id, version_id, parent_id, ordinal, title_path, text, source_location)
@@ -625,7 +715,12 @@ pub async fn import_postgres_document(
         .bind(location)
         .execute(&mut *transaction)
         .await
-        .map_err(|error| format!("写入 PostgreSQL Chunk 失败: {}", safe_error(&error.to_string())))?;
+        .map_err(|error| {
+            format!(
+                "写入 PostgreSQL Chunk 失败: {}",
+                safe_error(&error.to_string())
+            )
+        })?;
     }
     sqlx::query(
         "UPDATE ingestion_jobs
@@ -636,7 +731,12 @@ pub async fn import_postgres_document(
     .bind(job_id)
     .execute(&mut *transaction)
     .await
-    .map_err(|error| format!("更新 PostgreSQL 导入任务失败: {}", safe_error(&error.to_string())))?;
+    .map_err(|error| {
+        format!(
+            "更新 PostgreSQL 导入任务失败: {}",
+            safe_error(&error.to_string())
+        )
+    })?;
     sqlx::query(
         "UPDATE ingestion_attempts SET state = 'completed', finished_at = now()
          WHERE id = $1 AND job_id = $2",
@@ -645,8 +745,16 @@ pub async fn import_postgres_document(
     .bind(job_id)
     .execute(&mut *transaction)
     .await
-    .map_err(|error| format!("写入 PostgreSQL 导入尝试失败: {}", safe_error(&error.to_string())))?;
-    transaction.commit().await.map_err(|error| error.to_string())?;
+    .map_err(|error| {
+        format!(
+            "写入 PostgreSQL 导入尝试失败: {}",
+            safe_error(&error.to_string())
+        )
+    })?;
+    transaction
+        .commit()
+        .await
+        .map_err(|error| error.to_string())?;
     Ok(PostgresDocumentImportResponse {
         knowledge_base_id: request.knowledge_base_id,
         document_id,
@@ -664,10 +772,12 @@ async fn record_postgres_ingestion_failure(
     error_code: &str,
     error_message: &str,
 ) -> Result<(), String> {
-    let mut transaction = pool
-        .begin()
-        .await
-        .map_err(|error| format!("记录导入失败时开启事务失败: {}", safe_error(&error.to_string())))?;
+    let mut transaction = pool.begin().await.map_err(|error| {
+        format!(
+            "记录导入失败时开启事务失败: {}",
+            safe_error(&error.to_string())
+        )
+    })?;
     sqlx::query(
         "UPDATE ingestion_jobs
          SET state = 'failed', error_message = $1, updated_at = now()
@@ -712,8 +822,12 @@ fn source_location_title_path(location: &crate::rag::model::SourceLocation) -> S
     match location {
         crate::rag::model::SourceLocation::Heading { path } => path.join(" / "),
         crate::rag::model::SourceLocation::PdfPage { page, .. } => format!("PDF page {page}"),
-        crate::rag::model::SourceLocation::SheetRange { sheet, range } => format!("{sheet}!{range}"),
-        crate::rag::model::SourceLocation::TextOffsets { start, end } => format!("offsets {start}-{end}"),
+        crate::rag::model::SourceLocation::SheetRange { sheet, range } => {
+            format!("{sheet}!{range}")
+        }
+        crate::rag::model::SourceLocation::TextOffsets { start, end } => {
+            format!("offsets {start}-{end}")
+        }
     }
 }
 
@@ -746,18 +860,33 @@ pub async fn search_postgres_knowledge(
     .bind(i64::from(limit))
     .fetch_all(&pool)
     .await
-    .map_err(|error| format!("PostgreSQL 全文检索失败: {}", safe_error(&error.to_string())))?;
+    .map_err(|error| {
+        format!(
+            "PostgreSQL 全文检索失败: {}",
+            safe_error(&error.to_string())
+        )
+    })?;
     let hits = rows
         .into_iter()
         .map(|row| {
             Ok(PostgresKnowledgeSearchHit {
-                knowledge_base_id: row.try_get("knowledge_base_id").map_err(|error| error.to_string())?,
+                knowledge_base_id: row
+                    .try_get("knowledge_base_id")
+                    .map_err(|error| error.to_string())?,
                 chunk_id: row.try_get("id").map_err(|error| error.to_string())?,
-                version_id: row.try_get("version_id").map_err(|error| error.to_string())?,
-                document_id: row.try_get("document_id").map_err(|error| error.to_string())?,
-                document_name: row.try_get("display_name").map_err(|error| error.to_string())?,
+                version_id: row
+                    .try_get("version_id")
+                    .map_err(|error| error.to_string())?,
+                document_id: row
+                    .try_get("document_id")
+                    .map_err(|error| error.to_string())?,
+                document_name: row
+                    .try_get("display_name")
+                    .map_err(|error| error.to_string())?,
                 text: row.try_get("text").map_err(|error| error.to_string())?,
-                source_location: row.try_get("source_location").map_err(|error| error.to_string())?,
+                source_location: row
+                    .try_get("source_location")
+                    .map_err(|error| error.to_string())?,
                 rank: row.try_get("rank").map_err(|error| error.to_string())?,
             })
         })
@@ -807,7 +936,10 @@ pub async fn store_postgres_chunk_embeddings(
         .await
         .map_err(|error| format!("写入 pgvector 失败: {}", safe_error(&error.to_string())))?;
     }
-    transaction.commit().await.map_err(|error| error.to_string())?;
+    transaction
+        .commit()
+        .await
+        .map_err(|error| error.to_string())?;
     Ok(embeddings.len() as u32)
 }
 
@@ -850,17 +982,28 @@ pub async fn embed_postgres_document(
     .bind(request.version_id)
     .fetch_all(&pool)
     .await
-    .map_err(|error| format!("读取待向量化 Chunk 失败: {}", safe_error(&error.to_string())))?;
+    .map_err(|error| {
+        format!(
+            "读取待向量化 Chunk 失败: {}",
+            safe_error(&error.to_string())
+        )
+    })?;
     if rows.is_empty() {
         return Ok(0);
     }
     let chunk_ids = rows
         .iter()
-        .map(|row| row.try_get::<Uuid, _>("id").map_err(|error| error.to_string()))
+        .map(|row| {
+            row.try_get::<Uuid, _>("id")
+                .map_err(|error| error.to_string())
+        })
         .collect::<Result<Vec<_>, String>>()?;
     let texts = rows
         .iter()
-        .map(|row| row.try_get::<String, _>("text").map_err(|error| error.to_string()))
+        .map(|row| {
+            row.try_get::<String, _>("text")
+                .map_err(|error| error.to_string())
+        })
         .collect::<Result<Vec<_>, String>>()?;
     let response = provider
         .embed(texts)
@@ -898,7 +1041,10 @@ pub async fn embed_postgres_document(
         .await
         .map_err(|error| format!("写入 pgvector 失败: {}", safe_error(&error.to_string())))?;
     }
-    transaction.commit().await.map_err(|error| error.to_string())?;
+    transaction
+        .commit()
+        .await
+        .map_err(|error| error.to_string())?;
     Ok(inputs.len() as u32)
 }
 
@@ -927,17 +1073,32 @@ pub async fn search_postgres_vectors(
     .bind(i64::from(limit))
     .fetch_all(&pool)
     .await
-    .map_err(|error| format!("PostgreSQL 向量检索失败: {}", safe_error(&error.to_string())))?;
+    .map_err(|error| {
+        format!(
+            "PostgreSQL 向量检索失败: {}",
+            safe_error(&error.to_string())
+        )
+    })?;
     rows.into_iter()
         .map(|row| {
             Ok(PostgresKnowledgeSearchHit {
-                knowledge_base_id: row.try_get("knowledge_base_id").map_err(|error| error.to_string())?,
+                knowledge_base_id: row
+                    .try_get("knowledge_base_id")
+                    .map_err(|error| error.to_string())?,
                 chunk_id: row.try_get("id").map_err(|error| error.to_string())?,
-                version_id: row.try_get("version_id").map_err(|error| error.to_string())?,
-                document_id: row.try_get("document_id").map_err(|error| error.to_string())?,
-                document_name: row.try_get("display_name").map_err(|error| error.to_string())?,
+                version_id: row
+                    .try_get("version_id")
+                    .map_err(|error| error.to_string())?,
+                document_id: row
+                    .try_get("document_id")
+                    .map_err(|error| error.to_string())?,
+                document_name: row
+                    .try_get("display_name")
+                    .map_err(|error| error.to_string())?,
                 text: row.try_get("text").map_err(|error| error.to_string())?,
-                source_location: row.try_get("source_location").map_err(|error| error.to_string())?,
+                source_location: row
+                    .try_get("source_location")
+                    .map_err(|error| error.to_string())?,
                 rank: row.try_get("rank").map_err(|error| error.to_string())?,
             })
         })
@@ -1001,18 +1162,33 @@ pub async fn search_postgres_hybrid(
     .bind(rrf_k as f64)
     .fetch_all(&pool)
     .await
-    .map_err(|error| format!("PostgreSQL 混合检索失败: {}", safe_error(&error.to_string())))?;
+    .map_err(|error| {
+        format!(
+            "PostgreSQL 混合检索失败: {}",
+            safe_error(&error.to_string())
+        )
+    })?;
     let hits = rows
         .into_iter()
         .map(|row| {
             Ok(PostgresKnowledgeSearchHit {
-                knowledge_base_id: row.try_get("knowledge_base_id").map_err(|error| error.to_string())?,
+                knowledge_base_id: row
+                    .try_get("knowledge_base_id")
+                    .map_err(|error| error.to_string())?,
                 chunk_id: row.try_get("id").map_err(|error| error.to_string())?,
-                version_id: row.try_get("version_id").map_err(|error| error.to_string())?,
-                document_id: row.try_get("document_id").map_err(|error| error.to_string())?,
-                document_name: row.try_get("display_name").map_err(|error| error.to_string())?,
+                version_id: row
+                    .try_get("version_id")
+                    .map_err(|error| error.to_string())?,
+                document_id: row
+                    .try_get("document_id")
+                    .map_err(|error| error.to_string())?,
+                document_name: row
+                    .try_get("display_name")
+                    .map_err(|error| error.to_string())?,
                 text: row.try_get("text").map_err(|error| error.to_string())?,
-                source_location: row.try_get("source_location").map_err(|error| error.to_string())?,
+                source_location: row
+                    .try_get("source_location")
+                    .map_err(|error| error.to_string())?,
                 rank: row.try_get("rank").map_err(|error| error.to_string())?,
             })
         })
@@ -1087,13 +1263,23 @@ pub(crate) async fn search_postgres_hybrid_pool(
     rows.into_iter()
         .map(|row| {
             Ok(PostgresKnowledgeSearchHit {
-                knowledge_base_id: row.try_get("knowledge_base_id").map_err(|error| error.to_string())?,
+                knowledge_base_id: row
+                    .try_get("knowledge_base_id")
+                    .map_err(|error| error.to_string())?,
                 chunk_id: row.try_get("id").map_err(|error| error.to_string())?,
-                version_id: row.try_get("version_id").map_err(|error| error.to_string())?,
-                document_id: row.try_get("document_id").map_err(|error| error.to_string())?,
-                document_name: row.try_get("display_name").map_err(|error| error.to_string())?,
+                version_id: row
+                    .try_get("version_id")
+                    .map_err(|error| error.to_string())?,
+                document_id: row
+                    .try_get("document_id")
+                    .map_err(|error| error.to_string())?,
+                document_name: row
+                    .try_get("display_name")
+                    .map_err(|error| error.to_string())?,
                 text: row.try_get("text").map_err(|error| error.to_string())?,
-                source_location: row.try_get("source_location").map_err(|error| error.to_string())?,
+                source_location: row
+                    .try_get("source_location")
+                    .map_err(|error| error.to_string())?,
                 rank: row.try_get("rank").map_err(|error| error.to_string())?,
             })
         })
@@ -1110,14 +1296,18 @@ pub async fn resolve_postgres_citation(
         return Err("引用序号必须从 1 开始".to_string());
     }
     let pool = active_pool(&state)?;
-    let evidence: Option<serde_json::Value> = sqlx::query_scalar(
-        "SELECT evidence -> ($2 - 1) FROM retrieval_audits WHERE id = $1",
-    )
-    .bind(audit_id)
-    .bind(i64::from(citation_number))
-    .fetch_optional(&pool)
-    .await
-    .map_err(|error| format!("读取 PostgreSQL citation 失败: {}", safe_error(&error.to_string())))?;
+    let evidence: Option<serde_json::Value> =
+        sqlx::query_scalar("SELECT evidence -> ($2 - 1) FROM retrieval_audits WHERE id = $1")
+            .bind(audit_id)
+            .bind(i64::from(citation_number))
+            .fetch_optional(&pool)
+            .await
+            .map_err(|error| {
+                format!(
+                    "读取 PostgreSQL citation 失败: {}",
+                    safe_error(&error.to_string())
+                )
+            })?;
     let Some(evidence) = evidence else {
         return Ok(None);
     };
@@ -1140,7 +1330,12 @@ pub async fn resolve_postgres_citation(
     .bind(hit.version_id)
     .fetch_optional(&pool)
     .await
-    .map_err(|error| format!("读取 citation 来源状态失败: {}", safe_error(&error.to_string())))?
+    .map_err(|error| {
+        format!(
+            "读取 citation 来源状态失败: {}",
+            safe_error(&error.to_string())
+        )
+    })?
     .unwrap_or_else(|| "deleted".to_string());
     Ok(Some(PostgresCitation {
         audit_id,
@@ -1164,7 +1359,11 @@ pub async fn rerank_postgres_knowledge(
         return Ok(Vec::new());
     }
     let record = with_conn(&db, |connection| {
-        provider_profiles::get_record(connection, current_workspace_id(), request.rerank_profile_id)
+        provider_profiles::get_record(
+            connection,
+            current_workspace_id(),
+            request.rerank_profile_id,
+        )
     })?
     .ok_or_else(|| "Reranker provider 不存在".to_string())?;
     if record.profile.kind != ProviderKind::SiliconFlow || !record.profile.enabled {
@@ -1224,7 +1423,12 @@ pub async fn list_postgres_ingestion_jobs(
     .bind(knowledge_base_id)
     .fetch_all(&pool)
     .await
-    .map_err(|error| format!("读取 PostgreSQL 导入任务失败: {}", safe_error(&error.to_string())))?;
+    .map_err(|error| {
+        format!(
+            "读取 PostgreSQL 导入任务失败: {}",
+            safe_error(&error.to_string())
+        )
+    })?;
     rows.into_iter()
         .map(|row| {
             Ok(PostgresIngestionJobRecord {
@@ -1243,8 +1447,12 @@ pub async fn list_postgres_ingestion_jobs(
                 next_attempt_at: row
                     .try_get("next_attempt_at")
                     .map_err(|error| error.to_string())?,
-                created_at: row.try_get("created_at").map_err(|error| error.to_string())?,
-                updated_at: row.try_get("updated_at").map_err(|error| error.to_string())?,
+                created_at: row
+                    .try_get("created_at")
+                    .map_err(|error| error.to_string())?,
+                updated_at: row
+                    .try_get("updated_at")
+                    .map_err(|error| error.to_string())?,
             })
         })
         .collect()
@@ -1269,10 +1477,16 @@ pub async fn list_postgres_processing_failures(
         Ok(PostgresProcessingFailureRecord {
             id: row.try_get("id").map_err(|error| error.to_string())?,
             job_id: row.try_get("job_id").map_err(|error| error.to_string())?,
-            error_code: row.try_get("error_code").map_err(|error| error.to_string())?,
-            error_message: row.try_get("error_message").map_err(|error| error.to_string())?,
+            error_code: row
+                .try_get("error_code")
+                .map_err(|error| error.to_string())?,
+            error_message: row
+                .try_get("error_message")
+                .map_err(|error| error.to_string())?,
             details: row.try_get("details").map_err(|error| error.to_string())?,
-            created_at: row.try_get("created_at").map_err(|error| error.to_string())?,
+            created_at: row
+                .try_get("created_at")
+                .map_err(|error| error.to_string())?,
         })
     })
     .collect()
@@ -1295,9 +1509,15 @@ pub async fn retry_postgres_ingestion_job(
     .await
     .map_err(|error| format!("读取导入任务失败: {}", safe_error(&error.to_string())))?
     .ok_or_else(|| "导入任务不存在".to_string())?;
-    let attempts: i32 = current.try_get("attempts").map_err(|error| error.to_string())?;
+    let attempts: i32 = current
+        .try_get("attempts")
+        .map_err(|error| error.to_string())?;
     let next_attempts = attempts.saturating_add(1);
-    let state_name = if next_attempts >= 3 { "quarantined" } else { "retrying" };
+    let state_name = if next_attempts >= 3 {
+        "quarantined"
+    } else {
+        "retrying"
+    };
     sqlx::query(
         "UPDATE ingestion_jobs
          SET state = $1, attempts = $2,
@@ -1319,7 +1539,11 @@ pub async fn retry_postgres_ingestion_job(
     .bind(Uuid::new_v4())
     .bind(job_id)
     .bind(state_name)
-    .bind(current.try_get::<Option<String>, _>("error_message").map_err(|error| error.to_string())?)
+    .bind(
+        current
+            .try_get::<Option<String>, _>("error_message")
+            .map_err(|error| error.to_string())?,
+    )
     .execute(&mut *transaction)
     .await
     .map_err(|error| format!("记录重试尝试失败: {}", safe_error(&error.to_string())))?;
@@ -1332,17 +1556,32 @@ pub async fn retry_postgres_ingestion_job(
     .fetch_one(&mut *transaction)
     .await
     .map_err(|error| error.to_string())?;
-    transaction.commit().await.map_err(|error| error.to_string())?;
+    transaction
+        .commit()
+        .await
+        .map_err(|error| error.to_string())?;
     Ok(PostgresIngestionJobRecord {
         id: row.try_get("id").map_err(|error| error.to_string())?,
-        knowledge_base_id: row.try_get("knowledge_base_id").map_err(|error| error.to_string())?,
-        source_document_id: row.try_get("source_document_id").map_err(|error| error.to_string())?,
+        knowledge_base_id: row
+            .try_get("knowledge_base_id")
+            .map_err(|error| error.to_string())?,
+        source_document_id: row
+            .try_get("source_document_id")
+            .map_err(|error| error.to_string())?,
         state: row.try_get("state").map_err(|error| error.to_string())?,
         attempts: row.try_get("attempts").map_err(|error| error.to_string())?,
-        error_message: row.try_get("error_message").map_err(|error| error.to_string())?,
-        next_attempt_at: row.try_get("next_attempt_at").map_err(|error| error.to_string())?,
-        created_at: row.try_get("created_at").map_err(|error| error.to_string())?,
-        updated_at: row.try_get("updated_at").map_err(|error| error.to_string())?,
+        error_message: row
+            .try_get("error_message")
+            .map_err(|error| error.to_string())?,
+        next_attempt_at: row
+            .try_get("next_attempt_at")
+            .map_err(|error| error.to_string())?,
+        created_at: row
+            .try_get("created_at")
+            .map_err(|error| error.to_string())?,
+        updated_at: row
+            .try_get("updated_at")
+            .map_err(|error| error.to_string())?,
     })
 }
 
@@ -1365,7 +1604,12 @@ pub async fn list_postgres_documents(
     .bind(knowledge_base_id)
     .fetch_all(&pool)
     .await
-    .map_err(|error| format!("读取 PostgreSQL 文档失败: {}", safe_error(&error.to_string())))?;
+    .map_err(|error| {
+        format!(
+            "读取 PostgreSQL 文档失败: {}",
+            safe_error(&error.to_string())
+        )
+    })?;
     rows.into_iter()
         .map(|row| {
             Ok(PostgresDocumentRecord {
@@ -1373,17 +1617,27 @@ pub async fn list_postgres_documents(
                 knowledge_base_id: row
                     .try_get("knowledge_base_id")
                     .map_err(|error| error.to_string())?,
-                display_name: row.try_get("display_name").map_err(|error| error.to_string())?,
-                source_kind: row.try_get("source_kind").map_err(|error| error.to_string())?,
-                source_path: row.try_get("source_path").map_err(|error| error.to_string())?,
+                display_name: row
+                    .try_get("display_name")
+                    .map_err(|error| error.to_string())?,
+                source_kind: row
+                    .try_get("source_kind")
+                    .map_err(|error| error.to_string())?,
+                source_path: row
+                    .try_get("source_path")
+                    .map_err(|error| error.to_string())?,
                 content_sha256: row
                     .try_get("content_sha256")
                     .map_err(|error| error.to_string())?,
                 active_version_id: row
                     .try_get("active_version_id")
                     .map_err(|error| error.to_string())?,
-                created_at: row.try_get("created_at").map_err(|error| error.to_string())?,
-                updated_at: row.try_get("updated_at").map_err(|error| error.to_string())?,
+                created_at: row
+                    .try_get("created_at")
+                    .map_err(|error| error.to_string())?,
+                updated_at: row
+                    .try_get("updated_at")
+                    .map_err(|error| error.to_string())?,
             })
         })
         .collect()
@@ -1402,7 +1656,12 @@ pub async fn delete_postgres_document(
     .bind(document_id)
     .execute(&pool)
     .await
-    .map_err(|error| format!("删除 PostgreSQL 文档失败: {}", safe_error(&error.to_string())))?;
+    .map_err(|error| {
+        format!(
+            "删除 PostgreSQL 文档失败: {}",
+            safe_error(&error.to_string())
+        )
+    })?;
     if result.rows_affected() == 0 {
         return Err("PostgreSQL 文档不存在".to_string());
     }
@@ -1426,7 +1685,10 @@ fn markdown_wiki_slugs(body: &str) -> Vec<String> {
         let Some((target, after_target)) = after_label.split_once(')') else {
             break;
         };
-        let target = target.trim().trim_start_matches('#').trim_start_matches('/');
+        let target = target
+            .trim()
+            .trim_start_matches('#')
+            .trim_start_matches('/');
         if !target.is_empty()
             && !target.contains("://")
             && !target.starts_with("mailto:")
@@ -1544,8 +1806,12 @@ fn wiki_page_from_row(row: &sqlx::postgres::PgRow) -> Result<PostgresWikiPageRec
             .try_get("source_document_id")
             .map_err(|error| error.to_string())?,
         revision: row.try_get("revision").map_err(|error| error.to_string())?,
-        created_at: row.try_get("created_at").map_err(|error| error.to_string())?,
-        updated_at: row.try_get("updated_at").map_err(|error| error.to_string())?,
+        created_at: row
+            .try_get("created_at")
+            .map_err(|error| error.to_string())?,
+        updated_at: row
+            .try_get("updated_at")
+            .map_err(|error| error.to_string())?,
     })
 }
 
@@ -1568,7 +1834,12 @@ pub async fn list_postgres_wiki_pages(
     .bind(knowledge_base_id)
     .fetch_all(&pool)
     .await
-    .map_err(|error| format!("读取 PostgreSQL Wiki 页面失败: {}", safe_error(&error.to_string())))?;
+    .map_err(|error| {
+        format!(
+            "读取 PostgreSQL Wiki 页面失败: {}",
+            safe_error(&error.to_string())
+        )
+    })?;
     rows.iter().map(wiki_page_from_row).collect()
 }
 
@@ -1624,7 +1895,12 @@ pub async fn create_postgres_wiki_page(
     .bind(input.source_document_id)
     .execute(&mut *transaction)
     .await
-    .map_err(|error| format!("创建 PostgreSQL Wiki 页面失败: {}", safe_error(&error.to_string())))?;
+    .map_err(|error| {
+        format!(
+            "创建 PostgreSQL Wiki 页面失败: {}",
+            safe_error(&error.to_string())
+        )
+    })?;
     sqlx::query(
         "INSERT INTO wiki_page_revisions (id, page_id, revision, title, body_markdown)
          VALUES ($1, $2, 1, $3, $4)",
@@ -1635,7 +1911,12 @@ pub async fn create_postgres_wiki_page(
     .bind(&input.body_markdown)
     .execute(&mut *transaction)
     .await
-    .map_err(|error| format!("创建 Wiki revision 失败: {}", safe_error(&error.to_string())))?;
+    .map_err(|error| {
+        format!(
+            "创建 Wiki revision 失败: {}",
+            safe_error(&error.to_string())
+        )
+    })?;
     rebuild_wiki_links(
         &mut transaction,
         id,
@@ -1724,7 +2005,12 @@ pub async fn update_postgres_wiki_page(
     .bind(&body_markdown)
     .execute(&mut *transaction)
     .await
-    .map_err(|error| format!("保存 Wiki revision 失败: {}", safe_error(&error.to_string())))?;
+    .map_err(|error| {
+        format!(
+            "保存 Wiki revision 失败: {}",
+            safe_error(&error.to_string())
+        )
+    })?;
     rebuild_wiki_links(&mut transaction, page_id, knowledge_base_id, &body_markdown).await?;
     if let Some(tags) = tags.as_deref() {
         replace_wiki_page_tags(&mut transaction, page_id, knowledge_base_id, tags).await?;
@@ -1739,9 +2025,17 @@ pub async fn update_postgres_wiki_page(
     .bind(revision)
     .fetch_optional(&mut *transaction)
     .await
-    .map_err(|error| format!("读取更新后的 Wiki 页面失败: {}", safe_error(&error.to_string())))?
+    .map_err(|error| {
+        format!(
+            "读取更新后的 Wiki 页面失败: {}",
+            safe_error(&error.to_string())
+        )
+    })?
     .ok_or_else(|| "PostgreSQL Wiki 页面不存在".to_string())?;
-    transaction.commit().await.map_err(|error| error.to_string())?;
+    transaction
+        .commit()
+        .await
+        .map_err(|error| error.to_string())?;
     wiki_page_from_row(&row)
 }
 
@@ -1766,8 +2060,12 @@ pub async fn list_postgres_wiki_revisions(
                 page_id: row.try_get("page_id").map_err(|error| error.to_string())?,
                 revision: row.try_get("revision").map_err(|error| error.to_string())?,
                 title: row.try_get("title").map_err(|error| error.to_string())?,
-                body_markdown: row.try_get("body_markdown").map_err(|error| error.to_string())?,
-                created_at: row.try_get("created_at").map_err(|error| error.to_string())?,
+                body_markdown: row
+                    .try_get("body_markdown")
+                    .map_err(|error| error.to_string())?,
+                created_at: row
+                    .try_get("created_at")
+                    .map_err(|error| error.to_string())?,
             })
         })
         .collect()
@@ -1792,7 +2090,12 @@ pub async fn restore_postgres_wiki_revision(
     .bind(revision)
     .fetch_optional(&mut *transaction)
     .await
-    .map_err(|error| format!("读取 Wiki revision 失败: {}", safe_error(&error.to_string())))?
+    .map_err(|error| {
+        format!(
+            "读取 Wiki revision 失败: {}",
+            safe_error(&error.to_string())
+        )
+    })?
     .ok_or_else(|| "Wiki revision 不存在".to_string())?;
     let title: String = source.try_get("title").map_err(|error| error.to_string())?;
     let body: String = source
@@ -1822,7 +2125,12 @@ pub async fn restore_postgres_wiki_revision(
     .bind(page_id)
     .fetch_one(&mut *transaction)
     .await
-    .map_err(|error| format!("读取 Wiki 所属知识库失败: {}", safe_error(&error.to_string())))?;
+    .map_err(|error| {
+        format!(
+            "读取 Wiki 所属知识库失败: {}",
+            safe_error(&error.to_string())
+        )
+    })?;
     rebuild_wiki_links(&mut transaction, page_id, knowledge_base_id, &body).await?;
     sqlx::query(
         "INSERT INTO wiki_page_revisions (id, page_id, revision, title, body_markdown)
@@ -1846,8 +2154,16 @@ pub async fn restore_postgres_wiki_revision(
     .bind(next_revision)
     .fetch_one(&mut *transaction)
     .await
-    .map_err(|error| format!("读取回滚后的 Wiki 页面失败: {}", safe_error(&error.to_string())))?;
-    transaction.commit().await.map_err(|error| error.to_string())?;
+    .map_err(|error| {
+        format!(
+            "读取回滚后的 Wiki 页面失败: {}",
+            safe_error(&error.to_string())
+        )
+    })?;
+    transaction
+        .commit()
+        .await
+        .map_err(|error| error.to_string())?;
     wiki_page_from_row(&row)
 }
 
@@ -1883,7 +2199,9 @@ pub async fn list_postgres_knowledge_edges(
                     .map_err(|error| error.to_string())?,
                 relation: row.try_get("relation").map_err(|error| error.to_string())?,
                 metadata: row.try_get("metadata").map_err(|error| error.to_string())?,
-                created_at: row.try_get("created_at").map_err(|error| error.to_string())?,
+                created_at: row
+                    .try_get("created_at")
+                    .map_err(|error| error.to_string())?,
             })
         })
         .collect()
@@ -1998,11 +2316,16 @@ pub async fn set_postgres_wiki_page_tags(
             .map_err(|error| format!("关联页面标签失败: {}", safe_error(&error.to_string())))?;
         output.push(PostgresTagRecord {
             id: tag_id,
-            knowledge_base_id: tag.try_get("knowledge_base_id").map_err(|error| error.to_string())?,
+            knowledge_base_id: tag
+                .try_get("knowledge_base_id")
+                .map_err(|error| error.to_string())?,
             name: tag.try_get("name").map_err(|error| error.to_string())?,
         });
     }
-    transaction.commit().await.map_err(|error| error.to_string())?;
+    transaction
+        .commit()
+        .await
+        .map_err(|error| error.to_string())?;
     Ok(output)
 }
 
@@ -2012,10 +2335,17 @@ pub async fn create_postgres_knowledge_edge(
     input: PostgresKnowledgeEdgeInput,
 ) -> Result<PostgresKnowledgeEdgeRecord, String> {
     let relation = input.relation.trim();
-    if relation.is_empty() || relation.len() > 100 || input.source_page_id.is_none() && input.target_page_id.is_none() {
+    if relation.is_empty()
+        || relation.len() > 100
+        || input.source_page_id.is_none() && input.target_page_id.is_none()
+    {
         return Err("知识边关系和端点不能为空".to_string());
     }
-    let metadata = if input.metadata.is_null() { serde_json::json!({}) } else { input.metadata };
+    let metadata = if input.metadata.is_null() {
+        serde_json::json!({})
+    } else {
+        input.metadata
+    };
     let pool = active_pool(&state)?;
     let endpoint_count: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM wiki_pages
@@ -2023,7 +2353,12 @@ pub async fn create_postgres_knowledge_edge(
            AND id = ANY($2::uuid[])",
     )
     .bind(input.knowledge_base_id)
-    .bind([input.source_page_id, input.target_page_id].into_iter().flatten().collect::<Vec<_>>())
+    .bind(
+        [input.source_page_id, input.target_page_id]
+            .into_iter()
+            .flatten()
+            .collect::<Vec<_>>(),
+    )
     .fetch_one(&pool)
     .await
     .map_err(|error| format!("检查知识边端点失败: {}", safe_error(&error.to_string())))?;
@@ -2052,12 +2387,20 @@ pub async fn create_postgres_knowledge_edge(
     .map_err(|error| format!("创建知识边失败: {}", safe_error(&error.to_string())))?;
     Ok(PostgresKnowledgeEdgeRecord {
         id: row.try_get("id").map_err(|error| error.to_string())?,
-        knowledge_base_id: row.try_get("knowledge_base_id").map_err(|error| error.to_string())?,
-        source_page_id: row.try_get("source_page_id").map_err(|error| error.to_string())?,
-        target_page_id: row.try_get("target_page_id").map_err(|error| error.to_string())?,
+        knowledge_base_id: row
+            .try_get("knowledge_base_id")
+            .map_err(|error| error.to_string())?,
+        source_page_id: row
+            .try_get("source_page_id")
+            .map_err(|error| error.to_string())?,
+        target_page_id: row
+            .try_get("target_page_id")
+            .map_err(|error| error.to_string())?,
         relation: row.try_get("relation").map_err(|error| error.to_string())?,
         metadata: row.try_get("metadata").map_err(|error| error.to_string())?,
-        created_at: row.try_get("created_at").map_err(|error| error.to_string())?,
+        created_at: row
+            .try_get("created_at")
+            .map_err(|error| error.to_string())?,
     })
 }
 
@@ -2067,12 +2410,16 @@ pub async fn delete_postgres_knowledge_edge(
     edge_id: Uuid,
 ) -> Result<(), String> {
     let pool = active_pool(&state)?;
-    let result = sqlx::query("UPDATE knowledge_edges SET deleted_at = now() WHERE id = $1 AND deleted_at IS NULL")
-        .bind(edge_id)
-        .execute(&pool)
-        .await
-        .map_err(|error| format!("删除知识边失败: {}", safe_error(&error.to_string())))?;
-    if result.rows_affected() == 0 { return Err("知识边不存在".to_string()); }
+    let result = sqlx::query(
+        "UPDATE knowledge_edges SET deleted_at = now() WHERE id = $1 AND deleted_at IS NULL",
+    )
+    .bind(edge_id)
+    .execute(&pool)
+    .await
+    .map_err(|error| format!("删除知识边失败: {}", safe_error(&error.to_string())))?;
+    if result.rows_affected() == 0 {
+        return Err("知识边不存在".to_string());
+    }
     Ok(())
 }
 
@@ -2088,14 +2435,23 @@ pub async fn list_postgres_knowledge_bases(
     )
     .fetch_all(&pool)
     .await
-    .map_err(|error| format!("读取 PostgreSQL 知识库失败: {}", safe_error(&error.to_string())))?
+    .map_err(|error| {
+        format!(
+            "读取 PostgreSQL 知识库失败: {}",
+            safe_error(&error.to_string())
+        )
+    })?
     .into_iter()
     .map(|row| {
         Ok(PostgresKnowledgeBaseRecord {
             id: row.try_get("id").map_err(|error| error.to_string())?,
             name: row.try_get("name").map_err(|error| error.to_string())?,
-            created_at: row.try_get("created_at").map_err(|error| error.to_string())?,
-            updated_at: row.try_get("updated_at").map_err(|error| error.to_string())?,
+            created_at: row
+                .try_get("created_at")
+                .map_err(|error| error.to_string())?,
+            updated_at: row
+                .try_get("updated_at")
+                .map_err(|error| error.to_string())?,
         })
     })
     .collect()
@@ -2119,16 +2475,25 @@ pub async fn create_postgres_knowledge_base(
         "INSERT INTO knowledge_bases (id, name) VALUES ($1, $2)
          RETURNING created_at::text, updated_at::text",
     )
-        .bind(id)
-        .bind(name)
-        .fetch_one(&pool)
-        .await
-        .map_err(|error| format!("创建 PostgreSQL 知识库失败: {}", safe_error(&error.to_string())))?;
+    .bind(id)
+    .bind(name)
+    .fetch_one(&pool)
+    .await
+    .map_err(|error| {
+        format!(
+            "创建 PostgreSQL 知识库失败: {}",
+            safe_error(&error.to_string())
+        )
+    })?;
     Ok(PostgresKnowledgeBaseRecord {
         id,
         name: name.to_string(),
-        created_at: row.try_get("created_at").map_err(|error| error.to_string())?,
-        updated_at: row.try_get("updated_at").map_err(|error| error.to_string())?,
+        created_at: row
+            .try_get("created_at")
+            .map_err(|error| error.to_string())?,
+        updated_at: row
+            .try_get("updated_at")
+            .map_err(|error| error.to_string())?,
     })
 }
 
@@ -2152,13 +2517,22 @@ pub async fn rename_postgres_knowledge_base(
     .bind(id)
     .fetch_optional(&pool)
     .await
-    .map_err(|error| format!("重命名 PostgreSQL 知识库失败: {}", safe_error(&error.to_string())))?
+    .map_err(|error| {
+        format!(
+            "重命名 PostgreSQL 知识库失败: {}",
+            safe_error(&error.to_string())
+        )
+    })?
     .ok_or_else(|| "PostgreSQL 知识库不存在".to_string())?;
     Ok(PostgresKnowledgeBaseRecord {
         id: result.try_get("id").map_err(|error| error.to_string())?,
         name: result.try_get("name").map_err(|error| error.to_string())?,
-        created_at: result.try_get("created_at").map_err(|error| error.to_string())?,
-        updated_at: result.try_get("updated_at").map_err(|error| error.to_string())?,
+        created_at: result
+            .try_get("created_at")
+            .map_err(|error| error.to_string())?,
+        updated_at: result
+            .try_get("updated_at")
+            .map_err(|error| error.to_string())?,
     })
 }
 
@@ -2204,7 +2578,12 @@ pub async fn delete_postgres_knowledge_base(
     .bind(id)
     .execute(&pool)
     .await
-    .map_err(|error| format!("删除 PostgreSQL 知识库失败: {}", safe_error(&error.to_string())))?;
+    .map_err(|error| {
+        format!(
+            "删除 PostgreSQL 知识库失败: {}",
+            safe_error(&error.to_string())
+        )
+    })?;
     if changed.rows_affected() == 0 {
         return Err("PostgreSQL 知识库不存在".to_string());
     }
@@ -2325,13 +2704,12 @@ pub async fn get_knowledge_database_health(
         });
     }
     let vector_extension = check_vector(&pool).await.unwrap_or(false);
-    let migration_version = sqlx::query_scalar::<_, i64>(
-        "SELECT COALESCE(MAX(version), 0) FROM _sqlx_migrations",
-    )
-    .fetch_optional(&pool)
-    .await
-    .ok()
-    .flatten();
+    let migration_version =
+        sqlx::query_scalar::<_, i64>("SELECT COALESCE(MAX(version), 0) FROM _sqlx_migrations")
+            .fetch_optional(&pool)
+            .await
+            .ok()
+            .flatten();
     Ok(KnowledgeDatabaseHealth {
         configured,
         connected: true,
@@ -2374,7 +2752,10 @@ mod tests {
 
     #[test]
     fn redacts_password_labels_from_database_errors() {
-        assert_eq!(safe_error("password=secret PASSWORD=secret"), "credential=secret credential=secret");
+        assert_eq!(
+            safe_error("password=secret PASSWORD=secret"),
+            "credential=secret credential=secret"
+        );
     }
 
     #[test]

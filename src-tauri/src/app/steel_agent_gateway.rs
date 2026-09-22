@@ -150,7 +150,11 @@ impl DesktopSteelAgentGateway {
                 },
             )
             .await?;
-            let results = pack.evidence.into_iter().map(compact_evidence_item).collect::<Vec<_>>();
+            let results = pack
+                .evidence
+                .into_iter()
+                .map(compact_evidence_item)
+                .collect::<Vec<_>>();
             return Ok(json!({
                 "success": true,
                 "mode": "postgresql_fts",

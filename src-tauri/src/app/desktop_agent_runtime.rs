@@ -72,7 +72,8 @@ pub(crate) async fn run_standard_agent(
                 workspace_id,
             );
         if let Ok(pool) = crate::knowledge_db::pool_for_query(
-            app.state::<crate::knowledge_db::KnowledgeDatabaseState>().inner(),
+            app.state::<crate::knowledge_db::KnowledgeDatabaseState>()
+                .inner(),
         ) {
             steel_agent_gateway = steel_agent_gateway.with_postgres_pool(app.clone(), pool);
         }

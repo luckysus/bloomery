@@ -74,10 +74,7 @@ pub fn rename_knowledge_document(
 }
 
 #[tauri::command]
-pub fn delete_knowledge_document(
-    db: tauri::State<DbState>,
-    id: String,
-) -> Result<(), String> {
+pub fn delete_knowledge_document(db: tauri::State<DbState>, id: String) -> Result<(), String> {
     logic::delete_knowledge_document(db, id)
 }
 
