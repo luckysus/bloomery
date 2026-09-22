@@ -418,10 +418,17 @@ pub async fn import_postgres_document(
     .execute(&pool)
     .await
     .map_err(|error| format!("创建 PostgreSQL 导入尝试失败: {}", safe_error(&error.to_string())))?;
-    let content_root = crate::db::database_path(&app)?
-        .parent()
-        .map(std::path::Path::to_path_buf)
-        .ok_or_else(|| "解析本地内容目录失败".to_string())?;
+    let content_root = match crate::db::database_path(&app)
+        .ok()
+        .and_then(|path| path.parent().map(std::path::Path::to_path_buf))
+    {
+        Some(path) => path,
+        None => {
+            let error = "解析本地内容目录失败";
+            record_postgres_ingestion_failure(&pool, job_id, attempt_id, "storage_path_failed", error).await?;
+            return Err(error.to_string());
+        }
+    };
     let source = match ingest_file(&request.source_path, &content_root, IngestLimits::default()) {
         Ok(source) => source,
         Err(error) => {
@@ -429,11 +436,14 @@ pub async fn import_postgres_document(
             return Err(error.to_string());
         }
     };
-    let display_name = request
-        .source_path
-        .file_name()
-        .map(|value| value.to_string_lossy().into_owned())
-        .ok_or_else(|| "源文件名不能为空".to_string())?;
+    let display_name = match request.source_path.file_name() {
+        Some(value) => value.to_string_lossy().into_owned(),
+        None => {
+            let error = "源文件名不能为空";
+            record_postgres_ingestion_failure(&pool, job_id, attempt_id, "source_name_failed", error).await?;
+            return Err(error.to_string());
+        }
+    };
     let parsed = match parse_document(&source.stored_path, source.format, ParseLimits::default()) {
         Ok(parsed) => parsed,
         Err(error) => {
