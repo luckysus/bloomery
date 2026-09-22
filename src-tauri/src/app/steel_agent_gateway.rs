@@ -135,9 +135,8 @@ impl DesktopSteelAgentGateway {
         knowledge_base_ids: Vec<KnowledgeBaseId>,
         limit: usize,
     ) -> Result<Value, String> {
-        if let (Some(pool), Some(app)) = (&self.postgres_pool, &self.app) {
+        if let Some(pool) = &self.postgres_pool {
             let pack = query_postgres_knowledge_with_pool(
-                app,
                 pool.clone(),
                 LocalKnowledgeQueryRequest {
                     query,

@@ -1243,19 +1243,19 @@ getComputeOptimizationResult: (id: string) =>
   deleteKnowledgeBaseConfirmed: (id: string) =>
     call<void>("delete_postgres_knowledge_base", { id }),
   listKnowledgeDocuments: (knowledgeBaseId: string) =>
-    call<SourceDocumentRecord[]>("list_knowledge_documents", { knowledgeBaseId }),
+    call<SourceDocumentRecord[]>("list_postgres_documents", { knowledgeBaseId }),
   listDocumentVersions: (documentId: string) =>
     call<DocumentVersionRecord[]>("list_document_versions", { documentId }),
   renameKnowledgeDocument: (id: string, displayName: string) =>
-    call<SourceDocumentRecord>("rename_knowledge_document", { id, displayName }),
+    call<SourceDocumentRecord>("rename_postgres_document", { documentId: id, displayName }),
   deleteKnowledgeDocument: (id: string) =>
-    call<void>("delete_knowledge_document", { id }),
+    call<void>("delete_postgres_document", { documentId: id }),
   mergeKnowledgeBases: (request: KnowledgeBaseMergeRequest) =>
     call<KnowledgeBaseRecord>("merge_knowledge_bases", { request }),
   getKnowledgeDocumentPreview: (documentId: string) =>
-    call<KnowledgeDocumentPreview>("get_knowledge_document_preview", { documentId }),
+    call<KnowledgeDocumentPreview>("get_postgres_document_preview", { documentId }),
   getKnowledgeDocumentRaw: (documentId: string) =>
-    call<KnowledgeDocumentRaw>("get_knowledge_document_raw", { documentId }),
+    call<KnowledgeDocumentRaw>("get_postgres_document_raw", { documentId }),
   importLocalDocument: (request: DocumentImportRequest) =>
     call<DocumentImportResponse>("import_local_document", { request }),
   listBackgroundTasks: () => call<BackgroundTask[]>("list_background_tasks"),
@@ -1270,8 +1270,31 @@ getComputeOptimizationResult: (id: string) =>
   queryLocalKnowledge: (request: LocalKnowledgeQueryRequest) =>
     call<EvidencePack>("query_local_knowledge", { request }),
   resolveKnowledgeCitation: (auditId: string, citationNumber: number) =>
-    call<ResolvedCitation | null>("resolve_knowledge_citation", { auditId, citationNumber }),
-  getKnowledgeHealth: () => call<KnowledgeHealth>("get_knowledge_health"),
+    call<PostgresCitation | null>("resolve_postgres_citation", { auditId, citationNumber }).then((citation) => {
+      if (!citation) return null;
+      const hit = citation.hit;
+      return {
+        audit_id: citation.audit_id,
+        citation_number: citation.citation_number,
+        label: hit.document_name,
+        source_state: citation.source_state as ResolvedCitation["source_state"],
+        chunk: {
+          knowledge_base_id: hit.knowledge_base_id,
+          document_id: hit.document_id,
+          version_id: hit.version_id,
+          chunk_id: hit.chunk_id,
+          source_name: hit.document_name,
+          source_location: hit.source_location as SourceLocation,
+          text: hit.text,
+          lexical_rank: null,
+          dense_rank: null,
+          rrf_score: hit.rank,
+          rerank_score: null,
+        },
+        assets: [],
+      };
+    }),
+  getKnowledgeHealth: () => call<KnowledgeHealth>("get_postgres_knowledge_health"),
   testKnowledgeDatabase: (config: KnowledgeDatabaseConfig, password: string) =>
     call<KnowledgeDatabaseHealth>("test_knowledge_database", { config, password }),
   configureKnowledgeDatabase: (config: KnowledgeDatabaseConfig, password: string) =>

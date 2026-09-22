@@ -334,38 +334,25 @@ export default function useKnowledgePageController() {
       const postgresHealth = typeof desktop.getKnowledgeDatabaseHealth === "function"
         ? await desktop.getKnowledgeDatabaseHealth().catch(() => null)
         : null;
-      let postgresBaseId: string | null = null;
-      if (postgresHealth?.connected && postgresHealth.vector_extension) {
-        const postgresBases = await desktop.listPostgresKnowledgeBases();
-        const existing = postgresBases.find((base) => base.name === name);
-        postgresBaseId = existing?.id || (await desktop.createPostgresKnowledgeBase(name)).id;
+      if (!postgresHealth?.connected || !postgresHealth.vector_extension) {
+        throw new Error("请先连接 PostgreSQL 并启用 pgvector");
       }
+      const postgresBases = await desktop.listPostgresKnowledgeBases();
+      const postgresBaseId = selectedBaseId
+        || postgresBases.find((base) => base.name === name)?.id
+        || (await desktop.createPostgresKnowledgeBase(name)).id;
       for (const file of uploadedFiles.filter((item) => item.status === "done")) {
-        if (postgresBaseId) {
-          await desktop.importPostgresDocument({
-            knowledge_base_id: postgresBaseId,
-            source_path: file.storageName || file.name,
-          });
-        } else {
-          await desktop.importLocalDocument({
-            source_path: file.storageName || file.name,
-            knowledge_base: selectedBaseId
-              ? { mode: "existing", id: selectedBaseId }
-              : { mode: "create", name },
-            mineru_profile_id: retrieval.mineruProfileId,
-            embedding_profile_id: embeddingProfileId,
-            embedding_dimension: 1024,
-          });
-        }
+        await desktop.importPostgresDocument({
+          knowledge_base_id: postgresBaseId,
+          source_path: file.storageName || file.name,
+        });
       }
       setStep(3);
       setTasks(await desktop.listBackgroundTasks());
       setHealth(await desktop.getKnowledgeHealth());
-      if (postgresBaseId && typeof desktop.listPostgresIngestionJobs === "function") {
-        setSelectedBaseId(postgresBaseId);
-        setPostgresJobs(await desktop.listPostgresIngestionJobs(postgresBaseId));
-        await loadOverview();
-      }
+      setSelectedBaseId(postgresBaseId);
+      setPostgresJobs(await desktop.listPostgresIngestionJobs(postgresBaseId));
+      await loadOverview();
     } catch (cause) {
       setError(errorMessage(cause, t("knowledgeError")));
     } finally {

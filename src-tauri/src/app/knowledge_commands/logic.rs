@@ -9,7 +9,7 @@ use crate::providers::{
     ConfiguredRerankProvider, SiliconFlowPlan,
 };
 use crate::rag::citation::{
-    persist_evidence_pack, resolve_citation, EvidencePack, ResolvedCitation,
+    persist_evidence_pack, resolve_citation, EvidenceItem, EvidencePack, ResolvedCitation,
     RetrievalConfigSnapshot,
 };
 use crate::rag::index::fts::{search as search_fts, FtsHit, FtsSearchRequest};
@@ -31,6 +31,7 @@ use crate::storage::repositories::knowledge::{
 };
 use crate::storage::repositories::{provider_profiles, settings};
 use crate::storage::secrets::{SecretRef, SecretState, SecretStore, SecretValue};
+use chrono::{SecondsFormat, Utc};
 use rusqlite::Connection;
 use serde::Deserialize;
 use serde::Serialize;
@@ -443,11 +444,10 @@ pub(crate) async fn query_local_knowledge(
     postgres: tauri::State<'_, KnowledgeDatabaseState>,
     request: LocalKnowledgeQueryRequest,
 ) -> Result<EvidencePack, String> {
-    if crate::knowledge_db::pool_for_query(&postgres).is_ok() {
-        return query_postgres_knowledge(&app, &secrets, &postgres, request).await;
+    if crate::knowledge_db::pool_for_query(&postgres).is_err() {
+        return Err("PostgreSQL 知识库尚未连接".to_string());
     }
-    let path = database_path(&app)?;
-    query_local_knowledge_from_path(path, current_workspace_id(), secrets.store(), request).await
+    query_postgres_knowledge(&app, &secrets, &postgres, request).await
 }
 
 async fn query_postgres_knowledge(
@@ -511,10 +511,8 @@ async fn query_postgres_knowledge(
                                 &|| false,
                             )
                             .await;
-                            let connection = open_query_connection(&database_path(app)?)?;
-                            return persist_evidence_pack(
-                                &connection,
-                                current_workspace_id(),
+                            return persist_postgres_evidence_pack(
+                                &pool,
                                 &request.query,
                                 RetrievalConfigSnapshot {
                                     knowledge_base_ids: request.knowledge_base_ids,
@@ -530,14 +528,14 @@ async fn query_postgres_knowledge(
                                 },
                                 reranked.chunks,
                             )
-                            .map_err(|error| error.to_string());
+                            .await;
                         }
                     }
                 }
             }
         }
     }
-    query_postgres_knowledge_with_pool(app, pool, request).await
+    query_postgres_knowledge_with_pool(pool, request).await
 }
 
 fn postgres_hits_to_chunks(
@@ -570,7 +568,6 @@ fn postgres_hits_to_chunks(
 }
 
 pub(crate) async fn query_postgres_knowledge_with_pool(
-    app: &tauri::AppHandle,
     pool: sqlx::PgPool,
     mut request: LocalKnowledgeQueryRequest,
 ) -> Result<EvidencePack, String> {
@@ -646,10 +643,8 @@ pub(crate) async fn query_postgres_knowledge_with_pool(
             rerank_score: None,
         });
     }
-    let connection = open_query_connection(&database_path(app)?)?;
-    persist_evidence_pack(
-        &connection,
-        current_workspace_id(),
+    persist_postgres_evidence_pack(
+        &pool,
         &request.query,
         RetrievalConfigSnapshot {
             knowledge_base_ids: request.knowledge_base_ids,
@@ -665,7 +660,56 @@ pub(crate) async fn query_postgres_knowledge_with_pool(
         },
         chunks,
     )
-    .map_err(|error| error.to_string())
+    .await
+}
+
+async fn persist_postgres_evidence_pack(
+    pool: &sqlx::PgPool,
+    query: &str,
+    configuration: RetrievalConfigSnapshot,
+    chunks: Vec<RetrievedChunk>,
+) -> Result<EvidencePack, String> {
+    if chunks.len() > 500 {
+        return Err("检索证据超过允许上限".to_string());
+    }
+    let created_at = Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true);
+    let evidence = chunks
+        .into_iter()
+        .enumerate()
+        .map(|(index, chunk)| {
+            Ok(EvidenceItem {
+                citation_number: u32::try_from(index + 1).map_err(|_| "引用数量无效")?,
+                chunk,
+                assets: Vec::new(),
+            })
+        })
+        .collect::<Result<Vec<_>, &str>>()?;
+    let pack = EvidencePack {
+        id: Uuid::new_v4(),
+        workspace_id: current_workspace_id().to_string(),
+        query: query.trim().to_string(),
+        configuration,
+        evidence,
+        created_at,
+    };
+    sqlx::query(
+        "INSERT INTO retrieval_audits (id, knowledge_base_id, query, configuration, evidence)
+         VALUES ($1, $2, $3, $4, $5)",
+    )
+    .bind(pack.id)
+    .bind(
+        pack.configuration
+            .knowledge_base_ids
+            .first()
+            .and_then(|id| Uuid::parse_str(&id.to_string()).ok()),
+    )
+    .bind(&pack.query)
+    .bind(serde_json::to_value(&pack.configuration).map_err(|error| error.to_string())?)
+    .bind(serde_json::to_value(&pack.evidence).map_err(|error| error.to_string())?)
+    .execute(pool)
+    .await
+    .map_err(|error| format!("写入 PostgreSQL 检索审计失败: {error}"))?;
+    Ok(pack)
 }
 
 pub(crate) async fn query_local_knowledge_from_path(

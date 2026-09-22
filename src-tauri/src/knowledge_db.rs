@@ -38,6 +38,17 @@ pub struct KnowledgeDatabaseHealth {
 }
 
 #[derive(Debug, Clone, Serialize)]
+pub struct PostgresKnowledgeHealth {
+    pub knowledge_base_count: i64,
+    pub document_count: i64,
+    pub active_document_count: i64,
+    pub version_count: i64,
+    pub chunk_count: i64,
+    pub indexed_chunk_count: i64,
+    pub active_task_count: i64,
+}
+
+#[derive(Debug, Clone, Serialize)]
 pub struct PostgresKnowledgeBaseRecord {
     pub id: Uuid,
     pub name: String,
@@ -1314,8 +1325,17 @@ pub async fn resolve_postgres_citation(
     if evidence.is_null() {
         return Ok(None);
     }
-    let hit: PostgresKnowledgeSearchHit =
-        serde_json::from_value(evidence).map_err(|error| format!("解析 citation 失败: {error}"))?;
+    let hit: PostgresKnowledgeSearchHit = serde_json::from_value(evidence.clone())
+        .or_else(|_| {
+            evidence
+                .get("chunk")
+                .cloned()
+                .ok_or_else(|| {
+                    serde_json::Error::io(std::io::Error::other("citation chunk missing"))
+                })
+                .and_then(serde_json::from_value)
+        })
+        .map_err(|error| format!("解析 citation 失败: {error}"))?;
     let source_state: String = sqlx::query_scalar(
         "SELECT CASE
             WHEN d.deleted_at IS NOT NULL THEN 'deleted'
@@ -1644,6 +1664,113 @@ pub async fn list_postgres_documents(
 }
 
 #[tauri::command]
+pub async fn get_postgres_document_preview(
+    state: tauri::State<'_, KnowledgeDatabaseState>,
+    document_id: Uuid,
+) -> Result<serde_json::Value, String> {
+    let pool = active_pool(&state)?;
+    let row = sqlx::query(
+        "SELECT v.parser, v.id AS version_id
+         FROM source_documents d
+         JOIN document_versions v ON v.document_id = d.id
+         WHERE d.id = $1 AND d.deleted_at IS NULL AND v.activated_at IS NOT NULL
+         ORDER BY v.activated_at DESC, v.id DESC LIMIT 1",
+    )
+    .bind(document_id)
+    .fetch_optional(&pool)
+    .await
+    .map_err(|error| {
+        format!(
+            "读取 PostgreSQL 文档预览失败: {}",
+            safe_error(&error.to_string())
+        )
+    })?;
+    let Some(row) = row else {
+        return Ok(serde_json::json!({
+            "processed": false,
+            "source": null,
+            "content": null,
+            "blocks": [],
+            "raw_data_url": null,
+            "raw_sheets": []
+        }));
+    };
+    let parser: String = row.try_get("parser").map_err(|error| error.to_string())?;
+    let version_id: Uuid = row
+        .try_get("version_id")
+        .map_err(|error| error.to_string())?;
+    let chunks =
+        sqlx::query("SELECT text FROM document_chunks WHERE version_id = $1 ORDER BY ordinal, id")
+            .bind(version_id)
+            .fetch_all(&pool)
+            .await
+            .map_err(|error| {
+                format!(
+                    "读取 PostgreSQL 文档分块失败: {}",
+                    safe_error(&error.to_string())
+                )
+            })?
+            .into_iter()
+            .map(|row| {
+                row.try_get::<String, _>("text")
+                    .map_err(|error| error.to_string())
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+    let content = (!chunks.is_empty()).then(|| chunks.join("\n\n"));
+    Ok(serde_json::json!({
+        "processed": true,
+        "source": parser,
+        "content": content,
+        "blocks": chunks.into_iter().map(|content| serde_json::json!({ "content": content })).collect::<Vec<_>>(),
+        "raw_data_url": null,
+        "raw_sheets": []
+    }))
+}
+
+#[tauri::command]
+pub async fn get_postgres_document_raw(
+    state: tauri::State<'_, KnowledgeDatabaseState>,
+    document_id: Uuid,
+) -> Result<serde_json::Value, String> {
+    let pool = active_pool(&state)?;
+    let source_path: String = sqlx::query_scalar(
+        "SELECT source_path FROM source_documents
+         WHERE id = $1 AND deleted_at IS NULL",
+    )
+    .bind(document_id)
+    .fetch_optional(&pool)
+    .await
+    .map_err(|error| {
+        format!(
+            "读取 PostgreSQL 原始文件失败: {}",
+            safe_error(&error.to_string())
+        )
+    })?
+    .ok_or_else(|| "PostgreSQL 文档不存在".to_string())?;
+    let bytes = std::fs::read(&source_path)
+        .map_err(|error| format!("读取 PostgreSQL 原始文件失败: {error}"))?;
+    let mime_type = match std::path::Path::new(&source_path)
+        .extension()
+        .and_then(|value| value.to_str())
+        .map(|value| value.to_ascii_lowercase())
+        .as_deref()
+    {
+        Some("pdf") => "application/pdf",
+        Some("png") => "image/png",
+        Some("jpg") | Some("jpeg") => "image/jpeg",
+        Some("docx") => "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        Some("pptx") => "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        Some("xlsx") => "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        _ => "application/octet-stream",
+    };
+    use base64::{engine::general_purpose::STANDARD, Engine as _};
+    Ok(serde_json::json!({
+        "data_url": format!("data:{mime_type};base64,{}", STANDARD.encode(bytes)),
+        "sheets": []
+    }))
+}
+
+#[tauri::command]
 pub async fn delete_postgres_document(
     state: tauri::State<'_, KnowledgeDatabaseState>,
     document_id: Uuid,
@@ -1666,6 +1793,69 @@ pub async fn delete_postgres_document(
         return Err("PostgreSQL 文档不存在".to_string());
     }
     Ok(())
+}
+
+#[tauri::command]
+pub async fn rename_postgres_document(
+    state: tauri::State<'_, KnowledgeDatabaseState>,
+    document_id: Uuid,
+    display_name: String,
+) -> Result<PostgresDocumentRecord, String> {
+    let display_name = display_name.trim();
+    if display_name.is_empty() || display_name.len() > 500 {
+        return Err("PostgreSQL 文档名称不能为空或过长".to_string());
+    }
+    let pool = active_pool(&state)?;
+    let row = sqlx::query(
+        "UPDATE source_documents
+         SET display_name = $2, updated_at = now()
+         WHERE id = $1 AND deleted_at IS NULL
+         RETURNING id, knowledge_base_id, display_name, source_kind,
+                   source_path, content_sha256,
+                   (SELECT id FROM document_versions
+                    WHERE document_id = source_documents.id
+                      AND activated_at IS NOT NULL
+                    ORDER BY activated_at DESC, id DESC LIMIT 1) AS active_version_id,
+                   created_at::text, updated_at::text",
+    )
+    .bind(document_id)
+    .bind(display_name)
+    .fetch_optional(&pool)
+    .await
+    .map_err(|error| {
+        format!(
+            "重命名 PostgreSQL 文档失败: {}",
+            safe_error(&error.to_string())
+        )
+    })?
+    .ok_or_else(|| "PostgreSQL 文档不存在".to_string())?;
+    Ok(PostgresDocumentRecord {
+        id: row.try_get("id").map_err(|error| error.to_string())?,
+        knowledge_base_id: row
+            .try_get("knowledge_base_id")
+            .map_err(|error| error.to_string())?,
+        display_name: row
+            .try_get("display_name")
+            .map_err(|error| error.to_string())?,
+        source_kind: row
+            .try_get("source_kind")
+            .map_err(|error| error.to_string())?,
+        source_path: row
+            .try_get("source_path")
+            .map_err(|error| error.to_string())?,
+        content_sha256: row
+            .try_get("content_sha256")
+            .map_err(|error| error.to_string())?,
+        active_version_id: row
+            .try_get("active_version_id")
+            .map_err(|error| error.to_string())?,
+        created_at: row
+            .try_get("created_at")
+            .map_err(|error| error.to_string())?,
+        updated_at: row
+            .try_get("updated_at")
+            .map_err(|error| error.to_string())?,
+    })
 }
 
 fn validate_page_input(input: &PostgresWikiPageInput) -> Result<(), String> {
@@ -2421,6 +2611,53 @@ pub async fn delete_postgres_knowledge_edge(
         return Err("知识边不存在".to_string());
     }
     Ok(())
+}
+
+#[tauri::command]
+pub async fn get_postgres_knowledge_health(
+    state: tauri::State<'_, KnowledgeDatabaseState>,
+) -> Result<PostgresKnowledgeHealth, String> {
+    let pool = active_pool(&state)?;
+    let row = sqlx::query(
+        "SELECT
+           (SELECT COUNT(*) FROM knowledge_bases WHERE deleted_at IS NULL) AS knowledge_base_count,
+           (SELECT COUNT(*) FROM source_documents WHERE deleted_at IS NULL) AS document_count,
+           (SELECT COUNT(*) FROM source_documents d
+              WHERE d.deleted_at IS NULL AND EXISTS (
+                SELECT 1 FROM document_versions v
+                WHERE v.document_id = d.id AND v.activated_at IS NOT NULL)) AS active_document_count,
+           (SELECT COUNT(*) FROM document_versions) AS version_count,
+           (SELECT COUNT(*) FROM document_chunks) AS chunk_count,
+           (SELECT COUNT(*) FROM chunk_embeddings) AS indexed_chunk_count,
+           (SELECT COUNT(*) FROM ingestion_jobs
+              WHERE state IN ('pending', 'running', 'retrying')) AS active_task_count",
+    )
+    .fetch_one(&pool)
+    .await
+    .map_err(|error| format!("读取 PostgreSQL 知识库健康状态失败: {}", safe_error(&error.to_string())))?;
+    Ok(PostgresKnowledgeHealth {
+        knowledge_base_count: row
+            .try_get("knowledge_base_count")
+            .map_err(|error| error.to_string())?,
+        document_count: row
+            .try_get("document_count")
+            .map_err(|error| error.to_string())?,
+        active_document_count: row
+            .try_get("active_document_count")
+            .map_err(|error| error.to_string())?,
+        version_count: row
+            .try_get("version_count")
+            .map_err(|error| error.to_string())?,
+        chunk_count: row
+            .try_get("chunk_count")
+            .map_err(|error| error.to_string())?,
+        indexed_chunk_count: row
+            .try_get("indexed_chunk_count")
+            .map_err(|error| error.to_string())?,
+        active_task_count: row
+            .try_get("active_task_count")
+            .map_err(|error| error.to_string())?,
+    })
 }
 
 #[tauri::command]

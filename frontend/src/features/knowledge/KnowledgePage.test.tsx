@@ -13,8 +13,13 @@ vi.mock("../../bridge/desktop", () => ({
     listBackgroundTasks: vi.fn(),
     listProviderProfiles: vi.fn(),
     getKnowledgeHealth: vi.fn(),
+    getKnowledgeDatabaseHealth: vi.fn(),
     getIndexHealth: vi.fn(),
     createKnowledgeBase: vi.fn(),
+    listPostgresKnowledgeBases: vi.fn(),
+    createPostgresKnowledgeBase: vi.fn(),
+    importPostgresDocument: vi.fn(),
+    listPostgresIngestionJobs: vi.fn(),
     renameKnowledgeBase: vi.fn(),
     previewDeleteKnowledgeBase: vi.fn(),
     deleteKnowledgeBaseConfirmed: vi.fn(),
@@ -46,6 +51,28 @@ describe("KnowledgePage", () => {
       mineru_profile_id: "mineru-1",
     }));
     vi.mocked(desktop.listKnowledgeBases).mockResolvedValue([]);
+    vi.mocked(desktop.getKnowledgeDatabaseHealth).mockResolvedValue({
+      configured: true,
+      connected: true,
+      vector_extension: true,
+      migration_version: 2,
+      message: "ok",
+    });
+    vi.mocked(desktop.listPostgresKnowledgeBases).mockResolvedValue([]);
+    vi.mocked(desktop.createPostgresKnowledgeBase).mockImplementation(async (name) => ({
+      ...base,
+      id: `kb-${name}`,
+      name,
+    }));
+    vi.mocked(desktop.importPostgresDocument).mockResolvedValue({
+      knowledge_base_id: base.id,
+      document_id: "document-1",
+      version_id: "version-1",
+      chunk_count: 1,
+      asset_count: 0,
+      duplicate_content: false,
+    });
+    vi.mocked(desktop.listPostgresIngestionJobs).mockResolvedValue([]);
     vi.mocked(desktop.listKnowledgeDocuments).mockResolvedValue([]);
     vi.mocked(desktop.listDocumentVersions).mockResolvedValue([]);
     vi.mocked(desktop.listBackgroundTasks).mockResolvedValue([]);
@@ -125,14 +152,11 @@ describe("KnowledgePage", () => {
     expect(await screen.findByText("解析内容")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "确认" }));
 
-    await waitFor(() => expect(desktop.importLocalDocument).toHaveBeenCalledWith({
+    await waitFor(() => expect(desktop.importPostgresDocument).toHaveBeenCalledWith({
+      knowledge_base_id: "kb-钢铁标准",
       source_path: "F:\\docs\\GB 50632.pdf",
-      knowledge_base: { mode: "create", name: "钢铁标准" },
-      mineru_profile_id: "mineru-1",
-      embedding_profile_id: "embedding-1",
-      embedding_dimension: 1024,
     }));
-    expect(await screen.findByText("本地处理中")).toBeInTheDocument();
+    expect(await screen.findByText(/处理中/)).toBeInTheDocument();
   });
 
   it("uses the migrated Web knowledge workspace shell", async () => {
@@ -227,17 +251,13 @@ describe("KnowledgePage", () => {
     fireEvent.click(screen.getByRole("button", { name: "下一步" }));
     fireEvent.click(await screen.findByRole("button", { name: "确认" }));
 
-    await waitFor(() => expect(desktop.importLocalDocument).toHaveBeenCalledWith({
+    await waitFor(() => expect(desktop.importPostgresDocument).toHaveBeenCalledWith({
+      knowledge_base_id: base.id,
       source_path: "F:\\docs\\GB 50632.pdf",
-      knowledge_base: { mode: "existing", id: base.id },
-      mineru_profile_id: "mineru-1",
-      embedding_profile_id: "embedding-1",
-      embedding_dimension: 1024,
     }));
-    expect(await screen.findByText("本地处理中")).toBeInTheDocument();
   });
 
-  it("imports with local parsing when MinerU is not configured", async () => {
+  it("imports through PostgreSQL when MinerU is not configured", async () => {
     vi.mocked(desktop.listKnowledgeBases).mockResolvedValue([base]);
     vi.mocked(desktop.openFileDialog).mockResolvedValue("F:\\docs\\GB 50632.pdf");
     vi.mocked(desktop.getSetting).mockResolvedValue(JSON.stringify({
@@ -255,14 +275,10 @@ describe("KnowledgePage", () => {
     fireEvent.click(screen.getByRole("button", { name: "下一步" }));
     fireEvent.click(await screen.findByRole("button", { name: "确认" }));
 
-    await waitFor(() => expect(desktop.importLocalDocument).toHaveBeenCalledWith({
+    await waitFor(() => expect(desktop.importPostgresDocument).toHaveBeenCalledWith({
+      knowledge_base_id: base.id,
       source_path: "F:\\docs\\GB 50632.pdf",
-      knowledge_base: { mode: "existing", id: base.id },
-      mineru_profile_id: null,
-      embedding_profile_id: "embedding-1",
-      embedding_dimension: 1024,
     }));
-    expect(await screen.findByText("本地处理中")).toBeInTheDocument();
   });
 
   it("uses the native file picker to fill a document path", async () => {
