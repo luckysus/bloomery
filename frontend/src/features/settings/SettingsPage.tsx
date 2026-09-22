@@ -28,7 +28,6 @@ import {
   type RetrievalPlan,
   type SettingsEditor,
 } from "./settingsModel";
-
 interface SettingsPageProps {
   onOpenDiagnostics?: () => void;
 }
