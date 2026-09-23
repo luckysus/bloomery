@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 use uuid::Uuid;
 
 #[derive(Clone)]
-pub(super) struct ContentStore {
+pub(crate) struct ContentStore {
     root: PathBuf,
 }
 

@@ -7,6 +7,7 @@ use crate::providers::{
 use crate::rag::chunk::{chunk_document, ChunkPolicy};
 use crate::rag::ingest::{ingest_file, IngestLimits};
 use crate::rag::parse::{parse_document, ParseLimits};
+use crate::rag::tasks::ContentStore;
 use crate::storage::repositories::provider_profiles;
 use crate::storage::repositories::settings;
 use crate::storage::secrets::{SecretRef, SecretState, SecretValue};
@@ -551,6 +552,7 @@ pub async fn import_postgres_document(
             return Err(error.to_string());
         }
     };
+    let asset_store = ContentStore::new(content_root);
     let mut transaction = pool.begin().await.map_err(|error| error.to_string())?;
     let hash_document_id: Option<Uuid> = sqlx::query_scalar(
         "SELECT id FROM source_documents
@@ -703,15 +705,19 @@ pub async fn import_postgres_document(
         )
     })?;
     for asset in &parsed.assets {
+        let object = asset_store
+            .put(&asset.bytes)
+            .map_err(|error| format!("保存 PostgreSQL 文档资产失败: {error}"))?;
         sqlx::query(
             "INSERT INTO document_assets
-                (id, version_id, asset_kind, local_path, mime_type, metadata)
-             VALUES ($1, $2, $3, $4, $5, $6)",
+                (id, version_id, asset_kind, local_path, content_sha256, mime_type, metadata)
+             VALUES ($1, $2, $3, $4, $5, $6, $7)",
         )
         .bind(Uuid::new_v4())
         .bind(version_id)
         .bind(&asset.kind)
-        .bind(source.storage_key.as_str())
+        .bind(object.storage_key())
+        .bind(object.sha256())
         .bind(&asset.media_type)
         .bind(
             serde_json::json!({ "original_name": asset.original_name, "location": asset.location }),

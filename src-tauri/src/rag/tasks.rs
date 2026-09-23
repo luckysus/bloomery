@@ -8,6 +8,8 @@ mod providers;
 mod store;
 mod validation;
 
+pub(crate) use store::ContentStore;
+
 pub use checkpoint::{decode_mineru_checkpoint, MinerUCheckpoint, MinerUStage};
 pub use handler::MinerUTaskHandler;
 pub use handler_api::{
