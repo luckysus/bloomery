@@ -5,7 +5,8 @@ use bloomery::rag::index::rebuild::{
 };
 use bloomery::rag::index::vector::VectorIndex;
 use bloomery::rag::model::{
-    ChunkId, NewChunk, NewDocumentVersion, NewSourceDocument, SourceLocation,
+    ChunkId, NewChunk, NewChunkEmbedding, NewDocumentVersion, NewSourceDocument, SourceLocation,
+    VectorWatermark,
 };
 use bloomery::storage::migrations::migrate;
 use bloomery::storage::repositories::knowledge;
@@ -354,12 +355,14 @@ fn seed_active_document(
         },
     )
     .unwrap();
+    let document_hash = format!("{:x}", Sha256::digest(name.as_bytes()));
+    let chunk_hash = format!("{:x}", Sha256::digest(text.as_bytes()));
     let version = knowledge::create_document_version(
         connection,
         WORKSPACE,
         NewDocumentVersion {
             document_id: document.id,
-            content_sha256: format!("{:0<64}", name.replace('.', "")),
+            content_sha256: document_hash,
             mime_type: "application/pdf".to_string(),
             parser: "test".to_string(),
             parser_version: "1".to_string(),
@@ -385,12 +388,41 @@ fn seed_active_document(
                 page: 1,
                 bbox: None,
             },
-            content_sha256: format!("{:1<64}", name.replace('.', "")),
+            content_sha256: chunk_hash,
             policy_version: "steel-v1".to_string(),
         },
     )
     .unwrap();
     knowledge::index_chunk_fts(connection, WORKSPACE, version.id, &chunk_id).unwrap();
+    knowledge::record_chunk_embedding(
+        connection,
+        WORKSPACE,
+        NewChunkEmbedding {
+            version_id: version.id,
+            chunk_id: chunk_id.clone(),
+            provider_profile_id: PROFILE.to_string(),
+            model_id: "BAAI/bge-m3".to_string(),
+            dimension: 2,
+            normalized_text_sha256: format!("{:x}", Sha256::digest(text.as_bytes())),
+            policy_version: "steel-v1".to_string(),
+            vector_key: format!("test-{chunk_id}"),
+        },
+    )
+    .unwrap();
+    knowledge::set_vector_watermark(
+        connection,
+        WORKSPACE,
+        VectorWatermark {
+            version_id: version.id,
+            provider_profile_id: PROFILE.to_string(),
+            model_id: "BAAI/bge-m3".to_string(),
+            dimension: 2,
+            expected_count: 1,
+            indexed_count: 1,
+            index_version: "test-index".to_string(),
+        },
+    )
+    .unwrap();
     knowledge::activate_document_version(connection, WORKSPACE, document.id, version.id).unwrap();
     document
 }

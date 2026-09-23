@@ -18,7 +18,9 @@ use uuid::Uuid;
 
 const CONFIG_KEY: &str = "knowledge.postgres";
 const CONFIG_BACKUP_KEY: &str = "knowledge.postgres.backup";
+const MIN_POSTGRES_VERSION: i64 = 140_000;
 const PASSWORD_NAME: &str = "knowledge_postgres_password";
+const PASSWORD_BACKUP_NAME: &str = "knowledge_postgres_password_backup";
 const KNOWLEDGE_SECRET_ID: Uuid = Uuid::from_u128(1);
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -312,6 +314,10 @@ fn secret_ref() -> Result<SecretRef, String> {
     SecretRef::new(KNOWLEDGE_SECRET_ID, PASSWORD_NAME).map_err(|error| error.to_string())
 }
 
+fn password_backup_ref() -> Result<SecretRef, String> {
+    SecretRef::new(KNOWLEDGE_SECRET_ID, PASSWORD_BACKUP_NAME).map_err(|error| error.to_string())
+}
+
 fn validate_config(config: &KnowledgeDatabaseConfig) -> Result<(), String> {
     if config.host.trim().is_empty()
         || config.database.trim().is_empty()
@@ -351,6 +357,19 @@ async fn check_vector(pool: &PgPool) -> Result<bool, String> {
 }
 
 async fn prepare_pool(pool: &PgPool) -> Result<i64, String> {
+    let server_version: i64 =
+        sqlx::query_scalar("SELECT current_setting('server_version_num')::bigint")
+            .fetch_one(pool)
+            .await
+            .map_err(|error| {
+                format!(
+                    "检查 PostgreSQL 版本失败: {}",
+                    safe_error(&error.to_string())
+                )
+            })?;
+    if server_version < MIN_POSTGRES_VERSION {
+        return Err("知识库要求 PostgreSQL 14 或更高版本".to_string());
+    }
     if !check_vector(pool).await? {
         return Err("PostgreSQL 未安装或未启用 pgvector 扩展".to_string());
     }
@@ -399,6 +418,91 @@ fn backup_config(
     })
 }
 
+fn restore_config_backup(
+    db: &tauri::State<'_, DbState>,
+    secrets: &SecretState,
+) -> Result<(), String> {
+    let store = secrets.store();
+    let active_ref = secret_ref()?;
+    let backup_ref = password_backup_ref()?;
+    let previous_password = store.get(&backup_ref);
+    with_conn_mut(db, |connection| {
+        let backup = settings::get(connection, current_workspace_id(), CONFIG_BACKUP_KEY)?;
+        if let Some(value) = backup {
+            settings::set(connection, current_workspace_id(), CONFIG_KEY, &value)?;
+        } else {
+            connection
+                .execute(
+                    "DELETE FROM settings WHERE workspace_id = ?1 AND key = ?2",
+                    rusqlite::params![current_workspace_id(), CONFIG_KEY],
+                )
+                .map_err(|error| error.to_string())?;
+        }
+        connection
+            .execute(
+                "DELETE FROM settings WHERE workspace_id = ?1 AND key = ?2",
+                rusqlite::params![current_workspace_id(), CONFIG_BACKUP_KEY],
+            )
+            .map_err(|error| error.to_string())?;
+        Ok(())
+    })
+    .and_then(|()| match previous_password {
+        Ok(password) => store
+            .set(&active_ref, &password)
+            .map_err(|error| error.to_string()),
+        Err(error) if error.is_not_found() => store
+            .delete(&active_ref)
+            .or_else(|delete_error| {
+                if delete_error.is_not_found() {
+                    Ok(())
+                } else {
+                    Err(delete_error)
+                }
+            })
+            .map_err(|error| error.to_string()),
+        Err(error) => Err(error.to_string()),
+    })
+    .and_then(|()| {
+        store
+            .delete(&backup_ref)
+            .or_else(|error| {
+                if error.is_not_found() {
+                    Ok(())
+                } else {
+                    Err(error)
+                }
+            })
+            .map_err(|error| error.to_string())
+    })
+}
+
+fn clear_config_backup(
+    db: &tauri::State<'_, DbState>,
+    secrets: &SecretState,
+) -> Result<(), String> {
+    with_conn_mut(db, |connection| {
+        connection
+            .execute(
+                "DELETE FROM settings WHERE workspace_id = ?1 AND key = ?2",
+                rusqlite::params![current_workspace_id(), CONFIG_BACKUP_KEY],
+            )
+            .map_err(|error| error.to_string())?;
+        Ok(())
+    })?;
+    let backup_ref = password_backup_ref()?;
+    secrets
+        .store()
+        .delete(&backup_ref)
+        .or_else(|error| {
+            if error.is_not_found() {
+                Ok(())
+            } else {
+                Err(error)
+            }
+        })
+        .map_err(|error| error.to_string())
+}
+
 fn read_password(secrets: &tauri::State<'_, SecretState>) -> Result<SecretValue, String> {
     secrets
         .store()
@@ -431,11 +535,12 @@ pub async fn import_postgres_document(
     request: PostgresDocumentImportRequest,
 ) -> Result<PostgresDocumentImportResponse, String> {
     let pool = active_pool(&state)?;
-    let kb_exists: bool = sqlx::query_scalar(
-        "SELECT EXISTS (SELECT 1 FROM knowledge_bases WHERE id = $1 AND deleted_at IS NULL)",
+    let mut job_transaction = pool.begin().await.map_err(|error| error.to_string())?;
+    let kb_id: Option<Uuid> = sqlx::query_scalar(
+        "SELECT id FROM knowledge_bases WHERE id = $1 AND deleted_at IS NULL FOR KEY SHARE",
     )
     .bind(request.knowledge_base_id)
-    .fetch_one(&pool)
+    .fetch_optional(&mut *job_transaction)
     .await
     .map_err(|error| {
         format!(
@@ -443,7 +548,7 @@ pub async fn import_postgres_document(
             safe_error(&error.to_string())
         )
     })?;
-    if !kb_exists {
+    if kb_id.is_none() {
         return Err("PostgreSQL 知识库不存在".to_string());
     }
     let job_id = Uuid::new_v4();
@@ -455,7 +560,7 @@ pub async fn import_postgres_document(
     )
     .bind(job_id)
     .bind(request.knowledge_base_id)
-    .execute(&pool)
+    .execute(&mut *job_transaction)
     .await
     .map_err(|error| {
         format!(
@@ -469,7 +574,7 @@ pub async fn import_postgres_document(
     )
     .bind(attempt_id)
     .bind(job_id)
-    .execute(&pool)
+    .execute(&mut *job_transaction)
     .await
     .map_err(|error| {
         format!(
@@ -477,6 +582,10 @@ pub async fn import_postgres_document(
             safe_error(&error.to_string())
         )
     })?;
+    job_transaction
+        .commit()
+        .await
+        .map_err(|error| error.to_string())?;
     let content_root = match crate::db::database_path(&app)
         .ok()
         .and_then(|path| path.parent().map(std::path::Path::to_path_buf))
@@ -635,6 +744,91 @@ pub async fn import_postgres_document(
             .fetch_one(&mut *transaction)
             .await
             .map_err(|error| error.to_string())?;
+    if existing_document {
+        let existing_version_id: Option<Uuid> = sqlx::query_scalar(
+            "SELECT id FROM document_versions
+             WHERE document_id = $1 AND content_sha256 = $2",
+        )
+        .bind(document_id)
+        .bind(&source.content_sha256)
+        .fetch_optional(&mut *transaction)
+        .await
+        .map_err(|error| {
+            format!(
+                "检查 PostgreSQL 历史版本失败: {}",
+                safe_error(&error.to_string())
+            )
+        })?;
+        if let Some(version_id) = existing_version_id {
+            sqlx::query(
+                "UPDATE source_documents SET display_name = $1, source_kind = $2,
+                        content_sha256 = $3, storage_path = $4, updated_at = now()
+                 WHERE id = $5 AND deleted_at IS NULL",
+            )
+            .bind(&display_name)
+            .bind(source.format.as_str())
+            .bind(&source.content_sha256)
+            .bind(&storage_path)
+            .bind(document_id)
+            .execute(&mut *transaction)
+            .await
+            .map_err(|error| {
+                format!(
+                    "更新 PostgreSQL 源文档失败: {}",
+                    safe_error(&error.to_string())
+                )
+            })?;
+            sqlx::query(
+                "UPDATE document_versions SET activated_at = NULL
+                 WHERE document_id = $1 AND activated_at IS NOT NULL",
+            )
+            .bind(document_id)
+            .execute(&mut *transaction)
+            .await
+            .map_err(|error| format!("停用当前文档版本失败: {}", safe_error(&error.to_string())))?;
+            sqlx::query("UPDATE document_versions SET activated_at = now() WHERE id = $1")
+                .bind(version_id)
+                .execute(&mut *transaction)
+                .await
+                .map_err(|error| {
+                    format!(
+                        "重新激活 PostgreSQL 历史版本失败: {}",
+                        safe_error(&error.to_string())
+                    )
+                })?;
+            sqlx::query(
+                "UPDATE ingestion_jobs
+                 SET source_document_id = $1, state = 'completed', updated_at = now()
+                 WHERE id = $2",
+            )
+            .bind(document_id)
+            .bind(job_id)
+            .execute(&mut *transaction)
+            .await
+            .map_err(|error| error.to_string())?;
+            sqlx::query(
+                "UPDATE ingestion_attempts SET state = 'completed', finished_at = now()
+                 WHERE id = $1 AND job_id = $2",
+            )
+            .bind(attempt_id)
+            .bind(job_id)
+            .execute(&mut *transaction)
+            .await
+            .map_err(|error| error.to_string())?;
+            transaction
+                .commit()
+                .await
+                .map_err(|error| error.to_string())?;
+            return Ok(PostgresDocumentImportResponse {
+                knowledge_base_id: request.knowledge_base_id,
+                document_id,
+                version_id,
+                chunk_count: 0,
+                asset_count: 0,
+                duplicate_content: true,
+            });
+        }
+    }
     if existing_document {
         sqlx::query(
             "UPDATE source_documents SET display_name = $1, source_kind = $2,
@@ -2997,7 +3191,9 @@ pub async fn preview_delete_postgres_knowledge_base(
         "SELECT kb.name,
                 (SELECT COUNT(*) FROM source_documents d WHERE d.knowledge_base_id = kb.id AND d.deleted_at IS NULL) AS document_count,
                 (SELECT COUNT(*) FROM document_versions v JOIN source_documents d ON d.id = v.document_id WHERE d.knowledge_base_id = kb.id) AS version_count,
-                (SELECT COUNT(*) FROM document_chunks c JOIN document_versions v ON v.id = c.version_id JOIN source_documents d ON d.id = v.document_id WHERE d.knowledge_base_id = kb.id) AS chunk_count
+                (SELECT COUNT(*) FROM document_chunks c JOIN document_versions v ON v.id = c.version_id JOIN source_documents d ON d.id = v.document_id WHERE d.knowledge_base_id = kb.id) AS chunk_count,
+                (SELECT COUNT(*) FROM document_assets a JOIN document_versions v ON v.id = a.version_id JOIN source_documents d ON d.id = v.document_id WHERE d.knowledge_base_id = kb.id) AS asset_count,
+                (SELECT COUNT(*) FROM ingestion_jobs j WHERE j.knowledge_base_id = kb.id AND j.state IN ('pending', 'running', 'retrying')) AS active_task_count
          FROM knowledge_bases kb WHERE kb.id = $1 AND kb.deleted_at IS NULL",
     )
     .bind(id)
@@ -3011,8 +3207,10 @@ pub async fn preview_delete_postgres_knowledge_base(
         document_count: row.try_get::<i64, _>("document_count").unwrap_or_default() as u32,
         version_count: row.try_get::<i64, _>("version_count").unwrap_or_default() as u32,
         chunk_count: row.try_get::<i64, _>("chunk_count").unwrap_or_default() as u32,
-        asset_count: 0,
-        active_task_count: 0,
+        asset_count: row.try_get::<i64, _>("asset_count").unwrap_or_default() as u32,
+        active_task_count: row
+            .try_get::<i64, _>("active_task_count")
+            .unwrap_or_default() as u32,
     })
 }
 
@@ -3022,12 +3220,46 @@ pub async fn delete_postgres_knowledge_base(
     id: Uuid,
 ) -> Result<(), String> {
     let pool = active_pool(&state)?;
+    let mut transaction = pool.begin().await.map_err(|error| error.to_string())?;
+    let knowledge_base_exists: bool = sqlx::query_scalar(
+        "SELECT EXISTS (
+            SELECT 1 FROM knowledge_bases WHERE id = $1 AND deleted_at IS NULL FOR UPDATE
+         )",
+    )
+    .bind(id)
+    .fetch_one(&mut *transaction)
+    .await
+    .map_err(|error| {
+        format!(
+            "锁定 PostgreSQL 知识库失败: {}",
+            safe_error(&error.to_string())
+        )
+    })?;
+    if !knowledge_base_exists {
+        return Err("PostgreSQL 知识库不存在".to_string());
+    }
+    let active_task_count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM ingestion_jobs
+         WHERE knowledge_base_id = $1 AND state IN ('pending', 'running', 'retrying')",
+    )
+    .bind(id)
+    .fetch_one(&mut *transaction)
+    .await
+    .map_err(|error| {
+        format!(
+            "检查 PostgreSQL 知识库活动任务失败: {}",
+            safe_error(&error.to_string())
+        )
+    })?;
+    if active_task_count > 0 {
+        return Err("请先完成、取消或隔离该知识库的活动任务".to_string());
+    }
     let changed = sqlx::query(
         "UPDATE knowledge_bases SET deleted_at = now(), updated_at = now()
          WHERE id = $1 AND deleted_at IS NULL",
     )
     .bind(id)
-    .execute(&pool)
+    .execute(&mut *transaction)
     .await
     .map_err(|error| {
         format!(
@@ -3038,6 +3270,10 @@ pub async fn delete_postgres_knowledge_base(
     if changed.rows_affected() == 0 {
         return Err("PostgreSQL 知识库不存在".to_string());
     }
+    transaction
+        .commit()
+        .await
+        .map_err(|error| safe_error(&error.to_string()))?;
     Ok(())
 }
 
@@ -3077,18 +3313,50 @@ pub async fn configure_knowledge_database(
         pool.close().await;
         return Err("PostgreSQL 未安装或未启用 pgvector 扩展".to_string());
     }
-    if let Some(previous) = load_config(&db)? {
-        backup_config(&db, &previous)?;
+    let previous_config = load_config(&db)?;
+    if let Some(previous) = previous_config.as_ref() {
+        let has_backup = with_conn(&db, |connection| {
+            Ok(settings::get(connection, current_workspace_id(), CONFIG_BACKUP_KEY)?.is_some())
+        })?;
+        if !has_backup {
+            backup_config(&db, previous)?;
+        }
     }
-    let value = serde_json::to_string(&config).map_err(|error| error.to_string())?;
-    with_conn_mut(&db, |connection| {
-        settings::set(connection, current_workspace_id(), CONFIG_KEY, &value)
-    })?;
+    let store = secrets.store();
+    let active_ref = secret_ref()?;
+    let backup_ref = password_backup_ref()?;
+    let has_password_backup = match store.get(&backup_ref) {
+        Ok(_) => true,
+        Err(error) if error.is_not_found() => false,
+        Err(error) => return Err(error.to_string()),
+    };
+    if !has_password_backup {
+        match store.get(&active_ref) {
+            Ok(previous_password) => store
+                .set(&backup_ref, &previous_password)
+                .map_err(|error| error.to_string())?,
+            Err(error) if error.is_not_found() => {}
+            Err(error) => return Err(error.to_string()),
+        }
+    }
     let credential = SecretValue::new(password).map_err(|error| error.to_string())?;
-    secrets
-        .store()
-        .set(&secret_ref()?, &credential)
+    store
+        .set(&active_ref, &credential)
         .map_err(|error| error.to_string())?;
+    let value = serde_json::to_string(&config).map_err(|error| error.to_string())?;
+    if let Err(error) = with_conn_mut(&db, |connection| {
+        settings::set(connection, current_workspace_id(), CONFIG_KEY, &value)
+    }) {
+        let rollback = restore_config_backup(&db, &secrets);
+        pool.close().await;
+        return Err(match rollback {
+            Ok(()) => error,
+            Err(rollback_error) => format!("{error}; 恢复原 PostgreSQL 配置失败: {rollback_error}"),
+        });
+    }
+    if previous_config.is_none() {
+        clear_config_backup(&db, &secrets)?;
+    }
     pool.close().await;
     Ok(KnowledgeDatabaseHealth {
         configured: true,
@@ -3107,14 +3375,30 @@ pub async fn initialize_knowledge_database(
 ) -> Result<KnowledgeDatabaseHealth, String> {
     let config = load_config(&db)?.ok_or("尚未配置 PostgreSQL")?;
     let stored_password = read_password(&secrets)?;
-    let pool = connect(&config, stored_password.expose()).await?;
+    let pool = match connect(&config, stored_password.expose()).await {
+        Ok(pool) => pool,
+        Err(error) => {
+            return Err(match restore_config_backup(&db, &secrets) {
+                Ok(()) => error,
+                Err(rollback_error) => {
+                    format!("{error}; 恢复原 PostgreSQL 配置失败: {rollback_error}")
+                }
+            });
+        }
+    };
     let version = match prepare_pool(&pool).await {
         Ok(version) => version,
         Err(error) => {
             pool.close().await;
-            return Err(error);
+            return Err(match restore_config_backup(&db, &secrets) {
+                Ok(()) => error,
+                Err(rollback_error) => {
+                    format!("{error}; 恢复原 PostgreSQL 配置失败: {rollback_error}")
+                }
+            });
         }
     };
+    clear_config_backup(&db, &secrets)?;
     *state.pool.lock().map_err(|_| "知识库状态已损坏")? = Some(pool);
     Ok(KnowledgeDatabaseHealth {
         configured: true,
