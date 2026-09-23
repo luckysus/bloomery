@@ -4,6 +4,7 @@ mod catalog;
 mod content;
 mod content_batch;
 mod flat_index;
+mod merge;
 mod records;
 mod support;
 mod vectors;
@@ -13,15 +14,16 @@ pub use activation::{activate_document_version, activate_document_version_for_ta
 pub use attempts::{create_ingest_attempt, finish_ingest_attempt, get_ingest_attempt};
 pub use catalog::{
     delete_knowledge_base_confirmed, delete_knowledge_document, list_document_versions,
-    list_source_documents, merge_knowledge_bases, preview_delete_knowledge_base,
-    read_knowledge_health, rename_knowledge_base, rename_knowledge_document,
-    KnowledgeBaseDeleteImpact, KnowledgeBaseMergeMode, KnowledgeBaseMergeRequest, KnowledgeHealth,
+    list_source_documents, preview_delete_knowledge_base, read_knowledge_health,
+    rename_knowledge_base, rename_knowledge_document, KnowledgeBaseDeleteImpact,
+    KnowledgeBaseMergeMode, KnowledgeBaseMergeRequest, KnowledgeHealth,
 };
 pub use content::{
     add_asset, add_chunk, index_chunk_fts, record_chunk_embedding, set_vector_watermark,
 };
 pub use content_batch::persist_parsed_content;
 pub use flat_index::finalize_flat_index;
+pub use merge::merge_knowledge_bases;
 pub use records::{
     DocumentVersionRecord, IngestAttemptRecord, KnowledgeBaseRecord, SourceDocumentRecord,
 };

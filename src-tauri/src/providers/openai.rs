@@ -224,7 +224,7 @@ impl ChatProvider for OpenAiProvider {
             .get(CONTENT_TYPE)
             .and_then(|value| value.to_str().ok())
             .is_some_and(|value| value.to_ascii_lowercase().contains("text/event-stream"));
-        if is_event_stream {
+        let response = if is_event_stream {
             read_sse_response(
                 response,
                 on_event,
@@ -251,8 +251,19 @@ impl ChatProvider for OpenAiProvider {
                 )
             })?;
             read_json_response(body, on_event, &redactor)
+        };
+        response.map(|response| normalize_usage(response, &self.profile.kind))
+    }
+}
+
+fn normalize_usage(mut response: ChatResponse, kind: &ProviderKind) -> ChatResponse {
+    if *kind == ProviderKind::DeepSeek {
+        if let Some(usage) = response.usage.as_mut() {
+            usage.prompt_tokens = usage.prompt_tokens.saturating_sub(usage.cache_read_tokens);
+            usage.total_tokens = usage.prompt_tokens.saturating_add(usage.completion_tokens);
         }
     }
+    response
 }
 
 fn openai_message(message: &ChatMessage) -> OpenAiChatMessage<'_> {
