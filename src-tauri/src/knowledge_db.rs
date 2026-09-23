@@ -1826,8 +1826,10 @@ pub async fn get_postgres_document_raw(
     document_id: Uuid,
 ) -> Result<serde_json::Value, String> {
     let pool = active_pool(&state)?;
-    let source_path: String = sqlx::query_scalar(
-        "SELECT COALESCE(NULLIF(storage_path, ''), source_path) FROM source_documents
+    let row = sqlx::query(
+        "SELECT source_path,
+                COALESCE(NULLIF(storage_path, ''), source_path) AS storage_path
+         FROM source_documents
          WHERE id = $1 AND deleted_at IS NULL",
     )
     .bind(document_id)
@@ -1840,7 +1842,13 @@ pub async fn get_postgres_document_raw(
         )
     })?
     .ok_or_else(|| "PostgreSQL 文档不存在".to_string())?;
-    let bytes = std::fs::read(&source_path)
+    let source_path: String = row
+        .try_get("source_path")
+        .map_err(|error| error.to_string())?;
+    let storage_path: String = row
+        .try_get("storage_path")
+        .map_err(|error| error.to_string())?;
+    let bytes = std::fs::read(&storage_path)
         .map_err(|error| format!("读取 PostgreSQL 原始文件失败: {error}"))?;
     let mime_type = match std::path::Path::new(&source_path)
         .extension()
