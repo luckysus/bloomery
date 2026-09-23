@@ -618,11 +618,9 @@ fn apply_openai_value(
             .unwrap_or(0);
         let completion_tokens = value["usage"]["completion_tokens"].as_u64().unwrap_or(0);
         let usage = ChatUsage {
-            prompt_tokens: prompt_tokens.saturating_sub(cache_read_tokens),
+            prompt_tokens,
             completion_tokens,
-            total_tokens: prompt_tokens
-                .saturating_sub(cache_read_tokens)
-                .saturating_add(completion_tokens),
+            total_tokens: prompt_tokens.saturating_add(completion_tokens),
             cache_read_tokens,
             reasoning_tokens: value["usage"]["completion_tokens_details"]["reasoning_tokens"]
                 .as_u64()
