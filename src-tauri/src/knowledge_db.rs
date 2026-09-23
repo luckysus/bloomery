@@ -641,7 +641,7 @@ pub async fn import_postgres_document(
         )
         .bind(&display_name)
         .bind(source.format.as_str())
-        .bind(&source_path)
+        .bind(&storage_path)
         .bind(&source.content_sha256)
         .bind(document_id)
         .execute(&mut *transaction)
