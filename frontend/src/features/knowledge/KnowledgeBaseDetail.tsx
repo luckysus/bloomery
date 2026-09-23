@@ -8,7 +8,7 @@ import rehypeKatex from "rehype-katex";
 import "katex/dist/katex.min.css";
 import { desktop } from "../../bridge/desktop";
 import type { LiteratureFileInfo, LiteratureFilePreview } from "./knowledgeTypes";
-import RawDocumentViewer from "../../../web-source/src/components/RawDocumentViewer";
+import RawDocumentViewer from "../../components/RawDocumentViewer";
 
 type KnowledgeBaseDetailProps = {
   folderName: string;

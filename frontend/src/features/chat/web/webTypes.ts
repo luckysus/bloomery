@@ -1,5 +1,12 @@
 import type { EvidenceItem, Message } from "../../../bridge/desktop";
 
+export interface AgentConversation {
+  sessionId: string;
+  title: string;
+  updatedAt: string;
+  pinned?: boolean;
+}
+
 export interface WebRecommendation {
   title: string;
   category?: string;

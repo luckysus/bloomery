@@ -136,39 +136,35 @@ describe("ChatPage", () => {
     render(<ChatPage />);
 
     expect(await screen.findByRole("button", { name: "Q355B 标准" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "新聊天" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "搜索聊天" })).toBeInTheDocument();
-    expect(screen.queryByRole("complementary", { name: "运行状态" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "新建对话" })).toBeInTheDocument();
+    expect(screen.getByRole("searchbox", { name: "搜索聊天" })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "本地智能体对话" })).toBeInTheDocument();
     expect(screen.getByRole("textbox")).toBeInTheDocument();
     expect(await screen.findByText("Q355B 的屈服强度是多少？")).toBeInTheDocument();
   });
 
-  it("renders the copied Web conversation controls", async () => {
+  it("renders the desktop agent conversation controls", async () => {
     render(<ChatPage />);
 
     await screen.findByRole("button", { name: "Q355B 标准" });
-    expect(screen.getByRole("region", { name: "钢铁智能体" })).toBeInTheDocument();
-    expect(screen.getByRole("region", { name: "Web 风格对话面板" })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "本地智能体对话" })).toBeInTheDocument();
     expect(screen.getByRole("textbox")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "新聊天" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "搜索聊天" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "新建对话" })).toBeInTheDocument();
+    expect(screen.getByRole("searchbox", { name: "搜索聊天" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "智能搜索" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "语音" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "添加图片" })).toBeInTheDocument();
     expect(screen.getByTitle("切换当前对话模型")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "知识库" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "模型训练" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "工艺优化" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /账户与设置/ })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "导出 Markdown" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "导出 JSON" })).toBeInTheDocument();
   });
 
-  it("renders the local Rust chat panel without Web-only retrieval controls", async () => {
+  it("renders the local Rust desktop chat panel", async () => {
     render(<ChatPage />);
 
     await screen.findByRole("button", { name: "Q355B 标准" });
-    expect(screen.getByTestId("web-agent-composer")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "知识库" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "模型训练" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "工艺优化" })).not.toBeInTheDocument();
+    expect(screen.getByTestId("desktop-agent-composer")).toBeInTheDocument();
+    expect(screen.getByText("STEEL AGENT / LOCAL RUNTIME")).toBeInTheDocument();
+    expect(screen.getByText("本地智能体")).toBeInTheDocument();
   });
 
   it("sends through the local bridge without invoking Web fetch", async () => {
@@ -193,7 +189,7 @@ describe("ChatPage", () => {
     vi.unstubAllGlobals();
   });
 
-  it("connects Web-style local controls to the Rust bridge", async () => {
+  it("connects desktop local controls to the Rust bridge", async () => {
     render(<ChatPage />);
 
     await screen.findByRole("button", { name: "Q355B 标准" });
@@ -202,13 +198,14 @@ describe("ChatPage", () => {
     await waitFor(() => expect(desktop.setDefaultProvider).toHaveBeenCalledWith("chat", "chat-profile-1"));
 
     fireEvent.click(screen.getByRole("button", { name: "更多操作" }));
-    fireEvent.click(screen.getByRole("button", { name: "重命名" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "重命名" }));
     const renameInput = screen.getByDisplayValue("Q355B 标准");
     fireEvent.change(renameInput, { target: { value: "Q355B 新标题" } });
     fireEvent.keyDown(renameInput, { key: "Enter" });
     await waitFor(() => expect(desktop.updateConversationTitle).toHaveBeenCalledWith(conversation.id, "Q355B 新标题"));
 
-    fireEvent.click(screen.getByRole("button", { name: "置顶聊天" }));
+    fireEvent.click(screen.getByRole("button", { name: "更多操作" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "置顶聊天" }));
     await waitFor(() => expect(desktop.updateConversationPinned).toHaveBeenCalledWith(conversation.id, true));
   });
 
@@ -290,7 +287,7 @@ describe("ChatPage", () => {
 
     await screen.findByRole("button", { name: "Q355B 标准" });
     expect(screen.getByText("从一个具体问题开始")).toBeInTheDocument();
-    expect(screen.queryByText("例如：比较 Q345B 与 Q355B 的屈服强度要求，并指出适用标准。")).not.toBeInTheDocument();
+    expect(screen.getByText("例如：比较 Q345B 与 Q355B 的屈服强度要求，并指出适用标准。")).toBeInTheDocument();
   });
 
   it("retrieves selected local evidence before sending the agent request", async () => {

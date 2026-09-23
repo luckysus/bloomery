@@ -239,6 +239,10 @@ fn tauri_frontend_hooks_run_from_the_frontend_directory() {
         config.matches(r#""cwd": "../frontend""#).count() >= 2,
         "Tauri frontend hooks must use the frontend working directory"
     );
+    assert!(
+        config.contains(r#""devUrl": "http://127.0.0.1:1420""#),
+        "Tauri must use Bloomery's isolated development port"
+    );
 }
 
 #[test]

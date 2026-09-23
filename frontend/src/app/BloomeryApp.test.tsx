@@ -1,5 +1,5 @@
 import { StrictMode } from "react";
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import BloomeryApp from "./BloomeryApp";
 import { desktop } from "../bridge/desktop";
@@ -138,33 +138,28 @@ describe("BloomeryApp", () => {
     expect(screen.getByRole("button", { name: "工作台" })).not.toHaveAttribute("aria-current", "page");
   });
 
-  it("switches the chat route to the full-window Web conversation shell", async () => {
+  it("keeps the desktop shell around the local agent chat", async () => {
     render(<BloomeryApp />);
 
     await screen.findByRole("heading", { name: "工作台" });
     fireEvent.click(screen.getByRole("button", { name: "对话" }));
 
-    expect((await screen.findAllByRole("button", { name: "钢铁智能体" })).length).toBeGreaterThanOrEqual(1);
-    const chatPanel = screen.getByRole("region", { name: "Web 风格对话面板" });
-    expect(chatPanel).toBeInTheDocument();
-    expect(within(chatPanel).queryByRole("button", { name: "知识库" })).not.toBeInTheDocument();
-    expect(within(chatPanel).queryByRole("button", { name: "模型训练" })).not.toBeInTheDocument();
-    expect(within(chatPanel).queryByRole("button", { name: "工艺优化" })).not.toBeInTheDocument();
-    expect(within(chatPanel).queryByRole("button", { name: /账户与设置/ })).not.toBeInTheDocument();
-    expect(screen.queryByRole("navigation", { name: "主导航" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("main", { name: "工作台" })).not.toBeInTheDocument();
-    expect(document.querySelector(".bloomery-app-chat")).toBeInTheDocument();
+    expect(await screen.findByRole("region", { name: "本地智能体对话" })).toBeInTheDocument();
+    expect(screen.getByRole("navigation", { name: "主导航" })).toBeInTheDocument();
+    expect(screen.getByRole("main", { name: "对话" })).toBeInTheDocument();
+    expect(document.querySelector(".bloomery-main-inner.is-chat-shell")).toBeInTheDocument();
+    expect(document.querySelector(".bloomery-app-chat")).not.toBeInTheDocument();
   });
 
-  it("returns to the workbench from the full-window Web chat shell", async () => {
+  it("returns to the workbench from the desktop chat route", async () => {
     render(<BloomeryApp />);
 
     await screen.findByRole("heading", { name: "工作台" });
     fireEvent.click(screen.getByRole("button", { name: "对话" }));
-    expect(await screen.findByRole("region", { name: "Web 风格对话面板" })).toBeInTheDocument();
-    expect(screen.queryByRole("navigation", { name: "主导航" })).not.toBeInTheDocument();
+    expect(await screen.findByRole("region", { name: "本地智能体对话" })).toBeInTheDocument();
+    expect(screen.getByRole("navigation", { name: "主导航" })).toBeInTheDocument();
 
-    fireEvent.click(screen.getByTitle("钢铁智能体"));
+    fireEvent.click(screen.getByRole("button", { name: "工作台" }));
     expect(await screen.findByRole("heading", { name: "工作台" })).toBeInTheDocument();
     expect(screen.getByRole("navigation", { name: "主导航" })).toBeInTheDocument();
   });

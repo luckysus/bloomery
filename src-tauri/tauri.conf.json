@@ -9,7 +9,7 @@
       "script": "npm run dev -- --host 127.0.0.1",
       "cwd": "../frontend"
     },
-    "devUrl": "http://127.0.0.1:5173",
+    "devUrl": "http://127.0.0.1:1420",
     "beforeBuildCommand": {
       "script": "npm run build",
       "cwd": "../frontend"
