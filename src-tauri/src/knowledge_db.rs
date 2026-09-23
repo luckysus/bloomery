@@ -1172,6 +1172,7 @@ pub async fn search_postgres_hybrid(
             JOIN source_documents d ON d.id = v.document_id
             WHERE d.knowledge_base_id = $1 AND d.deleted_at IS NULL
               AND c.search_vector @@ plainto_tsquery('simple', $2)
+            ORDER BY position
             LIMIT $4
          ), dense AS (
             SELECT c.id,
@@ -1181,6 +1182,7 @@ pub async fn search_postgres_hybrid(
             JOIN document_versions v ON v.id = c.version_id AND v.activated_at IS NOT NULL
             JOIN source_documents d ON d.id = v.document_id
             WHERE d.knowledge_base_id = $1 AND d.deleted_at IS NULL
+            ORDER BY position
             LIMIT $4
          ), scored AS (
             SELECT COALESCE(lexical.id, dense.id) AS id,
@@ -1271,6 +1273,7 @@ pub(crate) async fn search_postgres_hybrid_pool(
             JOIN source_documents d ON d.id = v.document_id
             WHERE d.knowledge_base_id = $1 AND d.deleted_at IS NULL
               AND c.search_vector @@ plainto_tsquery('simple', $2)
+            ORDER BY position
             LIMIT $4
          ), dense AS (
             SELECT c.id, ROW_NUMBER() OVER (ORDER BY e.embedding <=> $3::vector, c.ordinal) AS position
@@ -1279,6 +1282,7 @@ pub(crate) async fn search_postgres_hybrid_pool(
             JOIN document_versions v ON v.id = c.version_id AND v.activated_at IS NOT NULL
             JOIN source_documents d ON d.id = v.document_id
             WHERE d.knowledge_base_id = $1 AND d.deleted_at IS NULL
+            ORDER BY position
             LIMIT $4
          ), scored AS (
             SELECT COALESCE(lexical.id, dense.id) AS id,
