@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
-import { ArrowLeft, BookOpen, History, Link2, Network, Plus, RotateCcw, Save, Trash2 } from "lucide-react";
+import { ArrowLeft, BookOpen, Eye, History, Link2, Network, Pencil, Plus, RotateCcw, Save, Trash2 } from "lucide-react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import {
   desktop,
   type PostgresWikiPage,
@@ -19,6 +21,7 @@ export default function PostgresWikiPanel({ onClose }: Props) {
   const [revisions, setRevisions] = useState<PostgresWikiRevision[]>([]);
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
+  const [preview, setPreview] = useState(false);
   const [tags, setTags] = useState<PostgresTag[]>([]);
   const [tagText, setTagText] = useState("");
   const [sourceDocumentId, setSourceDocumentId] = useState<string | null>(null);
@@ -236,7 +239,11 @@ export default function PostgresWikiPanel({ onClose }: Props) {
               </select>
             </label>
             <input aria-label="Wiki 标签" value={tagText} onChange={(event) => setTagText(event.target.value)} placeholder="标签，用逗号分隔" className="mb-3 rounded-lg border border-[#e4d6c8] bg-white px-3 py-2 text-sm" />
-            <textarea aria-label="Wiki Markdown 正文" value={body} onChange={(event) => setBody(event.target.value)} className="min-h-0 flex-1 resize-none rounded-lg border border-[#e4d6c8] bg-white p-3 font-mono text-sm" />
+            <div className="mb-2 flex items-center gap-1" role="tablist" aria-label="Wiki 正文视图">
+              <button type="button" role="tab" aria-selected={!preview} onClick={() => setPreview(false)} className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold ${!preview ? "bg-[#f4dfd2] text-[#6f4a38]" : "text-slate-600 hover:bg-[#faf0e8]"}`}><Pencil size={13} />编辑</button>
+              <button type="button" role="tab" aria-selected={preview} onClick={() => setPreview(true)} className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold ${preview ? "bg-[#f4dfd2] text-[#6f4a38]" : "text-slate-600 hover:bg-[#faf0e8]"}`}><Eye size={13} />预览</button>
+            </div>
+            {preview ? <div aria-label="Wiki Markdown 预览" className="min-h-0 flex-1 overflow-y-auto rounded-lg border border-[#e4d6c8] bg-white p-4 prose prose-slate max-w-none"><ReactMarkdown remarkPlugins={[remarkGfm]}>{body}</ReactMarkdown></div> : <textarea aria-label="Wiki Markdown 正文" value={body} onChange={(event) => setBody(event.target.value)} className="min-h-0 flex-1 resize-none rounded-lg border border-[#e4d6c8] bg-white p-3 font-mono text-sm" />}
             <button type="button" onClick={() => void save()} disabled={busy} className="mt-3 inline-flex w-fit items-center gap-2 rounded-lg bg-[#c96f52] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"><Save size={16} />保存 revision</button>
           </> : <div className="flex flex-1 items-center justify-center text-sm text-slate-500">选择或新建一个 Wiki 页面</div>}
           {error && <p role="alert" className="mt-3 text-sm text-red-700">{error}</p>}
