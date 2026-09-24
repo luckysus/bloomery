@@ -500,6 +500,11 @@ fn direct_answer_streams_usage_and_completes_once() {
     assert_eq!(result.answer, "Q355B is a low-alloy structural steel.");
     assert_eq!(result.usage.unwrap().total_tokens, 8);
     assert_eq!(
+        model.requests.lock().unwrap()[0].max_tokens,
+        Some(128),
+        "the output reservation must reach the provider request"
+    );
+    assert_eq!(
         sink.events
             .iter()
             .filter(|event| matches!(event.data, AgentEventData::RunCompleted(_)))

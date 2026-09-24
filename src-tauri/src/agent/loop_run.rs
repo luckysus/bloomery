@@ -364,29 +364,42 @@ where
             if let Some(context) = self.hooks.before_model() {
                 request_messages.push(context);
             }
-            let request_messages = budget_chat_messages(
+            let request_messages = match budget_chat_messages(
                 request_messages,
                 model_capabilities.context_window,
                 request.output_reservation,
                 tool_payload.as_ref(),
-            );
-            sink.checkpoint(AgentContextCheckpoint {
-                reason: ContextCheckpointReason::ModelCall,
-                model_call_index: model_calls - 1,
-                model_calls,
-                tool_calls,
-                tool_round,
-                recovery_attempt,
-                messages: checkpoint_messages(&request_messages),
-            })
-            .map_err(AgentLoopError::EventSink)?;
+            ) {
+                Ok(messages) => messages,
+                Err(error) => {
+                    return self.fail(
+                        sink,
+                        machine.state(),
+                        request.assistant_message_id,
+                        AgentLoopError::Context(error),
+                    )
+                }
+            };
+            self.save_checkpoint(
+                sink,
+                AgentContextCheckpoint {
+                    reason: ContextCheckpointReason::ModelCall,
+                    model_call_index: model_calls - 1,
+                    model_calls,
+                    tool_calls,
+                    tool_round,
+                    recovery_attempt,
+                    messages: checkpoint_messages(&request_messages),
+                },
+                limits.context_checkpoint_timeout_ms,
+            )?;
             let chat_request = ChatRequest {
                 messages: request_messages.clone(),
                 temperature: 0.2,
                 tools: tool_payload.clone(),
                 response_format: None,
                 reasoning_effort: None,
-                max_tokens: None,
+                max_tokens: (request.output_reservation > 0).then_some(request.output_reservation),
                 stop: None,
             };
             let (response, streamed_text, current_reasoning_ms) = match self
@@ -400,16 +413,19 @@ where
             {
                 Ok(result) => result,
                 Err(error) => {
-                    sink.checkpoint(AgentContextCheckpoint {
-                        reason: ContextCheckpointReason::AssistantError,
-                        model_call_index: model_calls - 1,
-                        model_calls,
-                        tool_calls,
-                        tool_round,
-                        recovery_attempt,
-                        messages: checkpoint_messages(&request_messages),
-                    })
-                    .map_err(AgentLoopError::EventSink)?;
+                    self.save_checkpoint(
+                        sink,
+                        AgentContextCheckpoint {
+                            reason: ContextCheckpointReason::AssistantError,
+                            model_call_index: model_calls - 1,
+                            model_calls,
+                            tool_calls,
+                            tool_round,
+                            recovery_attempt,
+                            messages: checkpoint_messages(&request_messages),
+                        },
+                        limits.context_checkpoint_timeout_ms,
+                    )?;
                     if cancellation.is_cancelled() {
                         return self.cancel(
                             &mut machine,
@@ -463,16 +479,19 @@ where
                 // Match Vetta's checkpoint contract: assistant_result is a
                 // resumable natural stop, not the intermediate assistant
                 // message that still has pending tool calls.
-                sink.checkpoint(AgentContextCheckpoint {
-                    reason: ContextCheckpointReason::AssistantResult,
-                    model_call_index: model_calls - 1,
-                    model_calls,
-                    tool_calls,
-                    tool_round,
-                    recovery_attempt,
-                    messages: checkpoint_messages(&assistant_checkpoint),
-                })
-                .map_err(AgentLoopError::EventSink)?;
+                self.save_checkpoint(
+                    sink,
+                    AgentContextCheckpoint {
+                        reason: ContextCheckpointReason::AssistantResult,
+                        model_call_index: model_calls - 1,
+                        model_calls,
+                        tool_calls,
+                        tool_round,
+                        recovery_attempt,
+                        messages: checkpoint_messages(&assistant_checkpoint),
+                    },
+                    limits.context_checkpoint_timeout_ms,
+                )?;
                 sink.record(AgentEventData::MessageCompleted(MessageCompleted {
                     message_id: request.assistant_message_id,
                     role: AgentMessageRole::Assistant,
@@ -544,6 +563,7 @@ where
                     &tool_registrations,
                     &mut model_calls,
                     limits.max_model_calls,
+                    (request.output_reservation > 0).then_some(request.output_reservation),
                 )
                 .await
             {

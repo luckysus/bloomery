@@ -1,6 +1,7 @@
 use crate::agent::runtime::{AgentRecoveryService, RunCommandResult, RuntimeHost};
 use crate::db::{current_workspace_id, with_conn_mut, DbState};
 use chrono::Utc;
+use std::time::{Duration, Instant};
 
 #[tauri::command]
 pub fn cancel_agent_run(
@@ -37,15 +38,37 @@ pub fn cancel_agent_run(
         let active = state.snapshot(run_id).is_ok();
         state.cancel_turn(run_id)?;
         if active {
-            let events = with_conn_mut(&db, |connection| {
-                let service = AgentRecoveryService::new(connection, current_workspace_id())?;
-                service.replay(run_id, 0)
-            })?;
-            return Ok(RunCommandResult {
-                run: existing,
-                events,
-                replay_only: false,
-            });
+            let deadline = Instant::now() + Duration::from_secs(2);
+            loop {
+                let current = with_conn_mut(&db, |connection| {
+                    crate::storage::repositories::runs::get(
+                        connection,
+                        current_workspace_id(),
+                        run_id,
+                    )
+                    .map_err(|error| error.to_string())?
+                    .ok_or_else(|| "agent run not found".to_string())
+                })?;
+                let events = with_conn_mut(&db, |connection| {
+                    let service = AgentRecoveryService::new(connection, current_workspace_id())?;
+                    service.replay(run_id, 0)
+                })?;
+                let terminal = matches!(
+                    current.state,
+                    crate::agent::protocol::AgentRunState::Completed
+                        | crate::agent::protocol::AgentRunState::Cancelled
+                        | crate::agent::protocol::AgentRunState::Failed
+                        | crate::agent::protocol::AgentRunState::Interrupted
+                );
+                if terminal || Instant::now() >= deadline {
+                    return Ok(RunCommandResult {
+                        run: current,
+                        events,
+                        replay_only: false,
+                    });
+                }
+                std::thread::sleep(Duration::from_millis(10));
+            }
         }
     }
 

@@ -146,6 +146,27 @@ export interface TaskProgress {
   progress: number;
 }
 
+export type CheckpointReason = "model_call" | "assistant_result" | "assistant_error";
+
+export interface CheckpointSaved {
+  reason: CheckpointReason;
+  model_call_index: number;
+  model_calls: number;
+  tool_calls: number;
+  tool_round: number;
+  recovery_attempt: number;
+}
+
+export interface RecoveryStarted {
+  action: string;
+  recovery_attempt: number;
+}
+
+export interface RecoveryCompleted {
+  action: string;
+  outcome: RunOutcome | null;
+}
+
 export interface RunCompleted {
   outcome: RunOutcome;
   assistant_message_id: UUID | null;
@@ -172,6 +193,9 @@ export type AgentEventType =
   | "evidence_attached"
   | "usage_updated"
   | "task_progress"
+  | "checkpoint_saved"
+  | "recovery_started"
+  | "recovery_completed"
   | "run_completed"
   | "error_raised";
 
@@ -191,6 +215,9 @@ export type AgentEventData =
   | { type: "evidence_attached"; data: EvidenceAttached }
   | { type: "usage_updated"; data: UsageUpdated }
   | { type: "task_progress"; data: TaskProgress }
+  | { type: "checkpoint_saved"; data: CheckpointSaved }
+  | { type: "recovery_started"; data: RecoveryStarted }
+  | { type: "recovery_completed"; data: RecoveryCompleted }
   | { type: "run_completed"; data: RunCompleted }
   | { type: "error_raised"; data: ErrorRaised };
 

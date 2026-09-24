@@ -36,6 +36,9 @@ pub enum AgentEventData {
     EvidenceAttached(EvidenceAttached),
     UsageUpdated(UsageUpdated),
     TaskProgress(TaskProgress),
+    CheckpointSaved(CheckpointSaved),
+    RecoveryStarted(RecoveryStarted),
+    RecoveryCompleted(RecoveryCompleted),
     RunCompleted(RunCompleted),
     ErrorRaised(ErrorRaised),
 }
@@ -110,6 +113,36 @@ pub enum RunOutcome {
     Cancelled,
     Failed,
     Interrupted,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CheckpointReason {
+    ModelCall,
+    AssistantResult,
+    AssistantError,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CheckpointSaved {
+    pub reason: CheckpointReason,
+    pub model_call_index: usize,
+    pub model_calls: usize,
+    pub tool_calls: usize,
+    pub tool_round: usize,
+    pub recovery_attempt: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RecoveryStarted {
+    pub action: String,
+    pub recovery_attempt: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RecoveryCompleted {
+    pub action: String,
+    pub outcome: Option<RunOutcome>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

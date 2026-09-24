@@ -85,4 +85,32 @@ impl AgentEventSink for ChildAgentEventSink {
             )),
         ])
     }
+
+    fn checkpoint(
+        &mut self,
+        checkpoint: crate::agent::runtime::AgentContextCheckpoint,
+    ) -> Result<(), String> {
+        let reason = match checkpoint.reason {
+            crate::agent::runtime::ContextCheckpointReason::ModelCall => {
+                crate::agent::protocol::CheckpointReason::ModelCall
+            }
+            crate::agent::runtime::ContextCheckpointReason::AssistantResult => {
+                crate::agent::protocol::CheckpointReason::AssistantResult
+            }
+            crate::agent::runtime::ContextCheckpointReason::AssistantError => {
+                crate::agent::protocol::CheckpointReason::AssistantError
+            }
+        };
+        self.event(AgentEventData::CheckpointSaved(
+            crate::agent::protocol::CheckpointSaved {
+                reason,
+                model_call_index: checkpoint.model_call_index,
+                model_calls: checkpoint.model_calls,
+                tool_calls: checkpoint.tool_calls,
+                tool_round: checkpoint.tool_round,
+                recovery_attempt: checkpoint.recovery_attempt,
+            },
+        ));
+        Ok(())
+    }
 }

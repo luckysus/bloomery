@@ -2,7 +2,9 @@ use super::types::{
     AgentEventSink, AgentLoopAttachment, AgentLoopError, ContextEntry, EvidenceAttachment,
     PreparedToolCall, ToolExecutionError, ToolRegistration,
 };
-use crate::agent::context::{estimate_tokens, ContextReport, ContextSource, DEFAULT_MODEL_LIMIT};
+use crate::agent::context::{
+    estimate_tokens, ContextBudgetError, ContextReport, ContextSource, DEFAULT_MODEL_LIMIT,
+};
 use crate::agent::protocol::{
     AgentError, AgentErrorCategory, AgentEventData, AgentMessageRole, MessageDelta, ToolCompleted,
     ToolOutcome, UsageUpdated,
@@ -340,12 +342,25 @@ pub(super) fn budget_chat_messages(
     model_limit: Option<usize>,
     output_reservation: usize,
     tools: Option<&Value>,
-) -> Vec<ChatMessage> {
+) -> Result<Vec<ChatMessage>, ContextBudgetError> {
     let model_limit = model_limit.unwrap_or(DEFAULT_MODEL_LIMIT);
+    if output_reservation > model_limit {
+        return Err(ContextBudgetError::OutputReservationExceedsModelLimit {
+            output_reservation,
+            model_limit,
+        });
+    }
     let input_limit = model_limit.saturating_sub(output_reservation);
     let tool_tokens = tools
         .map(|value| estimate_tokens(&value.to_string()))
         .unwrap_or_default();
+    if tool_tokens > input_limit {
+        return Err(ContextBudgetError::ToolSchemaExceedsLimit {
+            tool_tokens,
+            input_limit,
+            model_limit,
+        });
+    }
     let message_limit = input_limit.saturating_sub(tool_tokens);
     if messages
         .iter()
@@ -353,7 +368,7 @@ pub(super) fn budget_chat_messages(
         .sum::<usize>()
         <= message_limit
     {
-        return messages;
+        return Ok(messages);
     }
 
     let mut selected = Vec::new();
@@ -364,23 +379,20 @@ pub(super) fn budget_chat_messages(
         .filter(|(_, message)| message.role == "system")
     {
         let cost = estimate_chat_message_tokens(message);
-        if cost <= remaining {
-            selected.push((index, message.clone()));
-            remaining = remaining.saturating_sub(cost);
+        if cost > remaining {
+            return Err(ContextBudgetError::MessageBlockExceedsLimit {
+                block_tokens: cost,
+                input_limit: message_limit,
+            });
         }
+        selected.push((index, message.clone()));
+        remaining = remaining.saturating_sub(cost);
     }
 
     let mut index = messages.len();
     while index > 0 {
         let end = index;
-        let start = if messages[end - 1].role == "tool" {
-            messages[..end]
-                .iter()
-                .rposition(|message| message.role == "assistant" && !message.tool_calls.is_empty())
-                .unwrap_or(end - 1)
-        } else {
-            end - 1
-        };
+        let start = message_block_start(&messages, end);
         let block = &messages[start..end];
         let cost = block
             .iter()
@@ -396,7 +408,20 @@ pub(super) fn budget_chat_messages(
                 }
             }
             remaining = remaining.saturating_sub(cost);
-        } else if selected.is_empty() {
+        } else if selected.is_empty() || (end == messages.len() && !block_is_tool_call_block(block))
+        {
+            if block_is_tool_call_block(block) {
+                return Err(ContextBudgetError::MessageBlockExceedsLimit {
+                    block_tokens: cost,
+                    input_limit: message_limit,
+                });
+            }
+            if remaining == 0 {
+                return Err(ContextBudgetError::MessageBlockExceedsLimit {
+                    block_tokens: cost,
+                    input_limit: message_limit,
+                });
+            }
             let mut message = messages[end - 1].clone();
             message.content = truncate_to_tokens(&message.content, remaining);
             selected.push((end - 1, message));
@@ -406,7 +431,29 @@ pub(super) fn budget_chat_messages(
     }
 
     selected.sort_by_key(|(index, _)| *index);
-    selected.into_iter().map(|(_, message)| message).collect()
+    Ok(selected.into_iter().map(|(_, message)| message).collect())
+}
+
+fn message_block_start(messages: &[ChatMessage], end: usize) -> usize {
+    let mut start = end.saturating_sub(1);
+    if messages[start].role == "tool" {
+        while start > 0 && messages[start - 1].role == "tool" {
+            start -= 1;
+        }
+        if start > 0
+            && messages[start - 1].role == "assistant"
+            && !messages[start - 1].tool_calls.is_empty()
+        {
+            start -= 1;
+        }
+    }
+    start
+}
+
+fn block_is_tool_call_block(block: &[ChatMessage]) -> bool {
+    block.iter().any(|message| {
+        message.role == "tool" || (message.role == "assistant" && !message.tool_calls.is_empty())
+    })
 }
 
 pub(super) fn checkpoint_messages(messages: &[ChatMessage]) -> Vec<ChatMessage> {
@@ -554,6 +601,11 @@ pub(super) fn to_agent_error(error: &AgentLoopError) -> AgentError {
             "agent_loop_limit_exceeded".to_string(),
             false,
         ),
+        AgentLoopError::CheckpointTimeout { .. } => (
+            AgentErrorCategory::Database,
+            "agent_checkpoint_timeout".to_string(),
+            true,
+        ),
         AgentLoopError::Tool(_) => (
             AgentErrorCategory::ToolPermission,
             "tool_failed".to_string(),
@@ -579,7 +631,48 @@ pub(super) fn to_agent_error(error: &AgentLoopError) -> AgentError {
 
 #[cfg(test)]
 mod tests {
-    use super::tool_description;
+    use super::{budget_chat_messages, tool_description};
+    use crate::agent::context::ContextBudgetError;
+    use crate::providers::capabilities::{ChatMessage, ChatToolCall};
+    use serde_json::json;
+
+    #[test]
+    fn provider_budget_keeps_tool_call_blocks_atomic() {
+        let messages = vec![
+            ChatMessage::new("system", "s"),
+            ChatMessage::new("user", "old"),
+            ChatMessage::assistant_tool_calls(vec![ChatToolCall {
+                id: "call-1".to_string(),
+                name: "search".to_string(),
+                arguments: "{}".to_string(),
+            }]),
+            ChatMessage::tool_result("call-1", "x".repeat(256)),
+            ChatMessage::new("user", "now"),
+        ];
+        let bounded = budget_chat_messages(messages, Some(16), 0, None)
+            .expect("oversized tool block should be omitted as a whole");
+        assert!(bounded.iter().all(|message| {
+            message.role != "tool"
+                && !(message.role == "assistant" && !message.tool_calls.is_empty())
+        }));
+        assert!(bounded.iter().any(|message| message.content == "now"));
+    }
+
+    #[test]
+    fn provider_budget_reports_tool_schema_overflow() {
+        let tools = json!({"schema": "x".repeat(256)});
+        let error = budget_chat_messages(
+            vec![ChatMessage::new("user", "request")],
+            Some(16),
+            0,
+            Some(&tools),
+        )
+        .expect_err("tool schema overflow must be explicit");
+        assert!(matches!(
+            error,
+            ContextBudgetError::ToolSchemaExceedsLimit { .. }
+        ));
+    }
 
     #[test]
     fn steel_tool_descriptions_are_domain_specific() {

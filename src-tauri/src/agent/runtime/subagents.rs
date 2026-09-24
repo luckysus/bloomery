@@ -18,6 +18,8 @@ mod child_events;
 use child_events::ChildAgentEventSink;
 
 pub const MAX_SUBAGENT_TOOL_ROUNDS: usize = 30;
+pub const MAX_SUBAGENT_MODEL_CALLS: usize = 32;
+pub const MAX_SUBAGENT_TOOL_CALLS: usize = 64;
 const TASK_TOOL_ID: &str = "agent.task";
 const TASK_TOOL_NAME: &str = "task";
 
@@ -251,6 +253,8 @@ impl ToolHandler for SubagentHandler {
                         model_context_window: parent.model_context_window,
                         output_reservation: 2_048,
                         limits: AgentLoopLimits {
+                            max_model_calls: Some(MAX_SUBAGENT_MODEL_CALLS),
+                            max_tool_calls: Some(MAX_SUBAGENT_TOOL_CALLS),
                             max_tool_rounds: Some(MAX_SUBAGENT_TOOL_ROUNDS),
                             ..AgentLoopLimits::default()
                         },
@@ -298,6 +302,8 @@ impl ToolHandler for SubagentHandler {
                     .as_ref()
                     .map(|(_, _, _, snapshot)| snapshot.limits.clone())
                     .unwrap_or(AgentLoopLimits {
+                        max_model_calls: Some(MAX_SUBAGENT_MODEL_CALLS),
+                        max_tool_calls: Some(MAX_SUBAGENT_TOOL_CALLS),
                         max_tool_rounds: Some(MAX_SUBAGENT_TOOL_ROUNDS),
                         ..AgentLoopLimits::default()
                     }),

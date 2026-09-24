@@ -1,5 +1,8 @@
 use super::{AgentContextCheckpoint, AgentEventSink};
-use crate::agent::protocol::{AgentEventData, AgentEventEnvelope, RunOutcome, RunStateChanged};
+use crate::agent::protocol::{
+    AgentEventData, AgentEventEnvelope, CheckpointReason, CheckpointSaved, RunOutcome,
+    RunStateChanged,
+};
 use crate::storage::repositories::{checkpoints, events, runs};
 use chrono::Utc;
 use rusqlite::Connection;
@@ -110,6 +113,17 @@ where
     }
 
     fn checkpoint(&mut self, checkpoint: AgentContextCheckpoint) -> Result<(), String> {
+        let reason = match checkpoint.reason {
+            crate::agent::runtime::ContextCheckpointReason::ModelCall => {
+                CheckpointReason::ModelCall
+            }
+            crate::agent::runtime::ContextCheckpointReason::AssistantResult => {
+                CheckpointReason::AssistantResult
+            }
+            crate::agent::runtime::ContextCheckpointReason::AssistantError => {
+                CheckpointReason::AssistantError
+            }
+        };
         checkpoints::save(
             self.connection,
             &self.workspace_id,
@@ -117,6 +131,23 @@ where
             &checkpoint,
             Utc::now(),
         )
-        .map_err(|error| error.to_string())
+        .map_err(|error| error.to_string())?;
+        let event = events::append(
+            self.connection,
+            &self.workspace_id,
+            self.run_id,
+            Uuid::new_v4(),
+            Utc::now(),
+            AgentEventData::CheckpointSaved(CheckpointSaved {
+                reason,
+                model_call_index: checkpoint.model_call_index,
+                model_calls: checkpoint.model_calls,
+                tool_calls: checkpoint.tool_calls,
+                tool_round: checkpoint.tool_round,
+                recovery_attempt: checkpoint.recovery_attempt,
+            }),
+        )
+        .map_err(|error| error.to_string())?;
+        self.publish(event).map(|_| ())
     }
 }

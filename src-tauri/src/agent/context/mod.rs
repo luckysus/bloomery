@@ -1,9 +1,10 @@
 mod budget;
 mod memory;
 mod summary;
+mod tokens;
 
 pub use budget::{
-    budget_context, estimate_tokens, ContextBudgetError, ContextItem, ContextReport, ContextSource,
+    budget_context, ContextBudgetError, ContextItem, ContextReport, ContextSource,
     ItemTokenEstimate, TruncationRecord, DEFAULT_MODEL_LIMIT,
 };
 pub use memory::{
@@ -15,3 +16,4 @@ pub use summary::{
     SummaryMessage, SummaryPlan, SUMMARY_KEEP_TAIL_TOKENS, SUMMARY_MIN_FOLD_TOKENS,
     SUMMARY_TRIGGER_TOKENS,
 };
+pub use tokens::estimate_tokens;

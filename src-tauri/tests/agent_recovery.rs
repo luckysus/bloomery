@@ -43,12 +43,17 @@ fn startup_recovery_interrupts_generation_and_retry_reuses_the_user_message() {
     assert_eq!(recovered.len(), 1);
     assert!(matches!(recovered[0].action, RecoveryAction::Regenerate));
     assert_eq!(recovered[0].run.state, AgentRunState::Interrupted);
-    assert!(matches!(
-        recovered[0].events.last().unwrap().data,
+    assert!(recovered[0].events.iter().any(|event| matches!(
+        &event.data,
         AgentEventData::RunCompleted(RunCompleted {
             outcome: RunOutcome::Interrupted,
             ..
         })
+    )));
+    assert!(matches!(
+        recovered[0].events.last().map(|event| &event.data),
+        Some(AgentEventData::RecoveryCompleted(completed))
+            if completed.outcome == Some(RunOutcome::Interrupted)
     ));
 
     let retry = recovery
@@ -103,7 +108,11 @@ fn unresolved_permission_is_replayed_without_executing_or_interrupting_it() {
                 && permissions[0].tool_call_id == tool_call_id
     ));
     assert_eq!(recovered[0].run.state, AgentRunState::AwaitingPermission);
-    assert!(recovered[0].events.is_empty());
+    assert!(matches!(
+        recovered[0].events.last().map(|event| &event.data),
+        Some(AgentEventData::RecoveryStarted(started))
+            if started.action == "await_permissions"
+    ));
 }
 
 #[test]

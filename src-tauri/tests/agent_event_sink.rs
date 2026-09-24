@@ -208,6 +208,10 @@ fn checkpoint_storage_strips_images_and_round_trips_state() {
     assert_eq!(restored.reason, ContextCheckpointReason::ModelCall);
     assert_eq!(restored.messages[0].content, "keep text");
     assert!(restored.messages[0].images.is_empty());
+    assert!(events::replay(&connection, WORKSPACE, id(RUN_ID), 0)
+        .unwrap()
+        .iter()
+        .any(|event| matches!(event.data, AgentEventData::CheckpointSaved(_))));
 }
 
 #[test]

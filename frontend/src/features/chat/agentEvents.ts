@@ -1,5 +1,6 @@
 import type {
   AgentError,
+  CheckpointReason,
   AgentEventEnvelope,
   AgentRunState,
   PermissionDecision,
@@ -37,6 +38,22 @@ export interface AgentTaskProgressView {
   progress: number;
 }
 
+export interface AgentCheckpointView {
+  reason: CheckpointReason;
+  modelCallIndex: number;
+  modelCalls: number;
+  toolCalls: number;
+  toolRound: number;
+  recoveryAttempt: number;
+}
+
+export interface AgentRecoveryView {
+  phase: "started" | "completed";
+  action: string;
+  recoveryAttempt: number;
+  outcome: RunOutcome | null;
+}
+
 export interface AgentRunView {
   runId: string;
   conversationId: string;
@@ -55,6 +72,8 @@ export interface AgentRunView {
   citationNumbers: number[];
   usage: UsageUpdated | null;
   taskProgress: AgentTaskProgressView | null;
+  checkpoint: AgentCheckpointView | null;
+  recovery: AgentRecoveryView | null;
   outcome: RunOutcome | null;
   error: AgentError | null;
 }
@@ -78,6 +97,8 @@ export function createAgentRunView(runId: string, conversationId: string): Agent
     citationNumbers: [],
     usage: null,
     taskProgress: null,
+    checkpoint: null,
+    recovery: null,
     outcome: null,
     error: null,
   };
@@ -220,6 +241,32 @@ function applyAgentEvent(state: AgentRunView, event: AgentEventEnvelope): AgentR
       break;
     case "task_progress":
       next.taskProgress = { ...event.data, taskId: event.data.task_id };
+      break;
+    case "checkpoint_saved":
+      next.checkpoint = {
+        reason: event.data.reason,
+        modelCallIndex: event.data.model_call_index,
+        modelCalls: event.data.model_calls,
+        toolCalls: event.data.tool_calls,
+        toolRound: event.data.tool_round,
+        recoveryAttempt: event.data.recovery_attempt,
+      };
+      break;
+    case "recovery_started":
+      next.recovery = {
+        phase: "started",
+        action: event.data.action,
+        recoveryAttempt: event.data.recovery_attempt,
+        outcome: null,
+      };
+      break;
+    case "recovery_completed":
+      next.recovery = {
+        phase: "completed",
+        action: event.data.action,
+        recoveryAttempt: next.recovery?.recoveryAttempt ?? 0,
+        outcome: event.data.outcome,
+      };
       break;
     case "run_completed":
       next.outcome = event.data.outcome;

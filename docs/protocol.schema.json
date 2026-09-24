@@ -279,6 +279,51 @@
         {
           "properties": {
             "data": {
+              "$ref": "#/$defs/checkpoint_saved"
+            },
+            "type": {
+              "const": "checkpoint_saved"
+            }
+          },
+          "required": [
+            "type",
+            "data"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "data": {
+              "$ref": "#/$defs/recovery_started"
+            },
+            "type": {
+              "const": "recovery_started"
+            }
+          },
+          "required": [
+            "type",
+            "data"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "data": {
+              "$ref": "#/$defs/recovery_completed"
+            },
+            "type": {
+              "const": "recovery_completed"
+            }
+          },
+          "required": [
+            "type",
+            "data"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "data": {
               "$ref": "#/$defs/run_completed"
             },
             "type": {
@@ -332,6 +377,51 @@
         "interrupted"
       ],
       "type": "string"
+    },
+    "checkpoint_reason": {
+      "enum": [
+        "model_call",
+        "assistant_result",
+        "assistant_error"
+      ],
+      "type": "string"
+    },
+    "checkpoint_saved": {
+      "additionalProperties": false,
+      "properties": {
+        "model_call_index": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "model_calls": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "reason": {
+          "$ref": "#/$defs/checkpoint_reason"
+        },
+        "recovery_attempt": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "tool_calls": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "tool_round": {
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "reason",
+        "model_call_index",
+        "model_calls",
+        "tool_calls",
+        "tool_round",
+        "recovery_attempt"
+      ],
+      "type": "object"
     },
     "envelope_base": {
       "properties": {
@@ -549,6 +639,46 @@
       "required": [
         "message_id",
         "delta"
+      ],
+      "type": "object"
+    },
+    "recovery_completed": {
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "type": "string"
+        },
+        "outcome": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/run_outcome"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "action",
+        "outcome"
+      ],
+      "type": "object"
+    },
+    "recovery_started": {
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "type": "string"
+        },
+        "recovery_attempt": {
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "action",
+        "recovery_attempt"
       ],
       "type": "object"
     },

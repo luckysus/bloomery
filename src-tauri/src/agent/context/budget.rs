@@ -2,8 +2,9 @@ use serde::{Deserialize, Serialize};
 use std::cmp::Ordering;
 use std::fmt;
 
+use super::tokens::{estimate_tokens, truncate_to_tokens};
+
 pub const DEFAULT_MODEL_LIMIT: usize = 8_192;
-const ASCII_CHARS_PER_TOKEN: usize = 4;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ContextSource {
@@ -105,6 +106,15 @@ pub enum ContextBudgetError {
         input_limit: usize,
         model_limit: usize,
     },
+    ToolSchemaExceedsLimit {
+        tool_tokens: usize,
+        input_limit: usize,
+        model_limit: usize,
+    },
+    MessageBlockExceedsLimit {
+        block_tokens: usize,
+        input_limit: usize,
+    },
 }
 
 impl fmt::Display for ContextBudgetError {
@@ -136,6 +146,21 @@ impl fmt::Display for ContextBudgetError {
             } => write!(
                 formatter,
                 "required context needs {required_tokens} tokens, input limit is {input_limit}, model limit is {model_limit}"
+            ),
+            Self::ToolSchemaExceedsLimit {
+                tool_tokens,
+                input_limit,
+                model_limit,
+            } => write!(
+                formatter,
+                "tool schema needs {tool_tokens} tokens, input limit is {input_limit}, model limit is {model_limit}"
+            ),
+            Self::MessageBlockExceedsLimit {
+                block_tokens,
+                input_limit,
+            } => write!(
+                formatter,
+                "message block needs {block_tokens} tokens, input limit is {input_limit}"
             ),
         }
     }
@@ -288,27 +313,6 @@ pub fn budget_context(
     })
 }
 
-pub fn estimate_tokens(text: &str) -> usize {
-    // Conservative deterministic heuristic: ASCII word runs cost one token per four chars; every other character costs one.
-    let mut tokens = 0usize;
-    let mut ascii_run = 0usize;
-    for character in text.chars() {
-        tokens = tokens.saturating_add(next_token_cost(character, &mut ascii_run));
-    }
-    tokens
-}
-
-fn next_token_cost(character: char, ascii_run: &mut usize) -> usize {
-    if character.is_ascii_alphanumeric() || character == '_' {
-        let cost = usize::from((*ascii_run).is_multiple_of(ASCII_CHARS_PER_TOKEN));
-        *ascii_run = ascii_run.saturating_add(1);
-        cost
-    } else {
-        *ascii_run = 0;
-        1
-    }
-}
-
 fn validate_items(items: &[ContextItem]) -> Result<(), ContextBudgetError> {
     for (index, item) in items.iter().enumerate() {
         if items[..index].iter().any(|previous| previous.id == item.id) {
@@ -367,19 +371,4 @@ fn include_item(
     included_ids.push(item.id.clone());
     *included_tokens = tokens;
     *estimated_included_tokens = estimated_included_tokens.saturating_add(tokens);
-}
-
-fn truncate_to_tokens(text: &str, limit: usize) -> String {
-    let mut tokens = 0usize;
-    let mut ascii_run = 0usize;
-    let mut end = 0usize;
-    for (index, character) in text.char_indices() {
-        let cost = next_token_cost(character, &mut ascii_run);
-        if tokens.saturating_add(cost) > limit {
-            break;
-        }
-        tokens = tokens.saturating_add(cost);
-        end = index + character.len_utf8();
-    }
-    text[..end].to_string()
 }

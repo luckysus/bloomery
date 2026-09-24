@@ -252,6 +252,51 @@ pub fn json_schema() -> String {
         ),
     );
     definitions.insert(
+        "checkpoint_reason".to_string(),
+        string_enum(&["model_call", "assistant_result", "assistant_error"]),
+    );
+    definitions.insert(
+        "checkpoint_saved".to_string(),
+        object(
+            json!({
+                "reason": ref_schema("checkpoint_reason"),
+                "model_call_index": integer_schema(),
+                "model_calls": integer_schema(),
+                "tool_calls": integer_schema(),
+                "tool_round": integer_schema(),
+                "recovery_attempt": integer_schema(),
+            }),
+            &[
+                "reason",
+                "model_call_index",
+                "model_calls",
+                "tool_calls",
+                "tool_round",
+                "recovery_attempt",
+            ],
+        ),
+    );
+    definitions.insert(
+        "recovery_started".to_string(),
+        object(
+            json!({
+                "action": string_schema(),
+                "recovery_attempt": integer_schema(),
+            }),
+            &["action", "recovery_attempt"],
+        ),
+    );
+    definitions.insert(
+        "recovery_completed".to_string(),
+        object(
+            json!({
+                "action": string_schema(),
+                "outcome": optional(ref_schema("run_outcome")),
+            }),
+            &["action", "outcome"],
+        ),
+    );
+    definitions.insert(
         "run_completed".to_string(),
         object(
             json!({
@@ -288,6 +333,9 @@ pub fn json_schema() -> String {
         ("evidence_attached", "evidence_attached"),
         ("usage_updated", "usage_updated"),
         ("task_progress", "task_progress"),
+        ("checkpoint_saved", "checkpoint_saved"),
+        ("recovery_started", "recovery_started"),
+        ("recovery_completed", "recovery_completed"),
         ("run_completed", "run_completed"),
         ("error_raised", "error_raised"),
     ];
@@ -558,6 +606,27 @@ export interface TaskProgress {
   progress: number;
 }
 
+export type CheckpointReason = "model_call" | "assistant_result" | "assistant_error";
+
+export interface CheckpointSaved {
+  reason: CheckpointReason;
+  model_call_index: number;
+  model_calls: number;
+  tool_calls: number;
+  tool_round: number;
+  recovery_attempt: number;
+}
+
+export interface RecoveryStarted {
+  action: string;
+  recovery_attempt: number;
+}
+
+export interface RecoveryCompleted {
+  action: string;
+  outcome: RunOutcome | null;
+}
+
 export interface RunCompleted {
   outcome: RunOutcome;
   assistant_message_id: UUID | null;
@@ -584,6 +653,9 @@ export type AgentEventType =
   | "evidence_attached"
   | "usage_updated"
   | "task_progress"
+  | "checkpoint_saved"
+  | "recovery_started"
+  | "recovery_completed"
   | "run_completed"
   | "error_raised";
 
@@ -603,6 +675,9 @@ export type AgentEventData =
   | { type: "evidence_attached"; data: EvidenceAttached }
   | { type: "usage_updated"; data: UsageUpdated }
   | { type: "task_progress"; data: TaskProgress }
+  | { type: "checkpoint_saved"; data: CheckpointSaved }
+  | { type: "recovery_started"; data: RecoveryStarted }
+  | { type: "recovery_completed"; data: RecoveryCompleted }
   | { type: "run_completed"; data: RunCompleted }
   | { type: "error_raised"; data: ErrorRaised };
 

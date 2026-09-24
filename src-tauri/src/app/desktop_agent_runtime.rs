@@ -31,7 +31,7 @@ pub(crate) async fn run_standard_agent(
     preparation: &crate::agent::desktop::ChatPreparation,
     workspace_id: &str,
 ) -> Result<StreamedLlmAnswer, String> {
-    run_standard_agent_inner(
+    let result = run_standard_agent_inner(
         app,
         agent_state,
         preparation,
@@ -40,7 +40,11 @@ pub(crate) async fn run_standard_agent(
         None,
         None,
     )
-    .await
+    .await;
+    if let Err(error) = &result {
+        mark_agent_run_failed(app, workspace_id, preparation.run_id, error);
+    }
+    result
 }
 
 pub(crate) async fn resume_standard_agent(
@@ -87,7 +91,7 @@ pub(crate) async fn resume_standard_agent_with_tools(
         assistant_result_recorded,
         pending_tools,
     };
-    run_standard_agent_inner(
+    let result = run_standard_agent_inner(
         app,
         agent_state,
         preparation,
@@ -96,7 +100,33 @@ pub(crate) async fn resume_standard_agent_with_tools(
         Some(resume),
         Some(assistant_message_id),
     )
-    .await
+    .await;
+    if let Err(error) = &result {
+        mark_agent_run_failed(app, workspace_id, preparation.run_id, error);
+    }
+    result
+}
+
+fn mark_agent_run_failed(app: &tauri::AppHandle, workspace_id: &str, run_id: Uuid, reason: &str) {
+    let Ok(database) = database_path(app) else {
+        return;
+    };
+    let Ok((mut connection, _)) = crate::storage::database::open(&database) else {
+        return;
+    };
+    let Ok(mut recovery) =
+        crate::agent::runtime::AgentRecoveryService::new(&mut connection, workspace_id)
+    else {
+        return;
+    };
+    let Ok(result) = recovery.fail(run_id, reason.to_string(), chrono::Utc::now()) else {
+        return;
+    };
+    if !result.replay_only {
+        for event in result.events {
+            let _ = app.emit("agent-event", &event);
+        }
+    }
 }
 
 async fn run_standard_agent_inner(
@@ -610,6 +640,20 @@ async fn resume_recovered_agent_inner(
     let answer = match result {
         Ok(answer) => answer,
         Err(error) => {
+            let completed = crate::storage::repositories::events::append(
+                &mut connection,
+                workspace_id,
+                run.id,
+                Uuid::new_v4(),
+                chrono::Utc::now(),
+                AgentEventData::RecoveryCompleted(crate::agent::protocol::RecoveryCompleted {
+                    action: action.kind().to_string(),
+                    outcome: Some(RunOutcome::Failed),
+                }),
+            );
+            if let Ok(event) = completed {
+                let _ = app.emit("agent-event", &event);
+            }
             let mut recovery =
                 crate::agent::runtime::AgentRecoveryService::new(&mut connection, workspace_id)?;
             recovery.fail(
@@ -620,6 +664,23 @@ async fn resume_recovered_agent_inner(
             return Err(error);
         }
     };
+    let completed = crate::storage::repositories::events::append(
+        &mut connection,
+        workspace_id,
+        run.id,
+        Uuid::new_v4(),
+        chrono::Utc::now(),
+        AgentEventData::RecoveryCompleted(crate::agent::protocol::RecoveryCompleted {
+            action: action.kind().to_string(),
+            outcome: Some(if answer.stopped {
+                RunOutcome::Cancelled
+            } else {
+                RunOutcome::Completed
+            }),
+        }),
+    )
+    .map_err(|error| error.to_string())?;
+    let _ = app.emit("agent-event", &completed);
     let content = crate::agent::desktop::assistant_content_for_stream_result(&answer);
     let response = json!({
         "status": if answer.stopped { "cancelled" } else { "completed" },

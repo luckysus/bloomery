@@ -138,6 +138,7 @@ where
         tool_snapshot: &[super::types::ToolRegistration],
         model_call_count: &mut usize,
         max_model_calls: Option<usize>,
+        max_tokens: Option<usize>,
     ) -> Result<RepairedToolBatch, AgentLoopError> {
         let specs = tool_snapshot
             .iter()
@@ -182,7 +183,7 @@ where
                         tools: tool_payload.cloned(),
                         response_format: None,
                         reasoning_effort: None,
-                        max_tokens: None,
+                        max_tokens,
                         stop: None,
                     },
                     message_id,

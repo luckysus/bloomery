@@ -32,7 +32,7 @@ pub use recovery::{
 pub use skills_tool::SkillTool;
 pub use subagents::{
     ChildTurnStore, SnapshotToolExecutor, SqliteChildTurnStore, SubagentTool,
-    MAX_SUBAGENT_TOOL_ROUNDS,
+    MAX_SUBAGENT_MODEL_CALLS, MAX_SUBAGENT_TOOL_CALLS, MAX_SUBAGENT_TOOL_ROUNDS,
 };
 pub use tasks_tool::BackgroundTasksTool;
 pub use todos::TodoTracker;

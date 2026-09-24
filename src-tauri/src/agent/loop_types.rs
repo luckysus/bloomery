@@ -521,6 +521,10 @@ pub enum AgentLoopError {
         limit: usize,
         observed: usize,
     },
+    CheckpointTimeout {
+        limit_ms: u64,
+        elapsed_ms: u64,
+    },
     EventSink(String),
     Internal(String),
 }
@@ -542,6 +546,13 @@ impl fmt::Display for AgentLoopError {
             } => write!(
                 formatter,
                 "agent loop limit exceeded: {kind} observed {observed}, limit {limit}"
+            ),
+            Self::CheckpointTimeout {
+                limit_ms,
+                elapsed_ms,
+            } => write!(
+                formatter,
+                "agent checkpoint exceeded {limit_ms}ms (took {elapsed_ms}ms)"
             ),
             Self::ToolRepair(error) => write!(formatter, "tool repair: {error}"),
         }

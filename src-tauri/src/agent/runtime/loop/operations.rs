@@ -13,7 +13,7 @@ use crate::agent::runtime::state_machine::{RunGuards, RunStateMachine};
 use crate::providers::capabilities::{ChatMessage, ChatRequest, ChatToolCall};
 use crate::providers::http::ProviderErrorCode;
 use futures_util::future::join_all;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use uuid::Uuid;
 
 impl<'a, M: ?Sized, T: ?Sized, P: ?Sized> AgentLoop<'a, M, T, P>
@@ -332,6 +332,25 @@ where
             .map_err(|error| AgentLoopError::Internal(error.to_string()))?;
         sink.transition(changed)
             .map_err(AgentLoopError::EventSink)?;
+        Ok(())
+    }
+
+    pub(super) fn save_checkpoint(
+        &self,
+        sink: &mut dyn AgentEventSink,
+        checkpoint: super::types::AgentContextCheckpoint,
+        timeout_ms: u64,
+    ) -> Result<(), AgentLoopError> {
+        let started = Instant::now();
+        sink.checkpoint(checkpoint)
+            .map_err(AgentLoopError::EventSink)?;
+        let elapsed_ms = started.elapsed().as_millis().min(u64::MAX as u128) as u64;
+        if elapsed_ms > timeout_ms {
+            return Err(AgentLoopError::CheckpointTimeout {
+                limit_ms: timeout_ms,
+                elapsed_ms,
+            });
+        }
         Ok(())
     }
 

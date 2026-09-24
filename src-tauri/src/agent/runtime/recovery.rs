@@ -1,6 +1,7 @@
 use super::AgentContextCheckpoint;
 use crate::agent::protocol::{
-    AgentEventData, AgentEventEnvelope, AgentRunState, PermissionRisk, RunOutcome, RunStateChanged,
+    AgentEventData, AgentEventEnvelope, AgentRunState, PermissionRisk, RecoveryCompleted,
+    RecoveryStarted, RunOutcome, RunStateChanged,
 };
 use crate::storage::repositories::{checkpoints, events, runs, turn_snapshots};
 use chrono::{DateTime, Utc};
@@ -37,6 +38,17 @@ pub enum RecoveryAction {
     AwaitPermissions(Vec<PendingPermission>),
     ResumeTools(Vec<ToolCheckpoint>),
     ResumeFromCheckpoint(AgentContextCheckpoint),
+}
+
+impl RecoveryAction {
+    pub fn kind(&self) -> &'static str {
+        match self {
+            Self::Regenerate => "regenerate",
+            Self::AwaitPermissions(_) => "await_permissions",
+            Self::ResumeTools(_) => "resume_tools",
+            Self::ResumeFromCheckpoint(_) => "resume_from_checkpoint",
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -218,12 +230,28 @@ impl<'a> AgentRecoveryService<'a> {
                         .map(|tool| tool.id),
                 );
             }
+            let recovery_attempt = checkpoint
+                .as_ref()
+                .map(|checkpoint| checkpoint.recovery_attempt)
+                .unwrap_or_default();
             let action = recovery_action(&run, &replay, checkpoint, &effective_idempotent);
+            let started = events::append(
+                self.connection,
+                self.workspace_id,
+                run.id,
+                Uuid::new_v4(),
+                timestamp,
+                AgentEventData::RecoveryStarted(RecoveryStarted {
+                    action: action.kind().to_string(),
+                    recovery_attempt,
+                }),
+            )
+            .map_err(|error| error.to_string())?;
             if !matches!(action, RecoveryAction::Regenerate) {
                 recovered.push(RecoveredRun {
                     run,
                     action,
-                    events: Vec::new(),
+                    events: vec![started],
                 });
                 continue;
             }
@@ -241,10 +269,26 @@ impl<'a> AgentRecoveryService<'a> {
                 timestamp,
             )
             .map_err(|error| error.to_string())?;
+            let completed = events::append(
+                self.connection,
+                self.workspace_id,
+                run.id,
+                Uuid::new_v4(),
+                timestamp,
+                AgentEventData::RecoveryCompleted(RecoveryCompleted {
+                    action: action.kind().to_string(),
+                    outcome: Some(RunOutcome::Interrupted),
+                }),
+            )
+            .map_err(|error| error.to_string())?;
+            let mut all_events = Vec::with_capacity(events.len() + 2);
+            all_events.push(started);
+            all_events.extend(events);
+            all_events.push(completed);
             recovered.push(RecoveredRun {
                 run: self.require_run(run.id)?,
                 action,
-                events,
+                events: all_events,
             });
         }
         Ok(recovered)
