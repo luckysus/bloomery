@@ -53,11 +53,6 @@ export interface LocalAgentAttachment {
   name: string;
 }
 
-export interface LocalAgentDelta {
-  run_id: string;
-  delta: string;
-}
-
 export interface AgentRunRecord {
   id: string;
   workspace_id: string;
@@ -79,7 +74,8 @@ export interface RunCommandResult {
 export type RecoveryAction =
   | { kind: "regenerate" }
   | { kind: "await_permissions"; data: unknown[] }
-  | { kind: "resume_tools"; data: unknown[] };
+  | { kind: "resume_tools"; data: unknown[] }
+  | { kind: "resume_from_checkpoint"; data: unknown };
 
 export interface RecoveredRun {
   run: AgentRunRecord;
@@ -108,11 +104,6 @@ export interface PermissionRuleRecord {
     | { kind: "exact"; value: unknown }
     | { kind: "fields"; value: Record<string, unknown> };
   effect: "allow" | "deny";
-}
-
-export interface RunWithEvent {
-  run: AgentRunRecord;
-  event: AgentEventEnvelope;
 }
 
 export interface LocalAgentChatResponse {
@@ -1106,10 +1097,6 @@ export const desktop = {
     call<void>("revoke_permission_rule", { ruleId }),
   cancelDesktopRun: (runId: string) =>
     call<void>("desktop_cancel_llm_run", { runId }),
-  listenDesktopAgentDeltas: (handler: (delta: LocalAgentDelta) => void) => {
-    if (!isDesktopRuntime()) return Promise.resolve(() => undefined);
-    return listen<LocalAgentDelta>("desktop-agent-delta", (event) => handler(event.payload));
-  },
   listenAgentEvents: (handler: (event: AgentEventEnvelope) => void) => {
     if (!isDesktopRuntime()) return Promise.resolve(() => undefined);
     return listen<AgentEventEnvelope>("agent-event", (event) => handler(event.payload));
@@ -1130,8 +1117,10 @@ export const desktop = {
       runId,
       assistantMessageId,
     }),
-  retryAgentRun: (sourceRunId: string, runId: string, eventId?: string) =>
-    call<RunWithEvent>("retry_agent_run", { sourceRunId, runId, eventId }),
+  steerAgentRun: (runId: string, message: string) =>
+    call<void>("steer_agent_run", { runId, message }),
+  followUpAgentRun: (runId: string, message: string) =>
+    call<void>("follow_up_agent_run", { runId, message }),
   recoverAgentRuns: () => call<RecoveredRun[]>("recover_agent_runs"),
   calculateSteelCarbonEquivalent: (request: {
     formula: CarbonEquivalentFormula;

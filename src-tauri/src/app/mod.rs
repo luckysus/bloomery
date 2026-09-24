@@ -50,7 +50,7 @@ pub fn run() {
         .manage(identity::LocalIdentity)
         .manage(db::DbState::default())
         .manage(mcp_runtime::McpRuntimeState::default())
-        .manage(crate::agent::desktop::LocalAgentState::default())
+        .manage(crate::agent::runtime::RuntimeHost::default())
         .manage(crate::storage::secrets::SecretState::default())
         .manage(crate::knowledge_db::KnowledgeDatabaseState::default())
         .manage(SchedulerState::default())

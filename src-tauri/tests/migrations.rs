@@ -138,6 +138,18 @@ fn seed_database_at_version(connection: &mut Connection, version: u32) {
             27,
             include_str!("../src/storage/migrations/0027_task_claims.sql"),
         ),
+        (
+            28,
+            include_str!("../src/storage/migrations/0028_agent_checkpoints.sql"),
+        ),
+        (
+            29,
+            include_str!("../src/storage/migrations/0029_agent_turn_snapshots.sql"),
+        ),
+        (
+            30,
+            include_str!("../src/storage/migrations/0030_agent_child_turns.sql"),
+        ),
     ];
 
     for (migration_version, sql) in migrations.into_iter().take(version as usize) {
@@ -212,6 +224,9 @@ fn migrates_empty_database_to_latest_schema() {
     assert!(
         index_names(&conn, "agent_run_events").contains(&"idx_agent_run_events_replay".to_string())
     );
+    assert!(columns(&conn, "agent_run_turn_snapshots").contains(&"snapshot_json".to_string()));
+    assert!(columns(&conn, "agent_child_turns").contains(&"parent_turn_id".to_string()));
+    assert!(columns(&conn, "agent_child_turn_events").contains(&"event_json".to_string()));
     assert_eq!(foreign_key_columns(&conn, "agent_runs"), 5);
     assert_eq!(foreign_key_columns(&conn, "agent_run_events"), 3);
     assert_eq!(

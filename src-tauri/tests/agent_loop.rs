@@ -4,10 +4,11 @@ use bloomery::agent::protocol::{
     RunStateChanged,
 };
 use bloomery::agent::runtime::{
-    AgentEventSink, AgentHooks, AgentLoop, AgentLoopRequest, CancellationToken, ContextEntry,
-    DenyPermissions, HookDecision, ModelAdapter, ModelFuture, NoopToolExecutor, PermissionRequest,
-    PermissionResolver, ToolExecutionError, ToolExecutor, ToolFuture, ToolHandler, ToolInvocation,
-    ToolRegistration,
+    AgentContextCheckpoint, AgentEventSink, AgentHooks, AgentInputQueue, AgentLoop,
+    AgentLoopLimits, AgentLoopRequest, AgentLoopResume, CancellationToken, ContextCheckpointReason,
+    ContextEntry, DenyPermissions, HookDecision, ModelAdapter, ModelFuture, NoopToolExecutor,
+    PermissionRequest, PermissionResolver, ToolExecutionError, ToolExecutor, ToolFuture,
+    ToolHandler, ToolInvocation, ToolRegistration,
 };
 use bloomery::providers::capabilities::{
     ChatEvent, ChatRequest, ChatResponse, ChatToolCall, ChatUsage, ProviderCapabilities,
@@ -388,6 +389,9 @@ fn request(evidence: Option<bloomery::agent::runtime::EvidenceAttachment>) -> Ag
         output_reservation: 4,
         evidence,
         attachments: Vec::new(),
+        limits: AgentLoopLimits::default(),
+        input_queue: AgentInputQueue::default(),
+        resume: None,
     }
 }
 
@@ -396,6 +400,7 @@ struct RecordingSink {
     conversation_id: Uuid,
     next_sequence: u64,
     events: Vec<AgentEventEnvelope>,
+    checkpoints: Vec<AgentContextCheckpoint>,
 }
 
 impl RecordingSink {
@@ -405,6 +410,7 @@ impl RecordingSink {
             conversation_id: Uuid::new_v4(),
             next_sequence: 1,
             events: Vec::new(),
+            checkpoints: Vec::new(),
         }
     }
 
@@ -448,6 +454,11 @@ impl AgentEventSink for RecordingSink {
         ));
         Ok(vec![state, completed])
     }
+
+    fn checkpoint(&mut self, checkpoint: AgentContextCheckpoint) -> Result<(), String> {
+        self.checkpoints.push(checkpoint);
+        Ok(())
+    }
 }
 
 #[test]
@@ -471,6 +482,9 @@ fn direct_answer_streams_usage_and_completes_once() {
         output_reservation: 128,
         evidence: None,
         attachments: Vec::new(),
+        limits: AgentLoopLimits::default(),
+        input_queue: AgentInputQueue::default(),
+        resume: None,
     };
 
     let result = tauri::async_runtime::block_on(
@@ -938,6 +952,9 @@ fn selected_recent_turns_are_restored_to_chronological_provider_order() {
         output_reservation: 4,
         evidence: None,
         attachments: Vec::new(),
+        limits: AgentLoopLimits::default(),
+        input_queue: AgentInputQueue::default(),
+        resume: None,
     };
 
     tauri::async_runtime::block_on(
@@ -1068,4 +1085,211 @@ fn citation_to_missing_evidence_fails_before_completion() {
             ..
         })
     )));
+}
+
+#[test]
+fn model_call_budget_stops_before_the_next_turn() {
+    let calls = Arc::new(Mutex::new(Vec::new()));
+    let tools = TestTools {
+        registrations: vec![tool(
+            "search.v1",
+            "search",
+            bloomery::agent::protocol::PermissionRisk::Automatic,
+            true,
+            Arc::new(StaticHandler {
+                output: json!({"ok": true}),
+                calls: Arc::clone(&calls),
+            }),
+        )],
+    };
+    let model = ScriptedModel::script(vec![
+        response("", vec![call("call-1", "search", r#"{"query":"x"}"#)]),
+        response("never reached", vec![]),
+    ]);
+    let mut request = request(None);
+    request.limits.max_model_calls = Some(1);
+    let mut sink = RecordingSink::new();
+
+    let error =
+        tauri::async_runtime::block_on(AgentLoop::new(&model, &tools, &AllowPermissions).run(
+            request,
+            &mut sink,
+            CancellationToken::new(|| false),
+        ))
+        .expect_err("model budget must stop the second turn");
+
+    assert!(error.to_string().contains("model_calls"));
+    assert_eq!(calls.lock().unwrap().len(), 1);
+    assert_eq!(model.requests.lock().unwrap().len(), 1);
+}
+
+#[test]
+fn tool_call_budget_stops_before_tool_execution() {
+    let calls = Arc::new(Mutex::new(Vec::new()));
+    let tools = TestTools {
+        registrations: vec![tool(
+            "search.v1",
+            "search",
+            bloomery::agent::protocol::PermissionRisk::Automatic,
+            true,
+            Arc::new(StaticHandler {
+                output: json!({"ok": true}),
+                calls: Arc::clone(&calls),
+            }),
+        )],
+    };
+    let model = ScriptedModel::script(vec![response(
+        "",
+        vec![
+            call("call-1", "search", r#"{"query":"a"}"#),
+            call("call-2", "search", r#"{"query":"b"}"#),
+        ],
+    )]);
+    let mut request = request(None);
+    request.limits.max_tool_calls = Some(1);
+    let mut sink = RecordingSink::new();
+
+    let error =
+        tauri::async_runtime::block_on(AgentLoop::new(&model, &tools, &AllowPermissions).run(
+            request,
+            &mut sink,
+            CancellationToken::new(|| false),
+        ))
+        .expect_err("tool budget must reject the batch");
+
+    assert!(error.to_string().contains("tool_calls"));
+    assert!(calls.lock().unwrap().is_empty());
+}
+
+#[test]
+fn steering_input_is_consumed_before_follow_up_input() {
+    let model = ScriptedModel::script(vec![
+        response("initial", vec![]),
+        response("steering", vec![]),
+        response("follow-up", vec![]),
+    ]);
+    let queue = AgentInputQueue::default();
+    queue
+        .enqueue_follow_up(ContextEntry::new(ContextItem::new(
+            "follow-up",
+            ContextSource::CurrentRequest,
+            "follow-up input",
+        )))
+        .unwrap();
+    queue
+        .enqueue_steering(ContextEntry::new(ContextItem::new(
+            "steering",
+            ContextSource::CurrentRequest,
+            "steering input",
+        )))
+        .unwrap();
+    let mut request = request(None);
+    request.input_queue = queue;
+    let mut sink = RecordingSink::new();
+
+    let result = tauri::async_runtime::block_on(
+        AgentLoop::new(&model, &NoopToolExecutor, &DenyPermissions).run(
+            request,
+            &mut sink,
+            CancellationToken::new(|| false),
+        ),
+    )
+    .expect("queued input run succeeds");
+
+    assert_eq!(result.answer, "initialsteeringfollow-up");
+    let requests = model.requests.lock().unwrap();
+    assert_eq!(requests.len(), 3);
+    assert!(requests[1]
+        .messages
+        .iter()
+        .any(|message| message.content == "steering input"));
+    assert!(requests[2]
+        .messages
+        .iter()
+        .any(|message| message.content == "follow-up input"));
+}
+
+#[test]
+fn assistant_result_checkpoint_is_only_saved_at_a_natural_stop() {
+    let tools = TestTools {
+        registrations: vec![tool(
+            "search.v1",
+            "search",
+            bloomery::agent::protocol::PermissionRisk::Automatic,
+            true,
+            Arc::new(StaticHandler {
+                output: json!({"ok": true}),
+                calls: Arc::new(Mutex::new(Vec::new())),
+            }),
+        )],
+    };
+    let model = ScriptedModel::script(vec![
+        response("", vec![call("call-1", "search", r#"{"query":"x"}"#)]),
+        response("done", vec![]),
+    ]);
+    let mut sink = RecordingSink::new();
+
+    tauri::async_runtime::block_on(AgentLoop::new(&model, &tools, &AllowPermissions).run(
+        request(None),
+        &mut sink,
+        CancellationToken::new(|| false),
+    ))
+    .expect("tool run succeeds");
+
+    let reasons = sink
+        .checkpoints
+        .iter()
+        .map(|checkpoint| checkpoint.reason)
+        .collect::<Vec<_>>();
+    assert_eq!(
+        reasons,
+        vec![
+            ContextCheckpointReason::ModelCall,
+            ContextCheckpointReason::ModelCall,
+            ContextCheckpointReason::AssistantResult,
+        ]
+    );
+    assert!(sink.checkpoints[0]
+        .messages
+        .iter()
+        .all(|message| message.images.is_empty()));
+}
+
+#[test]
+fn loop_resumes_from_a_model_call_checkpoint_without_rebuilding_history() {
+    let model = ScriptedModel::answer("resumed answer");
+    let mut request = request(None);
+    let checkpoint_messages = vec![
+        bloomery::providers::capabilities::ChatMessage::new("system", "checkpoint system"),
+        bloomery::providers::capabilities::ChatMessage::new("user", "checkpoint request"),
+    ];
+    request.resume = Some(AgentLoopResume {
+        checkpoint: AgentContextCheckpoint {
+            reason: ContextCheckpointReason::ModelCall,
+            model_call_index: 2,
+            model_calls: 3,
+            tool_calls: 1,
+            tool_round: 1,
+            recovery_attempt: 0,
+            messages: checkpoint_messages.clone(),
+        },
+        state: AgentRunState::Generating,
+        assistant_result_recorded: false,
+    });
+    let mut sink = RecordingSink::new();
+
+    let result = tauri::async_runtime::block_on(
+        AgentLoop::new(&model, &NoopToolExecutor, &DenyPermissions).run(
+            request,
+            &mut sink,
+            CancellationToken::new(|| false),
+        ),
+    )
+    .expect("checkpoint resume succeeds");
+
+    assert_eq!(result.answer, "resumed answer");
+    let requests = model.requests.lock().unwrap();
+    assert_eq!(requests.len(), 1);
+    assert_eq!(requests[0].messages, checkpoint_messages);
+    assert_eq!(sink.checkpoints[0].model_calls, 4);
 }

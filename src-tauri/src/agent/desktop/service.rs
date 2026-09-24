@@ -7,7 +7,8 @@ use crate::agent::context::{
 };
 use crate::agent::context::{ContextItem, ContextSource};
 use crate::agent::runtime::{
-    AgentLoopAttachment, AgentLoopRequest, ContextEntry, EvidenceAttachment,
+    AgentInputQueue, AgentLoopAttachment, AgentLoopLimits, AgentLoopRequest, ContextEntry,
+    EvidenceAttachment,
 };
 use crate::context::build_context_packet_for_connection;
 use crate::rag::citation::{load_evidence_pack, EvidencePack};
@@ -79,6 +80,9 @@ pub fn build_agent_loop_request_with_attachments(
                 name: attachment.name.clone(),
             })
             .collect(),
+        limits: AgentLoopLimits::default(),
+        input_queue: AgentInputQueue::default(),
+        resume: None,
     }
 }
 

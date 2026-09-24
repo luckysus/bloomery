@@ -1,6 +1,7 @@
-use crate::agent::desktop::LocalAgentState;
 use crate::agent::protocol::PermissionDecision;
-use crate::agent::runtime::{AgentRecoveryService, RecoveredRun, RunCommandResult};
+use crate::agent::runtime::{
+    AgentInputKind, AgentRecoveryService, RecoveredRun, RunCommandResult, RuntimeHost,
+};
 use crate::db::{current_workspace_id, with_conn_mut, DbState};
 use crate::permissions::{ParameterScope, PermissionAction, PermissionRule, RuleEffect};
 use crate::tools::{ToolId, ToolSource, ToolVersion};
@@ -46,37 +47,64 @@ pub fn cancel_agent_run(
 }
 
 #[tauri::command]
-pub fn retry_agent_run(
-    db: tauri::State<DbState>,
-    source_run_id: String,
+pub fn steer_agent_run(
+    state: tauri::State<RuntimeHost>,
     run_id: String,
-    event_id: Option<String>,
-) -> Result<crate::storage::repositories::runs::RunWithEvent, String> {
-    let source_run_id = parse_uuid(&source_run_id, "source_run_id")?;
+    message: String,
+) -> Result<(), String> {
     let run_id = parse_uuid(&run_id, "run_id")?;
-    let event_id = event_id
-        .filter(|value| !value.trim().is_empty())
-        .map(|value| parse_uuid(&value, "event_id"))
-        .transpose()?
-        .unwrap_or_else(Uuid::new_v4);
-    with_conn_mut(&db, |connection| {
-        let mut service = AgentRecoveryService::new(connection, current_workspace_id())?;
-        service.retry(source_run_id, run_id, event_id, Utc::now())
-    })
+    state.enqueue_input(run_id, AgentInputKind::Steering, message)
 }
 
 #[tauri::command]
-pub fn recover_agent_runs(db: tauri::State<DbState>) -> Result<Vec<RecoveredRun>, String> {
-    with_conn_mut(&db, |connection| {
+pub fn follow_up_agent_run(
+    state: tauri::State<RuntimeHost>,
+    run_id: String,
+    message: String,
+) -> Result<(), String> {
+    let run_id = parse_uuid(&run_id, "run_id")?;
+    state.enqueue_input(run_id, AgentInputKind::FollowUp, message)
+}
+
+#[tauri::command]
+pub fn recover_agent_runs(
+    app: tauri::AppHandle,
+    db: tauri::State<DbState>,
+    state: tauri::State<RuntimeHost>,
+) -> Result<Vec<RecoveredRun>, String> {
+    let recovered = with_conn_mut(&db, |connection| {
         let mut service = AgentRecoveryService::new(connection, current_workspace_id())?;
         service.recover_active(&HashSet::new(), Utc::now())
-    })
+    })?;
+    for candidate in recovered.iter().filter(|candidate| {
+        matches!(
+            &candidate.action,
+            crate::agent::runtime::RecoveryAction::ResumeFromCheckpoint(_)
+        ) && state.snapshot(candidate.run.id).is_err()
+    }) {
+        let app_for_run = app.clone();
+        let runtime = state.inner().clone();
+        let candidate = candidate.clone();
+        tauri::async_runtime::spawn(async move {
+            if let Err(error) = crate::app::desktop_agent_runtime::resume_recovered_agent(
+                &app_for_run,
+                &runtime,
+                current_workspace_id(),
+                candidate,
+            )
+            .await
+            {
+                eprintln!("resume agent run from the desktop control failed: {error}");
+            }
+        });
+    }
+    Ok(recovered)
 }
 
 #[tauri::command]
 pub fn resolve_agent_permission(
     db: tauri::State<DbState>,
-    state: tauri::State<LocalAgentState>,
+    state: tauri::State<RuntimeHost>,
     permission_id: String,
     decision: PermissionDecision,
 ) -> Result<(), String> {

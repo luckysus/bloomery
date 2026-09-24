@@ -1,7 +1,8 @@
+use super::AgentContextCheckpoint;
 use crate::agent::protocol::{
     AgentEventData, AgentEventEnvelope, AgentRunState, PermissionRisk, RunOutcome, RunStateChanged,
 };
-use crate::storage::repositories::{events, runs};
+use crate::storage::repositories::{checkpoints, events, runs, turn_snapshots};
 use chrono::{DateTime, Utc};
 use rusqlite::Connection;
 use serde::Serialize;
@@ -32,6 +33,7 @@ pub enum RecoveryAction {
     Regenerate,
     AwaitPermissions(Vec<PendingPermission>),
     ResumeTools(Vec<ToolCheckpoint>),
+    ResumeFromCheckpoint(AgentContextCheckpoint),
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -129,6 +131,41 @@ impl<'a> AgentRecoveryService<'a> {
         })
     }
 
+    pub fn fail(
+        &mut self,
+        run_id: Uuid,
+        reason: impl Into<String>,
+        timestamp: DateTime<Utc>,
+    ) -> Result<RunCommandResult, String> {
+        let run = self.require_run(run_id)?;
+        if is_terminal(run.state) {
+            return Ok(RunCommandResult {
+                run,
+                events: self.replay(run_id, 0)?,
+                replay_only: true,
+            });
+        }
+        let events = runs::finish(
+            self.connection,
+            self.workspace_id,
+            run_id,
+            RunStateChanged {
+                previous: run.state,
+                current: AgentRunState::Failed,
+                reason: Some(reason.into()),
+            },
+            RunOutcome::Failed,
+            None,
+            timestamp,
+        )
+        .map_err(|error| error.to_string())?;
+        Ok(RunCommandResult {
+            run: self.require_run(run_id)?,
+            events,
+            replay_only: false,
+        })
+    }
+
     pub fn retry(
         &mut self,
         source_run_id: Uuid,
@@ -163,7 +200,22 @@ impl<'a> AgentRecoveryService<'a> {
         let mut recovered = Vec::with_capacity(active_runs.len());
         for run in active_runs {
             let replay = self.replay(run.id, 0)?;
-            let action = recovery_action(&run, &replay, idempotent_tool_ids);
+            let checkpoint = checkpoints::get(self.connection, self.workspace_id, run.id)
+                .map_err(|error| error.to_string())?;
+            let snapshot = turn_snapshots::get(self.connection, self.workspace_id, run.id)
+                .map_err(|error| error.to_string())?;
+            let mut effective_idempotent = idempotent_tool_ids.clone();
+            if let Some(snapshot) = snapshot {
+                effective_idempotent.extend(
+                    snapshot
+                        .turn
+                        .tool_snapshot
+                        .into_iter()
+                        .filter(|tool| tool.idempotent)
+                        .map(|tool| tool.id),
+                );
+            }
+            let action = recovery_action(&run, &replay, checkpoint, &effective_idempotent);
             if !matches!(action, RecoveryAction::Regenerate) {
                 recovered.push(RecoveredRun {
                     run,
@@ -205,6 +257,7 @@ impl<'a> AgentRecoveryService<'a> {
 fn recovery_action(
     run: &runs::AgentRunRecord,
     replay: &[AgentEventEnvelope],
+    checkpoint: Option<AgentContextCheckpoint>,
     idempotent_tool_ids: &HashSet<String>,
 ) -> RecoveryAction {
     match run.state {
@@ -226,6 +279,21 @@ fn recovery_action(
                 RecoveryAction::ResumeTools(tools)
             } else {
                 RecoveryAction::Regenerate
+            }
+        }
+        AgentRunState::Generating | AgentRunState::Preparing | AgentRunState::Verifying => {
+            match checkpoint {
+                Some(checkpoint)
+                    if checkpoint.recovery_attempt < 2
+                        && matches!(
+                            checkpoint.reason,
+                            super::ContextCheckpointReason::ModelCall
+                                | super::ContextCheckpointReason::AssistantResult
+                        ) =>
+                {
+                    RecoveryAction::ResumeFromCheckpoint(checkpoint)
+                }
+                _ => RecoveryAction::Regenerate,
             }
         }
         _ => RecoveryAction::Regenerate,

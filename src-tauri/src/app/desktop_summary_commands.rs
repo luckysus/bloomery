@@ -1,7 +1,8 @@
 use crate::agent::desktop::{
-    assistant_content_for_stream_result, prepare_summary, save_summary, LocalAgentState,
+    assistant_content_for_stream_result, prepare_summary, save_summary,
     SummarizeConversationRequest, SummarizeConversationResponse,
 };
+use crate::agent::runtime::RuntimeHost;
 use crate::app::desktop_stream::stream_llm_answer;
 use crate::db::{current_workspace_id, with_conn_mut, DbState};
 use crate::storage::secrets::SecretState;
@@ -11,7 +12,7 @@ pub async fn desktop_summarize_conversation(
     app: tauri::AppHandle,
     db: tauri::State<'_, DbState>,
     secrets: tauri::State<'_, SecretState>,
-    agent_state: tauri::State<'_, LocalAgentState>,
+    agent_state: tauri::State<'_, RuntimeHost>,
     request: SummarizeConversationRequest,
 ) -> Result<SummarizeConversationResponse, String> {
     let workspace_id = current_workspace_id();

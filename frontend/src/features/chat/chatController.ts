@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useLocale } from "../../i18n/locale";
 import {
   desktop,
@@ -8,6 +8,7 @@ import {
   type LocalAgentAttachment,
   type Message,
   type ProviderProfileResponse,
+  type RecoveredRun,
 } from "../../bridge/desktop";
 import type { PermissionDecision } from "../../bridge/generated/protocol";
 import { createAgentRunView, reduceAgentEvent, reduceAgentEvents, type AgentRunView } from "./agentEvents";
@@ -65,6 +66,7 @@ export interface ChatControllerProps {
   draft: string;
   pendingQuestion: string | null;
   agentRun: AgentRunView | null;
+  recovery: RecoveredRun | null;
   chatProfiles: ProviderProfileResponse[];
   activeChatProfileId: string | null;
   smartSearchEnabled: boolean;
@@ -77,6 +79,10 @@ export interface ChatControllerProps {
   onAttachmentsChange: (value: LocalAgentAttachment[]) => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
   onCancel: () => void;
+  onSteer: (message: string) => void;
+  onFollowUp: (message: string) => void;
+  onRetry: () => void;
+  onResume: () => void;
   onResolvePermission: (permissionId: string, decision: PermissionDecision) => void;
   onExportConversation: (format: ConversationExportFormat) => void;
   onRenameConversation: (conversationId: string, title: string) => void;
@@ -101,11 +107,15 @@ export function useChatController(): ChatControllerProps {
   const [draft, setDraft] = useState("");
   const [pendingQuestion, setPendingQuestion] = useState<string | null>(null);
   const [agentRun, setAgentRun] = useState<AgentRunView | null>(null);
+  const [recoveredRuns, setRecoveredRuns] = useState<RecoveredRun[]>([]);
   const [activeRunId, setActiveRunId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const agentViews = useRef(new Map<string, AgentRunView>());
+  const replayingRuns = useRef(new Set<string>());
+  const recoveredRunsRef = useRef<RecoveredRun[]>([]);
 
   const selectedConversation = useMemo(
     () => conversations.find((conversation) => conversation.id === selectedId) ?? null,
@@ -137,10 +147,20 @@ export function useChatController(): ChatControllerProps {
       setMessages(nextMessages);
       setDraft(nextDraft);
       setAgentRun(null);
-      const runId = [...nextMessages].reverse().map(messageRunId).find((value): value is string => value !== null);
+      const recovered = recoveredRunsRef.current.find((candidate) => candidate.run.conversation_id === conversationId);
+      const runId = [...nextMessages].reverse().map(messageRunId).find((value): value is string => value !== null)
+        ?? recovered?.run.id;
       if (runId) {
         const events = await desktop.replayAgentRun(runId);
-        if (events.length > 0) setAgentRun(reduceAgentEvents(createAgentRunView(runId, conversationId), events));
+        if (events.length > 0) {
+          const view = reduceAgentEvents(createAgentRunView(runId, conversationId), events);
+          agentViews.current.set(`${conversationId}:${runId}`, view);
+          setAgentRun(view);
+        } else if (recovered) {
+          const view = { ...createAgentRunView(runId, conversationId), state: recovered.run.state };
+          agentViews.current.set(`${conversationId}:${runId}`, view);
+          setAgentRun(view);
+        }
       }
     } catch (cause) {
       setError(errorMessage(cause, t("chatError")));
@@ -151,8 +171,12 @@ export function useChatController(): ChatControllerProps {
 
   useEffect(() => {
     let mounted = true;
-    void Promise.all([desktop.listKnowledgeBases(), desktop.listProviderProfiles()])
-      .then(async ([bases, profiles]) => {
+    void Promise.all([
+      desktop.listKnowledgeBases(),
+      desktop.listProviderProfiles(),
+      desktop.recoverAgentRuns().catch(() => [] as RecoveredRun[]),
+    ])
+      .then(async ([bases, profiles, recoveries]) => {
         if (!mounted) return;
         setKnowledgeBaseIds(bases.map((base) => base.id));
         const available = profiles.filter((profile) => profile.enabled && profile.model_id && ["deepseek", "open_ai_compatible", "ollama"].includes(profile.kind));
@@ -160,6 +184,8 @@ export function useChatController(): ChatControllerProps {
         setActiveChatProfileId((current) => current && available.some((profile) => profile.id === current)
           ? current
           : available[0]?.id ?? null);
+        recoveredRunsRef.current = recoveries;
+        setRecoveredRuns(recoveries);
         await loadConversations();
       })
       .catch((cause) => {
@@ -175,12 +201,30 @@ export function useChatController(): ChatControllerProps {
     let dispose: (() => void) | undefined;
     const handleEvent = (event: Parameters<Parameters<typeof desktop.listenAgentEvents>[0]>[0]) => {
       if (!mounted || (selectedId && event.conversation_id !== selectedId)) return;
-      setAgentRun((current) => {
-        const view = current?.runId === event.run_id && current.conversationId === event.conversation_id
-          ? current
-          : createAgentRunView(event.run_id, event.conversation_id);
-        return reduceAgentEvent(view, event);
-      });
+      const key = `${event.conversation_id}:${event.run_id}`;
+      const current = agentViews.current.get(key) ?? createAgentRunView(event.run_id, event.conversation_id);
+      const previousSequence = current.sequence;
+      const next = reduceAgentEvent(current, event);
+      agentViews.current.set(key, next);
+      setAgentRun((visible) => visible?.runId === event.run_id && visible.conversationId === event.conversation_id
+        ? next
+        : visible ?? next);
+      if (event.sequence > previousSequence + 1 && !replayingRuns.current.has(key)) {
+        replayingRuns.current.add(key);
+        void desktop.replayAgentRun(event.run_id, previousSequence)
+          .then((events) => {
+            if (!mounted) return;
+            const replayed = reduceAgentEvents(agentViews.current.get(key) ?? current, events);
+            agentViews.current.set(key, replayed);
+            setAgentRun((visible) => visible?.runId === event.run_id && visible.conversationId === event.conversation_id
+              ? replayed
+              : visible ?? replayed);
+          })
+          .catch((cause) => {
+            if (mounted) setError(errorMessage(cause, t("chatError")));
+          })
+          .finally(() => replayingRuns.current.delete(key));
+      }
     };
     void desktop.listenAgentEvents(handleEvent)
       .then((unlisten) => {
@@ -323,6 +367,78 @@ export function useChatController(): ChatControllerProps {
     }
   };
 
+  const steerRun = async (message: string) => {
+    const value = message.trim();
+    if (!activeRunId || !value) return;
+    try {
+      await desktop.steerAgentRun(activeRunId, value);
+      setDraft("");
+    } catch (cause) {
+      setError(errorMessage(cause, t("chatError")));
+    }
+  };
+
+  const followUpRun = async (message: string) => {
+    const value = message.trim();
+    if (!activeRunId || !value) return;
+    try {
+      await desktop.followUpAgentRun(activeRunId, value);
+      setDraft("");
+    } catch (cause) {
+      setError(errorMessage(cause, t("chatError")));
+    }
+  };
+
+  const retryRun = async () => {
+    const sourceRunId = agentRun?.runId;
+    const source = recoveredRunsRef.current.find((candidate) => candidate.run.id === sourceRunId);
+    const sourceMessage = source
+      ? messages.find((message) => message.id === source.run.user_message_id)
+      : [...messages].reverse().find((message) => message.role === "user");
+    if (!selectedId || !sourceRunId || !sourceMessage || pendingQuestion !== null) return;
+    const runId = crypto.randomUUID();
+    setError(null);
+    setPendingQuestion(sourceMessage.content);
+    setAgentRun(createAgentRunView(runId, selectedId));
+    setActiveRunId(runId);
+    try {
+      const response = await desktop.desktopAgentChat({
+        sessionId: selectedId,
+        message: sourceMessage.content,
+        runId,
+        smartSearchEnabled,
+      });
+      setAgentRun((current) => current?.runId === runId && !current.assistantText && response.answer
+        ? { ...current, assistantText: response.answer }
+        : current);
+      await refreshConversation(selectedId);
+    } catch (cause) {
+      setError(errorMessage(cause, t("chatError")));
+      await refreshConversation(selectedId).catch(() => undefined);
+    } finally {
+      setPendingQuestion(null);
+      setActiveRunId(null);
+    }
+  };
+
+  const resumeRun = async () => {
+    if (!agentRun) return;
+    try {
+      const recoveries = await desktop.recoverAgentRuns();
+      recoveredRunsRef.current = recoveries;
+      setRecoveredRuns(recoveries);
+      const events = await desktop.replayAgentRun(agentRun.runId, agentRun.sequence);
+      if (events.length > 0) {
+        const key = `${agentRun.conversationId}:${agentRun.runId}`;
+        const view = reduceAgentEvents(agentViews.current.get(key) ?? agentRun, events);
+        agentViews.current.set(key, view);
+        setAgentRun(view);
+      }
+    } catch (cause) {
+      setError(errorMessage(cause, t("chatError")));
+    }
+  };
+
   const resolvePermission = async (permissionId: string, decision: PermissionDecision) => {
     try {
       await desktop.resolveAgentPermission(permissionId, decision);
@@ -388,6 +504,7 @@ export function useChatController(): ChatControllerProps {
     draft,
     pendingQuestion,
     agentRun,
+    recovery: recoveredRuns.find((candidate) => candidate.run.id === agentRun?.runId) ?? null,
     chatProfiles,
     activeChatProfileId,
     smartSearchEnabled,
@@ -400,6 +517,10 @@ export function useChatController(): ChatControllerProps {
     onAttachmentsChange: setAttachments,
     onSubmit: submitMessage,
     onCancel: () => void cancelRun(),
+    onSteer: (message) => void steerRun(message),
+    onFollowUp: (message) => void followUpRun(message),
+    onRetry: () => void retryRun(),
+    onResume: () => void resumeRun(),
     onResolvePermission: (permissionId, decision) => void resolvePermission(permissionId, decision),
     onExportConversation: (format) => void exportSelectedConversation(format),
     onRenameConversation: (conversationId, title) => void renameConversation(conversationId, title),

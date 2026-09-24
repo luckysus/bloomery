@@ -2,7 +2,7 @@ use super::types::{
     AgentEventSink, AgentLoopAttachment, AgentLoopError, ContextEntry, EvidenceAttachment,
     PreparedToolCall, ToolExecutionError, ToolRegistration,
 };
-use crate::agent::context::{ContextReport, ContextSource};
+use crate::agent::context::{estimate_tokens, ContextReport, ContextSource, DEFAULT_MODEL_LIMIT};
 use crate::agent::protocol::{
     AgentError, AgentErrorCategory, AgentEventData, AgentMessageRole, MessageDelta, ToolCompleted,
     ToolOutcome, UsageUpdated,
@@ -48,7 +48,8 @@ pub(super) fn prepare_tool_calls(
             tool_name: repaired.tool_name,
             arguments: repaired.arguments,
             risk: repaired.risk,
-            read_only: registration.read_only,
+            concurrency: registration.concurrency,
+            timeout: registration.timeout,
         });
     }
     Ok(prepared)
@@ -330,7 +331,143 @@ pub(super) fn render_context_messages(
     messages
 }
 
-fn role_text(role: AgentMessageRole) -> &'static str {
+/// Build the provider-facing context for every model call.
+///
+/// The durable loop history stays intact. Only the request view is compacted,
+/// matching Vetta's host-owned `transformContext` contract.
+pub(super) fn budget_chat_messages(
+    messages: Vec<ChatMessage>,
+    model_limit: Option<usize>,
+    output_reservation: usize,
+    tools: Option<&Value>,
+) -> Vec<ChatMessage> {
+    let model_limit = model_limit.unwrap_or(DEFAULT_MODEL_LIMIT);
+    let input_limit = model_limit.saturating_sub(output_reservation);
+    let tool_tokens = tools
+        .map(|value| estimate_tokens(&value.to_string()))
+        .unwrap_or_default();
+    let message_limit = input_limit.saturating_sub(tool_tokens);
+    if messages
+        .iter()
+        .map(estimate_chat_message_tokens)
+        .sum::<usize>()
+        <= message_limit
+    {
+        return messages;
+    }
+
+    let mut selected = Vec::new();
+    let mut remaining = message_limit;
+    for (index, message) in messages
+        .iter()
+        .enumerate()
+        .filter(|(_, message)| message.role == "system")
+    {
+        let cost = estimate_chat_message_tokens(message);
+        if cost <= remaining {
+            selected.push((index, message.clone()));
+            remaining = remaining.saturating_sub(cost);
+        }
+    }
+
+    let mut index = messages.len();
+    while index > 0 {
+        let end = index;
+        let start = if messages[end - 1].role == "tool" {
+            messages[..end]
+                .iter()
+                .rposition(|message| message.role == "assistant" && !message.tool_calls.is_empty())
+                .unwrap_or(end - 1)
+        } else {
+            end - 1
+        };
+        let block = &messages[start..end];
+        let cost = block
+            .iter()
+            .map(estimate_chat_message_tokens)
+            .sum::<usize>();
+        if cost <= remaining {
+            for (offset, message) in block.iter().enumerate() {
+                if !selected
+                    .iter()
+                    .any(|(selected_index, _)| *selected_index == start + offset)
+                {
+                    selected.push((start + offset, message.clone()));
+                }
+            }
+            remaining = remaining.saturating_sub(cost);
+        } else if selected.is_empty() {
+            let mut message = messages[end - 1].clone();
+            message.content = truncate_to_tokens(&message.content, remaining);
+            selected.push((end - 1, message));
+            break;
+        }
+        index = start;
+    }
+
+    selected.sort_by_key(|(index, _)| *index);
+    selected.into_iter().map(|(_, message)| message).collect()
+}
+
+pub(super) fn checkpoint_messages(messages: &[ChatMessage]) -> Vec<ChatMessage> {
+    messages
+        .iter()
+        .cloned()
+        .map(|mut message| {
+            // Image payloads are request-scoped and may contain sensitive or
+            // very large base64 data; the durable checkpoint keeps text/tool state.
+            message.images.clear();
+            message
+        })
+        .collect()
+}
+
+fn estimate_chat_message_tokens(message: &ChatMessage) -> usize {
+    let mut text = message.role.clone();
+    text.push_str(&message.content);
+    if let Some(reasoning) = &message.reasoning_content {
+        text.push_str(reasoning);
+    }
+    for call in &message.tool_calls {
+        text.push_str(&call.id);
+        text.push_str(&call.name);
+        text.push_str(&call.arguments);
+    }
+    text.push_str(&message.tool_call_id.clone().unwrap_or_default());
+    estimate_tokens(&text)
+}
+
+fn truncate_to_tokens(value: &str, limit: usize) -> String {
+    let mut tokens = 0usize;
+    let mut ascii_run = 0usize;
+    let mut end = 0usize;
+    for (index, character) in value.char_indices() {
+        let cost = if character.is_ascii_alphanumeric() || character == '_' {
+            let cost = usize::from(ascii_run.is_multiple_of(4));
+            ascii_run = ascii_run.saturating_add(1);
+            cost
+        } else {
+            ascii_run = 0;
+            1
+        };
+        if tokens.saturating_add(cost) > limit {
+            break;
+        }
+        tokens = tokens.saturating_add(cost);
+        end = index + character.len_utf8();
+    }
+    value[..end].to_string()
+}
+
+pub(super) fn append_input_messages(messages: &mut Vec<ChatMessage>, entries: Vec<ContextEntry>) {
+    messages.extend(
+        entries
+            .into_iter()
+            .map(|entry| ChatMessage::new(role_text(entry.role), entry.item.content)),
+    );
+}
+
+pub(super) fn role_text(role: AgentMessageRole) -> &'static str {
     match role {
         AgentMessageRole::User => "user",
         AgentMessageRole::Assistant => "assistant",
@@ -410,6 +547,11 @@ pub(super) fn to_agent_error(error: &AgentLoopError) -> AgentError {
         AgentLoopError::Capability(_) => (
             AgentErrorCategory::ModelCapability,
             "provider_capability_missing".to_string(),
+            false,
+        ),
+        AgentLoopError::Limit { .. } => (
+            AgentErrorCategory::Internal,
+            "agent_loop_limit_exceeded".to_string(),
             false,
         ),
         AgentLoopError::Tool(_) => (

@@ -5,6 +5,7 @@ import {
   Check,
   ChevronDown,
   Copy,
+  CornerDownLeft,
   Download,
   FileJson,
   Globe,
@@ -14,6 +15,8 @@ import {
   Pencil,
   Pin,
   PinOff,
+  Play,
+  RotateCcw,
   Search,
   ShieldAlert,
   Sparkles,
@@ -133,16 +136,24 @@ function NativePermissionPanel({
 
 function NativeRunStatus({
   run,
+  recovery,
   onResolvePermission,
+  onRetry,
+  onResume,
 }: {
   run: AgentRunView | null;
+  recovery: ChatControllerProps["recovery"];
   onResolvePermission: (permissionId: string, decision: PermissionDecision) => void;
+  onRetry: () => void;
+  onResume: () => void;
 }) {
   const { t } = useLocale();
   if (!run) return null;
   const hasPendingPermission = run.permissions.some((permission) => permission.decision === null);
   const settled = ["completed", "failed", "cancelled", "interrupted"].includes(run.state);
-  if (settled && !hasPendingPermission && run.toolCalls.length === 0) return null;
+  const canRetry = settled && run.state !== "completed";
+  const canResume = recovery?.action.kind === "resume_from_checkpoint";
+  if (settled && !hasPendingPermission && run.toolCalls.length === 0 && !canRetry && !canResume) return null;
 
   return (
     <div className="bloomery-chat-inline-status" aria-live="polite">
@@ -153,6 +164,16 @@ function NativeRunStatus({
         </span>
         {run.toolCalls.length > 0 && <span>{t("agentToolCount", { count: run.toolCalls.length })}</span>}
         {run.taskProgress && <span>{run.taskProgress.kind} · {run.taskProgress.progress}%</span>}
+        {canResume && (
+          <button type="button" className="bloomery-action-secondary" onClick={onResume}>
+            <Play size={13} aria-hidden="true" />{t("resumeAgentRun")}
+          </button>
+        )}
+        {canRetry && (
+          <button type="button" className="bloomery-action-secondary" onClick={onRetry}>
+            <RotateCcw size={13} aria-hidden="true" />{t("retryAgentRun")}
+          </button>
+        )}
       </div>
       {run.toolCalls.length > 0 && (
         <div className="bloomery-chat-tool-trace" aria-label="Agent tools">
@@ -317,6 +338,10 @@ export default function DesktopChatWorkspace({
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (controller.pendingQuestion !== null) {
+      void controller.onSteer(controller.draft);
+      return;
+    }
     void controller.onSubmit(event);
   };
 
@@ -458,7 +483,13 @@ export default function DesktopChatWorkspace({
                   </article>
                 </>
               )}
-              <NativeRunStatus run={controller.agentRun} onResolvePermission={controller.onResolvePermission} />
+          <NativeRunStatus
+            run={controller.agentRun}
+            recovery={controller.recovery}
+            onResolvePermission={controller.onResolvePermission}
+            onRetry={controller.onRetry}
+            onResume={controller.onResume}
+          />
             </>
           )}
           <WebTurnNavigator
@@ -493,7 +524,7 @@ export default function DesktopChatWorkspace({
             aria-label={t("inputMessage")}
             placeholder={t("askPlaceholder")}
             rows={3}
-            disabled={controller.pendingQuestion !== null}
+            disabled={false}
           />
           <div className="bloomery-chat-composer-footer">
             <div className="bloomery-chat-composer-tools">
@@ -502,6 +533,30 @@ export default function DesktopChatWorkspace({
               <input ref={fileInputRef} type="file" accept="image/*" multiple hidden onChange={onFileInputChange} />
             </div>
             <div className="bloomery-chat-composer-right">
+              {controller.pendingQuestion !== null && (
+                <>
+                  <button
+                    type="button"
+                    className="bloomery-chat-composer-tool"
+                    aria-label="追加消息"
+                    title="在本轮结束后追加消息"
+                    disabled={!controller.draft.trim()}
+                    onClick={() => void controller.onFollowUp(controller.draft)}
+                  >
+                    <CornerDownLeft size={15} aria-hidden="true" /><span>追加</span>
+                  </button>
+                  <button
+                    type="button"
+                    className="bloomery-chat-composer-tool"
+                    aria-label="转向当前运行"
+                    title="转向当前运行"
+                    disabled={!controller.draft.trim()}
+                    onClick={() => void controller.onSteer(controller.draft)}
+                  >
+                    <ArrowUp size={15} aria-hidden="true" /><span>转向</span>
+                  </button>
+                </>
+              )}
               <div className="bloomery-chat-model-picker">
                 {modelMenuOpen && (
                   <div className="bloomery-chat-model-menu" role="menu">

@@ -1,6 +1,8 @@
+use crate::agent::context::{ContextItem, ContextSource};
 use crate::agent::protocol::PermissionDecision;
 use crate::agent::runtime::{
-    CancellationToken, PermissionFuture, PermissionRequest, PermissionResolver,
+    AgentInputKind, AgentInputQueue, CancellationToken, ContextEntry, PermissionFuture,
+    PermissionRequest, PermissionResolver,
 };
 use serde_json::{Map, Value};
 use std::collections::{HashMap, HashSet};
@@ -12,6 +14,7 @@ use uuid::Uuid;
 #[derive(Clone, Default)]
 pub struct LocalAgentState {
     cancelled_runs: Arc<Mutex<HashSet<String>>>,
+    input_queues: Arc<Mutex<HashMap<String, AgentInputQueue>>>,
     pending_permissions: Arc<Mutex<HashMap<Uuid, PendingPermission>>>,
     session_permissions: Arc<Mutex<HashSet<String>>>,
     always_permissions: Arc<Mutex<HashSet<String>>>,
@@ -65,6 +68,58 @@ impl LocalAgentState {
                 .map(|cancelled| cancelled.contains(&run_id))
                 .unwrap_or(true)
         })
+    }
+
+    pub fn register_input_queue(&self, run_id: &str) -> Result<AgentInputQueue, String> {
+        let run_id = run_id.trim();
+        if run_id.is_empty() {
+            return Err("run_id is required".to_string());
+        }
+        let mut queues = self
+            .input_queues
+            .lock()
+            .map_err(|_| "local agent state poisoned".to_string())?;
+        Ok(queues
+            .entry(run_id.to_string())
+            .or_insert_with(AgentInputQueue::default)
+            .clone())
+    }
+
+    pub fn remove_input_queue(&self, run_id: &str) {
+        if let Ok(mut queues) = self.input_queues.lock() {
+            queues.remove(run_id.trim());
+        }
+    }
+
+    pub fn enqueue_input(
+        &self,
+        run_id: &str,
+        kind: AgentInputKind,
+        message: String,
+    ) -> Result<(), String> {
+        let message = message.trim().to_string();
+        if message.is_empty() {
+            return Err("message is required".to_string());
+        }
+        let queue = self
+            .input_queues
+            .lock()
+            .map_err(|_| "local agent state poisoned".to_string())?
+            .get(run_id.trim())
+            .cloned()
+            .ok_or_else(|| "agent run is not active".to_string())?;
+        let kind_name = match kind {
+            AgentInputKind::Steering => "steering",
+            AgentInputKind::FollowUp => "follow_up",
+        };
+        queue.enqueue(
+            kind,
+            ContextEntry::new(ContextItem::new(
+                format!("runtime-{kind_name}-{}", Uuid::new_v4()),
+                ContextSource::CurrentRequest,
+                message,
+            )),
+        )
     }
 
     pub fn permission_resolver(&self) -> InteractivePermissionResolver {

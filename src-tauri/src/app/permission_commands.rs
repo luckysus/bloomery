@@ -1,4 +1,5 @@
-use crate::agent::desktop::{permission_key_for, LocalAgentState};
+use crate::agent::desktop::permission_key_for;
+use crate::agent::runtime::RuntimeHost;
 use crate::db::{current_workspace_id, with_conn, with_conn_mut, DbState};
 use crate::permissions::{ParameterScope, PermissionRule, RuleEffect};
 use uuid::Uuid;
@@ -13,7 +14,7 @@ pub fn list_permission_rules(db: tauri::State<DbState>) -> Result<Vec<Permission
 #[tauri::command]
 pub fn revoke_permission_rule(
     db: tauri::State<DbState>,
-    state: tauri::State<LocalAgentState>,
+    state: tauri::State<RuntimeHost>,
     rule_id: String,
 ) -> Result<(), String> {
     let rule_id = parse_rule_id(&rule_id)?;

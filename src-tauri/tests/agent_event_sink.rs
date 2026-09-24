@@ -2,9 +2,13 @@ use bloomery::agent::protocol::{
     AgentEventData, AgentEventEnvelope, AgentMessageRole, AgentRunState, MessageDelta,
     RunCompleted, RunOutcome, RunStateChanged,
 };
-use bloomery::agent::runtime::{AgentEventPublisher, AgentEventSink, SqliteAgentEventSink};
+use bloomery::agent::runtime::{
+    AgentContextCheckpoint, AgentEventPublisher, AgentEventSink, AgentLoopLimits,
+    ContextCheckpointReason, SqliteAgentEventSink, TurnSnapshot,
+};
+use bloomery::providers::capabilities::{ChatImage, ChatMessage};
 use bloomery::storage::migrations::migrate;
-use bloomery::storage::repositories::{events, runs};
+use bloomery::storage::repositories::{checkpoints, child_turns, events, runs, turn_snapshots};
 use chrono::{DateTime, Utc};
 use rusqlite::{params, Connection};
 use std::sync::{Arc, Mutex};
@@ -169,6 +173,183 @@ fn terminal_run_cannot_be_finished_again() {
             .unwrap()
             .len(),
         3
+    );
+}
+
+#[test]
+fn checkpoint_storage_strips_images_and_round_trips_state() {
+    let mut connection = setup_with_run();
+    let publisher = RecordingPublisher {
+        events: Arc::new(Mutex::new(Vec::new())),
+        fail: false,
+    };
+    let mut sink = SqliteAgentEventSink::new(&mut connection, WORKSPACE, id(RUN_ID), publisher);
+    sink.checkpoint(AgentContextCheckpoint {
+        reason: ContextCheckpointReason::ModelCall,
+        model_call_index: 0,
+        model_calls: 1,
+        tool_calls: 0,
+        tool_round: 0,
+        recovery_attempt: 0,
+        messages: vec![ChatMessage::with_images(
+            "user",
+            "keep text",
+            vec![ChatImage {
+                data: "secret-base64".to_string(),
+                mime: "image/png".to_string(),
+            }],
+        )],
+    })
+    .unwrap();
+
+    let restored = checkpoints::get(&connection, WORKSPACE, id(RUN_ID))
+        .unwrap()
+        .expect("checkpoint should be stored");
+    assert_eq!(restored.reason, ContextCheckpointReason::ModelCall);
+    assert_eq!(restored.messages[0].content, "keep text");
+    assert!(restored.messages[0].images.is_empty());
+}
+
+#[test]
+fn checkpoint_storage_rejects_payloads_over_512_kib() {
+    let connection = setup_with_run();
+    let checkpoint = AgentContextCheckpoint {
+        reason: ContextCheckpointReason::ModelCall,
+        model_call_index: 0,
+        model_calls: 1,
+        tool_calls: 0,
+        tool_round: 0,
+        recovery_attempt: 0,
+        messages: vec![ChatMessage::new("user", "x".repeat(600 * 1024))],
+    };
+
+    let error = checkpoints::save(
+        &connection,
+        WORKSPACE,
+        id(RUN_ID),
+        &checkpoint,
+        timestamp("2026-08-05T00:01:00Z"),
+    )
+    .expect_err("oversized checkpoint must be rejected");
+    assert_eq!(error.code(), "agent_checkpoint_too_large");
+}
+
+#[test]
+fn turn_snapshot_round_trips_without_credentials() {
+    let connection = setup_with_run();
+    let snapshot = turn_snapshots::AgentTurnSnapshot {
+        turn: TurnSnapshot {
+            turn_id: id(RUN_ID),
+            session_id: id(CONVERSATION_ID),
+            parent_turn_id: None,
+            child_turn_limit: 4,
+            provider: "open_ai_compatible".to_string(),
+            model: "test-model".to_string(),
+            model_context_window: Some(8_192),
+            output_reservation: 2_048,
+            limits: AgentLoopLimits::default(),
+            tool_ids: vec!["steel.search_literature".to_string()],
+            tool_snapshot: Vec::new(),
+        },
+        assistant_message_id: id(ASSISTANT_MESSAGE_ID),
+        provider_base_url: "https://provider.example/v1".to_string(),
+        smart_search_enabled: true,
+        evidence_pack_id: None,
+    };
+    turn_snapshots::save(
+        &connection,
+        WORKSPACE,
+        id(RUN_ID),
+        &snapshot,
+        timestamp("2026-08-05T00:01:00Z"),
+    )
+    .unwrap();
+
+    assert_eq!(
+        turn_snapshots::get(&connection, WORKSPACE, id(RUN_ID)).unwrap(),
+        Some(snapshot)
+    );
+    let stored: String = connection
+        .query_row(
+            "SELECT snapshot_json FROM agent_run_turn_snapshots WHERE run_id = ?1",
+            [RUN_ID],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert!(!stored.contains("api_key"));
+    assert!(!stored.contains("secret"));
+}
+
+#[test]
+fn child_turn_events_are_durable_and_orphans_are_interrupted() {
+    let mut connection = setup_with_run();
+    let child_id = id("66666666-6666-4666-8666-666666666666");
+    let snapshot = TurnSnapshot {
+        turn_id: child_id,
+        session_id: id(CONVERSATION_ID),
+        parent_turn_id: Some(id(RUN_ID)),
+        child_turn_limit: 2,
+        provider: "test".to_string(),
+        model: "test-model".to_string(),
+        model_context_window: Some(8_192),
+        output_reservation: 2_048,
+        limits: AgentLoopLimits::default(),
+        tool_ids: Vec::new(),
+        tool_snapshot: Vec::new(),
+    };
+    child_turns::create(
+        &mut connection,
+        WORKSPACE,
+        &snapshot,
+        timestamp("2026-08-05T00:02:00Z"),
+    )
+    .unwrap();
+    let event = AgentEventEnvelope {
+        protocol_version: bloomery::agent::protocol::PROTOCOL_VERSION,
+        event_id: id("77777777-7777-4777-8777-777777777777"),
+        run_id: child_id,
+        conversation_id: id(CONVERSATION_ID),
+        sequence: 0,
+        timestamp: timestamp("2026-08-05T00:02:01Z"),
+        data: AgentEventData::MessageDelta(MessageDelta {
+            message_id: id(ASSISTANT_MESSAGE_ID),
+            role: AgentMessageRole::Assistant,
+            delta: "child".to_string(),
+        }),
+    };
+    let stored = child_turns::append(&mut connection, WORKSPACE, &event).unwrap();
+    assert_eq!(stored.sequence, 1);
+    assert_eq!(
+        child_turns::replay(&connection, WORKSPACE, child_id, 0)
+            .unwrap()
+            .len(),
+        1
+    );
+    child_turns::finish(
+        &connection,
+        WORKSPACE,
+        child_id,
+        RunOutcome::Completed,
+        timestamp("2026-08-05T00:02:02Z"),
+    )
+    .unwrap();
+
+    let orphan_id = id("88888888-8888-4888-8888-888888888888");
+    let orphan = TurnSnapshot {
+        turn_id: orphan_id,
+        ..snapshot
+    };
+    child_turns::create(
+        &mut connection,
+        WORKSPACE,
+        &orphan,
+        timestamp("2026-08-05T00:03:00Z"),
+    )
+    .unwrap();
+    assert_eq!(
+        child_turns::interrupt_orphans(&connection, WORKSPACE, timestamp("2026-08-05T00:04:00Z"))
+            .unwrap(),
+        1
     );
 }
 

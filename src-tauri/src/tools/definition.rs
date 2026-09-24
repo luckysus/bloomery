@@ -103,7 +103,8 @@ impl fmt::Display for ToolVersionError {
 
 impl std::error::Error for ToolVersionError {}
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum ConcurrencyPolicy {
     ParallelRead,
     SerialWrite,

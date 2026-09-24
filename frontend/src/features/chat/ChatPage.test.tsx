@@ -18,12 +18,14 @@ vi.mock("../../bridge/desktop", () => ({
     listMessages: vi.fn(),
     getConversationDraft: vi.fn(),
     saveConversationDraft: vi.fn(),
-    listenDesktopAgentDeltas: vi.fn(),
     listenAgentEvents: vi.fn(),
     replayAgentRun: vi.fn(),
     desktopAgentChat: vi.fn(),
     resolveAgentPermission: vi.fn(),
     cancelDesktopRun: vi.fn(),
+    steerAgentRun: vi.fn(),
+    followUpAgentRun: vi.fn(),
+    recoverAgentRuns: vi.fn(),
     listKnowledgeBases: vi.fn(),
     queryLocalKnowledge: vi.fn(),
     listProviderProfiles: vi.fn(),
@@ -101,7 +103,6 @@ describe("ChatPage", () => {
     vi.mocked(desktop.listMessages).mockResolvedValue([]);
     vi.mocked(desktop.getConversationDraft).mockResolvedValue("");
     vi.mocked(desktop.saveConversationDraft).mockResolvedValue(undefined);
-    vi.mocked(desktop.listenDesktopAgentDeltas).mockResolvedValue(() => undefined);
     vi.mocked(desktop.listenAgentEvents).mockImplementation(async (handler) => {
       publishAgentEvent = handler;
       return () => undefined;
@@ -123,6 +124,9 @@ describe("ChatPage", () => {
     vi.mocked(desktop.setDefaultProvider).mockResolvedValue(undefined);
     vi.mocked(desktop.resolveKnowledgeCitation).mockResolvedValue(null);
     vi.mocked(desktop.resolveAgentPermission).mockResolvedValue(undefined);
+    vi.mocked(desktop.steerAgentRun).mockResolvedValue(undefined);
+    vi.mocked(desktop.followUpAgentRun).mockResolvedValue(undefined);
+    vi.mocked(desktop.recoverAgentRuns).mockResolvedValue([]);
     vi.mocked(desktop.desktopAgentChat).mockResolvedValue({
       run_id: "run-1",
       session_id: conversation.id,
@@ -524,5 +528,82 @@ describe("ChatPage", () => {
       "allow_once" satisfies PermissionDecision,
     ));
     finish?.({ run_id: "run-1", session_id: conversation.id, status: "completed", answer: "done" });
+  });
+
+  it("sends steering and follow-up input through the active desktop turn", async () => {
+    let finish: ((response: { run_id: string; session_id: string; status: string; answer: string }) => void) | undefined;
+    let runId = "";
+    vi.mocked(desktop.desktopAgentChat).mockImplementation(async (request) => {
+      runId = request.runId!;
+      return new Promise((resolve) => {
+        finish = resolve;
+      });
+    });
+
+    render(<ChatPage />);
+    await screen.findByRole("button", { name: "Q355B 标准" });
+    fireEvent.change(screen.getByRole("textbox"), { target: { value: "先检查钢级" } });
+    fireEvent.click(screen.getByRole("button", { name: "发送" }));
+    await waitFor(() => expect(desktop.desktopAgentChat).toHaveBeenCalled());
+
+    fireEvent.change(screen.getByRole("textbox"), { target: { value: "改为检查板厚" } });
+    fireEvent.click(screen.getByRole("button", { name: "转向当前运行" }));
+    await waitFor(() => expect(desktop.steerAgentRun).toHaveBeenCalledWith(runId, "改为检查板厚"));
+
+    fireEvent.change(screen.getByRole("textbox"), { target: { value: "回答时给出标准来源" } });
+    fireEvent.click(screen.getByRole("button", { name: "追加消息" }));
+    await waitFor(() => expect(desktop.followUpAgentRun).toHaveBeenCalledWith(runId, "回答时给出标准来源"));
+    finish?.({ run_id: runId, session_id: conversation.id, status: "completed", answer: "done" });
+  });
+
+  it("offers retry for an interrupted run and starts a fresh desktop turn", async () => {
+    vi.mocked(desktop.listMessages).mockResolvedValue([userMessage]);
+    vi.mocked(desktop.recoverAgentRuns).mockResolvedValue([{
+      run: {
+        id: "run-interrupted",
+        workspace_id: "local",
+        conversation_id: conversation.id,
+        user_message_id: userMessage.id,
+        state: "interrupted",
+        next_sequence: 2,
+        created_at: conversation.created_at,
+        updated_at: conversation.updated_at,
+        completed_at: conversation.updated_at,
+      },
+      action: { kind: "regenerate" },
+      events: [],
+    }]);
+    render(<ChatPage />);
+
+    expect(await screen.findByRole("button", { name: "重试" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "重试" }));
+    await waitFor(() => expect(desktop.desktopAgentChat).toHaveBeenCalledWith(expect.objectContaining({
+      sessionId: conversation.id,
+      message: userMessage.content,
+    })));
+  });
+
+  it("offers resume for a checkpoint recovery action", async () => {
+    vi.mocked(desktop.listMessages).mockResolvedValue([userMessage]);
+    vi.mocked(desktop.recoverAgentRuns).mockResolvedValue([{
+      run: {
+        id: "run-resume",
+        workspace_id: "local",
+        conversation_id: conversation.id,
+        user_message_id: userMessage.id,
+        state: "generating",
+        next_sequence: 2,
+        created_at: conversation.created_at,
+        updated_at: conversation.updated_at,
+        completed_at: null,
+      },
+      action: { kind: "resume_from_checkpoint", data: {} },
+      events: [],
+    }]);
+    render(<ChatPage />);
+
+    expect(await screen.findByRole("button", { name: "恢复运行" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "恢复运行" }));
+    await waitFor(() => expect(desktop.recoverAgentRuns).toHaveBeenCalledTimes(2));
   });
 });

@@ -1,20 +1,87 @@
 use super::{
-    AgentEventSink, AgentHooks, AgentLoop, AgentLoopRequest, CancellationToken, ContextEntry,
-    ModelAdapter, PermissionResolver, ToolExecutionError, ToolExecutor, ToolFuture, ToolHandler,
-    ToolInvocation, ToolRegistration,
+    AgentHooks, AgentLoop, AgentLoopLimits, AgentLoopRequest, CancellationToken, ContextEntry,
+    ModelAdapter, PermissionResolver, RuntimeHost, ToolExecutionError, ToolExecutor, ToolFuture,
+    ToolHandler, ToolInvocation, ToolRegistration, TurnSnapshot,
 };
 use crate::agent::context::{ContextItem, ContextSource};
-use crate::agent::protocol::{AgentEventData, AgentEventEnvelope, RunOutcome, RunStateChanged};
+use crate::agent::protocol::{AgentEventEnvelope, RunOutcome};
 use crate::agent::tool_repair::ToolSpec;
 use crate::providers::profiles::ProviderCapability;
 use serde::Deserialize;
 use serde_json::{json, Value};
+use std::path::PathBuf;
 use std::sync::Arc;
 use uuid::Uuid;
+
+#[path = "child_events.rs"]
+mod child_events;
+use child_events::ChildAgentEventSink;
 
 pub const MAX_SUBAGENT_TOOL_ROUNDS: usize = 30;
 const TASK_TOOL_ID: &str = "agent.task";
 const TASK_TOOL_NAME: &str = "task";
+
+pub trait ChildTurnStore: Send + Sync {
+    fn begin(&self, snapshot: &TurnSnapshot) -> Result<(), String>;
+    fn append(&self, event: &AgentEventEnvelope) -> Result<(), String>;
+    fn finish(&self, child_turn_id: Uuid, outcome: RunOutcome) -> Result<(), String>;
+}
+
+#[derive(Clone)]
+pub struct SqliteChildTurnStore {
+    database: PathBuf,
+    workspace_id: String,
+}
+
+impl SqliteChildTurnStore {
+    pub fn new(database: impl Into<PathBuf>, workspace_id: impl Into<String>) -> Self {
+        Self {
+            database: database.into(),
+            workspace_id: workspace_id.into(),
+        }
+    }
+
+    fn with_connection<T>(
+        &self,
+        operation: impl FnOnce(&mut rusqlite::Connection) -> Result<T, crate::storage::StorageError>,
+    ) -> Result<T, String> {
+        let (mut connection, _) =
+            crate::storage::database::open(&self.database).map_err(|error| error.to_string())?;
+        operation(&mut connection).map_err(|error| error.to_string())
+    }
+}
+
+impl ChildTurnStore for SqliteChildTurnStore {
+    fn begin(&self, snapshot: &TurnSnapshot) -> Result<(), String> {
+        self.with_connection(|connection| {
+            crate::storage::repositories::child_turns::create(
+                connection,
+                &self.workspace_id,
+                snapshot,
+                chrono::Utc::now(),
+            )
+        })
+    }
+
+    fn append(&self, event: &AgentEventEnvelope) -> Result<(), String> {
+        self.with_connection(|connection| {
+            crate::storage::repositories::child_turns::append(connection, &self.workspace_id, event)
+                .map(|_| ())
+        })
+    }
+
+    fn finish(&self, child_turn_id: Uuid, outcome: RunOutcome) -> Result<(), String> {
+        self.with_connection(|connection| {
+            crate::storage::repositories::child_turns::finish(
+                connection,
+                &self.workspace_id,
+                child_turn_id,
+                outcome,
+                chrono::Utc::now(),
+            )
+        })
+    }
+}
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -33,11 +100,65 @@ impl SubagentTool {
         permissions: Arc<dyn PermissionResolver>,
         hooks: Arc<dyn AgentHooks>,
     ) -> Self {
+        Self::new_with_parent(model, tools, permissions, hooks, None, None, None)
+    }
+
+    pub fn new_for_parent(
+        model: Arc<dyn ModelAdapter>,
+        tools: Arc<dyn ToolExecutor>,
+        permissions: Arc<dyn PermissionResolver>,
+        hooks: Arc<dyn AgentHooks>,
+        runtime: RuntimeHost,
+        parent_turn_id: Uuid,
+    ) -> Self {
+        Self::new_with_parent(
+            model,
+            tools,
+            permissions,
+            hooks,
+            Some(runtime),
+            Some(parent_turn_id),
+            None,
+        )
+    }
+
+    pub fn new_for_parent_with_store(
+        model: Arc<dyn ModelAdapter>,
+        tools: Arc<dyn ToolExecutor>,
+        permissions: Arc<dyn PermissionResolver>,
+        hooks: Arc<dyn AgentHooks>,
+        runtime: RuntimeHost,
+        parent_turn_id: Uuid,
+        store: Arc<dyn ChildTurnStore>,
+    ) -> Self {
+        Self::new_with_parent(
+            model,
+            tools,
+            permissions,
+            hooks,
+            Some(runtime),
+            Some(parent_turn_id),
+            Some(store),
+        )
+    }
+
+    fn new_with_parent(
+        model: Arc<dyn ModelAdapter>,
+        tools: Arc<dyn ToolExecutor>,
+        permissions: Arc<dyn PermissionResolver>,
+        hooks: Arc<dyn AgentHooks>,
+        runtime: Option<RuntimeHost>,
+        parent_turn_id: Option<Uuid>,
+        store: Option<Arc<dyn ChildTurnStore>>,
+    ) -> Self {
         let handler = SubagentHandler {
             model,
             tools,
             permissions,
             hooks,
+            runtime,
+            parent_turn_id,
+            store,
         };
         Self {
             registration: ToolRegistration::new(
@@ -76,6 +197,9 @@ struct SubagentHandler {
     tools: Arc<dyn ToolExecutor>,
     permissions: Arc<dyn PermissionResolver>,
     hooks: Arc<dyn AgentHooks>,
+    runtime: Option<RuntimeHost>,
+    parent_turn_id: Option<Uuid>,
+    store: Option<Arc<dyn ChildTurnStore>>,
 }
 
 impl ToolHandler for SubagentHandler {
@@ -84,6 +208,9 @@ impl ToolHandler for SubagentHandler {
         let tools = Arc::clone(&self.tools);
         let permissions = Arc::clone(&self.permissions);
         let hooks = Arc::clone(&self.hooks);
+        let runtime = self.runtime.clone();
+        let parent_turn_id = self.parent_turn_id;
+        let child_store = self.store.clone();
         Box::pin(async move {
             let task = serde_json::from_value::<TaskRequest>(arguments)
                 .map_err(|error| ToolExecutionError::new("invalid_task", error.to_string()))?;
@@ -108,6 +235,48 @@ impl ToolHandler for SubagentHandler {
                     "subagent model does not support chat",
                 ));
             }
+            let child_turn_id = Uuid::new_v4();
+            let child_runtime = match (runtime.clone(), parent_turn_id) {
+                (Some(runtime), Some(parent_turn_id)) => {
+                    let parent = runtime
+                        .snapshot(parent_turn_id)
+                        .map_err(|error| ToolExecutionError::new("child_turn_start", error))?;
+                    let mut snapshot = TurnSnapshot {
+                        turn_id: child_turn_id,
+                        session_id: parent.session_id,
+                        parent_turn_id: Some(parent_turn_id),
+                        child_turn_limit: parent.child_turn_limit,
+                        provider: parent.provider,
+                        model: parent.model,
+                        model_context_window: parent.model_context_window,
+                        output_reservation: 2_048,
+                        limits: AgentLoopLimits {
+                            max_tool_rounds: Some(MAX_SUBAGENT_TOOL_ROUNDS),
+                            ..AgentLoopLimits::default()
+                        },
+                        tool_ids: Vec::new(),
+                        tool_snapshot: Vec::new(),
+                    };
+                    let handle = runtime
+                        .begin_turn(snapshot.clone())
+                        .map_err(|error| ToolExecutionError::new("child_turn_start", error))?;
+                    snapshot = match runtime.set_tool_snapshot(child_turn_id, tools.as_ref()) {
+                        Ok(snapshot) => snapshot,
+                        Err(error) => {
+                            runtime.finish_turn(child_turn_id);
+                            return Err(ToolExecutionError::new("child_turn_start", error));
+                        }
+                    };
+                    if let Some(store) = child_store.as_ref() {
+                        if let Err(error) = store.begin(&snapshot) {
+                            runtime.finish_turn(child_turn_id);
+                            return Err(ToolExecutionError::new("child_turn_start", error));
+                        }
+                    }
+                    Some((runtime, parent_turn_id, handle, snapshot))
+                }
+                _ => None,
+            };
             let request = AgentLoopRequest {
                 assistant_message_id: Uuid::new_v4(),
                 context: vec![
@@ -125,6 +294,18 @@ impl ToolHandler for SubagentHandler {
                 output_reservation: 2_048,
                 evidence: None,
                 attachments: Vec::new(),
+                limits: child_runtime
+                    .as_ref()
+                    .map(|(_, _, _, snapshot)| snapshot.limits.clone())
+                    .unwrap_or(AgentLoopLimits {
+                        max_tool_rounds: Some(MAX_SUBAGENT_TOOL_ROUNDS),
+                        ..AgentLoopLimits::default()
+                    }),
+                input_queue: child_runtime
+                    .as_ref()
+                    .map(|(_, _, handle, _)| handle.input_queue.clone())
+                    .unwrap_or_default(),
+                resume: None,
             };
             let runner = AgentLoop::new_with_hooks(
                 model.as_ref(),
@@ -132,17 +313,74 @@ impl ToolHandler for SubagentHandler {
                 permissions.as_ref(),
                 hooks.as_ref(),
             );
-            let mut sink = NullAgentEventSink::new();
+            let mut sink = child_runtime
+                .as_ref()
+                .map(|(_, _, _, snapshot)| {
+                    ChildAgentEventSink::new(
+                        snapshot.turn_id,
+                        snapshot.session_id,
+                        child_store.clone(),
+                    )
+                })
+                .unwrap_or_else(|| ChildAgentEventSink::new(Uuid::nil(), Uuid::nil(), None));
+            let child_cancellation = if let Some((runtime, _, _, snapshot)) = &child_runtime {
+                let runtime_token = runtime.cancellation_token(snapshot.turn_id);
+                let parent_cancellation = cancellation.clone();
+                CancellationToken::new(move || {
+                    parent_cancellation.is_cancelled() || runtime_token.is_cancelled()
+                })
+            } else {
+                cancellation.clone()
+            };
+            if let Some((runtime, _, _, snapshot)) = &child_runtime {
+                let run_result = runner.run(request, &mut sink, child_cancellation).await;
+                let event_error = runtime
+                    .record_child_events(snapshot.turn_id, sink.events().to_vec())
+                    .err();
+                let child_outcome = run_result
+                    .as_ref()
+                    .map(|result| result.outcome)
+                    .unwrap_or_else(|_| {
+                        if runtime
+                            .is_cancelled(&snapshot.turn_id.to_string())
+                            .unwrap_or(false)
+                        {
+                            RunOutcome::Cancelled
+                        } else {
+                            RunOutcome::Failed
+                        }
+                    });
+                let store_error = child_store
+                    .as_ref()
+                    .and_then(|store| store.finish(snapshot.turn_id, child_outcome).err());
+                runtime.finish_turn(snapshot.turn_id);
+                if let Some(error) = event_error {
+                    return Err(ToolExecutionError::new("child_turn_events", error));
+                }
+                if let Some(error) = sink.error().or(store_error) {
+                    return Err(ToolExecutionError::new("child_turn_events", error));
+                }
+                let result = run_result.map_err(|error| {
+                    let code = if error.to_string().contains("limit exceeded") {
+                        "subagent_turn_limit"
+                    } else {
+                        "subagent_execution_error"
+                    };
+                    ToolExecutionError::new(code, "subagent execution failed")
+                })?;
+                if result.outcome != RunOutcome::Completed {
+                    return Err(ToolExecutionError::new(
+                        "subagent_execution_error",
+                        "subagent did not complete",
+                    ));
+                }
+                return Ok(json!({"child_turn_id": child_turn_id, "conclusion": result.answer}));
+            }
             let result = runner
-                .run_with_max_tool_rounds(
-                    request,
-                    &mut sink,
-                    cancellation,
-                    MAX_SUBAGENT_TOOL_ROUNDS,
-                )
+                .run(request, &mut sink, child_cancellation)
                 .await
                 .map_err(|error| {
-                    let code = if error.to_string().contains("maximum tool rounds") {
+                    let code = if error.to_string().contains("limit exceeded") {
                         "subagent_turn_limit"
                     } else {
                         "subagent_execution_error"
@@ -155,7 +393,7 @@ impl ToolHandler for SubagentHandler {
                     "subagent did not complete",
                 ));
             }
-            Ok(json!({"conclusion": result.answer}))
+            Ok(json!({"child_turn_id": child_turn_id, "conclusion": result.answer}))
         })
     }
 }
@@ -202,190 +440,6 @@ impl ToolExecutor for SnapshotToolExecutor {
     }
 }
 
-struct NullAgentEventSink {
-    sequence: u64,
-}
-
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::agent::runtime::{DenyPermissions, NoopAgentHooks};
-    use crate::providers::capabilities::{ChatResponse, ProviderCapabilities};
-    use crate::providers::profiles::{ProviderCapability, ProviderKind};
-    use std::sync::Mutex;
-
-    struct TestModel {
-        responses: Mutex<Vec<ChatResponse>>,
-        capabilities: ProviderCapabilities,
-    }
-
-    impl ModelAdapter for TestModel {
-        fn capabilities(&self) -> &ProviderCapabilities {
-            &self.capabilities
-        }
-
-        fn generate<'a>(
-            &'a self,
-            _request: crate::providers::capabilities::ChatRequest,
-            _on_event: &'a mut (dyn FnMut(crate::providers::capabilities::ChatEvent) + Send),
-            _is_cancelled: &'a (dyn Fn() -> bool + Send + Sync),
-        ) -> super::super::ModelFuture<'a> {
-            Box::pin(async move {
-                self.responses
-                    .lock()
-                    .map_err(|_| {
-                        crate::providers::http::ProviderError::new(
-                            crate::providers::http::ProviderErrorCode::ProviderResponse,
-                            None,
-                            "test model poisoned",
-                        )
-                    })?
-                    .pop()
-                    .ok_or_else(|| {
-                        crate::providers::http::ProviderError::new(
-                            crate::providers::http::ProviderErrorCode::ProviderResponse,
-                            None,
-                            "test model exhausted",
-                        )
-                    })
-            })
-        }
-    }
-
-    struct TestTools {
-        registration: ToolRegistration,
-    }
-
-    impl ToolExecutor for TestTools {
-        fn registrations(&self) -> &[ToolRegistration] {
-            std::slice::from_ref(&self.registration)
-        }
-
-        fn execute(
-            &self,
-            invocation: ToolInvocation,
-            cancellation: CancellationToken,
-        ) -> ToolFuture {
-            self.registration
-                .handler
-                .execute(invocation.arguments, cancellation)
-        }
-    }
-
-    struct EchoHandler;
-
-    impl ToolHandler for EchoHandler {
-        fn execute(&self, arguments: Value, _cancellation: CancellationToken) -> ToolFuture {
-            Box::pin(async move { Ok(json!({"echo": arguments["value"]})) })
-        }
-    }
-
-    fn model(responses: Vec<ChatResponse>) -> Arc<dyn ModelAdapter> {
-        Arc::new(TestModel {
-            responses: Mutex::new(responses),
-            capabilities: ProviderCapabilities {
-                provider_kind: ProviderKind::OpenAiCompatible,
-                model_id: "test".to_string(),
-                capabilities: vec![ProviderCapability::Chat],
-                context_window: Some(8_192),
-                streaming: false,
-                tool_calls: true,
-                json_schema: true,
-                max_batch_size: None,
-            },
-        })
-    }
-
-    #[test]
-    fn child_uses_fresh_request_and_cannot_see_task() {
-        let tools: Arc<dyn ToolExecutor> = Arc::new(TestTools {
-            registration: ToolRegistration::new(
-                ToolSpec {
-                    id: "test.echo".to_string(),
-                    name: "echo".to_string(),
-                    input_schema: json!({
-                        "type": "object",
-                        "properties": {"value": {"type": "string"}},
-                        "required": ["value"],
-                        "additionalProperties": false
-                    }),
-                    risk: crate::agent::protocol::PermissionRisk::Automatic,
-                },
-                true,
-                Arc::new(EchoHandler),
-            ),
-        });
-        let task = SubagentTool::new(
-            model(vec![ChatResponse {
-                text: "child conclusion".to_string(),
-                ..ChatResponse::default()
-            }]),
-            tools,
-            Arc::new(DenyPermissions),
-            Arc::new(NoopAgentHooks),
-        );
-        assert_eq!(task.registrations()[0].spec.name, TASK_TOOL_NAME);
-        assert_eq!(
-            task.registrations()[0].spec.input_schema["required"],
-            json!(["task"])
-        );
-    }
-
-    #[test]
-    fn snapshot_filters_recursive_task() {
-        let source = SubagentTool::new(
-            model(vec![]),
-            Arc::new(crate::agent::runtime::NoopToolExecutor),
-            Arc::new(DenyPermissions),
-            Arc::new(NoopAgentHooks),
-        );
-        let snapshot = SnapshotToolExecutor::from(&source);
-        assert!(snapshot.registrations().is_empty());
-    }
-}
-
-impl NullAgentEventSink {
-    fn new() -> Self {
-        Self { sequence: 0 }
-    }
-
-    fn event(&mut self, data: AgentEventData) -> AgentEventEnvelope {
-        self.sequence += 1;
-        AgentEventEnvelope {
-            protocol_version: crate::agent::protocol::PROTOCOL_VERSION,
-            event_id: Uuid::new_v4(),
-            run_id: Uuid::nil(),
-            conversation_id: Uuid::nil(),
-            sequence: self.sequence,
-            timestamp: chrono::Utc::now(),
-            data,
-        }
-    }
-}
-
-impl AgentEventSink for NullAgentEventSink {
-    fn record(&mut self, data: AgentEventData) -> Result<AgentEventEnvelope, String> {
-        Ok(self.event(data))
-    }
-
-    fn transition(&mut self, changed: RunStateChanged) -> Result<AgentEventEnvelope, String> {
-        Ok(self.event(AgentEventData::RunStateChanged(changed)))
-    }
-
-    fn finish(
-        &mut self,
-        changed: RunStateChanged,
-        outcome: RunOutcome,
-        assistant_message_id: Option<Uuid>,
-    ) -> Result<Vec<AgentEventEnvelope>, String> {
-        Ok(vec![
-            self.event(AgentEventData::RunStateChanged(changed)),
-            self.event(AgentEventData::RunCompleted(
-                crate::agent::protocol::RunCompleted {
-                    outcome,
-                    assistant_message_id,
-                },
-            )),
-        ])
-    }
-}
+#[path = "../runtime_subagents_tests.rs"]
+mod tests;

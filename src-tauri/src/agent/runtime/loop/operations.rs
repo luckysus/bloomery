@@ -1,7 +1,8 @@
 use super::helpers::*;
 use super::types::{
     AgentEventSink, AgentLoop, AgentLoopError, AgentLoopResult, CancellationToken,
-    PermissionResolver, ToolExecutionError, ToolExecutor, ToolInvocation,
+    PermissionResolver, RuntimeToolSnapshot, ToolExecutionError, ToolExecutor, ToolFuture,
+    ToolInvocation,
 };
 use crate::agent::protocol::{
     AgentEventData, AgentMessageRole, AgentRunState, MessageCompleted, RunOutcome, ToolStarted,
@@ -53,6 +54,7 @@ where
     pub(super) async fn execute_tool_batch(
         &self,
         calls: &[super::types::PreparedToolCall],
+        snapshot: &RuntimeToolSnapshot,
         cancellation: &CancellationToken,
         sink: &mut dyn AgentEventSink,
     ) -> Result<Vec<ChatMessage>, AgentLoopError> {
@@ -62,26 +64,20 @@ where
             if cancellation.is_cancelled() {
                 break;
             }
-            if calls[index].read_only {
+            if calls[index].concurrency == crate::tools::ConcurrencyPolicy::ParallelRead {
                 let start = index;
-                while index < calls.len() && calls[index].read_only {
+                while index < calls.len()
+                    && calls[index].concurrency == crate::tools::ConcurrencyPolicy::ParallelRead
+                {
                     sink.record(AgentEventData::ToolStarted(ToolStarted {
                         tool_call_id: calls[index].tool_call_id,
                     }))
                     .map_err(AgentLoopError::EventSink)?;
                     index += 1;
                 }
-                let futures = calls[start..index].iter().map(|call| {
-                    self.tools.execute(
-                        ToolInvocation {
-                            tool_call_id: call.tool_call_id,
-                            tool_id: call.tool_id.clone(),
-                            tool_name: call.tool_name.clone(),
-                            arguments: call.arguments.clone(),
-                        },
-                        cancellation.clone(),
-                    )
-                });
+                let futures = calls[start..index]
+                    .iter()
+                    .map(|call| self.execute_tool(call, snapshot, cancellation.clone()));
                 let results = join_all(futures).await;
                 for (call, result) in calls[start..index].iter().zip(results) {
                     observations.push(record_tool_result(
@@ -98,16 +94,7 @@ where
                 }))
                 .map_err(AgentLoopError::EventSink)?;
                 let result = self
-                    .tools
-                    .execute(
-                        ToolInvocation {
-                            tool_call_id: call.tool_call_id,
-                            tool_id: call.tool_id.clone(),
-                            tool_name: call.tool_name.clone(),
-                            arguments: call.arguments.clone(),
-                        },
-                        cancellation.clone(),
-                    )
+                    .execute_tool(call, snapshot, cancellation.clone())
                     .await;
                 observations.push(record_tool_result(
                     sink,
@@ -119,6 +106,33 @@ where
             }
         }
         Ok(observations)
+    }
+
+    fn execute_tool(
+        &self,
+        call: &super::types::PreparedToolCall,
+        snapshot: &RuntimeToolSnapshot,
+        cancellation: CancellationToken,
+    ) -> ToolFuture {
+        let Some(registration) = snapshot.registrations().iter().find(|registration| {
+            registration.spec.id == call.tool_id && registration.spec.name == call.tool_name
+        }) else {
+            return Box::pin(async {
+                Err(ToolExecutionError::new(
+                    "tool_snapshot_mismatch",
+                    "tool is not present in the immutable turn snapshot",
+                ))
+            });
+        };
+        let timeout = call.timeout;
+        let future = registration
+            .handler
+            .execute(call.arguments.clone(), cancellation);
+        Box::pin(async move {
+            tokio::time::timeout(timeout, future).await.map_err(|_| {
+                ToolExecutionError::new("timeout", "tool execution exceeded its timeout")
+            })?
+        })
     }
 
     pub(super) fn apply_post_hook(

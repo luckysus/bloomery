@@ -66,8 +66,8 @@ transaction before publishing it to the UI. A lost UI notification therefore
 does not mean a lost event. An event that is visible in a replay is committed.
 
 The Tauri live channel for `AgentEventEnvelope` values is `agent-event`. The
-legacy `desktop-agent-delta` channel remains available for existing chat views;
-it carries only assistant text fragments and is not a replacement for replay.
+desktop chat consumes this same event stream and uses `sequence` replay after a
+window reconnect; there is no second delta channel with independent state.
 
 ## Event Types
 
@@ -156,12 +156,14 @@ On application restart:
   idempotent by the runtime.
 - An interrupted generation or unknown tool state is completed as
   `interrupted`; it is not silently replayed as a successful answer.
-- `retry_agent_run` creates a new run from a terminal source run. The source
-  events remain immutable.
+- Retry creates a new `desktop_agent_chat` run from the original user message;
+  the source run and its events remain immutable.
 
 The bridge commands are `replay_agent_run`, `cancel_agent_run`,
-`retry_agent_run`, and `recover_agent_runs`. Commands are workspace-scoped by
-the desktop application and never accept a Web login or cloud user ID.
+`steer_agent_run`, `follow_up_agent_run`, and `recover_agent_runs`. Retry uses
+the normal `desktop_agent_chat` command with a new run id. Commands are
+workspace-scoped by the desktop application and never accept a Web login or
+cloud user ID.
 
 ## Permissions
 

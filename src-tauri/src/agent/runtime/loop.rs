@@ -1,15 +1,19 @@
+#[path = "../loop_run.rs"]
 mod execution;
 mod generation;
+#[path = "../loop_helpers.rs"]
 mod helpers;
 mod operations;
+#[path = "../loop_types.rs"]
 mod types;
 
 pub use types::{
-    AgentEventSink, AgentHooks, AgentLoop, AgentLoopAttachment, AgentLoopError, AgentLoopRequest,
-    AgentLoopResult, CancellationToken, ContextEntry, DenyPermissions, EvidenceAttachment,
-    HookDecision, NoopAgentHooks, NoopToolExecutor, PermissionFuture, PermissionRequest,
-    PermissionResolver, ToolExecutionError, ToolExecutor, ToolFuture, ToolHandler, ToolInvocation,
-    ToolRegistration,
+    AgentContextCheckpoint, AgentEventSink, AgentHooks, AgentInputKind, AgentInputQueue,
+    AgentInputQueueMode, AgentLoop, AgentLoopAttachment, AgentLoopError, AgentLoopLimits,
+    AgentLoopRequest, AgentLoopResult, AgentLoopResume, CancellationToken, ContextCheckpointReason,
+    ContextEntry, DenyPermissions, EvidenceAttachment, HookDecision, NoopAgentHooks,
+    NoopToolExecutor, PermissionFuture, PermissionRequest, PermissionResolver, RuntimeToolSnapshot,
+    ToolExecutionError, ToolExecutor, ToolFuture, ToolHandler, ToolInvocation, ToolRegistration,
 };
 
 use types::AgentLoop as AgentLoopType;

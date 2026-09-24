@@ -1,6 +1,6 @@
-use super::AgentEventSink;
+use super::{AgentContextCheckpoint, AgentEventSink};
 use crate::agent::protocol::{AgentEventData, AgentEventEnvelope, RunOutcome, RunStateChanged};
-use crate::storage::repositories::{events, runs};
+use crate::storage::repositories::{checkpoints, events, runs};
 use chrono::Utc;
 use rusqlite::Connection;
 use uuid::Uuid;
@@ -107,5 +107,16 @@ where
             self.publisher.publish(event)?;
         }
         Ok(events)
+    }
+
+    fn checkpoint(&mut self, checkpoint: AgentContextCheckpoint) -> Result<(), String> {
+        checkpoints::save(
+            self.connection,
+            &self.workspace_id,
+            self.run_id,
+            &checkpoint,
+            Utc::now(),
+        )
+        .map_err(|error| error.to_string())
     }
 }

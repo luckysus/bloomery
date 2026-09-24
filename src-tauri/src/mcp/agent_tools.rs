@@ -93,11 +93,16 @@ impl McpToolExecutor {
                 ));
             }
             let definition = binding.definition;
+            let version = definition.version;
+            let source = definition.source.clone();
+            let concurrency = definition.concurrency;
+            let timeout = definition.timeout;
+            let idempotent = definition.read_only;
             let handler = ForwardingHandler {
                 caller: binding.caller,
                 tool_name: definition.name.clone(),
             };
-            registrations.push(ToolRegistration::new(
+            let mut registration = ToolRegistration::new(
                 ToolSpec {
                     id: definition.id.to_string(),
                     name: definition.name,
@@ -106,7 +111,14 @@ impl McpToolExecutor {
                 },
                 definition.read_only,
                 Arc::new(handler),
-            ));
+            );
+            registration.version = version;
+            registration.source = source;
+            registration.concurrency = concurrency;
+            registration.timeout = timeout;
+            registration.idempotent = idempotent;
+            registration.retryable = idempotent;
+            registrations.push(registration);
         }
         Ok(Self { registrations })
     }

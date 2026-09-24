@@ -136,6 +136,8 @@ where
         sink: &mut dyn AgentEventSink,
         cancellation: &CancellationToken,
         tool_snapshot: &[super::types::ToolRegistration],
+        model_call_count: &mut usize,
+        max_model_calls: Option<usize>,
     ) -> Result<RepairedToolBatch, AgentLoopError> {
         let specs = tool_snapshot
             .iter()
@@ -157,6 +159,16 @@ where
                 .as_ref()
                 .map(ToString::to_string)
                 .unwrap_or_else(|| "tool call is invalid".to_string());
+            if let Some(limit) = max_model_calls {
+                if *model_call_count >= limit {
+                    return Err(AgentLoopError::Limit {
+                        kind: "model_calls",
+                        limit,
+                        observed: *model_call_count + 1,
+                    });
+                }
+            }
+            *model_call_count += 1;
             let mut repair_messages = messages.to_vec();
             repair_messages.push(ChatMessage::new(
                 "system",

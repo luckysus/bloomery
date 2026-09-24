@@ -1,3 +1,5 @@
+pub mod checkpoints;
+pub mod child_turns;
 pub mod conversations;
 pub mod cron;
 pub mod database_connections;
@@ -13,3 +15,4 @@ pub mod runs;
 pub mod settings;
 pub mod steel;
 pub mod steel_models;
+pub mod turn_snapshots;
