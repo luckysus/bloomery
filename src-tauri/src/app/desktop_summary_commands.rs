@@ -9,7 +9,6 @@ use crate::storage::secrets::SecretState;
 
 #[tauri::command]
 pub async fn desktop_summarize_conversation(
-    app: tauri::AppHandle,
     db: tauri::State<'_, DbState>,
     secrets: tauri::State<'_, SecretState>,
     agent_state: tauri::State<'_, RuntimeHost>,
@@ -37,9 +36,7 @@ pub async fn desktop_summarize_conversation(
         return Ok(prepared.err().expect("summary result is an error"));
     };
     let answer = stream_llm_answer(
-        &app,
         &agent_state,
-        "desktop-ask-delta",
         &run_id,
         &prepared.config,
         &prepared.prompt,

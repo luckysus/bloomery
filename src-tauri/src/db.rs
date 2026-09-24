@@ -92,7 +92,7 @@ pub fn db_init(
     let (mut connection, _migration_report) =
         crate::storage::database::open(&path).map_err(|error| error.to_string())?;
     crate::storage::repositories::child_turns::interrupt_orphans(
-        &connection,
+        &mut connection,
         current_workspace_id(),
         Utc::now(),
     )
@@ -146,21 +146,55 @@ pub fn db_init(
     let runtime_host = agent_state.inner().clone();
     let app_for_recovery = app.clone();
     for recovered in recovered_runs {
-        if matches!(
+        let waits = match &recovered.action {
+            crate::agent::runtime::RecoveryAction::AwaitPermissions(_) => {
+                match crate::app::desktop_agent_runtime::restore_recovered_permissions(
+                    &runtime_host,
+                    &recovered,
+                ) {
+                    Ok(waits) => waits,
+                    Err(error) => {
+                        eprintln!("restore agent permissions after startup failed: {error}");
+                        None
+                    }
+                }
+            }
+            _ => None,
+        };
+        let should_resume = matches!(
             &recovered.action,
             crate::agent::runtime::RecoveryAction::ResumeFromCheckpoint(_)
-        ) {
+                | crate::agent::runtime::RecoveryAction::ResumeTools(_)
+                | crate::agent::runtime::RecoveryAction::AwaitPermissions(_)
+        );
+        if should_resume
+            && (!matches!(
+                &recovered.action,
+                crate::agent::runtime::RecoveryAction::AwaitPermissions(_)
+            ) || waits.is_some())
+        {
             let app_for_run = app_for_recovery.clone();
             let runtime_host_for_run = runtime_host.clone();
             tauri::async_runtime::spawn(async move {
-                if let Err(error) = crate::app::desktop_agent_runtime::resume_recovered_agent(
-                    &app_for_run,
-                    &runtime_host_for_run,
-                    current_workspace_id(),
-                    recovered,
-                )
-                .await
-                {
+                let result = if let Some(waits) = waits {
+                    crate::app::desktop_agent_runtime::resume_recovered_agent_with_permissions(
+                        &app_for_run,
+                        &runtime_host_for_run,
+                        current_workspace_id(),
+                        recovered,
+                        waits,
+                    )
+                    .await
+                } else {
+                    crate::app::desktop_agent_runtime::resume_recovered_agent(
+                        &app_for_run,
+                        &runtime_host_for_run,
+                        current_workspace_id(),
+                        recovered,
+                    )
+                    .await
+                };
+                if let Err(error) = result {
                     eprintln!("resume agent run after startup failed: {error}");
                 }
             });

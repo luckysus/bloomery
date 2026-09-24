@@ -88,9 +88,7 @@ pub async fn desktop_agent_chat(
         });
         if let Ok(Ok(summary)) = summary {
             if let Ok(summary_answer) = stream_llm_answer(
-                &app,
                 &agent_state,
-                "desktop-ask-delta",
                 &run_id,
                 &summary.config,
                 &summary.prompt,

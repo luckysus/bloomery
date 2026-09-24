@@ -361,7 +361,7 @@ export function useChatController(): ChatControllerProps {
   const cancelRun = async () => {
     if (!activeRunId) return;
     try {
-      await desktop.cancelDesktopRun(activeRunId);
+      await desktop.cancelAgentRun(activeRunId);
     } catch (cause) {
       setError(errorMessage(cause, t("chatError")));
     }

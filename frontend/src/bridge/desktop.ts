@@ -83,6 +83,24 @@ export interface RecoveredRun {
   events: AgentEventEnvelope[];
 }
 
+export interface AgentChildTurnRecord {
+  child_turn_id: string;
+  workspace_id: string;
+  parent_turn_id: string;
+  parent_conversation_id: string;
+  session_id: string;
+  state: AgentRunState;
+  created_at: string;
+  updated_at: string;
+  completed_at: string | null;
+}
+
+export interface ChildTurnCommandResult {
+  child: AgentChildTurnRecord;
+  events: AgentEventEnvelope[];
+  replay_only: boolean;
+}
+
 export interface PermissionRuleRecord {
   id: string;
   tool_id: string;
@@ -1095,8 +1113,6 @@ export const desktop = {
   listPermissionRules: () => call<PermissionRuleRecord[]>("list_permission_rules"),
   revokePermissionRule: (ruleId: string) =>
     call<void>("revoke_permission_rule", { ruleId }),
-  cancelDesktopRun: (runId: string) =>
-    call<void>("desktop_cancel_llm_run", { runId }),
   listenAgentEvents: (handler: (event: AgentEventEnvelope) => void) => {
     if (!isDesktopRuntime()) return Promise.resolve(() => undefined);
     return listen<AgentEventEnvelope>("agent-event", (event) => handler(event.payload));
@@ -1122,6 +1138,14 @@ export const desktop = {
   followUpAgentRun: (runId: string, message: string) =>
     call<void>("follow_up_agent_run", { runId, message }),
   recoverAgentRuns: () => call<RecoveredRun[]>("recover_agent_runs"),
+  listAgentChildTurns: (parentTurnId?: string) =>
+    call<AgentChildTurnRecord[]>("list_agent_child_turns", { parentTurnId }),
+  replayAgentChildTurn: (childTurnId: string, afterSequence = 0) =>
+    call<AgentEventEnvelope[]>("replay_agent_child_turn", {
+      request: { childTurnId, afterSequence },
+    }),
+  cancelAgentChildTurn: (childTurnId: string) =>
+    call<ChildTurnCommandResult>("cancel_agent_child_turn", { childTurnId }),
   calculateSteelCarbonEquivalent: (request: {
     formula: CarbonEquivalentFormula;
     unit: CompositionUnit;

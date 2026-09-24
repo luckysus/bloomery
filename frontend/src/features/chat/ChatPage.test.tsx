@@ -22,7 +22,7 @@ vi.mock("../../bridge/desktop", () => ({
     replayAgentRun: vi.fn(),
     desktopAgentChat: vi.fn(),
     resolveAgentPermission: vi.fn(),
-    cancelDesktopRun: vi.fn(),
+    cancelAgentRun: vi.fn(),
     steerAgentRun: vi.fn(),
     followUpAgentRun: vi.fn(),
     recoverAgentRuns: vi.fn(),

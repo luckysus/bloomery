@@ -1,7 +1,5 @@
 use crate::agent::protocol::PermissionDecision;
-use crate::agent::runtime::{
-    AgentInputKind, AgentRecoveryService, RecoveredRun, RunCommandResult, RuntimeHost,
-};
+use crate::agent::runtime::{AgentInputKind, AgentRecoveryService, RecoveredRun, RuntimeHost};
 use crate::db::{current_workspace_id, with_conn_mut, DbState};
 use crate::permissions::{ParameterScope, PermissionAction, PermissionRule, RuleEffect};
 use crate::tools::{ToolId, ToolSource, ToolVersion};
@@ -26,23 +24,6 @@ pub fn replay_agent_run(
     with_conn_mut(&db, |connection| {
         let service = AgentRecoveryService::new(connection, current_workspace_id())?;
         service.replay(run_id, request.after_sequence.unwrap_or(0))
-    })
-}
-
-#[tauri::command]
-pub fn cancel_agent_run(
-    db: tauri::State<DbState>,
-    run_id: String,
-    assistant_message_id: Option<String>,
-) -> Result<RunCommandResult, String> {
-    let run_id = parse_uuid(&run_id, "run_id")?;
-    let assistant_message_id = assistant_message_id
-        .filter(|value| !value.trim().is_empty())
-        .map(|value| parse_uuid(&value, "assistant_message_id"))
-        .transpose()?;
-    with_conn_mut(&db, |connection| {
-        let mut service = AgentRecoveryService::new(connection, current_workspace_id())?;
-        service.cancel(run_id, assistant_message_id, Utc::now())
     })
 }
 
@@ -80,20 +61,49 @@ pub fn recover_agent_runs(
         matches!(
             &candidate.action,
             crate::agent::runtime::RecoveryAction::ResumeFromCheckpoint(_)
+                | crate::agent::runtime::RecoveryAction::ResumeTools(_)
+                | crate::agent::runtime::RecoveryAction::AwaitPermissions(_)
         ) && state.snapshot(candidate.run.id).is_err()
     }) {
         let app_for_run = app.clone();
         let runtime = state.inner().clone();
         let candidate = candidate.clone();
+        let waits = match crate::app::desktop_agent_runtime::restore_recovered_permissions(
+            &runtime, &candidate,
+        ) {
+            Ok(waits) => waits,
+            Err(error) => {
+                eprintln!("restore agent permissions from the desktop control failed: {error}");
+                None
+            }
+        };
+        if matches!(
+            &candidate.action,
+            crate::agent::runtime::RecoveryAction::AwaitPermissions(_)
+        ) && waits.is_none()
+        {
+            continue;
+        }
         tauri::async_runtime::spawn(async move {
-            if let Err(error) = crate::app::desktop_agent_runtime::resume_recovered_agent(
-                &app_for_run,
-                &runtime,
-                current_workspace_id(),
-                candidate,
-            )
-            .await
-            {
+            let result = if let Some(waits) = waits {
+                crate::app::desktop_agent_runtime::resume_recovered_agent_with_permissions(
+                    &app_for_run,
+                    &runtime,
+                    current_workspace_id(),
+                    candidate,
+                    waits,
+                )
+                .await
+            } else {
+                crate::app::desktop_agent_runtime::resume_recovered_agent(
+                    &app_for_run,
+                    &runtime,
+                    current_workspace_id(),
+                    candidate,
+                )
+                .await
+            };
+            if let Err(error) = result {
                 eprintln!("resume agent run from the desktop control failed: {error}");
             }
         });

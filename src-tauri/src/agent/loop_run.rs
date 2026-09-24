@@ -12,7 +12,7 @@ use crate::agent::protocol::{
 };
 use crate::agent::runtime::model_adapter::ModelAdapter;
 use crate::agent::runtime::state_machine::{RunGuards, RunStateMachine};
-use crate::providers::capabilities::{ChatMessage, ChatRequest};
+use crate::providers::capabilities::{ChatMessage, ChatRequest, ChatToolCall};
 use crate::providers::profiles::ProviderCapability;
 use uuid::Uuid;
 
@@ -184,6 +184,10 @@ where
             }
             Some(tool_definitions(&tool_registrations))
         };
+        let mut resumable_tools = resume
+            .as_ref()
+            .map(|resume| resume.pending_tools.clone())
+            .unwrap_or_default();
         loop {
             if resume_natural_stop {
                 resume_natural_stop = false;
@@ -248,6 +252,89 @@ where
                         context,
                     });
                 }
+            }
+            if !resumable_tools.is_empty() {
+                if let Some(max_tool_rounds) = limits.max_tool_rounds {
+                    if tool_round >= max_tool_rounds {
+                        return self.fail(
+                            sink,
+                            machine.state(),
+                            request.assistant_message_id,
+                            AgentLoopError::Limit {
+                                kind: "tool_rounds",
+                                limit: max_tool_rounds,
+                                observed: tool_round + 1,
+                            },
+                        );
+                    }
+                }
+                let observed_tool_calls = tool_calls.saturating_add(resumable_tools.len());
+                if let Some(limit) = limits.max_tool_calls {
+                    if observed_tool_calls > limit {
+                        return self.fail(
+                            sink,
+                            machine.state(),
+                            request.assistant_message_id,
+                            AgentLoopError::Limit {
+                                kind: "tool_calls",
+                                limit,
+                                observed: observed_tool_calls,
+                            },
+                        );
+                    }
+                }
+                tool_round += 1;
+                tool_calls = observed_tool_calls;
+                let pending = std::mem::take(&mut resumable_tools);
+                let model_calls = pending
+                    .iter()
+                    .map(|call| ChatToolCall {
+                        id: call.tool_call_id.to_string(),
+                        name: call.tool_name.clone(),
+                        arguments: serde_json::to_string(&call.arguments).unwrap_or_default(),
+                    })
+                    .collect::<Vec<_>>();
+                messages.push(ChatMessage::assistant_tool_calls_with_reasoning(
+                    model_calls,
+                    String::new(),
+                ));
+                let observations = match self
+                    .resume_tool_batch(
+                        &pending,
+                        &tool_snapshot,
+                        &tool_registrations,
+                        &mut machine,
+                        sink,
+                        &cancellation,
+                    )
+                    .await
+                {
+                    Ok((_, observations)) => observations,
+                    Err(error) => {
+                        if cancellation.is_cancelled() {
+                            return self.cancel(
+                                &mut machine,
+                                sink,
+                                request.assistant_message_id,
+                                context,
+                                answer,
+                            );
+                        }
+                        return self.fail(
+                            sink,
+                            machine.state(),
+                            request.assistant_message_id,
+                            error,
+                        );
+                    }
+                };
+                messages.extend(observations);
+                let queued = request
+                    .input_queue
+                    .take(AgentInputKind::Steering)
+                    .map_err(AgentLoopError::Internal)?;
+                append_input_messages(&mut messages, queued);
+                continue;
             }
             if cancellation.is_cancelled() {
                 return self.cancel(

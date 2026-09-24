@@ -2,8 +2,9 @@ use crate::agent::desktop::StreamedLlmAnswer;
 use crate::agent::protocol::{AgentEventData, AgentRunState, RunOutcome};
 use crate::agent::runtime::{
     AgentContextCheckpoint, AgentLoop, AgentLoopResume, CompositeToolExecutor, DomainToolExecutor,
-    ModelAdapter, ProviderModelAdapter, RuntimeHost, SkillTool, SnapshotToolExecutor,
-    SqliteAgentEventSink, SqliteChildTurnStore, SubagentTool, TodoTracker, TurnSnapshot,
+    ModelAdapter, PermissionFuture, ProviderModelAdapter, ResumableToolCall, RuntimeHost,
+    SkillTool, SnapshotToolExecutor, SqliteAgentEventSink, SqliteChildTurnStore, SubagentTool,
+    TodoTracker, TurnSnapshot,
 };
 use crate::app::mcp_agent_runtime::load_enabled_tools_for_query;
 use crate::db::database_path;
@@ -13,6 +14,7 @@ use crate::providers::configured_chat_provider;
 use crate::steel::SteelToolExecutor;
 use crate::tasks::mailbox::MailboxStore;
 use serde_json::{json, Value};
+use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use tauri::Emitter;
@@ -52,10 +54,38 @@ pub(crate) async fn resume_standard_agent(
     assistant_result_recorded: bool,
     assistant_message_id: Uuid,
 ) -> Result<StreamedLlmAnswer, String> {
+    resume_standard_agent_with_tools(
+        app,
+        agent_state,
+        preparation,
+        workspace_id,
+        snapshot,
+        checkpoint,
+        state,
+        assistant_result_recorded,
+        assistant_message_id,
+        Vec::new(),
+    )
+    .await
+}
+
+pub(crate) async fn resume_standard_agent_with_tools(
+    app: &tauri::AppHandle,
+    agent_state: &RuntimeHost,
+    preparation: &crate::agent::desktop::ChatPreparation,
+    workspace_id: &str,
+    snapshot: crate::storage::repositories::turn_snapshots::AgentTurnSnapshot,
+    checkpoint: AgentContextCheckpoint,
+    state: AgentRunState,
+    assistant_result_recorded: bool,
+    assistant_message_id: Uuid,
+    pending_tools: Vec<ResumableToolCall>,
+) -> Result<StreamedLlmAnswer, String> {
     let resume = AgentLoopResume {
         checkpoint,
         state,
         assistant_result_recorded,
+        pending_tools,
     };
     run_standard_agent_inner(
         app,
@@ -350,10 +380,86 @@ pub(crate) async fn resume_recovered_agent(
     workspace_id: &str,
     recovered: crate::agent::runtime::RecoveredRun,
 ) -> Result<(), String> {
-    let checkpoint = match recovered.action {
-        crate::agent::runtime::RecoveryAction::ResumeFromCheckpoint(checkpoint) => checkpoint,
-        _ => return Ok(()),
+    resume_recovered_agent_inner(app, agent_state, workspace_id, recovered, Vec::new()).await
+}
+
+pub(crate) async fn resume_recovered_agent_with_permissions(
+    app: &tauri::AppHandle,
+    agent_state: &RuntimeHost,
+    workspace_id: &str,
+    recovered: crate::agent::runtime::RecoveredRun,
+    waits: Vec<PermissionFuture>,
+) -> Result<(), String> {
+    resume_recovered_agent_inner(app, agent_state, workspace_id, recovered, waits).await
+}
+
+pub(crate) fn restore_recovered_permissions(
+    agent_state: &RuntimeHost,
+    recovered: &crate::agent::runtime::RecoveredRun,
+) -> Result<Option<Vec<PermissionFuture>>, String> {
+    let crate::agent::runtime::RecoveryAction::AwaitPermissions(permissions) = &recovered.action
+    else {
+        return Ok(None);
     };
+    if permissions
+        .iter()
+        .any(|permission| agent_state.has_pending_permission(permission.permission_id))
+    {
+        return Ok(None);
+    }
+    let cancellation = agent_state.cancellation_token(recovered.run.id);
+    permissions
+        .iter()
+        .map(|permission| {
+            agent_state.restore_permission(
+                crate::agent::runtime::PermissionRequest {
+                    permission_id: permission.permission_id,
+                    tool_call_id: permission.tool_call_id,
+                    tool_id: permission.tool_id.clone(),
+                    tool_name: permission.tool_name.clone(),
+                    risk: permission.risk,
+                    arguments: permission.arguments.clone(),
+                },
+                cancellation.clone(),
+            )
+        })
+        .collect::<Result<Vec<_>, _>>()
+        .map(Some)
+}
+
+async fn resume_recovered_agent_inner(
+    app: &tauri::AppHandle,
+    agent_state: &RuntimeHost,
+    workspace_id: &str,
+    recovered: crate::agent::runtime::RecoveredRun,
+    waits: Vec<PermissionFuture>,
+) -> Result<(), String> {
+    let action = recovered.action.clone();
+    let permission_decisions = match &action {
+        crate::agent::runtime::RecoveryAction::AwaitPermissions(permissions) => {
+            if permissions.len() != waits.len() {
+                return Err(
+                    "recovered permission wait count does not match persisted requests".to_string(),
+                );
+            }
+            let mut decisions = HashMap::new();
+            for (permission, wait) in permissions.iter().zip(waits) {
+                decisions.insert(permission.permission_id, wait.await);
+            }
+            Some(decisions)
+        }
+        _ if !waits.is_empty() => {
+            return Err("permission waits were supplied for a non-permission recovery".to_string());
+        }
+        _ => None,
+    };
+    if agent_state.is_cancelled(&recovered.run.id.to_string())? {
+        return Ok(());
+    }
+    if matches!(action, crate::agent::runtime::RecoveryAction::Regenerate) {
+        return Ok(());
+    }
+
     let run = recovered.run;
     let database = database_path(app)?;
     let (mut connection, _) = crate::storage::database::open(&database)
@@ -367,6 +473,18 @@ pub(crate) async fn resume_recovered_agent(
     }
     let replay = crate::storage::repositories::events::replay(&connection, workspace_id, run.id, 0)
         .map_err(|error| error.to_string())?;
+    let checkpoint = match &action {
+        crate::agent::runtime::RecoveryAction::ResumeFromCheckpoint(checkpoint) => {
+            checkpoint.clone()
+        }
+        crate::agent::runtime::RecoveryAction::AwaitPermissions(_)
+        | crate::agent::runtime::RecoveryAction::ResumeTools(_) => {
+            crate::storage::repositories::checkpoints::get(&connection, workspace_id, run.id)
+                .map_err(|error| error.to_string())?
+                .ok_or_else(|| "recovered tool turn checkpoint is missing".to_string())?
+        }
+        crate::agent::runtime::RecoveryAction::Regenerate => return Ok(()),
+    };
     let assistant_result_recorded = replay.iter().any(|event| {
         matches!(
             &event.data,
@@ -374,6 +492,41 @@ pub(crate) async fn resume_recovered_agent(
                 if message.message_id == snapshot.assistant_message_id
         )
     });
+    let pending_tools = match &action {
+        crate::agent::runtime::RecoveryAction::ResumeTools(tools) => tools.clone(),
+        crate::agent::runtime::RecoveryAction::AwaitPermissions(_) => {
+            pending_tool_checkpoints(&replay)
+        }
+        crate::agent::runtime::RecoveryAction::ResumeFromCheckpoint(_)
+        | crate::agent::runtime::RecoveryAction::Regenerate => Vec::new(),
+    };
+    let permissions_by_tool = match &action {
+        crate::agent::runtime::RecoveryAction::AwaitPermissions(permissions) => permissions
+            .iter()
+            .map(|permission| (permission.tool_call_id, permission))
+            .collect::<HashMap<_, _>>(),
+        _ => HashMap::new(),
+    };
+    let resumable_tools = pending_tools
+        .into_iter()
+        .map(|tool| {
+            let permission = permissions_by_tool.get(&tool.tool_call_id);
+            ResumableToolCall {
+                tool_call_id: tool.tool_call_id,
+                tool_id: tool.tool_id,
+                tool_name: tool.tool_name,
+                arguments: tool.arguments,
+                permission_id: permission.map(|permission| permission.permission_id),
+                decision: permission
+                    .and_then(|permission| {
+                        permission_decisions
+                            .as_ref()?
+                            .get(&permission.permission_id)
+                    })
+                    .copied(),
+            }
+        })
+        .collect::<Vec<_>>();
     let message = connection
         .query_row(
             "SELECT content FROM messages
@@ -426,18 +579,34 @@ pub(crate) async fn resume_recovered_agent(
         selected_memories: Vec::new(),
         unavailable_response: None,
     };
-    let result = resume_standard_agent(
-        app,
-        agent_state,
-        &preparation,
-        workspace_id,
-        snapshot.clone(),
-        checkpoint,
-        run.state,
-        assistant_result_recorded,
-        snapshot.assistant_message_id,
-    )
-    .await;
+    let result = if resumable_tools.is_empty() {
+        resume_standard_agent(
+            app,
+            agent_state,
+            &preparation,
+            workspace_id,
+            snapshot.clone(),
+            checkpoint,
+            run.state,
+            assistant_result_recorded,
+            snapshot.assistant_message_id,
+        )
+        .await
+    } else {
+        resume_standard_agent_with_tools(
+            app,
+            agent_state,
+            &preparation,
+            workspace_id,
+            snapshot.clone(),
+            checkpoint,
+            run.state,
+            assistant_result_recorded,
+            snapshot.assistant_message_id,
+            resumable_tools,
+        )
+        .await
+    };
     let answer = match result {
         Ok(answer) => answer,
         Err(error) => {
@@ -451,24 +620,44 @@ pub(crate) async fn resume_recovered_agent(
             return Err(error);
         }
     };
-    {
-        let content = crate::agent::desktop::assistant_content_for_stream_result(&answer);
-        let response = json!({
-            "status": if answer.stopped { "cancelled" } else { "completed" },
-            "recovered": true,
-            "run_id": run.id,
-        });
-        let mut connection = connection;
-        crate::agent::desktop::append_agent_message(
-            &mut connection,
-            workspace_id,
-            &run.conversation_id.to_string(),
-            "agent",
-            &content,
-            Some(response.to_string()),
-        )?;
-    }
+    let content = crate::agent::desktop::assistant_content_for_stream_result(&answer);
+    let response = json!({
+        "status": if answer.stopped { "cancelled" } else { "completed" },
+        "recovered": true,
+        "run_id": run.id,
+    });
+    crate::agent::desktop::append_agent_message(
+        &mut connection,
+        workspace_id,
+        &run.conversation_id.to_string(),
+        "agent",
+        &content,
+        Some(response.to_string()),
+    )?;
     Ok(())
+}
+
+fn pending_tool_checkpoints(
+    events: &[crate::agent::protocol::AgentEventEnvelope],
+) -> Vec<crate::agent::runtime::ToolCheckpoint> {
+    let mut pending = Vec::new();
+    for event in events {
+        match &event.data {
+            AgentEventData::ToolRequested(tool) => {
+                pending.push(crate::agent::runtime::ToolCheckpoint {
+                    tool_call_id: tool.tool_call_id,
+                    tool_id: tool.tool_id.clone(),
+                    tool_name: tool.tool_name.clone(),
+                    arguments: tool.arguments.clone(),
+                })
+            }
+            AgentEventData::ToolCompleted(tool) => {
+                pending.retain(|call| call.tool_call_id != tool.tool_call_id);
+            }
+            _ => {}
+        }
+    }
+    pending
 }
 
 fn capture_tool_call_audit(tool_calls: &mut Vec<Value>, data: &AgentEventData) {

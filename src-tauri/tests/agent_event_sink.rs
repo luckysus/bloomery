@@ -304,6 +304,16 @@ fn child_turn_events_are_durable_and_orphans_are_interrupted() {
         timestamp("2026-08-05T00:02:00Z"),
     )
     .unwrap();
+    let stored_child = child_turns::get(&connection, WORKSPACE, child_id)
+        .unwrap()
+        .expect("child turn should be queryable");
+    assert_eq!(stored_child.parent_turn_id, id(RUN_ID));
+    assert_eq!(
+        child_turns::list(&connection, WORKSPACE, Some(id(RUN_ID)))
+            .unwrap()
+            .len(),
+        1
+    );
     let event = AgentEventEnvelope {
         protocol_version: bloomery::agent::protocol::PROTOCOL_VERSION,
         event_id: id("77777777-7777-4777-8777-777777777777"),
@@ -346,10 +356,24 @@ fn child_turn_events_are_durable_and_orphans_are_interrupted() {
         timestamp("2026-08-05T00:03:00Z"),
     )
     .unwrap();
+    let cancelled = child_turns::cancel(
+        &mut connection,
+        WORKSPACE,
+        orphan_id,
+        timestamp("2026-08-05T00:03:30Z"),
+    )
+    .unwrap();
+    assert_eq!(cancelled.child.state, AgentRunState::Cancelled);
+    assert!(!cancelled.replay_only);
+    assert_eq!(cancelled.events.len(), 2);
     assert_eq!(
-        child_turns::interrupt_orphans(&connection, WORKSPACE, timestamp("2026-08-05T00:04:00Z"))
-            .unwrap(),
-        1
+        child_turns::interrupt_orphans(
+            &mut connection,
+            WORKSPACE,
+            timestamp("2026-08-05T00:04:00Z")
+        )
+        .unwrap(),
+        0
     );
 }
 

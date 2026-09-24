@@ -7,8 +7,8 @@ use bloomery::agent::runtime::{
     AgentContextCheckpoint, AgentEventSink, AgentHooks, AgentInputQueue, AgentLoop,
     AgentLoopLimits, AgentLoopRequest, AgentLoopResume, CancellationToken, ContextCheckpointReason,
     ContextEntry, DenyPermissions, HookDecision, ModelAdapter, ModelFuture, NoopToolExecutor,
-    PermissionRequest, PermissionResolver, ToolExecutionError, ToolExecutor, ToolFuture,
-    ToolHandler, ToolInvocation, ToolRegistration,
+    PermissionRequest, PermissionResolver, ResumableToolCall, ToolExecutionError, ToolExecutor,
+    ToolFuture, ToolHandler, ToolInvocation, ToolRegistration,
 };
 use bloomery::providers::capabilities::{
     ChatEvent, ChatRequest, ChatResponse, ChatToolCall, ChatUsage, ProviderCapabilities,
@@ -1275,6 +1275,7 @@ fn loop_resumes_from_a_model_call_checkpoint_without_rebuilding_history() {
         },
         state: AgentRunState::Generating,
         assistant_result_recorded: false,
+        pending_tools: Vec::new(),
     });
     let mut sink = RecordingSink::new();
 
@@ -1292,4 +1293,64 @@ fn loop_resumes_from_a_model_call_checkpoint_without_rebuilding_history() {
     assert_eq!(requests.len(), 1);
     assert_eq!(requests[0].messages, checkpoint_messages);
     assert_eq!(sink.checkpoints[0].model_calls, 4);
+}
+
+#[test]
+fn loop_resumes_idempotent_tools_from_the_persisted_call_batch() {
+    let calls = Arc::new(Mutex::new(Vec::new()));
+    let tools = TestTools {
+        registrations: vec![tool(
+            "search.v1",
+            "search",
+            bloomery::agent::protocol::PermissionRisk::Automatic,
+            true,
+            Arc::new(StaticHandler {
+                output: json!({"ok": true}),
+                calls: Arc::clone(&calls),
+            }),
+        )],
+    };
+    let model = ScriptedModel::answer("recovered tool answer");
+    let mut request = request(None);
+    request.resume = Some(AgentLoopResume {
+        checkpoint: AgentContextCheckpoint {
+            reason: ContextCheckpointReason::ModelCall,
+            model_call_index: 0,
+            model_calls: 1,
+            tool_calls: 0,
+            tool_round: 0,
+            recovery_attempt: 0,
+            messages: vec![
+                bloomery::providers::capabilities::ChatMessage::new("system", "checkpoint"),
+                bloomery::providers::capabilities::ChatMessage::new("user", "search"),
+            ],
+        },
+        state: AgentRunState::ExecutingTools,
+        assistant_result_recorded: false,
+        pending_tools: vec![ResumableToolCall {
+            tool_call_id: Uuid::new_v4(),
+            tool_id: "search.v1".to_string(),
+            tool_name: "search".to_string(),
+            arguments: json!({"query": "Q355B"}),
+            permission_id: None,
+            decision: None,
+        }],
+    });
+    let mut sink = RecordingSink::new();
+
+    let result =
+        tauri::async_runtime::block_on(AgentLoop::new(&model, &tools, &DenyPermissions).run(
+            request,
+            &mut sink,
+            CancellationToken::new(|| false),
+        ))
+        .expect("resumed tool run succeeds");
+
+    assert_eq!(result.answer, "recovered tool answer");
+    assert_eq!(calls.lock().unwrap().len(), 1);
+    assert_eq!(model.requests.lock().unwrap().len(), 1);
+    assert!(sink
+        .events
+        .iter()
+        .any(|event| { matches!(event.data, AgentEventData::ToolCompleted(_)) }));
 }

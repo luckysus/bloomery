@@ -7,13 +7,16 @@ use chrono::{DateTime, Utc};
 use rusqlite::Connection;
 use serde::Serialize;
 use serde_json::Value;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use uuid::Uuid;
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct PendingPermission {
     pub permission_id: Uuid,
     pub tool_call_id: Uuid,
+    pub tool_id: String,
+    pub tool_name: String,
+    pub arguments: Value,
     pub risk: PermissionRisk,
     pub reason: String,
     pub summary: String,
@@ -302,11 +305,34 @@ fn recovery_action(
 
 fn pending_permissions(events: &[AgentEventEnvelope]) -> Vec<PendingPermission> {
     let mut pending = Vec::new();
+    let mut tools = HashMap::new();
     for event in events {
         match &event.data {
+            AgentEventData::ToolRequested(tool) => {
+                tools.insert(
+                    tool.tool_call_id,
+                    (
+                        tool.tool_id.clone(),
+                        tool.tool_name.clone(),
+                        tool.arguments.clone(),
+                    ),
+                );
+            }
             AgentEventData::PermissionRequested(permission) => pending.push(PendingPermission {
                 permission_id: permission.permission_id,
                 tool_call_id: permission.tool_call_id,
+                tool_id: tools
+                    .get(&permission.tool_call_id)
+                    .map(|tool| tool.0.clone())
+                    .unwrap_or_default(),
+                tool_name: tools
+                    .get(&permission.tool_call_id)
+                    .map(|tool| tool.1.clone())
+                    .unwrap_or_default(),
+                arguments: tools
+                    .get(&permission.tool_call_id)
+                    .map(|tool| tool.2.clone())
+                    .unwrap_or(Value::Null),
                 risk: permission.risk,
                 reason: permission.reason.clone(),
                 summary: permission.summary.clone(),

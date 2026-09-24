@@ -12,8 +12,9 @@ pub use types::{
     AgentInputQueueMode, AgentLoop, AgentLoopAttachment, AgentLoopError, AgentLoopLimits,
     AgentLoopRequest, AgentLoopResult, AgentLoopResume, CancellationToken, ContextCheckpointReason,
     ContextEntry, DenyPermissions, EvidenceAttachment, HookDecision, NoopAgentHooks,
-    NoopToolExecutor, PermissionFuture, PermissionRequest, PermissionResolver, RuntimeToolSnapshot,
-    ToolExecutionError, ToolExecutor, ToolFuture, ToolHandler, ToolInvocation, ToolRegistration,
+    NoopToolExecutor, PermissionFuture, PermissionRequest, PermissionResolver, ResumableToolCall,
+    RuntimeToolSnapshot, ToolExecutionError, ToolExecutor, ToolFuture, ToolHandler, ToolInvocation,
+    ToolRegistration,
 };
 
 use types::AgentLoop as AgentLoopType;

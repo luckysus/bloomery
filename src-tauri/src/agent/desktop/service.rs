@@ -1,5 +1,5 @@
 use super::model::{
-    DesktopRoute, LocalAgentAttachment, LocalAgentChatRequest, LocalAskRequest, LocalLlmConfig,
+    DesktopRoute, LocalAgentAttachment, LocalAgentChatRequest, LocalLlmConfig,
     SummarizeConversationResponse, SummaryPreparation,
 };
 use crate::agent::context::{
@@ -33,13 +33,6 @@ pub struct ChatPreparation {
     pub active_domains: Vec<crate::domains::DomainManifest>,
     pub selected_memories: Vec<Value>,
     pub unavailable_response: Option<Value>,
-}
-
-pub struct LocalAskPreparation {
-    pub run_id: String,
-    pub query: String,
-    pub prompt: String,
-    pub config: LocalLlmConfig,
 }
 
 pub fn build_agent_loop_request_with_attachments(
@@ -212,34 +205,6 @@ fn load_evidence_pack_reference(
         .map(Some)
 }
 
-pub fn prepare_local_ask(
-    conn: &Connection,
-    workspace_id: &str,
-    request: LocalAskRequest,
-    secrets: &dyn SecretStore,
-) -> Result<LocalAskPreparation, String> {
-    let query = request.query.trim().to_string();
-    if query.is_empty() {
-        return Err("query is required".to_string());
-    }
-    let config = super::provider::load_local_llm_config(conn, workspace_id, secrets)?;
-    super::provider::validate_local_llm_config(&config)?;
-    let mode = request.mode.unwrap_or_else(|| "literature".to_string());
-    let run_id = request
-        .run_id
-        .as_deref()
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-        .map(str::to_string)
-        .unwrap_or_else(|| Uuid::new_v4().to_string());
-    Ok(LocalAskPreparation {
-        run_id,
-        prompt: super::prompt::build_local_ask_prompt(&query, &request.contexts, &mode),
-        query,
-        config,
-    })
-}
-
 pub fn prepare_summary(
     conn: &mut Connection,
     workspace_id: &str,
@@ -281,7 +246,7 @@ pub fn prepare_summary(
         build_summary_prompt(&plan, existing.as_ref().map(|item| item.summary.as_str()));
     Ok(Ok(SummaryPreparation {
         config,
-        prompt: super::prompt::build_local_ask_prompt(&query, &contexts, "summary"),
+        prompt: super::prompt::build_summary_prompt(&query, &contexts),
         plan,
     }))
 }

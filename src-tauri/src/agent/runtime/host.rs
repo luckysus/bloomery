@@ -233,8 +233,20 @@ impl RuntimeHost {
         self.local.resolve_permission(permission_id, decision)
     }
 
+    pub fn restore_permission(
+        &self,
+        request: PermissionRequest,
+        cancellation: CancellationToken,
+    ) -> Result<crate::agent::runtime::PermissionFuture, String> {
+        self.local.restore_permission(request, cancellation)
+    }
+
     pub fn pending_permission(&self, permission_id: Uuid) -> Result<PermissionRequest, String> {
         self.local.pending_permission(permission_id)
+    }
+
+    pub fn has_pending_permission(&self, permission_id: Uuid) -> bool {
+        self.local.has_pending_permission(permission_id)
     }
 
     pub fn load_always_permission_keys(&self, keys: impl IntoIterator<Item = String>) {

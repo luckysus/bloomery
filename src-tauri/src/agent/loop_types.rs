@@ -421,6 +421,17 @@ pub struct AgentLoopResume {
     pub checkpoint: AgentContextCheckpoint,
     pub state: AgentRunState,
     pub assistant_result_recorded: bool,
+    pub pending_tools: Vec<ResumableToolCall>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ResumableToolCall {
+    pub tool_call_id: Uuid,
+    pub tool_id: String,
+    pub tool_name: String,
+    pub arguments: Value,
+    pub permission_id: Option<Uuid>,
+    pub decision: Option<PermissionDecision>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

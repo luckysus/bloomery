@@ -335,7 +335,7 @@ export const desktop = {
   initialize: () => invoke<void>("db_init"),
   listConversations: () => invoke<Conversation[]>("list_conversations"),
   chat: (request: AgentChatRequest) => invoke<AgentResponse>("desktop_agent_chat", { request }),
-  cancelRun: (runId: string) => invoke<void>("desktop_cancel_llm_run", { runId }),
+  cancelRun: (runId: string) => invoke<void>("cancel_agent_run", { runId }),
 };
 ```
 

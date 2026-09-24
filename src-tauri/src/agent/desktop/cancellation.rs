@@ -148,6 +148,36 @@ impl LocalAgentState {
         Ok(request)
     }
 
+    pub fn restore_permission(
+        &self,
+        request: PermissionRequest,
+        cancellation: CancellationToken,
+    ) -> Result<PermissionFuture, String> {
+        let permission_id = request.permission_id;
+        let (sender, receiver) = oneshot::channel();
+        let inserted = self
+            .pending_permissions
+            .lock()
+            .map_err(|_| "local agent state poisoned".to_string())?
+            .insert(permission_id, PendingPermission { request, sender })
+            .is_none();
+        if !inserted {
+            return Err("permission request is already waiting".to_string());
+        }
+        let pending_permissions = Arc::clone(&self.pending_permissions);
+        Ok(Box::pin(async move {
+            tokio::select! {
+                decision = receiver => decision.unwrap_or(PermissionDecision::Deny),
+                _ = wait_for_cancellation(cancellation) => {
+                    if let Ok(mut pending) = pending_permissions.lock() {
+                        pending.remove(&permission_id);
+                    }
+                    PermissionDecision::Deny
+                }
+            }
+        }))
+    }
+
     pub fn pending_permission(&self, permission_id: Uuid) -> Result<PermissionRequest, String> {
         self.pending_permissions
             .lock()
@@ -282,8 +312,11 @@ async fn wait_for_cancellation(cancellation: CancellationToken) {
 
 #[cfg(test)]
 mod tests {
-    use super::permission_key_for;
+    use super::{permission_key_for, LocalAgentState};
+    use crate::agent::protocol::{PermissionDecision, PermissionRisk};
+    use crate::agent::runtime::{CancellationToken, PermissionRequest};
     use serde_json::json;
+    use uuid::Uuid;
 
     #[test]
     fn permission_keys_are_stable_when_object_fields_are_reordered() {
@@ -299,5 +332,30 @@ mod tests {
         let changed = permission_key_for("steel.tool", &json!({"items": [1, 3]}));
         assert_ne!(first, reordered);
         assert_ne!(first, changed);
+    }
+
+    #[test]
+    fn restored_permission_can_be_resolved_by_the_desktop_command() {
+        let state = LocalAgentState::default();
+        let permission_id = Uuid::new_v4();
+        let future = state
+            .restore_permission(
+                PermissionRequest {
+                    permission_id,
+                    tool_call_id: Uuid::new_v4(),
+                    tool_id: "steel.write".to_string(),
+                    tool_name: "write".to_string(),
+                    risk: PermissionRisk::Dangerous,
+                    arguments: json!({"value": 1}),
+                },
+                CancellationToken::new(|| false),
+            )
+            .expect("permission should be restored");
+        state
+            .resolve_permission(permission_id, PermissionDecision::AllowOnce)
+            .expect("restored permission should accept a decision");
+        let decision = tauri::async_runtime::block_on(future);
+        assert_eq!(decision, PermissionDecision::AllowOnce);
+        assert!(!state.has_pending_permission(permission_id));
     }
 }

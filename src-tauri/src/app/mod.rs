@@ -1,12 +1,12 @@
+pub(crate) mod agent_cancel_commands;
 pub(crate) mod agent_commands;
 pub(crate) mod bundled_domain;
 pub(crate) mod bundled_domain_commands;
+pub(crate) mod child_turn_commands;
 pub(crate) mod commands;
 pub mod compute_commands;
 pub(crate) mod database_commands;
 pub(crate) mod desktop_agent_runtime;
-pub(crate) mod desktop_ask_commands;
-pub(crate) mod desktop_cancel_commands;
 pub(crate) mod desktop_chat_commands;
 pub(crate) mod desktop_stream;
 pub(crate) mod desktop_summary_commands;

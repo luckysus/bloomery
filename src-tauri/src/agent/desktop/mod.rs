@@ -8,8 +8,8 @@ mod session;
 
 pub use cancellation::{permission_key_for, LocalAgentState};
 pub use model::{
-    DesktopIntentKind, DesktopRoute, LocalAgentChatRequest, LocalAgentDelta, LocalAskRequest,
-    LocalLlmConfig, StreamedLlmAnswer, SummarizeConversationRequest, SummarizeConversationResponse,
+    DesktopIntentKind, DesktopRoute, LocalAgentChatRequest, LocalLlmConfig, StreamedLlmAnswer,
+    SummarizeConversationRequest, SummarizeConversationResponse,
 };
 pub(crate) use prompt::assistant_content_for_stream_result;
 pub(crate) use provider::{
@@ -18,7 +18,7 @@ pub(crate) use provider::{
 pub(crate) use routing::build_agent_response_json;
 pub(crate) use service::{
     add_mailbox_context, append_agent_message, build_agent_loop_request_with_attachments,
-    prepare_chat, prepare_local_ask, prepare_summary, save_summary, ChatPreparation,
+    prepare_chat, prepare_summary, save_summary, ChatPreparation,
 };
 
 #[cfg(test)]

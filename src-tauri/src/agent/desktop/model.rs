@@ -3,8 +3,6 @@ use crate::storage::secrets::SecretValue;
 use serde::{Deserialize, Serialize};
 
 pub const LOCAL_LLM_CONFIG_KEY: &str = "local_llm_config";
-pub const LOCAL_ASK_CONTEXT_LIMIT: usize = 12;
-pub const LOCAL_ASK_CONTEXT_CHAR_LIMIT: usize = 1800;
 pub const LOCAL_SUMMARY_CONTEXT_LIMIT: usize = 64;
 pub const LOCAL_SUMMARY_CONTEXT_CHAR_LIMIT: usize = 2500;
 
@@ -27,15 +25,6 @@ pub struct LocalAgentAttachment {
     pub data: String,
     pub mime: String,
     pub name: String,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct LocalAskRequest {
-    pub query: String,
-    pub contexts: Vec<String>,
-    pub mode: Option<String>,
-    pub run_id: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -70,12 +59,6 @@ impl LocalLlmConfig {
     pub(crate) fn has_credential(&self) -> bool {
         self.credential.is_some() || !self.api_key.trim().is_empty()
     }
-}
-
-#[derive(Clone, Debug, Serialize)]
-pub struct LocalAgentDelta {
-    pub run_id: String,
-    pub delta: String,
 }
 
 #[derive(Debug, Clone)]

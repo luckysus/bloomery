@@ -2,7 +2,7 @@ use super::{
     assistant_content_for_stream_result,
     cancellation::LocalAgentState,
     model::{DesktopIntentKind, LocalAgentChatRequest, StreamedLlmAnswer},
-    prompt::{build_desktop_context_prompt_for_domains, build_local_ask_prompt},
+    prompt::{build_desktop_context_prompt_for_domains, build_summary_prompt},
     routing::classify_desktop_intent,
 };
 use serde_json::json;
@@ -57,13 +57,13 @@ fn steel_routes_enter_the_local_agent_loop_instead_of_blocking() {
 
 #[test]
 fn prompt_bounds_frontend_contexts() {
-    let long_context = "x".repeat(super::model::LOCAL_ASK_CONTEXT_CHAR_LIMIT + 40);
-    let contexts = (0..20)
+    let long_context = "x".repeat(super::model::LOCAL_SUMMARY_CONTEXT_CHAR_LIMIT + 40);
+    let contexts = (0..70)
         .map(|index| format!("context-{index}-{long_context}"))
         .collect::<Vec<_>>();
-    let prompt = build_local_ask_prompt("answer", &contexts, "advice");
-    assert!(prompt.contains("contexts_meta: showing 12 of 20"));
-    assert!(!prompt.contains("context-12"));
+    let prompt = build_summary_prompt("answer", &contexts);
+    assert!(prompt.contains("contexts_meta: showing 64 of 70"));
+    assert!(!prompt.contains("context-64"));
     assert!(prompt.contains('\u{2026}'));
 }
 

@@ -1,9 +1,29 @@
-use crate::agent::protocol::{AgentEventEnvelope, AgentRunState, RunOutcome, PROTOCOL_VERSION};
+use crate::agent::protocol::{
+    AgentEventData, AgentEventEnvelope, AgentRunState, RunOutcome, PROTOCOL_VERSION,
+};
 use crate::agent::runtime::TurnSnapshot;
 use crate::storage::StorageError;
 use chrono::{DateTime, Utc};
-use rusqlite::{params, Connection, TransactionBehavior};
+use rusqlite::{params, Connection, OptionalExtension, Row, Transaction, TransactionBehavior};
+use serde::Serialize;
 use uuid::Uuid;
+
+#[path = "child_turns_control.rs"]
+mod control;
+pub use control::{cancel, finish, interrupt_orphans, replay, ChildTurnCommandResult};
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct ChildTurnRecord {
+    pub child_turn_id: Uuid,
+    pub workspace_id: String,
+    pub parent_turn_id: Uuid,
+    pub parent_conversation_id: Uuid,
+    pub session_id: Uuid,
+    pub state: AgentRunState,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+    pub completed_at: Option<DateTime<Utc>>,
+}
 
 pub fn create(
     connection: &mut Connection,
@@ -43,6 +63,69 @@ pub fn create(
     Ok(())
 }
 
+pub fn get(
+    connection: &Connection,
+    workspace_id: &str,
+    child_turn_id: Uuid,
+) -> Result<Option<ChildTurnRecord>, StorageError> {
+    validate_workspace(workspace_id)?;
+    connection
+        .query_row(
+            "SELECT child_turn_id, workspace_id, parent_turn_id,
+                    parent_conversation_id, session_id, state,
+                    created_at, updated_at, completed_at
+             FROM agent_child_turns
+             WHERE workspace_id = ?1 AND child_turn_id = ?2",
+            params![workspace_id, child_turn_id.to_string()],
+            row_to_record,
+        )
+        .optional()
+        .map_err(storage)?
+        .map(decode_record)
+        .transpose()
+}
+
+pub fn list(
+    connection: &Connection,
+    workspace_id: &str,
+    parent_turn_id: Option<Uuid>,
+) -> Result<Vec<ChildTurnRecord>, StorageError> {
+    validate_workspace(workspace_id)?;
+    let (sql, parameters): (&str, Vec<String>) = if let Some(parent_turn_id) = parent_turn_id {
+        (
+            "SELECT child_turn_id, workspace_id, parent_turn_id,
+                    parent_conversation_id, session_id, state,
+                    created_at, updated_at, completed_at
+             FROM agent_child_turns
+             WHERE workspace_id = ?1 AND parent_turn_id = ?2
+             ORDER BY created_at ASC, child_turn_id ASC",
+            vec![workspace_id.to_string(), parent_turn_id.to_string()],
+        )
+    } else {
+        (
+            "SELECT child_turn_id, workspace_id, parent_turn_id,
+                    parent_conversation_id, session_id, state,
+                    created_at, updated_at, completed_at
+             FROM agent_child_turns
+             WHERE workspace_id = ?1
+             ORDER BY created_at ASC, child_turn_id ASC",
+            vec![workspace_id.to_string()],
+        )
+    };
+    let mut statement = connection.prepare(sql).map_err(storage)?;
+    let rows = if parameters.len() == 2 {
+        statement
+            .query_map(params![parameters[0], parameters[1]], row_to_record)
+            .map_err(storage)?
+    } else {
+        statement
+            .query_map(params![parameters[0]], row_to_record)
+            .map_err(storage)?
+    };
+    rows.map(|row| row.map_err(storage).and_then(decode_record))
+        .collect()
+}
+
 pub fn append(
     connection: &mut Connection,
     workspace_id: &str,
@@ -58,36 +141,22 @@ pub fn append(
     let transaction = connection
         .transaction_with_behavior(TransactionBehavior::Immediate)
         .map_err(storage)?;
-    let next_sequence: i64 = transaction
-        .query_row(
-            "SELECT COALESCE(MAX(sequence), 0) + 1
-             FROM agent_child_turn_events
-             WHERE workspace_id = ?1 AND child_turn_id = ?2",
-            params![workspace_id, event.run_id.to_string()],
-            |row| row.get(0),
-        )
-        .map_err(storage)?;
-    let sequence = u64::try_from(next_sequence).map_err(decode)?;
-    let mut stored = event.clone();
-    stored.sequence = sequence;
-    let event_json = serde_json::to_string(&stored).map_err(encode)?;
-    transaction
-        .execute(
-            "INSERT INTO agent_child_turn_events
-             (event_id, workspace_id, child_turn_id, sequence,
-              protocol_version, timestamp, event_json)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
-            params![
-                stored.event_id.to_string(),
-                workspace_id,
-                stored.run_id.to_string(),
-                next_sequence,
-                i64::from(stored.protocol_version),
-                timestamp_text(stored.timestamp),
-                event_json,
-            ],
-        )
-        .map_err(storage)?;
+    let stored = append_data_in_transaction(
+        &transaction,
+        workspace_id,
+        event.run_id,
+        event.conversation_id,
+        event.event_id,
+        event.timestamp,
+        event.data.clone(),
+    )?;
+    update_state_for_event(
+        &transaction,
+        workspace_id,
+        stored.run_id,
+        &stored.data,
+        stored.timestamp,
+    )?;
     transaction
         .execute(
             "UPDATE agent_child_turns SET updated_at = ?1
@@ -103,24 +172,77 @@ pub fn append(
     Ok(stored)
 }
 
-pub fn finish(
-    connection: &Connection,
+pub(super) fn append_data_in_transaction(
+    transaction: &Transaction<'_>,
     workspace_id: &str,
     child_turn_id: Uuid,
-    outcome: RunOutcome,
+    conversation_id: Uuid,
+    event_id: Uuid,
+    timestamp: DateTime<Utc>,
+    data: AgentEventData,
+) -> Result<AgentEventEnvelope, StorageError> {
+    let next_sequence: i64 = transaction
+        .query_row(
+            "SELECT COALESCE(MAX(sequence), 0) + 1
+             FROM agent_child_turn_events
+             WHERE workspace_id = ?1 AND child_turn_id = ?2",
+            params![workspace_id, child_turn_id.to_string()],
+            |row| row.get(0),
+        )
+        .map_err(storage)?;
+    let sequence = u64::try_from(next_sequence).map_err(decode)?;
+    let stored = AgentEventEnvelope {
+        protocol_version: PROTOCOL_VERSION,
+        event_id,
+        run_id: child_turn_id,
+        conversation_id,
+        sequence,
+        timestamp,
+        data,
+    };
+    let event_json = serde_json::to_string(&stored).map_err(encode)?;
+    transaction
+        .execute(
+            "INSERT INTO agent_child_turn_events
+             (event_id, workspace_id, child_turn_id, sequence,
+              protocol_version, timestamp, event_json)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+            params![
+                stored.event_id.to_string(),
+                workspace_id,
+                child_turn_id.to_string(),
+                next_sequence,
+                i64::from(stored.protocol_version),
+                timestamp_text(stored.timestamp),
+                event_json,
+            ],
+        )
+        .map_err(storage)?;
+    Ok(stored)
+}
+
+pub(super) fn update_state_for_event(
+    transaction: &Transaction<'_>,
+    workspace_id: &str,
+    child_turn_id: Uuid,
+    data: &AgentEventData,
     timestamp: DateTime<Utc>,
 ) -> Result<(), StorageError> {
-    validate_workspace(workspace_id)?;
-    let state = outcome_state(outcome);
-    connection
+    let (state, completed) = match data {
+        AgentEventData::RunStateChanged(changed) => (changed.current, is_terminal(changed.current)),
+        AgentEventData::RunCompleted(completed) => (outcome_state(completed.outcome), true),
+        _ => return Ok(()),
+    };
+    transaction
         .execute(
             "UPDATE agent_child_turns
-             SET state = ?1, updated_at = ?2, completed_at = ?2
-             WHERE workspace_id = ?3 AND child_turn_id = ?4
-               AND state NOT IN ('completed', 'cancelled', 'failed', 'interrupted')",
+             SET state = ?1, updated_at = ?2,
+                 completed_at = CASE WHEN ?3 = 1 THEN ?2 ELSE completed_at END
+             WHERE workspace_id = ?4 AND child_turn_id = ?5",
             params![
                 state_text(state),
                 timestamp_text(timestamp),
+                i64::from(completed),
                 workspace_id,
                 child_turn_id.to_string()
             ],
@@ -129,67 +251,90 @@ pub fn finish(
     Ok(())
 }
 
-pub fn replay(
-    connection: &Connection,
-    workspace_id: &str,
-    child_turn_id: Uuid,
-    after_sequence: u64,
-) -> Result<Vec<AgentEventEnvelope>, StorageError> {
-    validate_workspace(workspace_id)?;
-    let after_sequence = i64::try_from(after_sequence).map_err(|_| {
-        StorageError::new(
-            "agent_sequence_invalid",
-            "child event sequence exceeds SQLite range",
-        )
-    })?;
-    let mut statement = connection
-        .prepare(
-            "SELECT event_json FROM agent_child_turn_events
-             WHERE workspace_id = ?1 AND child_turn_id = ?2 AND sequence > ?3
-             ORDER BY sequence ASC",
-        )
-        .map_err(storage)?;
-    let rows = statement
-        .query_map(
-            params![workspace_id, child_turn_id.to_string(), after_sequence],
-            |row| row.get::<_, String>(0),
-        )
-        .map_err(storage)?;
-    rows.map(|row| {
-        let value = row.map_err(storage)?;
-        let event: AgentEventEnvelope = serde_json::from_str(&value).map_err(decode)?;
-        if event.run_id != child_turn_id {
-            return Err(StorageError::new(
-                "agent_child_event_corrupt",
-                "child event run identity does not match storage identity",
-            ));
-        }
-        Ok(event)
+fn row_to_record(row: &Row<'_>) -> rusqlite::Result<RawChildTurn> {
+    Ok(RawChildTurn {
+        child_turn_id: row.get(0)?,
+        workspace_id: row.get(1)?,
+        parent_turn_id: row.get(2)?,
+        parent_conversation_id: row.get(3)?,
+        session_id: row.get(4)?,
+        state: row.get(5)?,
+        created_at: row.get(6)?,
+        updated_at: row.get(7)?,
+        completed_at: row.get(8)?,
     })
-    .collect()
 }
 
-/// A child task cannot be safely replayed after process termination because
-/// its provider request may have reached the outside world. Mark it orphaned
-/// instead of attempting an implicit duplicate execution.
-pub fn interrupt_orphans(
-    connection: &Connection,
-    workspace_id: &str,
-    timestamp: DateTime<Utc>,
-) -> Result<usize, StorageError> {
-    validate_workspace(workspace_id)?;
-    connection
-        .execute(
-            "UPDATE agent_child_turns
-             SET state = 'interrupted', updated_at = ?1, completed_at = ?1
-             WHERE workspace_id = ?2
-               AND state NOT IN ('completed', 'cancelled', 'failed', 'interrupted')",
-            params![timestamp_text(timestamp), workspace_id],
-        )
-        .map_err(storage)
+struct RawChildTurn {
+    child_turn_id: String,
+    workspace_id: String,
+    parent_turn_id: String,
+    parent_conversation_id: String,
+    session_id: String,
+    state: String,
+    created_at: String,
+    updated_at: String,
+    completed_at: Option<String>,
 }
 
-fn outcome_state(outcome: RunOutcome) -> AgentRunState {
+fn decode_record(raw: RawChildTurn) -> Result<ChildTurnRecord, StorageError> {
+    Ok(ChildTurnRecord {
+        child_turn_id: parse_uuid(&raw.child_turn_id)?,
+        workspace_id: raw.workspace_id,
+        parent_turn_id: parse_uuid(&raw.parent_turn_id)?,
+        parent_conversation_id: parse_uuid(&raw.parent_conversation_id)?,
+        session_id: parse_uuid(&raw.session_id)?,
+        state: parse_state(&raw.state)?,
+        created_at: parse_timestamp(&raw.created_at)?,
+        updated_at: parse_timestamp(&raw.updated_at)?,
+        completed_at: raw
+            .completed_at
+            .map(|value| parse_timestamp(&value))
+            .transpose()?,
+    })
+}
+
+fn parse_uuid(value: &str) -> Result<Uuid, StorageError> {
+    Uuid::parse_str(value).map_err(decode)
+}
+
+fn parse_timestamp(value: &str) -> Result<DateTime<Utc>, StorageError> {
+    DateTime::parse_from_rfc3339(value)
+        .map(|value| value.with_timezone(&Utc))
+        .map_err(decode)
+}
+
+fn parse_state(value: &str) -> Result<AgentRunState, StorageError> {
+    match value {
+        "created" => Ok(AgentRunState::Created),
+        "preparing" => Ok(AgentRunState::Preparing),
+        "generating" => Ok(AgentRunState::Generating),
+        "awaiting_permission" => Ok(AgentRunState::AwaitingPermission),
+        "executing_tools" => Ok(AgentRunState::ExecutingTools),
+        "verifying" => Ok(AgentRunState::Verifying),
+        "completing" => Ok(AgentRunState::Completing),
+        "completed" => Ok(AgentRunState::Completed),
+        "cancelled" => Ok(AgentRunState::Cancelled),
+        "failed" => Ok(AgentRunState::Failed),
+        "interrupted" => Ok(AgentRunState::Interrupted),
+        _ => Err(StorageError::new(
+            "agent_child_decode_failed",
+            format!("unknown child turn state: {value}"),
+        )),
+    }
+}
+
+pub(super) fn is_terminal(state: AgentRunState) -> bool {
+    matches!(
+        state,
+        AgentRunState::Completed
+            | AgentRunState::Cancelled
+            | AgentRunState::Failed
+            | AgentRunState::Interrupted
+    )
+}
+
+pub(super) fn outcome_state(outcome: RunOutcome) -> AgentRunState {
     match outcome {
         RunOutcome::Completed => AgentRunState::Completed,
         RunOutcome::Cancelled => AgentRunState::Cancelled,
@@ -198,7 +343,7 @@ fn outcome_state(outcome: RunOutcome) -> AgentRunState {
     }
 }
 
-fn state_text(state: AgentRunState) -> &'static str {
+pub(super) fn state_text(state: AgentRunState) -> &'static str {
     match state {
         AgentRunState::Created => "created",
         AgentRunState::Preparing => "preparing",
@@ -214,7 +359,7 @@ fn state_text(state: AgentRunState) -> &'static str {
     }
 }
 
-fn validate_workspace(workspace_id: &str) -> Result<(), StorageError> {
+pub(super) fn validate_workspace(workspace_id: &str) -> Result<(), StorageError> {
     if workspace_id.trim().is_empty() || workspace_id.trim() != workspace_id {
         Err(StorageError::new(
             "agent_workspace_invalid",
@@ -225,18 +370,18 @@ fn validate_workspace(workspace_id: &str) -> Result<(), StorageError> {
     }
 }
 
-fn timestamp_text(timestamp: DateTime<Utc>) -> String {
+pub(super) fn timestamp_text(timestamp: DateTime<Utc>) -> String {
     timestamp.to_rfc3339_opts(chrono::SecondsFormat::Nanos, true)
 }
 
-fn storage(error: rusqlite::Error) -> StorageError {
+pub(super) fn storage(error: rusqlite::Error) -> StorageError {
     StorageError::new("agent_child_storage_failed", error.to_string())
 }
 
-fn encode(error: serde_json::Error) -> StorageError {
+pub(super) fn encode(error: serde_json::Error) -> StorageError {
     StorageError::new("agent_child_event_encode_failed", error.to_string())
 }
 
-fn decode(error: impl std::fmt::Display) -> StorageError {
+pub(super) fn decode(error: impl std::fmt::Display) -> StorageError {
     StorageError::new("agent_child_event_decode_failed", error.to_string())
 }

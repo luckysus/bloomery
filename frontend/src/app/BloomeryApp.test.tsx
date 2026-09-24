@@ -36,7 +36,7 @@ vi.mock("../bridge/desktop", () => ({
     listenAgentEvents: vi.fn().mockResolvedValue(() => undefined),
     recoverAgentRuns: vi.fn().mockResolvedValue([]),
     desktopAgentChat: vi.fn(),
-    cancelDesktopRun: vi.fn().mockResolvedValue(undefined),
+    cancelAgentRun: vi.fn().mockResolvedValue(undefined),
     listProviderProfiles: vi.fn().mockResolvedValue([]),
     listDatabaseConnections: vi.fn().mockResolvedValue([]),
     listDatabases: vi.fn().mockResolvedValue([]),
