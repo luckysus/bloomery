@@ -57,6 +57,7 @@ pub fn build_agent_loop_request_with_attachments(
             )),
         ],
         output_reservation: 2_048,
+        reasoning_reservation: crate::agent::context::DEFAULT_REASONING_RESERVATION,
         evidence: evidence_pack.map(|pack| EvidenceAttachment {
             evidence_pack_id: pack.id,
             citation_numbers: pack

@@ -5,7 +5,7 @@ mod tokens;
 
 pub use budget::{
     budget_context, ContextBudgetError, ContextItem, ContextReport, ContextSource,
-    ItemTokenEstimate, TruncationRecord, DEFAULT_MODEL_LIMIT,
+    ItemTokenEstimate, TruncationRecord, DEFAULT_MODEL_LIMIT, DEFAULT_REASONING_RESERVATION,
 };
 pub use memory::{
     extract_memory_candidate, normalize_memory_key, MemoryCandidate, MemoryCandidateError,

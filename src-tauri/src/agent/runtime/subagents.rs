@@ -252,6 +252,7 @@ impl ToolHandler for SubagentHandler {
                         model: parent.model,
                         model_context_window: parent.model_context_window,
                         output_reservation: 2_048,
+                        reasoning_reservation: parent.reasoning_reservation,
                         limits: AgentLoopLimits {
                             max_model_calls: Some(MAX_SUBAGENT_MODEL_CALLS),
                             max_tool_calls: Some(MAX_SUBAGENT_TOOL_CALLS),
@@ -296,6 +297,10 @@ impl ToolHandler for SubagentHandler {
                     )),
                 ],
                 output_reservation: 2_048,
+                reasoning_reservation: child_runtime
+                    .as_ref()
+                    .map(|(_, _, _, snapshot)| snapshot.reasoning_reservation)
+                    .unwrap_or(crate::agent::context::DEFAULT_REASONING_RESERVATION),
                 evidence: None,
                 attachments: Vec::new(),
                 limits: child_runtime

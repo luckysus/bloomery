@@ -274,6 +274,10 @@ async fn run_standard_agent_inner(
             .as_ref()
             .map(|snapshot| snapshot.turn.output_reservation)
             .unwrap_or(request.output_reservation);
+        request.reasoning_reservation = persisted_snapshot
+            .as_ref()
+            .map(|snapshot| snapshot.turn.reasoning_reservation)
+            .unwrap_or(request.reasoning_reservation);
         request.limits = persisted_snapshot
             .as_ref()
             .map(|snapshot| snapshot.turn.limits.clone())
@@ -292,6 +296,7 @@ async fn run_standard_agent_inner(
             model: preparation.config.model_name.clone(),
             model_context_window: model.capabilities().context_window,
             output_reservation: request.output_reservation,
+            reasoning_reservation: request.reasoning_reservation,
             limits: request.limits.clone(),
             tool_ids: Vec::new(),
             tool_snapshot: Vec::new(),
@@ -647,6 +652,7 @@ async fn resume_recovered_agent_inner(
                 Uuid::new_v4(),
                 chrono::Utc::now(),
                 AgentEventData::RecoveryCompleted(crate::agent::protocol::RecoveryCompleted {
+                    recovery_id: recovered.recovery_id,
                     action: action.kind().to_string(),
                     outcome: Some(RunOutcome::Failed),
                 }),
@@ -671,6 +677,7 @@ async fn resume_recovered_agent_inner(
         Uuid::new_v4(),
         chrono::Utc::now(),
         AgentEventData::RecoveryCompleted(crate::agent::protocol::RecoveryCompleted {
+            recovery_id: recovered.recovery_id,
             action: action.kind().to_string(),
             outcome: Some(if answer.stopped {
                 RunOutcome::Cancelled

@@ -387,6 +387,7 @@ pub struct AgentLoopRequest {
     pub assistant_message_id: Uuid,
     pub context: Vec<ContextEntry>,
     pub output_reservation: usize,
+    pub reasoning_reservation: usize,
     pub evidence: Option<EvidenceAttachment>,
     pub attachments: Vec<AgentLoopAttachment>,
     pub limits: AgentLoopLimits,

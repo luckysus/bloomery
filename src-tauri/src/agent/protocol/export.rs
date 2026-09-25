@@ -280,20 +280,22 @@ pub fn json_schema() -> String {
         "recovery_started".to_string(),
         object(
             json!({
+                "recovery_id": uuid_schema(),
                 "action": string_schema(),
                 "recovery_attempt": integer_schema(),
             }),
-            &["action", "recovery_attempt"],
+            &["recovery_id", "action", "recovery_attempt"],
         ),
     );
     definitions.insert(
         "recovery_completed".to_string(),
         object(
             json!({
+                "recovery_id": uuid_schema(),
                 "action": string_schema(),
                 "outcome": optional(ref_schema("run_outcome")),
             }),
-            &["action", "outcome"],
+            &["recovery_id", "action", "outcome"],
         ),
     );
     definitions.insert(
@@ -618,11 +620,13 @@ export interface CheckpointSaved {
 }
 
 export interface RecoveryStarted {
+  recovery_id: UUID;
   action: string;
   recovery_attempt: number;
 }
 
 export interface RecoveryCompleted {
+  recovery_id: UUID;
   action: string;
   outcome: RunOutcome | null;
 }

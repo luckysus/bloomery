@@ -58,12 +58,14 @@ pub fn recover_agent_runs(
         service.recover_active(&HashSet::new(), Utc::now())
     })?;
     for candidate in recovered.iter().filter(|candidate| {
-        matches!(
-            &candidate.action,
-            crate::agent::runtime::RecoveryAction::ResumeFromCheckpoint(_)
-                | crate::agent::runtime::RecoveryAction::ResumeTools(_)
-                | crate::agent::runtime::RecoveryAction::AwaitPermissions(_)
-        ) && state.snapshot(candidate.run.id).is_err()
+        !candidate.events.is_empty()
+            && matches!(
+                &candidate.action,
+                crate::agent::runtime::RecoveryAction::ResumeFromCheckpoint(_)
+                    | crate::agent::runtime::RecoveryAction::ResumeTools(_)
+                    | crate::agent::runtime::RecoveryAction::AwaitPermissions(_)
+            )
+            && state.snapshot(candidate.run.id).is_err()
     }) {
         let app_for_run = app.clone();
         let runtime = state.inner().clone();

@@ -5,6 +5,7 @@ use std::fmt;
 use super::tokens::{estimate_tokens, truncate_to_tokens};
 
 pub const DEFAULT_MODEL_LIMIT: usize = 8_192;
+pub const DEFAULT_REASONING_RESERVATION: usize = 1_024;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ContextSource {
@@ -76,6 +77,8 @@ pub struct ContextReport {
     pub model_limit: usize,
     pub input_limit: usize,
     pub output_reservation: usize,
+    pub reasoning_reservation: usize,
+    pub completion_reservation: usize,
     pub estimated_included_tokens: usize,
     pub included_ids: Vec<String>,
     pub omitted_ids: Vec<String>,
@@ -97,8 +100,9 @@ pub enum ContextBudgetError {
     DuplicateRecentTurnRank {
         newest_first_rank: usize,
     },
-    OutputReservationExceedsModelLimit {
+    CompletionReservationExceedsModelLimit {
         output_reservation: usize,
+        reasoning_reservation: usize,
         model_limit: usize,
     },
     RequiredContentExceedsLimit {
@@ -132,12 +136,13 @@ impl fmt::Display for ContextBudgetError {
                 formatter,
                 "duplicate recent turn rank: {newest_first_rank}"
             ),
-            Self::OutputReservationExceedsModelLimit {
+            Self::CompletionReservationExceedsModelLimit {
                 output_reservation,
+                reasoning_reservation,
                 model_limit,
             } => write!(
                 formatter,
-                "output reservation {output_reservation} exceeds model limit {model_limit}"
+                "output reservation {output_reservation} plus reasoning reservation {reasoning_reservation} exceeds model limit {model_limit}"
             ),
             Self::RequiredContentExceedsLimit {
                 required_tokens,
@@ -172,6 +177,7 @@ pub fn budget_context(
     items: &[ContextItem],
     model_limit: Option<usize>,
     output_reservation: usize,
+    reasoning_reservation: usize,
 ) -> Result<ContextReport, ContextBudgetError> {
     validate_items(items)?;
     let current_request_count = items
@@ -192,13 +198,15 @@ pub fn budget_context(
     }
 
     let model_limit = model_limit.unwrap_or(DEFAULT_MODEL_LIMIT);
-    if output_reservation > model_limit {
-        return Err(ContextBudgetError::OutputReservationExceedsModelLimit {
+    let completion_reservation = output_reservation.saturating_add(reasoning_reservation);
+    if completion_reservation > model_limit {
+        return Err(ContextBudgetError::CompletionReservationExceedsModelLimit {
             output_reservation,
+            reasoning_reservation,
             model_limit,
         });
     }
-    let input_limit = model_limit - output_reservation;
+    let input_limit = model_limit - completion_reservation;
     let original_tokens = items
         .iter()
         .map(|item| estimate_tokens(&item.content))
@@ -304,6 +312,8 @@ pub fn budget_context(
         model_limit,
         input_limit,
         output_reservation,
+        reasoning_reservation,
+        completion_reservation,
         estimated_included_tokens,
         included_ids,
         omitted_ids,

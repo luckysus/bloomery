@@ -116,6 +116,113 @@ fn unresolved_permission_is_replayed_without_executing_or_interrupting_it() {
 }
 
 #[test]
+fn an_open_recovery_cycle_is_claimed_once_until_it_completes() {
+    let mut connection = setup_with_user_message();
+    let run_id = create_run(&mut connection, "2026-08-05T08:00:00Z");
+    transition(
+        &mut connection,
+        run_id,
+        AgentRunState::Created,
+        AgentRunState::AwaitingPermission,
+        "2026-08-05T08:00:01Z",
+    );
+    append_event(
+        &mut connection,
+        run_id,
+        "2026-08-05T08:00:02Z",
+        AgentEventData::PermissionRequested(PermissionRequested {
+            permission_id: Uuid::new_v4(),
+            tool_call_id: Uuid::new_v4(),
+            risk: PermissionRisk::Dangerous,
+            reason: "requires user approval".to_string(),
+            summary: "Run a write tool".to_string(),
+        }),
+    );
+
+    let mut recovery = AgentRecoveryService::new(&mut connection, WORKSPACE).unwrap();
+    let first = recovery
+        .recover_active(&HashSet::new(), timestamp("2026-08-05T08:01:00Z"))
+        .unwrap();
+    let second = recovery
+        .recover_active(&HashSet::new(), timestamp("2026-08-05T08:01:01Z"))
+        .unwrap();
+
+    assert!(first[0]
+        .events
+        .iter()
+        .any(|event| matches!(&event.data, AgentEventData::RecoveryStarted(_))));
+    assert!(second[0].events.is_empty());
+    let replay = recovery.replay(run_id, 0).unwrap();
+    assert_eq!(
+        replay
+            .iter()
+            .filter(|event| matches!(&event.data, AgentEventData::RecoveryStarted(_)))
+            .count(),
+        1
+    );
+}
+
+#[test]
+fn stale_recovery_lease_can_be_taken_over_without_old_completion_closing_it() {
+    let mut connection = setup_with_user_message();
+    let run_id = create_run(&mut connection, "2026-08-05T08:00:00Z");
+    transition(
+        &mut connection,
+        run_id,
+        AgentRunState::Created,
+        AgentRunState::AwaitingPermission,
+        "2026-08-05T08:00:01Z",
+    );
+    append_event(
+        &mut connection,
+        run_id,
+        "2026-08-05T08:00:02Z",
+        AgentEventData::PermissionRequested(PermissionRequested {
+            permission_id: Uuid::new_v4(),
+            tool_call_id: Uuid::new_v4(),
+            risk: PermissionRisk::Dangerous,
+            reason: "requires user approval".to_string(),
+            summary: "Run a write tool".to_string(),
+        }),
+    );
+
+    let mut recovery = AgentRecoveryService::new(&mut connection, WORKSPACE).unwrap();
+    let first = recovery
+        .recover_active(&HashSet::new(), timestamp("2026-08-05T08:01:00Z"))
+        .unwrap();
+    let first_id = first[0].recovery_id;
+    let takeover_time = timestamp("2026-08-05T08:11:01Z");
+    let second = recovery
+        .recover_active(&HashSet::new(), takeover_time)
+        .unwrap();
+    let second_id = second[0].recovery_id;
+
+    assert_ne!(first_id, second_id);
+    assert!(second[0]
+        .events
+        .iter()
+        .any(|event| matches!(&event.data, AgentEventData::RecoveryStarted(started) if started.recovery_id == second_id)));
+
+    drop(recovery);
+    append_event(
+        &mut connection,
+        run_id,
+        "2026-08-05T08:11:02Z",
+        AgentEventData::RecoveryCompleted(bloomery::agent::protocol::RecoveryCompleted {
+            recovery_id: first_id,
+            action: "await_permissions".to_string(),
+            outcome: Some(RunOutcome::Completed),
+        }),
+    );
+    let mut recovery = AgentRecoveryService::new(&mut connection, WORKSPACE).unwrap();
+    let third = recovery
+        .recover_active(&HashSet::new(), timestamp("2026-08-05T08:11:02Z"))
+        .unwrap();
+    assert!(third[0].events.is_empty());
+    assert_eq!(third[0].recovery_id, second_id);
+}
+
+#[test]
 fn only_declared_idempotent_tool_checkpoints_are_resumable() {
     let mut connection = setup_with_user_message();
     let resumable_run = create_run(&mut connection, "2026-08-05T08:00:00Z");

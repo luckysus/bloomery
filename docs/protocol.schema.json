@@ -657,9 +657,14 @@
               "type": "null"
             }
           ]
+        },
+        "recovery_id": {
+          "format": "uuid",
+          "type": "string"
         }
       },
       "required": [
+        "recovery_id",
         "action",
         "outcome"
       ],
@@ -674,9 +679,14 @@
         "recovery_attempt": {
           "minimum": 0,
           "type": "integer"
+        },
+        "recovery_id": {
+          "format": "uuid",
+          "type": "string"
         }
       },
       "required": [
+        "recovery_id",
         "action",
         "recovery_attempt"
       ],

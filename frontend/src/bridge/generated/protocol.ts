@@ -158,11 +158,13 @@ export interface CheckpointSaved {
 }
 
 export interface RecoveryStarted {
+  recovery_id: UUID;
   action: string;
   recovery_attempt: number;
 }
 
 export interface RecoveryCompleted {
+  recovery_id: UUID;
   action: string;
   outcome: RunOutcome | null;
 }

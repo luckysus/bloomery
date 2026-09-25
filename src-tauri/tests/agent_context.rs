@@ -50,7 +50,8 @@ fn required_rules_and_current_request_are_preserved_before_optional_context() {
         &["domain", "security", "permission", "system", "request"],
     );
 
-    let report = budget_context(&items, Some(required_tokens), 0).expect("required context fits");
+    let report =
+        budget_context(&items, Some(required_tokens), 0, 0).expect("required context fits");
 
     assert_eq!(
         report.included_ids,
@@ -79,7 +80,7 @@ fn required_content_overflow_returns_a_typed_error() {
     let model_limit = required_tokens - 1;
 
     let error =
-        budget_context(&items, Some(model_limit), 0).expect_err("required content overflows");
+        budget_context(&items, Some(model_limit), 0, 0).expect_err("required content overflows");
 
     assert_eq!(
         error,
@@ -96,7 +97,7 @@ fn current_request_is_required() {
     let items = vec![item("system", ContextSource::System, "system rule")];
 
     assert_eq!(
-        budget_context(&items, Some(100), 0).expect_err("request is missing"),
+        budget_context(&items, Some(100), 0, 0).expect_err("request is missing"),
         ContextBudgetError::MissingCurrentRequest
     );
 }
@@ -105,7 +106,7 @@ fn current_request_is_required() {
 fn current_request_must_be_unique_and_nonempty() {
     let empty = vec![item("request", ContextSource::CurrentRequest, "  \n")];
     assert_eq!(
-        budget_context(&empty, Some(100), 0).expect_err("request is empty"),
+        budget_context(&empty, Some(100), 0, 0).expect_err("request is empty"),
         ContextBudgetError::EmptyCurrentRequest
     );
 
@@ -114,7 +115,7 @@ fn current_request_must_be_unique_and_nonempty() {
         item("request-2", ContextSource::CurrentRequest, "second"),
     ];
     assert_eq!(
-        budget_context(&duplicate, Some(100), 0).expect_err("request is duplicated"),
+        budget_context(&duplicate, Some(100), 0, 0).expect_err("request is duplicated"),
         ContextBudgetError::MultipleCurrentRequests { count: 2 }
     );
 }
@@ -137,8 +138,8 @@ fn priority_selection_is_deterministic_across_evidence_memory_and_summary() {
     let required_tokens = estimate_for(&items, &["domain", "security", "system", "request"]);
     let input_limit = required_tokens + estimate_for(&items, &["newest", "evidence-1"]);
 
-    let first = budget_context(&items, Some(input_limit), 0).expect("budget fits");
-    let second = budget_context(&items, Some(input_limit), 0).expect("same budget fits");
+    let first = budget_context(&items, Some(input_limit), 0, 0).expect("budget fits");
+    let second = budget_context(&items, Some(input_limit), 0, 0).expect("same budget fits");
 
     assert_eq!(first, second);
     assert_eq!(
@@ -172,7 +173,7 @@ fn recent_turns_are_returned_newest_first() {
         .map(|item| estimate_tokens(&item.content))
         .sum();
 
-    let report = budget_context(&items, Some(input_limit), 0).expect("all messages fit");
+    let report = budget_context(&items, Some(input_limit), 0, 0).expect("all messages fit");
 
     assert_eq!(
         report.included_ids,
@@ -190,7 +191,7 @@ fn recent_turns_are_atomic_and_contiguous() {
     ];
     let input_limit = estimate_for(&items, &["request", "newest", "oldest"]);
 
-    let report = budget_context(&items, Some(input_limit), 0).expect("newest turn fits");
+    let report = budget_context(&items, Some(input_limit), 0, 0).expect("newest turn fits");
 
     assert_eq!(report.included_ids, vec!["request", "newest"]);
     assert_eq!(report.omitted_ids, vec!["middle", "oldest"]);
@@ -205,7 +206,7 @@ fn recent_turn_ranks_must_be_unique() {
     ];
 
     assert_eq!(
-        budget_context(&items, Some(100), 0).expect_err("turn rank is duplicated"),
+        budget_context(&items, Some(100), 0, 0).expect_err("turn rank is duplicated"),
         ContextBudgetError::DuplicateRecentTurnRank {
             newest_first_rank: 0,
         }
@@ -222,7 +223,7 @@ fn optional_unicode_content_is_truncated_on_a_character_boundary_and_recorded() 
     ];
     let input_limit = estimate_tokens("问") + 3;
 
-    let report = budget_context(&items, Some(input_limit), 0).expect("request and prefix fit");
+    let report = budget_context(&items, Some(input_limit), 0, 0).expect("request and prefix fit");
     let included = report
         .included_items
         .iter()
@@ -256,7 +257,7 @@ fn large_unicode_content_is_truncated_to_the_exact_token_limit() {
     let evidence_limit = 1_024;
     let input_limit = estimate_tokens("问") + evidence_limit;
 
-    let report = budget_context(&items, Some(input_limit), 0).expect("evidence prefix fits");
+    let report = budget_context(&items, Some(input_limit), 0, 0).expect("evidence prefix fits");
     let included = report
         .included_items
         .iter()
@@ -271,14 +272,26 @@ fn large_unicode_content_is_truncated_to_the_exact_token_limit() {
 fn provider_context_limit_reserves_output_and_defaults_deterministically() {
     let items = vec![item("request", ContextSource::CurrentRequest, "request")];
 
-    let limited = budget_context(&items, Some(100), 30).expect("request fits");
+    let limited = budget_context(&items, Some(100), 30, 0).expect("request fits");
     assert_eq!(limited.model_limit, 100);
     assert_eq!(limited.input_limit, 70);
     assert!(limited.estimated_included_tokens <= limited.input_limit);
 
-    let defaulted = budget_context(&items, None, 100).expect("request fits default limit");
+    let defaulted = budget_context(&items, None, 100, 0).expect("request fits default limit");
     assert_eq!(defaulted.model_limit, DEFAULT_MODEL_LIMIT);
     assert_eq!(defaulted.input_limit, DEFAULT_MODEL_LIMIT - 100);
+}
+
+#[test]
+fn provider_context_limit_reserves_visible_output_and_reasoning_separately() {
+    let items = vec![item("request", ContextSource::CurrentRequest, "request")];
+
+    let report = budget_context(&items, Some(100), 30, 20).expect("request fits");
+
+    assert_eq!(report.output_reservation, 30);
+    assert_eq!(report.reasoning_reservation, 20);
+    assert_eq!(report.completion_reservation, 50);
+    assert_eq!(report.input_limit, 50);
 }
 
 #[test]
@@ -286,9 +299,24 @@ fn output_reservation_cannot_exceed_the_model_limit() {
     let items = vec![item("request", ContextSource::CurrentRequest, "request")];
 
     assert_eq!(
-        budget_context(&items, Some(100), 101).expect_err("reservation is invalid"),
-        ContextBudgetError::OutputReservationExceedsModelLimit {
+        budget_context(&items, Some(100), 101, 0).expect_err("reservation is invalid"),
+        ContextBudgetError::CompletionReservationExceedsModelLimit {
             output_reservation: 101,
+            reasoning_reservation: 0,
+            model_limit: 100,
+        }
+    );
+}
+
+#[test]
+fn combined_completion_reservation_cannot_exceed_the_model_limit() {
+    let items = vec![item("request", ContextSource::CurrentRequest, "request")];
+
+    assert_eq!(
+        budget_context(&items, Some(100), 80, 21).expect_err("combined reservation is invalid"),
+        ContextBudgetError::CompletionReservationExceedsModelLimit {
+            output_reservation: 80,
+            reasoning_reservation: 21,
             model_limit: 100,
         }
     );

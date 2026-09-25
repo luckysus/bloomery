@@ -75,6 +75,7 @@ where
             &items,
             model_capabilities.context_window,
             request.output_reservation,
+            request.reasoning_reservation,
         ) {
             Ok(report) => report,
             Err(error) => {
@@ -368,6 +369,7 @@ where
                 request_messages,
                 model_capabilities.context_window,
                 request.output_reservation,
+                request.reasoning_reservation,
                 tool_payload.as_ref(),
             ) {
                 Ok(messages) => messages,
@@ -399,7 +401,15 @@ where
                 tools: tool_payload.clone(),
                 response_format: None,
                 reasoning_effort: None,
-                max_tokens: (request.output_reservation > 0).then_some(request.output_reservation),
+                max_tokens: (request
+                    .output_reservation
+                    .saturating_add(request.reasoning_reservation)
+                    > 0)
+                .then_some(
+                    request
+                        .output_reservation
+                        .saturating_add(request.reasoning_reservation),
+                ),
                 stop: None,
             };
             let (response, streamed_text, current_reasoning_ms) = match self
@@ -563,7 +573,15 @@ where
                     &tool_registrations,
                     &mut model_calls,
                     limits.max_model_calls,
-                    (request.output_reservation > 0).then_some(request.output_reservation),
+                    (request
+                        .output_reservation
+                        .saturating_add(request.reasoning_reservation)
+                        > 0)
+                    .then_some(
+                        request
+                            .output_reservation
+                            .saturating_add(request.reasoning_reservation),
+                    ),
                 )
                 .await
             {

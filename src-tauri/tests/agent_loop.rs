@@ -94,6 +94,7 @@ impl ModelAdapter for ScriptedModel {
 
 struct StreamingReasoningModel {
     capabilities: ProviderCapabilities,
+    requests: Mutex<Vec<ChatRequest>>,
 }
 
 impl StreamingReasoningModel {
@@ -103,6 +104,7 @@ impl StreamingReasoningModel {
                 ProviderKind::OpenAiCompatible,
                 "deepseek-reasoner",
             ),
+            requests: Mutex::new(Vec::new()),
         }
     }
 }
@@ -114,10 +116,11 @@ impl ModelAdapter for StreamingReasoningModel {
 
     fn generate<'a>(
         &'a self,
-        _request: ChatRequest,
+        request: ChatRequest,
         on_event: &'a mut (dyn FnMut(ChatEvent) + Send),
         _is_cancelled: &'a (dyn Fn() -> bool + Send + Sync),
     ) -> ModelFuture<'a> {
+        self.requests.lock().unwrap().push(request);
         on_event(ChatEvent::ReasoningDelta("先检查材料牌号。".to_string()));
         on_event(ChatEvent::TextDelta("Q355B 是结构钢。".to_string()));
         on_event(ChatEvent::Usage(ChatUsage {
@@ -387,6 +390,7 @@ fn request(evidence: Option<bloomery::agent::runtime::EvidenceAttachment>) -> Ag
             )),
         ],
         output_reservation: 4,
+        reasoning_reservation: 0,
         evidence,
         attachments: Vec::new(),
         limits: AgentLoopLimits::default(),
@@ -480,6 +484,7 @@ fn direct_answer_streams_usage_and_completes_once() {
             )),
         ],
         output_reservation: 128,
+        reasoning_reservation: 0,
         evidence: None,
         attachments: Vec::new(),
         limits: AgentLoopLimits::default(),
@@ -532,10 +537,13 @@ fn direct_answer_streams_usage_and_completes_once() {
 fn deepseek_reasoning_streams_as_separate_events_before_the_answer() {
     let model = StreamingReasoningModel::new();
     let mut sink = RecordingSink::new();
+    let mut request = request(None);
+    request.output_reservation = 2_048;
+    request.reasoning_reservation = 1_024;
 
     let result = tauri::async_runtime::block_on(
         AgentLoop::new(&model, &NoopToolExecutor, &DenyPermissions).run(
-            request(None),
+            request,
             &mut sink,
             CancellationToken::new(|| false),
         ),
@@ -544,6 +552,11 @@ fn deepseek_reasoning_streams_as_separate_events_before_the_answer() {
 
     assert_eq!(result.reasoning, "先检查材料牌号。");
     assert!(result.reasoning_ms <= 1_000);
+    assert_eq!(
+        model.requests.lock().unwrap()[0].max_tokens,
+        Some(3_072),
+        "provider max_tokens must include visible output and reasoning reservations"
+    );
     let reasoning_delta = sink
         .events
         .iter()
@@ -955,6 +968,7 @@ fn selected_recent_turns_are_restored_to_chronological_provider_order() {
             )),
         ],
         output_reservation: 4,
+        reasoning_reservation: 0,
         evidence: None,
         attachments: Vec::new(),
         limits: AgentLoopLimits::default(),

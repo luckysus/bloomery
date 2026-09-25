@@ -572,6 +572,7 @@ describe("ChatPage", () => {
       },
       action: { kind: "regenerate" },
       events: [],
+      recovery_id: "recovery-interrupted",
     }]);
     render(<ChatPage />);
 
@@ -599,6 +600,7 @@ describe("ChatPage", () => {
       },
       action: { kind: "resume_from_checkpoint", data: {} },
       events: [],
+      recovery_id: "recovery-resume",
     }]);
     render(<ChatPage />);
 

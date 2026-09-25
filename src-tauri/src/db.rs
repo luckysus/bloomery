@@ -146,6 +146,9 @@ pub fn db_init(
     let runtime_host = agent_state.inner().clone();
     let app_for_recovery = app.clone();
     for recovered in recovered_runs {
+        if recovered.events.is_empty() && runtime_host.snapshot(recovered.run.id).is_ok() {
+            continue;
+        }
         let waits = match &recovered.action {
             crate::agent::runtime::RecoveryAction::AwaitPermissions(_) => {
                 match crate::app::desktop_agent_runtime::restore_recovered_permissions(

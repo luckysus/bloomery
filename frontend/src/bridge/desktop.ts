@@ -81,6 +81,7 @@ export interface RecoveredRun {
   run: AgentRunRecord;
   action: RecoveryAction;
   events: AgentEventEnvelope[];
+  recovery_id: string;
 }
 
 export interface AgentChildTurnRecord {

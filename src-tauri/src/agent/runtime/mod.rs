@@ -27,7 +27,7 @@ pub use r#loop::{
 };
 pub use recovery::{
     AgentRecoveryService, PendingPermission, RecoveredRun, RecoveryAction, RunCommandResult,
-    ToolCheckpoint,
+    ToolCheckpoint, RECOVERY_LEASE_TIMEOUT,
 };
 pub use skills_tool::SkillTool;
 pub use subagents::{

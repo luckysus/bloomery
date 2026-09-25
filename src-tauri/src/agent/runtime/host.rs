@@ -22,6 +22,8 @@ pub struct TurnSnapshot {
     pub model: String,
     pub model_context_window: Option<usize>,
     pub output_reservation: usize,
+    #[serde(default = "default_reasoning_reservation")]
+    pub reasoning_reservation: usize,
     pub limits: AgentLoopLimits,
     pub tool_ids: Vec<String>,
     pub tool_snapshot: Vec<ToolSnapshotEntry>,
@@ -54,6 +56,10 @@ struct ActiveTurn {
 
 fn default_child_turn_limit() -> usize {
     4
+}
+
+fn default_reasoning_reservation() -> usize {
+    crate::agent::context::DEFAULT_REASONING_RESERVATION
 }
 
 /// Application-owned runtime boundary for all interactive Agent Turns.

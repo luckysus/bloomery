@@ -135,12 +135,16 @@ pub struct CheckpointSaved {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RecoveryStarted {
+    #[serde(default)]
+    pub recovery_id: Uuid,
     pub action: String,
     pub recovery_attempt: usize,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RecoveryCompleted {
+    #[serde(default)]
+    pub recovery_id: Uuid,
     pub action: String,
     pub outcome: Option<RunOutcome>,
 }

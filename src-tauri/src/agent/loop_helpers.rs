@@ -341,16 +341,19 @@ pub(super) fn budget_chat_messages(
     messages: Vec<ChatMessage>,
     model_limit: Option<usize>,
     output_reservation: usize,
+    reasoning_reservation: usize,
     tools: Option<&Value>,
 ) -> Result<Vec<ChatMessage>, ContextBudgetError> {
     let model_limit = model_limit.unwrap_or(DEFAULT_MODEL_LIMIT);
-    if output_reservation > model_limit {
-        return Err(ContextBudgetError::OutputReservationExceedsModelLimit {
+    let completion_reservation = output_reservation.saturating_add(reasoning_reservation);
+    if completion_reservation > model_limit {
+        return Err(ContextBudgetError::CompletionReservationExceedsModelLimit {
             output_reservation,
+            reasoning_reservation,
             model_limit,
         });
     }
-    let input_limit = model_limit.saturating_sub(output_reservation);
+    let input_limit = model_limit.saturating_sub(completion_reservation);
     let tool_tokens = tools
         .map(|value| estimate_tokens(&value.to_string()))
         .unwrap_or_default();
@@ -649,7 +652,7 @@ mod tests {
             ChatMessage::tool_result("call-1", "x".repeat(256)),
             ChatMessage::new("user", "now"),
         ];
-        let bounded = budget_chat_messages(messages, Some(16), 0, None)
+        let bounded = budget_chat_messages(messages, Some(16), 0, 0, None)
             .expect("oversized tool block should be omitted as a whole");
         assert!(bounded.iter().all(|message| {
             message.role != "tool"
@@ -664,6 +667,7 @@ mod tests {
         let error = budget_chat_messages(
             vec![ChatMessage::new("user", "request")],
             Some(16),
+            0,
             0,
             Some(&tools),
         )

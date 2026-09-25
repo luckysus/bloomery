@@ -9,7 +9,10 @@ use rusqlite::Connection;
 use serde::Serialize;
 use serde_json::Value;
 use std::collections::{HashMap, HashSet};
+use std::time::Duration;
 use uuid::Uuid;
+
+pub const RECOVERY_LEASE_TIMEOUT: Duration = Duration::from_secs(10 * 60);
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct PendingPermission {
@@ -56,6 +59,7 @@ pub struct RecoveredRun {
     pub run: runs::AgentRunRecord,
     pub action: RecoveryAction,
     pub events: Vec<AgentEventEnvelope>,
+    pub recovery_id: Uuid,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -235,13 +239,25 @@ impl<'a> AgentRecoveryService<'a> {
                 .map(|checkpoint| checkpoint.recovery_attempt)
                 .unwrap_or_default();
             let action = recovery_action(&run, &replay, checkpoint, &effective_idempotent);
+            let active_recovery = active_recovery_id(&replay, timestamp);
+            if !matches!(&action, RecoveryAction::Regenerate) && active_recovery.is_some() {
+                recovered.push(RecoveredRun {
+                    run,
+                    action,
+                    events: Vec::new(),
+                    recovery_id: active_recovery.unwrap_or_default(),
+                });
+                continue;
+            }
+            let recovery_id = Uuid::new_v4();
             let started = events::append(
                 self.connection,
                 self.workspace_id,
                 run.id,
-                Uuid::new_v4(),
+                recovery_id,
                 timestamp,
                 AgentEventData::RecoveryStarted(RecoveryStarted {
+                    recovery_id,
                     action: action.kind().to_string(),
                     recovery_attempt,
                 }),
@@ -252,6 +268,7 @@ impl<'a> AgentRecoveryService<'a> {
                     run,
                     action,
                     events: vec![started],
+                    recovery_id,
                 });
                 continue;
             }
@@ -276,6 +293,7 @@ impl<'a> AgentRecoveryService<'a> {
                 Uuid::new_v4(),
                 timestamp,
                 AgentEventData::RecoveryCompleted(RecoveryCompleted {
+                    recovery_id,
                     action: action.kind().to_string(),
                     outcome: Some(RunOutcome::Interrupted),
                 }),
@@ -289,6 +307,7 @@ impl<'a> AgentRecoveryService<'a> {
                 run: self.require_run(run.id)?,
                 action,
                 events: all_events,
+                recovery_id,
             });
         }
         Ok(recovered)
@@ -407,6 +426,33 @@ fn pending_tools(events: &[AgentEventEnvelope]) -> Vec<ToolCheckpoint> {
         }
     }
     pending
+}
+
+fn active_recovery_id(events: &[AgentEventEnvelope], now: chrono::DateTime<Utc>) -> Option<Uuid> {
+    let mut active = None;
+    for event in events {
+        match &event.data {
+            AgentEventData::RecoveryStarted(started) => {
+                active = Some((started.recovery_id, event.timestamp));
+            }
+            AgentEventData::RecoveryCompleted(completed) => {
+                if active
+                    .as_ref()
+                    .is_some_and(|(recovery_id, _)| *recovery_id == completed.recovery_id)
+                {
+                    active = None;
+                }
+            }
+            _ => {}
+        }
+    }
+    active.and_then(|(recovery_id, started_at)| {
+        let age = now.signed_duration_since(started_at);
+        if age < chrono::Duration::zero() {
+            return Some(recovery_id);
+        }
+        (age.to_std().ok()? < RECOVERY_LEASE_TIMEOUT).then_some(recovery_id)
+    })
 }
 
 fn is_terminal(state: AgentRunState) -> bool {

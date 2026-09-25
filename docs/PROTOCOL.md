@@ -86,6 +86,9 @@ window reconnect; there is no second delta channel with independent state.
 | `evidence_attached` | The run attached an evidence pack and its citation numbers. |
 | `usage_updated` | Provider token usage was updated. |
 | `task_progress` | A durable background task reported its state and progress. |
+| `checkpoint_saved` | A sanitized, resumable context checkpoint was persisted. |
+| `recovery_started` | Runtime recovery claimed a non-terminal run for continuation. |
+| `recovery_completed` | Runtime recovery finished with a success, cancellation, failure, or interruption outcome. |
 | `run_completed` | The run reached `completed`, `cancelled`, `failed`, or `interrupted`. |
 | `error_raised` | A structured error was surfaced. `fatal` means the current run cannot continue. |
 
@@ -156,6 +159,11 @@ On application restart:
   idempotent by the runtime.
 - An interrupted generation or unknown tool state is completed as
   `interrupted`; it is not silently replayed as a successful answer.
+- A non-terminal recovery cycle carries a unique `recovery_id`. Repeated window
+  recovery calls replay the existing cycle and do not start a second Runtime
+  execution for the same run. A new application process can reclaim a lease
+  left by a crashed process immediately during `db_init`; an old process that
+  later emits `recovery_completed` cannot close the newer lease.
 - Retry creates a new `desktop_agent_chat` run from the original user message;
   the source run and its events remain immutable.
 

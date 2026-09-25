@@ -40,6 +40,7 @@ fn snapshot(turn_id: Uuid, session_id: Uuid) -> TurnSnapshot {
         model: "test-model".to_string(),
         model_context_window: Some(8_192),
         output_reservation: 2_048,
+        reasoning_reservation: 1_024,
         limits: AgentLoopLimits::default(),
         tool_ids: Vec::new(),
         tool_snapshot: Vec::new(),
