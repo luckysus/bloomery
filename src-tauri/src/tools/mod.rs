@@ -9,7 +9,7 @@ pub use definition::{
 };
 pub use executor::{HandlerFuture, ToolExecutor, ToolFuture, ToolHandler, ToolRegistration};
 pub use output::{
-    bound_output, ArtifactRef, ArtifactStore, FileArtifactStore, ToolError, ToolOutput,
-    MAX_INLINE_OUTPUT_BYTES,
+    bound_output, redact_sensitive_value, ArtifactRef, ArtifactStore, FileArtifactStore, ToolError,
+    ToolOutput, MAX_INLINE_OUTPUT_BYTES,
 };
 pub use registry::{RegistryError, ToolRegistry, ToolSnapshot};

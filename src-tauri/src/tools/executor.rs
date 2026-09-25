@@ -5,11 +5,11 @@ use super::{
 use crate::agent::runtime::CancellationToken;
 use futures_util::{
     future::{select, Either},
-    lock::Mutex,
     FutureExt,
 };
 use serde_json::Value;
 use std::{collections::BTreeMap, future::Future, panic::AssertUnwindSafe, pin::Pin, sync::Arc};
+use tokio::sync::{Mutex, RwLock};
 
 pub type ToolFuture = Pin<Box<dyn Future<Output = Result<super::ToolOutput, ToolError>> + Send>>;
 
@@ -37,7 +37,8 @@ pub struct ToolExecutor {
     registrations: BTreeMap<ToolId, ToolRegistration>,
     snapshot: ToolSnapshot,
     artifact_store: Arc<dyn ArtifactStore>,
-    serial_gate: Arc<Mutex<()>>,
+    write_gate: Arc<Mutex<()>>,
+    exclusive_gate: Arc<RwLock<()>>,
 }
 
 impl ToolExecutor {
@@ -55,7 +56,8 @@ impl ToolExecutor {
             snapshot: registry.snapshot(),
             registrations: by_id,
             artifact_store,
-            serial_gate: Arc::new(Mutex::new(())),
+            write_gate: Arc::new(Mutex::new(())),
+            exclusive_gate: Arc::new(RwLock::new(())),
         })
     }
 
@@ -81,7 +83,8 @@ impl ToolExecutor {
         let definition = registration.definition.clone();
         let handler = registration.handler.clone();
         let artifact_store = self.artifact_store.clone();
-        let serial_gate = self.serial_gate.clone();
+        let write_gate = self.write_gate.clone();
+        let exclusive_gate = self.exclusive_gate.clone();
         Box::pin(async move {
             if cancellation.is_cancelled() {
                 return Err(ToolError::cancelled());
@@ -91,13 +94,21 @@ impl ToolExecutor {
             let concurrency = definition.concurrency;
             let run_cancellation = cancellation.clone();
             let run = async move {
-                let _guard = match concurrency {
-                    ConcurrencyPolicy::ParallelRead => None,
-                    ConcurrencyPolicy::SerialWrite | ConcurrencyPolicy::Exclusive => {
-                        Some(serial_gate.lock().await)
+                match concurrency {
+                    ConcurrencyPolicy::ParallelRead => {
+                        let _exclusive_guard = exclusive_gate.read().await;
+                        run_handler(handler, arguments, run_cancellation).await
                     }
-                };
-                run_handler(handler, arguments, run_cancellation).await
+                    ConcurrencyPolicy::SerialWrite => {
+                        let _exclusive_guard = exclusive_gate.read().await;
+                        let _write_guard = write_gate.lock().await;
+                        run_handler(handler, arguments, run_cancellation).await
+                    }
+                    ConcurrencyPolicy::Exclusive => {
+                        let _exclusive_guard = exclusive_gate.write().await;
+                        run_handler(handler, arguments, run_cancellation).await
+                    }
+                }
             };
             let timed = Box::pin(tokio::time::timeout(timeout, run));
             let cancelled = Box::pin(wait_for_cancellation(cancellation));

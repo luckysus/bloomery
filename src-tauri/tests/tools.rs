@@ -1,9 +1,9 @@
 use bloomery::agent::protocol::PermissionRisk;
 use bloomery::agent::runtime::CancellationToken;
 use bloomery::tools::{
-    ArtifactStore, ConcurrencyPolicy, FileArtifactStore, RegistryError, ToolDefinition, ToolError,
-    ToolExecutor, ToolHandler, ToolId, ToolRegistration, ToolRegistry, ToolSource, ToolVersion,
-    MAX_INLINE_OUTPUT_BYTES,
+    redact_sensitive_value, ArtifactStore, ConcurrencyPolicy, FileArtifactStore, RegistryError,
+    ToolDefinition, ToolError, ToolExecutor, ToolHandler, ToolId, ToolRegistration, ToolRegistry,
+    ToolSource, ToolVersion, MAX_INLINE_OUTPUT_BYTES,
 };
 use futures_util::future::join_all;
 use serde_json::json;
@@ -292,6 +292,80 @@ fn oversized_outputs_are_saved_as_artifacts_with_a_bounded_model_value() {
 }
 
 #[test]
+fn tool_output_redacts_nested_credentials_and_bearer_values() {
+    let value = redact_sensitive_value(json!({
+        "api_key": "sk-live-secret",
+        "nested": {
+            "refresh_token": "refresh-secret",
+            "token_count": 4,
+            "authorization": "Bearer abc123",
+        },
+        "items": [{"client_secret": "secret-value"}],
+    }));
+
+    assert_eq!(value["api_key"], "[REDACTED]");
+    assert_eq!(value["nested"]["refresh_token"], "[REDACTED]");
+    assert_eq!(value["nested"]["authorization"], "[REDACTED]");
+    assert_eq!(value["nested"]["token_count"], 4);
+    assert_eq!(value["items"][0]["client_secret"], "[REDACTED]");
+}
+
+#[test]
+fn oversized_artifacts_store_redacted_output() {
+    let definition = tool("builtin.secret_payload", ToolSource::Builtin);
+    let id = definition.id.clone();
+    let payload = "x".repeat(MAX_INLINE_OUTPUT_BYTES);
+    let raw = json!({
+        "payload": payload,
+        "password": "raw-password",
+        "access_token": "raw-access-token",
+    });
+    let expected = redact_sensitive_value(raw.clone());
+    let (executor, root) = executor(vec![registration(definition, move |_, _| {
+        let raw = raw.clone();
+        async move { Ok(raw) }
+    })]);
+
+    let output =
+        tauri::async_runtime::block_on(executor.execute(&id, json!({}), never_cancelled()))
+            .unwrap();
+    let artifact = output.artifact.expect("large output artifact");
+    let stored: serde_json::Value =
+        serde_json::from_slice(&std::fs::read(&artifact.path).unwrap()).unwrap();
+    assert_eq!(stored["password"], "[REDACTED]");
+    assert_eq!(stored["access_token"], "[REDACTED]");
+    assert_eq!(stored, expected);
+    let _ = std::fs::remove_dir_all(root);
+}
+
+#[test]
+fn inline_tool_outputs_are_redacted_before_reaching_the_model() {
+    let definition = tool("builtin.inline_secret", ToolSource::Builtin);
+    let id = definition.id.clone();
+    let (executor, root) = executor(vec![registration(definition, |_, _| async {
+        Ok(json!({
+            "password": "raw-password",
+            "access_token": "raw-access-token",
+            "message": "safe",
+        }))
+    })]);
+
+    let output =
+        tauri::async_runtime::block_on(executor.execute(&id, json!({}), never_cancelled()))
+            .unwrap();
+    assert_eq!(
+        output.model_output,
+        json!({
+            "password": "[REDACTED]",
+            "access_token": "[REDACTED]",
+            "message": "safe",
+        })
+    );
+    assert!(output.artifact.is_none());
+    let _ = std::fs::remove_dir_all(root);
+}
+
+#[test]
 fn independent_read_tools_run_in_parallel() {
     let active = Arc::new(AtomicUsize::new(0));
     let maximum = Arc::new(AtomicUsize::new(0));
@@ -385,6 +459,67 @@ fn write_tools_are_serialized() {
         executor.execute(&second_id, json!({}), never_cancelled()),
     ]));
     assert!(results.into_iter().all(|result| result.is_ok()));
+    assert_eq!(maximum.load(Ordering::SeqCst), 1);
+    let _ = std::fs::remove_dir_all(root);
+}
+
+#[test]
+fn exclusive_tools_block_parallel_reads() {
+    let active = Arc::new(AtomicUsize::new(0));
+    let maximum = Arc::new(AtomicUsize::new(0));
+    let mut exclusive = tool("builtin.exclusive", ToolSource::Builtin);
+    exclusive.concurrency = ConcurrencyPolicy::Exclusive;
+    exclusive.timeout = Duration::from_secs(1);
+    let read = tool("builtin.read_during_exclusive", ToolSource::Builtin);
+    let exclusive_id = exclusive.id.clone();
+    let read_id = read.id.clone();
+
+    let (executor, root) = executor(vec![
+        registration(exclusive, {
+            let active = active.clone();
+            let maximum = maximum.clone();
+            move |_, _| {
+                let active = active.clone();
+                let maximum = maximum.clone();
+                async move {
+                    let current = active.fetch_add(1, Ordering::SeqCst) + 1;
+                    maximum.fetch_max(current, Ordering::SeqCst);
+                    tokio::time::sleep(Duration::from_millis(50)).await;
+                    active.fetch_sub(1, Ordering::SeqCst);
+                    Ok(json!({"ok": true}))
+                }
+            }
+        }),
+        registration(read, {
+            let active = active.clone();
+            let maximum = maximum.clone();
+            move |_, _| {
+                let active = active.clone();
+                let maximum = maximum.clone();
+                async move {
+                    let current = active.fetch_add(1, Ordering::SeqCst) + 1;
+                    maximum.fetch_max(current, Ordering::SeqCst);
+                    tokio::time::sleep(Duration::from_millis(5)).await;
+                    active.fetch_sub(1, Ordering::SeqCst);
+                    Ok(json!({"ok": true}))
+                }
+            }
+        }),
+    ]);
+
+    let (exclusive_result, read_result) = tauri::async_runtime::block_on(async {
+        tokio::join!(
+            executor.execute(&exclusive_id, json!({}), never_cancelled()),
+            async {
+                tokio::time::sleep(Duration::from_millis(5)).await;
+                executor
+                    .execute(&read_id, json!({}), never_cancelled())
+                    .await
+            }
+        )
+    });
+    assert!(exclusive_result.is_ok());
+    assert!(read_result.is_ok());
     assert_eq!(maximum.load(Ordering::SeqCst), 1);
     let _ = std::fs::remove_dir_all(root);
 }

@@ -214,6 +214,7 @@ fn bounded_tool_output(
     value: Value,
     artifact_store: Option<&dyn crate::tools::ArtifactStore>,
 ) -> Result<(Value, String), AgentLoopError> {
+    let value = crate::tools::redact_sensitive_value(value);
     let serialized = serde_json::to_string(&value).map_err(|error| {
         AgentLoopError::Tool(format!("tool output serialization failed: {error}"))
     })?;

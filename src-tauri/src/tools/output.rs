@@ -103,6 +103,7 @@ impl ArtifactStore for FileArtifactStore {
 }
 
 pub fn bound_output(value: Value, store: &dyn ArtifactStore) -> Result<ToolOutput, ToolError> {
+    let value = redact_sensitive_value(value);
     let bytes = serde_json::to_vec(&value).map_err(|error| {
         ToolError::new(
             "tool_output_serialization_failed",
@@ -124,4 +125,73 @@ pub fn bound_output(value: Value, store: &dyn ArtifactStore) -> Result<ToolOutpu
         }),
         artifact: Some(artifact),
     })
+}
+
+/// Remove credential-shaped fields before a tool result is sent to the model
+/// or written to an Artifact. Tool output is untrusted data, so the boundary
+/// must apply the same redaction to inline and oversized results.
+pub fn redact_sensitive_value(value: Value) -> Value {
+    match value {
+        Value::Object(fields) => Value::Object(
+            fields
+                .into_iter()
+                .map(|(key, value)| {
+                    if is_sensitive_key(&key) {
+                        (key, Value::String("[REDACTED]".to_string()))
+                    } else {
+                        (key, redact_sensitive_value(value))
+                    }
+                })
+                .collect(),
+        ),
+        Value::Array(values) => {
+            Value::Array(values.into_iter().map(redact_sensitive_value).collect())
+        }
+        Value::String(value) => Value::String(redact_sensitive_string(value)),
+        other => other,
+    }
+}
+
+fn is_sensitive_key(key: &str) -> bool {
+    let normalized = key
+        .chars()
+        .filter(|character| character.is_ascii_alphanumeric())
+        .flat_map(|character| character.to_lowercase())
+        .collect::<String>();
+    matches!(
+        normalized.as_str(),
+        "apikey"
+            | "authtoken"
+            | "accesstoken"
+            | "authorization"
+            | "credential"
+            | "clientsecret"
+            | "password"
+            | "privatekey"
+            | "refreshtoken"
+            | "secret"
+            | "token"
+    ) || normalized.ends_with("apikey")
+        || normalized.ends_with("authtoken")
+        || normalized.ends_with("token")
+        || normalized.ends_with("clientsecret")
+        || normalized.ends_with("password")
+        || normalized.ends_with("privatekey")
+        || normalized.ends_with("refreshtoken")
+}
+
+fn redact_sensitive_string(value: String) -> String {
+    let trimmed = value.trim_start();
+    let lower = trimmed.to_ascii_lowercase();
+    if lower.starts_with("bearer ")
+        || lower.starts_with("sk-")
+        || lower.starts_with("ghp_")
+        || lower.starts_with("github_pat_")
+        || lower.starts_with("xoxb-")
+        || lower.starts_with("akia")
+        || lower.contains("begin private key")
+    {
+        return "[REDACTED]".to_string();
+    }
+    value
 }
