@@ -17,6 +17,10 @@ use uuid::Uuid;
 mod child_events;
 use child_events::ChildAgentEventSink;
 
+#[path = "child_result.rs"]
+mod child_result;
+use child_result::{completed as child_result, details as child_result_details};
+
 pub const MAX_SUBAGENT_TOOL_ROUNDS: usize = 30;
 pub const MAX_SUBAGENT_MODEL_CALLS: usize = 32;
 pub const MAX_SUBAGENT_TOOL_CALLS: usize = 64;
@@ -377,15 +381,20 @@ impl ToolHandler for SubagentHandler {
                     } else {
                         "subagent_execution_error"
                     };
-                    ToolExecutionError::new(code, "subagent execution failed")
+                    ToolExecutionError::with_details(
+                        code,
+                        "subagent execution failed",
+                        child_result_details(child_turn_id, None, sink.events()),
+                    )
                 })?;
                 if result.outcome != RunOutcome::Completed {
-                    return Err(ToolExecutionError::new(
+                    return Err(ToolExecutionError::with_details(
                         "subagent_execution_error",
                         "subagent did not complete",
+                        child_result_details(child_turn_id, Some(result.outcome), sink.events()),
                     ));
                 }
-                return Ok(json!({"child_turn_id": child_turn_id, "conclusion": result.answer}));
+                return Ok(child_result(child_turn_id, &result, sink.events()));
             }
             let result = runner
                 .run(request, &mut sink, child_cancellation)
@@ -396,15 +405,20 @@ impl ToolHandler for SubagentHandler {
                     } else {
                         "subagent_execution_error"
                     };
-                    ToolExecutionError::new(code, "subagent execution failed")
+                    ToolExecutionError::with_details(
+                        code,
+                        "subagent execution failed",
+                        child_result_details(child_turn_id, None, sink.events()),
+                    )
                 })?;
             if result.outcome != RunOutcome::Completed {
-                return Err(ToolExecutionError::new(
+                return Err(ToolExecutionError::with_details(
                     "subagent_execution_error",
                     "subagent did not complete",
+                    child_result_details(child_turn_id, Some(result.outcome), sink.events()),
                 ));
             }
-            Ok(json!({"child_turn_id": child_turn_id, "conclusion": result.answer}))
+            Ok(child_result(child_turn_id, &result, sink.events()))
         })
     }
 }

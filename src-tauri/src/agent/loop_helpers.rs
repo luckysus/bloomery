@@ -193,7 +193,10 @@ pub(super) fn record_tool_result(
                 category: AgentErrorCategory::ToolPermission,
                 message: error.message.clone(),
                 retryable: false,
-                details: None,
+                details: error
+                    .details
+                    .clone()
+                    .map(crate::tools::redact_sensitive_value),
             };
             sink.record(AgentEventData::ToolCompleted(ToolCompleted {
                 tool_call_id: call.tool_call_id,

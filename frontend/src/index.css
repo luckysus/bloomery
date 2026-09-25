@@ -1,10 +1,8 @@
 @import "./design/tokens.css";
 @import "./design/theme.css";
 @import "./design/polish.css";
-
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@config "../tailwind.config.js";
+@import "tailwindcss";
 
 /* ========================= Global Reset ========================= */
 *,

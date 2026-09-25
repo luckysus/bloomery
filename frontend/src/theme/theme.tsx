@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { desktop, isDesktopRuntime } from "../bridge/desktop";
 
 export type ThemePreference = "system" | "light" | "dark";
@@ -76,7 +76,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     };
   }, [preference]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const root = document.documentElement;
     root.dataset.theme = resolvedTheme;
     root.style.colorScheme = resolvedTheme;

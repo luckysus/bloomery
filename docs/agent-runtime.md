@@ -10,6 +10,11 @@ Bloomery 的桌面智能体由 Rust Runtime 拥有运行事实。React 只消费
 - 父 Turn 取消会传播到所有子 Turn，子 Turn 继承父会话和工具边界。
 - 只读工具可以并行，写工具按串行策略执行；工具超时、权限和错误都进入同一事件流。
 
+子 Agent 的 `task` 工具结果会把 `child_turn_id`、最终 `outcome`、`conclusion`、
+`evidence` 和 `errors` 一起交给父 Turn。子 Turn 的完整事件仍按独立 sequence
+写入 child-turn 存储，因此父 Agent 可以先使用摘要继续推理，桌面端也可以按 ID
+查询、重放或取消子 Turn；子模型失败时，父工具错误会保留同一份结构化详情。
+
 ## 上下文预算
 
 每次模型调用都重新生成 provider-facing context。Provider 声明的

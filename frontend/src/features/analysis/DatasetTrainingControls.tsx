@@ -1,5 +1,5 @@
 import { BrainCircuit, Check, LoaderCircle, Play, RotateCcw, Square, TriangleAlert } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   desktop,
   type BackgroundTask,
@@ -70,6 +70,12 @@ export default function DatasetTrainingControls({ dataset }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [actionBusy, setActionBusy] = useState(false);
+  const latestTaskRef = useRef<BackgroundTask | null>(null);
+
+  const setCurrentTask = (next: BackgroundTask | null) => {
+    latestTaskRef.current = next;
+    setTask(next);
+  };
 
   const taskId = task?.id ?? null;
   const taskState = task?.state ?? null;
@@ -85,7 +91,7 @@ export default function DatasetTrainingControls({ dataset }: Props) {
           && candidate.dataset_id === dataset.id
         ))
         .sort((left, right) => right.updated_at.localeCompare(left.updated_at))[0];
-      if (mounted && recovered) setTask(recovered);
+      if (mounted && recovered) setCurrentTask(recovered);
     }).catch((cause) => {
       if (mounted) setError(cause instanceof Error ? cause.message : t("analysisTrainingRefreshError"));
     });
@@ -114,7 +120,9 @@ export default function DatasetTrainingControls({ dataset }: Props) {
         const tasks = await desktop.listBackgroundTasks();
         const current = tasks.find((candidate) => candidate.id === taskId);
         if (!mounted || !current) return;
-        setTask(current);
+        const latest = latestTaskRef.current;
+        if (latest && latest.id === taskId && isTerminal(latest.state) && !isTerminal(current.state)) return;
+        setCurrentTask(current);
         if (current.state === "completed") {
           const next = await desktop.getComputeTrainingResult(current.id);
           if (mounted) setResult(next);
@@ -140,7 +148,7 @@ export default function DatasetTrainingControls({ dataset }: Props) {
     const next = value ? Number(value) : null;
     setTargetColumn(next);
     if (next !== null) setFeatureColumns((current) => current.filter((ordinal) => ordinal !== next));
-    setTask(null);
+    setCurrentTask(null);
     setResult(null);
     setError(null);
   };
@@ -149,7 +157,7 @@ export default function DatasetTrainingControls({ dataset }: Props) {
     setFeatureColumns((current) => current.includes(ordinal)
       ? current.filter((item) => item !== ordinal)
       : [...current, ordinal].sort((left, right) => left - right));
-    setTask(null);
+    setCurrentTask(null);
     setResult(null);
     setError(null);
   };
@@ -157,7 +165,7 @@ export default function DatasetTrainingControls({ dataset }: Props) {
   const changeAlgorithm = (value: string) => {
     if (!trainingAlgorithms.some((candidate) => candidate.value === value)) return;
     setAlgorithm(value as TrainingAlgorithm);
-    setTask(null);
+    setCurrentTask(null);
     setResult(null);
     setError(null);
   };
@@ -181,11 +189,11 @@ export default function DatasetTrainingControls({ dataset }: Props) {
         splitPolicy: { kind: "random", validationFraction: 0.2, seed: 0 },
         algorithm,
       });
-      setTask(queued);
+      setCurrentTask(queued);
       setResult(null);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : t("analysisTrainingError"));
-      setTask(null);
+      setCurrentTask(null);
     } finally {
       setBusy(false);
     }
@@ -196,7 +204,7 @@ export default function DatasetTrainingControls({ dataset }: Props) {
     setActionBusy(true);
     setError(null);
     try {
-      setTask(await desktop.cancelBackgroundTask(task.id));
+      setCurrentTask(await desktop.cancelBackgroundTask(task.id));
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : t("analysisTrainingActionError"));
     } finally {
@@ -210,7 +218,7 @@ export default function DatasetTrainingControls({ dataset }: Props) {
     setError(null);
     setResult(null);
     try {
-      setTask(await desktop.retryBackgroundTask(task.id));
+      setCurrentTask(await desktop.retryBackgroundTask(task.id));
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : t("analysisTrainingActionError"));
     } finally {

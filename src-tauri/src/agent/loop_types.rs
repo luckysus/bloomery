@@ -201,6 +201,7 @@ pub struct ToolExecutionError {
     pub code: String,
     pub message: String,
     pub cancelled: bool,
+    pub details: Option<Value>,
 }
 
 impl ToolExecutionError {
@@ -209,6 +210,20 @@ impl ToolExecutionError {
             code: code.into(),
             message: message.into(),
             cancelled: false,
+            details: None,
+        }
+    }
+
+    pub fn with_details(
+        code: impl Into<String>,
+        message: impl Into<String>,
+        details: Value,
+    ) -> Self {
+        Self {
+            code: code.into(),
+            message: message.into(),
+            cancelled: false,
+            details: Some(details),
         }
     }
 
@@ -217,6 +232,7 @@ impl ToolExecutionError {
             code: "cancelled".to_string(),
             message: "tool execution was cancelled".to_string(),
             cancelled: true,
+            details: None,
         }
     }
 }

@@ -10,7 +10,7 @@ export default function WebTurnNavigator({
   scrollContainerRef,
 }: {
   messages: WebMessage[];
-  scrollContainerRef: RefObject<HTMLDivElement>;
+  scrollContainerRef: RefObject<HTMLDivElement | null>;
 }) {
   const turns = useMemo(() => buildUserTurns(messages), [messages]);
   const railRef = useRef<HTMLDivElement>(null);
