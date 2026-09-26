@@ -32,6 +32,7 @@ import AIAnswerRenderer from "../../components/answer/AnswerRenderer";
 import CitationPanel from "./CitationPanel";
 import type { AgentPermissionView, AgentRunView } from "./agentEvents";
 import type { ChatControllerProps } from "./chatController";
+import AgentRunInspector from "./AgentRunInspector";
 import { parseWebResponse, toWebMessage, type WebPendingConfirmation } from "./web/webTypes";
 import WebConfirmDialog from "./web/WebConfirmDialog";
 import WebFeedback from "./web/WebFeedback";
@@ -579,6 +580,14 @@ export default function DesktopChatWorkspace({
           </div>
         </form>
       </main>
+
+      <AgentRunInspector
+        run={controller.agentRun}
+        recovery={controller.recovery}
+        onResolvePermission={controller.onResolvePermission}
+        onRetry={controller.onRetry}
+        onResume={controller.onResume}
+      />
     </section>
   );
 }

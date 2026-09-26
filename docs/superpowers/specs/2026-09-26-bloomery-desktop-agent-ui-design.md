@@ -8,8 +8,6 @@ Open Vetta 只作为 Agent 运行语义和信息组织的参考：借鉴 Turn、
 
 本文是设计文档，不要求立即改造现有页面，也不包含 NexusPilot 集成。它描述的是类似 Codex、Claude、Open Vetta 的智能体产品形态，但不复制任何一个产品的页面或视觉。
 
-参考图：`docs/assets/bloomery-agent-first-reference.png`；可缩放源文件：`docs/assets/bloomery-agent-first-reference.svg`。
-
 ## 产品目标
 
 Bloomery 的第一屏应该让用户完成三件事：
