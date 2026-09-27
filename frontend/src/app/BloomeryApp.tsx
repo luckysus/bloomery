@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Factory, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { CircleUserRound, Factory, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { desktop, isDesktopRuntime } from "../bridge/desktop";
 import ChatPage from "../features/chat/ChatPage";
 import AnalysisPage from "../features/analysis/AnalysisPage";
@@ -33,7 +33,8 @@ export default function BloomeryApp() {
 
 function BloomeryAppShell() {
   const [initializationState, setInitializationState] = useState<InitializationState>("loading");
-  const [activeSection, setActiveSection] = useState<SectionId>("workbench");
+  // Agent-first startup: workbench remains available from the sidebar.
+  const [activeSection, setActiveSection] = useState<SectionId>("chat");
   const [collapsed, setCollapsed] = useState(false);
   const initializationRef = useRef<Promise<void> | null>(null);
   const active = getNavigationSection(activeSection);
@@ -74,6 +75,18 @@ function BloomeryAppShell() {
               <strong>BLOOMERY</strong>
             </div>
           )}
+        </div>
+        {!collapsed && (
+          <div className="bloomery-topbar-context" aria-live="polite">
+            <span className="bloomery-eyebrow">{activeSection === "chat" ? "AGENT WORKSPACE" : t("workspace")}</span>
+            <strong>{t(active.labelKey)}</strong>
+          </div>
+        )}
+        <div className="bloomery-topbar-meta">
+          <span className="bloomery-local-indicator">
+            <span className="bloomery-state-dot" aria-hidden="true" />
+            {t("localAgent")}
+          </span>
         </div>
       </header>
 
@@ -130,6 +143,22 @@ function BloomeryAppShell() {
                 );
               })}
             </div>
+            <button
+              type="button"
+              className="bloomery-account-entry"
+              aria-label={t("accountEntry")}
+              title={collapsed ? t("accountEntry") : undefined}
+              onClick={() => setActiveSection("settings")}
+            >
+              <span className="bloomery-account-avatar" aria-hidden="true">B</span>
+              {!collapsed && (
+                <span className="bloomery-account-copy">
+                  <strong>Bloomery</strong>
+                  <small>{t("localAccount")}</small>
+                </span>
+              )}
+              {!collapsed && <CircleUserRound size={16} aria-hidden="true" />}
+            </button>
           </div>
         </nav>
 

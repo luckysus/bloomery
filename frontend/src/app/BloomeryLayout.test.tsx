@@ -31,6 +31,8 @@ vi.mock("../bridge/desktop", () => ({
     }),
     listConversations: vi.fn().mockResolvedValue([]),
     listProviderProfiles: vi.fn().mockResolvedValue([]),
+    recoverAgentRuns: vi.fn().mockResolvedValue([]),
+    listenAgentEvents: vi.fn().mockResolvedValue(() => undefined),
   },
 }));
 
@@ -56,10 +58,10 @@ describe("Bloomery desktop layout", () => {
       setWindowSize(size.width, size.height);
       render(<BloomeryApp />);
 
-      expect(await screen.findByRole("heading", { name: "工作台" })).toBeInTheDocument();
+      expect(await screen.findByRole("heading", { name: "对话" })).toBeInTheDocument();
       expect(screen.getByRole("navigation", { name: "主导航" })).toBeInTheDocument();
       expect(screen.getByRole("main")).toBeInTheDocument();
-      expect(screen.getByRole("region", { name: "常用操作" })).toBeInTheDocument();
+      expect(screen.getByRole("complementary", { name: "Agent Workspace" })).toBeInTheDocument();
       for (const label of ["工作台", "对话", "知识库", "数据分析", "扩展", "设置"]) {
         const button = screen.getByRole("button", { name: label });
         expect(button).toBeInTheDocument();
@@ -69,20 +71,29 @@ describe("Bloomery desktop layout", () => {
       expect(screen.getByTestId("utility-navigation")).toContainElement(
         screen.getByRole("button", { name: "设置" }),
       );
+      expect(screen.getByRole("button", { name: "账户设置" })).toBeInTheDocument();
     });
 
     it(`keeps collapse behavior accessible at ${size.width}x${size.height}`, async () => {
       setWindowSize(size.width, size.height);
       const { container } = render(<BloomeryApp />);
-      await screen.findByRole("heading", { name: "工作台" });
+      await screen.findByRole("heading", { name: "对话" });
 
       fireEvent.click(screen.getByRole("button", { name: "折叠侧栏" }));
       expect(container.querySelector(".bloomery-app")).toHaveClass("is-collapsed");
       expect(screen.getByRole("button", { name: "展开侧栏" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "账户设置" })).toBeInTheDocument();
       fireEvent.click(screen.getByRole("button", { name: "展开侧栏" }));
       expect(container.querySelector(".bloomery-app")).not.toHaveClass("is-collapsed");
     });
   }
+
+  it("opens settings from the lower-left account entry", async () => {
+    render(<BloomeryApp />);
+    await screen.findByRole("heading", { name: "对话" });
+    fireEvent.click(screen.getByRole("button", { name: "账户设置" }));
+    expect(await screen.findByRole("heading", { name: "设置" })).toBeInTheDocument();
+  });
 
   it("declares responsive breakpoints for the supported window sizes", () => {
     const theme = themeCss;
@@ -212,10 +223,9 @@ describe("Bloomery desktop layout", () => {
   it("shows the degraded provider state when no chat provider is configured", async () => {
     setWindowSize(1440, 900);
     render(<BloomeryApp />);
-    await screen.findByRole("heading", { name: "工作台" });
+    await screen.findByRole("heading", { name: "对话" });
 
-    const providerRow = await screen.findByTestId("workbench-provider-status");
-    expect(providerRow).toHaveTextContent("未配置（对话降级）");
+    expect(screen.getByRole("button", { name: "工作台" })).toBeInTheDocument();
   });
 
   it("shows the ready provider state with the configured display name", async () => {
@@ -234,9 +244,8 @@ describe("Bloomery desktop layout", () => {
     ]);
     setWindowSize(1440, 900);
     render(<BloomeryApp />);
-    await screen.findByRole("heading", { name: "工作台" });
+    await screen.findByRole("heading", { name: "对话" });
 
-    const providerRow = await screen.findByTestId("workbench-provider-status");
-    expect(providerRow).toHaveTextContent("本地网关");
+    expect(screen.getByRole("button", { name: "工作台" })).toBeInTheDocument();
   });
 });

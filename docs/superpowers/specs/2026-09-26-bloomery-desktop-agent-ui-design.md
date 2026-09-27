@@ -316,7 +316,86 @@ Tauri 事件监听断开时，主工作区显示轻量的“正在重新连接�
 - 文字在最小窗口尺寸下不溢出按钮、卡片或检查器。
 - 100% 和 125% Windows 显示缩放下，输入区、工具卡和侧栏仍保持稳定尺寸。
 
-## 实现边界
+## 前端实现说明
+
+本节把前面的产品布局落实到当前 React 19 前端。它是后续 UI 开发的直接依据。
+
+### 应用壳层
+
+入口文件为 `frontend/src/app/BloomeryApp.tsx`。启动后的默认页面是 `chat`，即桌面 Agent 对话；`workbench` 仍然保留在导航中，用户可以主动打开。应用壳层只负责：
+
+- 初始化 Tauri 桌面运行时。
+- 保存当前一级页面和侧栏折叠状态。
+- 渲染品牌栏、模块导航和主内容区。
+- 在页面之间传递 `SectionId` 跳转，不承载 Agent 运行事实。
+
+现有一级页面继续保留：
+
+| 导航入口 | React 页面 | 保留的能力 |
+| --- | --- | --- |
+| 对话 | `ChatPage` / `DesktopChatWorkspace` | Agent Loop、流式回答、工具、权限、引用、停止、转向、追加、恢复、重试 |
+| 工作台 | `WorkbenchHome` | 本地状态、模型和知识库概览、常用操作 |
+| 知识库 | `KnowledgePage` | 文档导入、版本、索引、RAG、Wiki 和知识图谱入口 |
+| 数据分析 | `AnalysisPage` | 数据集、统计、训练、预测和工艺优化 |
+| 数据库 | `DatabasePage` | 数据库连接、查询和数据集导入 |
+| 扩展 | `ExtensionsPage` | MCP Server、工具和 Skill 管理 |
+| 设置 | `SettingsPage` | 模型、权限、数据库和外观配置 |
+| 诊断 | `DiagnosticsPage` | 本地运行和错误诊断 |
+
+### Agent 页面组件树
+
+```text
+ChatPage
+└─ useChatController
+   └─ DesktopChatWorkspace
+      ├─ ConversationSidebar
+      │  ├─ New conversation
+      │  ├─ Conversation search
+      │  └─ Recent conversations
+      ├─ ChatMain
+      │  ├─ ConversationHeader
+      │  ├─ MessageTimeline
+      │  ├─ NativeRunStatus
+      │  └─ Composer
+      └─ AgentRunInspector
+         ├─ Run overview
+         ├─ Tool calls
+         ├─ Permission requests
+         ├─ Progress and usage
+         ├─ Checkpoint and recovery
+         ├─ Citations
+         └─ Error details
+```
+
+`AgentRunInspector` 位于 `frontend/src/features/chat/AgentRunInspector.tsx`，只接收 `ChatControllerProps` 中已有的 `agentRun`、`recovery` 和控制回调。它不能创建第二套 Run 状态，也不能直接访问数据库。
+
+### 前端状态和 Rust 事件的关系
+
+```text
+Tauri agent-event
+  -> chatController.listenAgentEvents
+  -> agentEvents.reduceAgentEvent
+  -> AgentRunView
+  -> MessageTimeline / NativeRunStatus / AgentRunInspector
+```
+
+`agentEvents.ts` 是唯一的前端事件投影入口。事件按 `run_id`、`conversation_id` 和 `sequence` 去重；发现序号缺口时通过 `replay_agent_run` 补齐。消息、工具状态、权限、引用、usage、checkpoint 和恢复信息都从同一个 `AgentRunView` 投影。
+
+### 既有能力的 UI 接入方式
+
+- **RAG/知识库**：输入区的智能搜索和知识库上下文选择器调用现有知识库命令；回答中的 citation 打开来源面板，不在前端复制检索逻辑。
+- **Wiki/知识图谱**：知识中心继续提供页面、revision、标签和关系图页面；Agent 通过受控 Tauri 命令写入，聊天界面只展示来源和跳转入口。
+- **数据分析/预测/工艺优化**：独立模块继续使用现有 `analysis` 命令；后续在 Agent 上下文选择器和任务抽屉中显示任务状态。
+- **MCP/Skill/工具**：扩展页面管理配置，当前 Run 的工具快照和调用结果显示在 `AgentRunInspector`。
+- **子 Agent**：先展示父 Run 的工具结果和任务进度，随后使用现有 `list_agent_child_turns`、重放和取消命令补齐子 Agent 树。
+
+### 前端开发约束
+
+- 使用 React 19、TypeScript 6、Vite 7 和 Tailwind CSS 4；不按旧版开发文档回退技术栈。
+- 优先复用现有 `desktop` bridge、`agentEvents` reducer、`ChatPage`、CSS Token 和已有组件。
+- 新页面先接入现有 Tauri 命令，再补视觉层；不为了展示假数据新增后端状态。
+- 现有业务页面、Rust Runtime、RAG、Wiki、知识图谱、MCP、Skill 和测试必须保留。
+- UI 改造只允许改变布局、导航、投影和交互，不删除底层领域模块。
 
 ### 前端负责
 

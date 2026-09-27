@@ -118,11 +118,12 @@ describe("SettingsPage", () => {
     expect(screen.getByDisplayValue("https://api.example.com/v1")).toBeInTheDocument();
     expect(screen.getAllByText("settingsSecretConfigured").length).toBeGreaterThan(0);
 
-    fireEvent.click(screen.getByRole("tab", { name: "settingsTabGeneral" }));
+    fireEvent.click(screen.getByRole("tab", { name: "settingsCategoryAppearance" }));
     expect(screen.getByRole("group", { name: "themeTitle" })).toBeInTheDocument();
     for (const label of ["themeSystem", "themeLight", "themeDark"]) {
       expect(screen.getByRole("button", { name: label })).toBeInTheDocument();
     }
+    fireEvent.click(screen.getByRole("tab", { name: "settingsTabGeneral" }));
     expect(screen.getByText("settingsSecretCopy")).toBeInTheDocument();
     expect(container.querySelectorAll(".bloomery-eyebrow")).toHaveLength(0);
     expect(screen.queryByText("settingsLede")).not.toBeInTheDocument();
@@ -231,7 +232,7 @@ describe("SettingsPage", () => {
   it("lists persistent permission rules and revokes the selected rule", async () => {
     renderSettings();
 
-    fireEvent.click(await screen.findByRole("tab", { name: "settingsTabPermissions" }));
+    fireEvent.click(await screen.findByRole("tab", { name: "settingsCategoryAgent" }));
     expect(await screen.findByText("builtin.write_file")).toBeInTheDocument();
     vi.spyOn(window, "confirm").mockReturnValue(true);
     fireEvent.click(screen.getByRole("button", { name: /revoke permission|permissionRevoke/i }));

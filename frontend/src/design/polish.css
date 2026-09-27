@@ -228,6 +228,26 @@ textarea:focus-visible {
   margin-right: 6px;
 }
 
+.bloomery-account-entry { color: var(--bloomery-text-soft); }
+.bloomery-account-entry:hover,
+.bloomery-account-entry:focus-visible { color: var(--bloomery-text); }
+[data-theme="dark"] .bloomery-account-entry:hover,
+[data-theme="dark"] .bloomery-account-entry:focus-visible {
+  background: var(--bloomery-bg-hover);
+  border-color: var(--bloomery-line);
+}
+
+.bloomery-settings-layout .bloomery-settings-tab {
+  justify-content: flex-start;
+  text-align: left;
+  width: 100%;
+}
+
+@media (max-width: 760px) {
+  .bloomery-settings-layout { grid-template-columns: 1fr; gap: 18px; }
+  .bloomery-settings-layout .bloomery-settings-tabs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); position: static; }
+}
+
 .bloomery-main {
   background: #f8f7f3;
 }

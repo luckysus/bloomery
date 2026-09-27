@@ -235,6 +235,12 @@
   padding-right: 12px;
 }
 
+.bloomery-app.is-collapsed .bloomery-account-entry {
+  justify-content: center;
+  padding-left: 0;
+  padding-right: 0;
+}
+
 .bloomery-app.is-collapsed .bloomery-sidebar-head {
   justify-content: center;
 }
@@ -252,6 +258,54 @@
   margin: auto 4px 0;
   padding-top: 14px;
 }
+
+.bloomery-account-entry {
+  align-items: center;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--bloomery-radius);
+  color: var(--bloomery-text);
+  cursor: pointer;
+  display: flex;
+  gap: 10px;
+  margin-top: 10px;
+  min-height: 46px;
+  padding: 5px 8px;
+  text-align: left;
+  width: 100%;
+}
+
+.bloomery-account-entry:hover,
+.bloomery-account-entry:focus-visible {
+  background: var(--bloomery-bg-hover);
+  border-color: var(--bloomery-line);
+}
+
+.bloomery-account-avatar {
+  align-items: center;
+  background: var(--bloomery-amber);
+  border-radius: 50%;
+  color: #fffaf5;
+  display: inline-flex;
+  flex: 0 0 30px;
+  font-size: 13px;
+  font-weight: 700;
+  height: 30px;
+  justify-content: center;
+  width: 30px;
+}
+
+.bloomery-account-copy {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.bloomery-account-copy strong,
+.bloomery-account-copy small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bloomery-account-copy strong { font-size: 12px; font-weight: 650; }
+.bloomery-account-copy small { color: var(--bloomery-text-muted); font-size: 10px; margin-top: 1px; }
 
 .bloomery-main {
   min-width: 0;
@@ -2527,6 +2581,87 @@ button.bloomery-knowledge-document.is-active {
   gap: 14px;
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
+
+.bloomery-settings-layout {
+  display: grid;
+  grid-template-columns: 190px minmax(0, 1fr);
+  gap: 28px;
+  align-items: start;
+}
+
+.bloomery-settings-layout .bloomery-settings-tabs {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  position: sticky;
+  top: 20px;
+}
+
+.bloomery-settings-category {
+  min-width: 0;
+}
+
+.bloomery-settings-category > h2 {
+  margin: 0 0 8px;
+}
+
+.bloomery-settings-category > p {
+  color: var(--bloomery-text-muted);
+  margin: 0 0 20px;
+}
+
+.bloomery-account-summary {
+  align-items: center;
+  border: 1px solid var(--bloomery-line);
+  border-radius: var(--bloomery-radius);
+  display: flex;
+  gap: 12px;
+  max-width: 420px;
+  padding: 14px;
+}
+
+.bloomery-account-summary > div { display: flex; flex-direction: column; gap: 2px; }
+.bloomery-account-summary > div span { color: var(--bloomery-text-muted); font-size: 12px; }
+
+.bloomery-settings-field {
+  display: grid;
+  gap: 7px;
+  margin: 18px 0;
+  max-width: 460px;
+}
+
+.bloomery-settings-field input,
+.bloomery-settings-field select {
+  background: var(--bloomery-bg-raised);
+  border: 1px solid var(--bloomery-line);
+  border-radius: var(--bloomery-radius-small);
+  color: var(--bloomery-text);
+  min-height: 36px;
+  padding: 0 10px;
+}
+
+.bloomery-settings-about {
+  display: grid;
+  gap: 12px;
+  max-width: 460px;
+}
+
+.bloomery-settings-about div { align-items: baseline; display: flex; justify-content: space-between; border-bottom: 1px solid var(--bloomery-line); padding-bottom: 10px; }
+.bloomery-settings-about dt { color: var(--bloomery-text-muted); }
+.bloomery-settings-about dd { margin: 0; }
+
+.bloomery-settings-preferences > h2 { margin: 0 0 8px; }
+.bloomery-settings-preferences > p { color: var(--bloomery-text-muted); margin: 0 0 20px; }
+.bloomery-settings-preference-list { display: grid; gap: 2px; max-width: 620px; }
+.bloomery-settings-preference { align-items: center; border-bottom: 1px solid var(--bloomery-line); display: flex; justify-content: space-between; gap: 20px; min-height: 46px; max-width: 620px; }
+.bloomery-settings-preference input { accent-color: var(--bloomery-amber); }
+.bloomery-settings-inline-saved { color: var(--bloomery-green); display: block; font-size: 12px; margin-top: 12px; }
+.bloomery-settings-agent-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; max-width: 720px; }
+.bloomery-settings-agent-grid .bloomery-settings-field { margin: 0; }
+.bloomery-settings-empty { align-items: center; display: flex; gap: 8px; color: var(--bloomery-text-muted); }
+.bloomery-settings-toolbar { align-items: center; display: flex; flex-wrap: wrap; gap: 8px; margin: 18px 0 22px; }
+.bloomery-settings-toolbar > input[type="search"] { background: var(--bloomery-bg-raised); border: 1px solid var(--bloomery-line); border-radius: var(--bloomery-radius-small); color: var(--bloomery-text); height: 34px; min-width: 240px; padding: 0 10px; }
+.bloomery-settings-toolbar label { cursor: pointer; }
 
 .bloomery-settings-card {
   background: var(--bloomery-bg-raised);
