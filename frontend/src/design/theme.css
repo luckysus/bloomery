@@ -192,6 +192,7 @@
 .suna-sidebar-workspace:focus-visible,
 .suna-sidebar-session:hover,
 .suna-sidebar-session:focus-visible { background: var(--suna-bg-hover); border-color: var(--suna-line); color: var(--suna-text); }
+.suna-sidebar-action.is-active { background: var(--suna-amber-soft); border-color: var(--suna-line); color: var(--suna-text); }
 .suna-sidebar-action.is-primary { background: var(--suna-text); color: var(--suna-bg); font-weight: 650; }
 .suna-sidebar-action.is-primary:hover { background: var(--suna-text-soft); color: var(--suna-bg); }
 .suna-sidebar-action span,
@@ -202,15 +203,35 @@
 .suna-sidebar-workspace > span:not(.suna-workspace-mark) { display: flex; flex: 1; flex-direction: column; min-width: 0; }
 .suna-sidebar-workspace strong { color: var(--suna-text); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .suna-sidebar-workspace small { color: var(--suna-text-muted); font-size: 10px; margin-top: 2px; }
+.suna-sidebar-workspace > svg { flex: 0 0 auto; transition: transform 160ms ease; }
+.suna-sidebar-workspace > svg.is-rotated { transform: rotate(180deg); }
+.suna-sidebar-search-panel { background: var(--suna-bg-raised); border: 1px solid var(--suna-line); border-radius: var(--suna-radius); margin: -8px 0 12px; padding: 8px; }
+.suna-sidebar-search-input { align-items: center; background: var(--suna-bg); border: 1px solid var(--suna-line); border-radius: var(--suna-radius-small); color: var(--suna-text-muted); display: flex; gap: 7px; min-height: 32px; padding: 0 8px; }
+.suna-sidebar-search-input input { background: transparent; border: 0; color: var(--suna-text); flex: 1; font: inherit; font-size: 11px; min-width: 0; outline: 0; }
+.suna-sidebar-search-input input::placeholder { color: var(--suna-text-muted); }
+.suna-sidebar-search-input button { align-items: center; background: transparent; border: 0; color: var(--suna-text-muted); cursor: pointer; display: inline-flex; padding: 2px; }
+.suna-sidebar-search-input button:hover { color: var(--suna-text); }
+.suna-sidebar-search-empty { color: var(--suna-text-muted); font-size: 10px; margin: 9px 2px 2px; }
+.suna-workspace-popover { background: var(--suna-bg-raised); border: 1px solid var(--suna-line); border-radius: var(--suna-radius); box-shadow: 0 14px 32px rgb(38 28 21 / 12%); margin: -12px 0 14px; padding: 10px; }
+.suna-workspace-popover-title { align-items: center; display: flex; gap: 9px; }
+.suna-workspace-popover-title > span:last-child { display: flex; flex: 1; flex-direction: column; min-width: 0; }
+.suna-workspace-popover-title strong { color: var(--suna-text); font-size: 11px; }
+.suna-workspace-popover-title small { color: var(--suna-text-muted); font-size: 10px; line-height: 1.35; margin-top: 2px; }
+.suna-workspace-popover-status { align-items: center; color: var(--suna-green); display: flex; font-size: 10px; gap: 6px; margin: 12px 0 9px; }
+.suna-workspace-popover > button { align-items: center; background: transparent; border: 0; border-top: 1px solid var(--suna-line); color: var(--suna-text-muted); cursor: pointer; display: flex; font: inherit; font-size: 10px; gap: 7px; padding: 9px 1px 1px; width: 100%; }
+.suna-workspace-popover > button:hover { color: var(--suna-text); }
 .suna-sidebar-group-label { color: var(--suna-text-muted); display: block; font-size: 10px; font-weight: 700; letter-spacing: .08em; margin: 0 8px 7px; text-transform: uppercase; }
 .suna-sidebar-sessions { display: grid; gap: 4px; margin-bottom: 16px; }
 .suna-sidebar-session { min-height: 36px; }
 .suna-sidebar-session.is-active { background: var(--suna-amber-soft); color: var(--suna-text); }
 .suna-session-dot { background: var(--suna-amber); border-radius: 50%; flex: 0 0 7px; height: 7px; width: 7px; }
+.suna-session-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.suna-session-pin { color: var(--suna-amber); font-size: 16px; line-height: 1; margin-left: auto; }
 .suna-sidebar-empty { color: var(--suna-text-muted); font-size: 11px; padding: 5px 26px; }
 .suna-sidebar-runtime { align-items: center; color: var(--suna-text-muted); display: flex; font-size: 10px; gap: 7px; margin-bottom: 8px; padding: 0 8px; }
 .suna-sidebar-runtime i { background: var(--suna-green); border-radius: 50%; height: 6px; margin-left: auto; width: 6px; }
 .suna-sidebar-utility { min-height: 34px; }
+.suna-sidebar-utility.is-active { background: var(--suna-bg-hover); border-color: var(--suna-line); color: var(--suna-text); }
 
 .suna-sidebar-caption {
   color: var(--suna-text-muted);
@@ -358,6 +379,10 @@
   min-width: 0;
   overflow: auto;
 }
+
+/* The app shell owns the conversation history; the chat view remains reusable on its own. */
+.suna-app .suna-chat-sidebar { display: none; }
+.suna-app .suna-chat { grid-template-columns: minmax(0, 1fr); }
 
 .suna-main-inner {
   margin: 0 auto;

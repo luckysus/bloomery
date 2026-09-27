@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { createContext, createElement, useCallback, useContext, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { useLocale } from "../../i18n/locale";
 import {
   desktop,
@@ -92,6 +92,17 @@ export interface ChatControllerProps {
   onSearchHistory: (query: string) => Promise<HistoryHit[]>;
   onSelectChatProfile: (profileId: string) => void;
   onToggleSmartSearch: () => void;
+}
+
+const ChatControllerContext = createContext<ChatControllerProps | null>(null);
+
+export function ChatControllerProvider({ children }: { children: ReactNode }) {
+  const controller = useChatController();
+  return createElement(ChatControllerContext.Provider, { value: controller }, children);
+}
+
+export function useChatControllerContext() {
+  return useContext(ChatControllerContext) ?? useChatController();
 }
 
 export function useChatController(): ChatControllerProps {
