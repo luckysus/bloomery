@@ -292,7 +292,7 @@ impl ToolRegistration {
             id,
             version: self.version,
             name: self.spec.name.clone(),
-            description: format!("Bloomery tool {}", self.spec.name),
+            description: format!("Suna tool {}", self.spec.name),
             input_schema: self.spec.input_schema.clone(),
             output_schema: serde_json::json!({"type": "object"}),
             risk: self.spec.risk,

@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 const frontendRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const sourceRoot = join(frontendRoot, "src");
 const mainPath = join(sourceRoot, "main.tsx");
-const appPath = join(sourceRoot, "app", "BloomeryApp.tsx");
+const appPath = join(sourceRoot, "app", "SunaApp.tsx");
 const bridgePath = join(sourceRoot, "bridge", "desktop.ts");
 const failures = [];
 
@@ -15,13 +15,13 @@ if (packageJson.dependencies?.xlsx || packageJson.devDependencies?.xlsx) {
   failures.push("SheetJS xlsx is not allowed in the desktop frontend; XLSX parsing stays in Rust");
 }
 
-for (const [path, label] of [[appPath, "Bloomery app root"], [bridgePath, "desktop bridge"]]) {
+for (const [path, label] of [[appPath, "Suna app root"], [bridgePath, "desktop bridge"]]) {
   if (!existsSync(path)) failures.push(`missing ${label}: ${relative(frontendRoot, path)}`);
 }
 
 const main = readFileSync(mainPath, "utf8");
-if (!/from ["']\.\/app\/BloomeryApp["']/.test(main)) {
-  failures.push("src/main.tsx must import ./app/BloomeryApp");
+if (!/from ["']\.\/app\/SunaApp["']/.test(main)) {
+  failures.push("src/main.tsx must import ./app/SunaApp");
 }
 for (const forbidden of ["AuthProvider", "RagAppPage", "DesktopApp"]) {
   if (main.includes(forbidden)) failures.push(`src/main.tsx contains ${forbidden}`);

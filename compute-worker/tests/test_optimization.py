@@ -2,8 +2,8 @@ import math
 
 import pytest
 
-from bloomery_worker.optimization import OptimizationError, optimize_constrained
-from bloomery_worker.training import train_sklearn_model
+from suna_worker.optimization import OptimizationError, optimize_constrained
+from suna_worker.training import train_sklearn_model
 
 
 def linear_artifact(

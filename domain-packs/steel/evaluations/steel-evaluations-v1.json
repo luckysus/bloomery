@@ -2,7 +2,7 @@
   "schema_version": "1.0.0",
   "evaluation_version": "1.0.0",
   "license": "Apache-2.0",
-  "policy": "Evaluation cases are authored by Bloomery contributors or derived from public formula definitions. Failures are recorded as-is; thresholds must never be weakened to hide a regression. Provider-dependent categories must record provider and model versions when executed.",
+  "policy": "Evaluation cases are authored by Suna contributors or derived from public formula definitions. Failures are recorded as-is; thresholds must never be weakened to hide a regression. Provider-dependent categories must record provider and model versions when executed.",
   "categories": {
     "calculators": { "runner": "rust", "threshold": 1.0 },
     "dataset_mapping": { "runner": "rust", "threshold": 1.0 },

@@ -377,7 +377,7 @@ export default function KnowledgeView({
                     <div className="rounded-2xl border-2 border-dashed border-[#dfcfc0] bg-[#fffdf8] px-5 py-8 text-center transition-colors hover:border-[#c96f52] hover:bg-[#fff7ef]">
                       <Upload className="mx-auto h-8 w-8 text-[#c96f52]" />
                       <p className="mt-3 text-base font-semibold text-[#241b15]">选择本地文件，开始建立知识库</p>
-                      <p className="mt-1 text-sm text-[#8b7b6e]">数据保留在 Bloomery 本地，由 Rust 运行时处理。</p>
+                      <p className="mt-1 text-sm text-[#8b7b6e]">数据保留在 Suna 本地，由 Rust 运行时处理。</p>
                       <div className="mx-auto mt-5 flex max-w-3xl gap-2 max-md:flex-col">
                         <input
                           aria-label="文件路径"
@@ -577,7 +577,7 @@ function LocalKnowledgeBaseDetail({
                 <div className="mt-5">
                   <h5 className="text-base font-semibold text-[#241b15]">本地解析结果</h5>
                   <p className="mt-2 text-sm leading-6 text-[#8f8174]">
-                    Bloomery 当前通过本地 Rust 运行时管理文档解析和索引。原始 PDF 与 Markdown 预览接口尚未接入桌面 bridge，文档内容不会回调 Web 服务。
+                    Suna 当前通过本地 Rust 运行时管理文档解析和索引。原始 PDF 与 Markdown 预览接口尚未接入桌面 bridge，文档内容不会回调 Web 服务。
                   </p>
                 </div>
                 <div className="mt-5 grid gap-3 sm:grid-cols-2">

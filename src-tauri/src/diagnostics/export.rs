@@ -160,7 +160,7 @@ mod tests {
     #[test]
     fn diagnostic_export_is_written_as_json_without_partial_target() {
         let root =
-            std::env::temp_dir().join(format!("bloomery-diagnostics-{}", uuid::Uuid::new_v4()));
+            std::env::temp_dir().join(format!("suna-diagnostics-{}", uuid::Uuid::new_v4()));
         std::fs::create_dir_all(&root).expect("create diagnostics root");
         let output = root.join("diagnostics.json");
         let value = serde_json::json!({

@@ -15,10 +15,10 @@ if ([string]::IsNullOrWhiteSpace($OutputPath)) {
 $OutputPath = [System.IO.Path]::GetFullPath($OutputPath)
 New-Item -ItemType Directory -Force -Path (Split-Path -Parent $OutputPath) | Out-Null
 
-$hadPreviousOutput = Test-Path Env:BLOOMERY_BENCHMARK_OUTPUT
-$previousOutput = $env:BLOOMERY_BENCHMARK_OUTPUT
+$hadPreviousOutput = Test-Path Env:SUNA_BENCHMARK_OUTPUT
+$previousOutput = $env:SUNA_BENCHMARK_OUTPUT
 try {
-    $env:BLOOMERY_BENCHMARK_OUTPUT = $OutputPath
+    $env:SUNA_BENCHMARK_OUTPUT = $OutputPath
     Push-Location $tauriRoot
     try {
         & cargo bench -j 1 --offline --bench agent_performance
@@ -30,9 +30,9 @@ try {
     }
 } finally {
     if ($hadPreviousOutput) {
-        $env:BLOOMERY_BENCHMARK_OUTPUT = $previousOutput
+        $env:SUNA_BENCHMARK_OUTPUT = $previousOutput
     } else {
-        Remove-Item Env:BLOOMERY_BENCHMARK_OUTPUT -ErrorAction SilentlyContinue
+        Remove-Item Env:SUNA_BENCHMARK_OUTPUT -ErrorAction SilentlyContinue
     }
 }
 

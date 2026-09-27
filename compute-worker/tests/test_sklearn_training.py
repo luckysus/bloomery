@@ -4,7 +4,7 @@ import pickle
 
 import pytest
 
-from bloomery_worker.training import (
+from suna_worker.training import (
     MAX_PICKLE_BYTES,
     environment_lock,
     predict_model,
@@ -148,7 +148,7 @@ def test_predict_model_rejects_invalid_prediction_outputs(
             return values
 
     monkeypatch.setattr(
-        "bloomery_worker.training._load_trusted_model_pickle",
+        "suna_worker.training._load_trusted_model_pickle",
         lambda blob: FakeModel(),
     )
     artifact = {

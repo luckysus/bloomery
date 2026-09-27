@@ -1,4 +1,4 @@
-# Bloomery Agent Performance Gate
+# Suna Agent Performance Gate
 
 ## Result
 
@@ -26,7 +26,7 @@ samples, and exits nonzero when a gate fails.
 
 ## Reproduce
 
-Run from the Bloomery repository root:
+Run from the Suna repository root:
 
 ```powershell
 powershell -File scripts/benchmark-agent-performance.ps1

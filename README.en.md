@@ -1,16 +1,16 @@
 <div align="center">
 
-![Bloomery](docs/assets/bloomery-banner.png)
+![Suna](docs/assets/suna-banner.png)
 
-<h1>Bloomery</h1>
+<h1>Suna</h1>
 
 **A Windows-first, local-first agent workbench for steel and materials engineering.**
 
 [简体中文](README.md) · English
 
-[GitHub](https://github.com/luckysus/bloomery) · [Gitee](https://gitee.com/neusu/bloomery)
+[GitHub](https://github.com/luckysus/suna) · [Gitee](https://gitee.com/neusu/suna)
 
-[![Quality checks](https://github.com/luckysus/bloomery/actions/workflows/quality.yml/badge.svg)](https://github.com/luckysus/bloomery/actions/workflows/quality.yml)
+[![Quality checks](https://github.com/luckysus/suna/actions/workflows/quality.yml/badge.svg)](https://github.com/luckysus/suna/actions/workflows/quality.yml)
 ![License](https://img.shields.io/badge/license-Apache--2.0-blue)
 ![Platform](https://img.shields.io/badge/platform-Windows%2010-0078D4)
 ![Desktop framework](https://img.shields.io/badge/Tauri-2-FFC131)
@@ -21,17 +21,17 @@
 
 > **Project status**
 >
-> Bloomery is in the engineering phase before its public release. The `main` branch provides runnable development builds, not a published stable installer.
+> Suna is in the engineering phase before its public release. The `main` branch provides runnable development builds, not a published stable installer.
 
 ## Built for materials engineering
 
-Bloomery is a desktop agent workbench for steel, materials, and industrial R&D. It brings local conversations, document parsing, retrieval with citations, production-data analysis, and controlled tool execution into one workspace.
+Suna is a desktop agent workbench for steel, materials, and industrial R&D. It brings local conversations, document parsing, retrieval with citations, production-data analysis, and controlled tool execution into one workspace.
 
 It is not a generic chat shell. Use your own providers, keep conversations, knowledge bases, indexes, tasks, and memories on your own computer, and trace conclusions back to source documents, pages, tables, or data.
 
 ## Core capabilities
 
-- **Local workspace**: open the client directly into the workbench; configure models and retrieval services in Settings when needed, without registering a Bloomery account.
+- **Local workspace**: open the client directly into the workbench; configure models and retrieval services in Settings when needed, without registering a Suna account.
 - **Your choice of models**: OpenAI-compatible APIs and Ollama are supported; embedding, reranking, and parsing services are configured by the user.
 - **Local knowledge base**: import PDF, Markdown, TXT, HTML, DOCX, CSV, and XLSX to build local retrieval and evidence citations.
 - **Context and memory**: organize the agent's work around conversations, tasks, summaries, drafts, and long-term memory.
@@ -54,8 +54,8 @@ Users choose SiliconFlow Free or Pro themselves. API keys are entered in Setting
 The development environment requires Windows 10, Node.js 20/22/24, Rust stable, Visual Studio Build Tools with `Desktop development with C++`, WebView2 Runtime, Git, and the Tauri 2 Windows prerequisites.
 
 ```powershell
-git clone https://github.com/luckysus/bloomery.git
-Set-Location bloomery/frontend
+git clone https://github.com/luckysus/suna.git
+Set-Location suna/frontend
 npm install
 npm run build
 
@@ -73,7 +73,7 @@ You can also run `./start-desktop.bat` from the repository root to start the dev
 
 ## Local data, privacy, and network
 
-Bloomery stores `bloomery.sqlite3` in the operating system application-data directory rather than in the repository. Conversations, messages, summaries, memories, settings, knowledge metadata, and task state remain local by default.
+Suna stores `suna.sqlite3` in the operating system application-data directory rather than in the repository. Conversations, messages, summaries, memories, settings, knowledge metadata, and task state remain local by default.
 
 Local-first does not mean automatically offline. When you enable a cloud LLM, SiliconFlow, MinerU, or MCP, related requests are sent to the service you configured or enabled. The current version does not include in-app automatic updates; users install newer Windows 10 builds manually.
 
@@ -94,4 +94,4 @@ Issues, documentation, tests, and code contributions are welcome. Read the [cont
 
 ## License
 
-Bloomery is released under the Apache License 2.0. See [LICENSE](LICENSE) for the full text and [NOTICE](NOTICE) for attribution.
+Suna is released under the Apache License 2.0. See [LICENSE](LICENSE) for the full text and [NOTICE](NOTICE) for attribution.

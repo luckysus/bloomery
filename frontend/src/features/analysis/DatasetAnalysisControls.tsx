@@ -22,7 +22,7 @@ export default function DatasetAnalysisControls({
     .filter(({ column }) => column.inferredType === "number");
 
   return (
-    <div className="bloomery-dataset-analysis-controls" data-testid={`dataset-analysis-controls-${dataset.id}`}>
+    <div className="suna-dataset-analysis-controls" data-testid={`dataset-analysis-controls-${dataset.id}`}>
       <label>
         <span>{t("analysisDatasetGroupBy")}</span>
         <select
@@ -38,7 +38,7 @@ export default function DatasetAnalysisControls({
       </label>
       <fieldset>
         <legend>{t("analysisDatasetCorrelation")}</legend>
-        <div className="bloomery-dataset-correlation-options">
+        <div className="suna-dataset-correlation-options">
           {numericColumns.map(({ column, ordinal }) => (
             <label key={ordinal}>
               <input

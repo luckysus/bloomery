@@ -12,7 +12,7 @@
 
 **全程约束:**
 
-- 仓库:`F:/steel-agent/bloomery`(独立嵌套 git 仓库)。工作树有大量他人未提交改动,**每次 commit 只 `git add` 本任务列出的文件**。
+- 仓库:`F:/steel-agent/suna`(独立嵌套 git 仓库)。工作树有大量他人未提交改动,**每次 commit 只 `git add` 本任务列出的文件**。
 - 命令用 PowerShell。前端测试:`Set-Location frontend; npm test -- <文件名>`;Rust:`Set-Location src-tauri; cargo test <名> `。
 - 不改 `frontend/src/bridge/generated/protocol.ts`(自动生成)。
 - i18n 新 key 必须同时加进 `src/i18n/locale.tsx` 的 zhCN 与 en-US 两个字典(`Record<MessageKey,...>` 类型强制,漏一个编译不过)。
@@ -215,8 +215,8 @@ git commit -m "支持数据库连接健康记录与查询结果表"
 新建 `src-tauri/tests/database_query_results.rs`:
 
 ```rust
-use bloomery::storage::migrations::migrate;
-use bloomery::storage::repositories::database_query_results::{
+use suna::storage::migrations::migrate;
+use suna::storage::repositories::database_query_results::{
     self, QueryResultRecord, QueryResultSummary,
 };
 use rusqlite::Connection;
@@ -526,7 +526,7 @@ mod tests {
     fn wrap_forces_top_and_derived_table() {
         let wrapped = wrap_query("SELECT a FROM t", 500);
         assert!(wrapped.starts_with("SELECT TOP (500) * FROM ("));
-        assert!(wrapped.ends_with(") AS [_bloomery_query]"));
+        assert!(wrapped.ends_with(") AS [_suna_query]"));
         assert!(wrap_query("SELECT 1", 1).contains("TOP (1)"));
     }
 
@@ -585,7 +585,7 @@ pub fn normalize_query(sql: &str) -> Result<String, String> {
 
 /// 外层 TOP (n) + 派生表包装，使写操作在结构上不可能执行。
 pub fn wrap_query(sql: &str, row_limit: u64) -> String {
-    format!("SELECT TOP ({row_limit}) * FROM ({sql}) AS [_bloomery_query]")
+    format!("SELECT TOP ({row_limit}) * FROM ({sql}) AS [_suna_query]")
 }
 ```
 
@@ -1513,26 +1513,26 @@ git commit -m "扩展桌面桥接的数据库查询接口"
 
 **Files:**
 - Modify: `frontend/src/app/navigation.ts`
-- Modify: `frontend/src/app/BloomeryApp.tsx`
-- Modify: `frontend/src/app/BloomeryApp.test.tsx`
+- Modify: `frontend/src/app/SunaApp.tsx`
+- Modify: `frontend/src/app/SunaApp.test.tsx`
 - Create: `frontend/src/features/databases/DatabasePage.tsx`
 - Create: `frontend/src/features/databases/DatabasePage.test.tsx`
 - Modify: `frontend/src/i18n/locale.tsx`
 
 - [ ] **Step 1: 写失败的导航测试**
 
-`frontend/src/app/BloomeryApp.test.tsx` 参照现有用例(该文件已有渲染外壳并点击导航的测试)追加:
+`frontend/src/app/SunaApp.test.tsx` 参照现有用例(该文件已有渲染外壳并点击导航的测试)追加:
 
 ```tsx
 it("renders the databases section", async () => {
-  renderBloomeryApp();
+  renderSunaApp();
   const button = await screen.findByRole("button", { name: "navDatabases" });
   fireEvent.click(button);
   expect(await screen.findByRole("heading", { name: "dbTitle" })).toBeInTheDocument();
 });
 ```
 
-(具体辅助函数名 `renderBloomeryApp` 以文件内现有写法为准;mock desktop 需补 `listDatabaseConnections` 等新方法,见 Step 3。)
+(具体辅助函数名 `renderSunaApp` 以文件内现有写法为准;mock desktop 需补 `listDatabaseConnections` 等新方法,见 Step 3。)
 
 新建 `frontend/src/features/databases/DatabasePage.test.tsx`:
 
@@ -1611,7 +1611,7 @@ describe("DatabasePage", () => {
 
 - [ ] **Step 2: 运行确认失败**
 
-Run: `Set-Location frontend; npm test -- DatabasePage.test.tsx BloomeryApp.test.tsx`
+Run: `Set-Location frontend; npm test -- DatabasePage.test.tsx SunaApp.test.tsx`
 Expected: FAIL(导航按钮/页面不存在)。
 
 - [ ] **Step 3: 实现**
@@ -1678,7 +1678,7 @@ dbLoadError: "Failed to load database information",
 
 顶部 lucide 导入加 `Database`。
 
-`frontend/src/app/BloomeryApp.tsx` 渲染链(`activeSection === "knowledge"` 分支后)插入:
+`frontend/src/app/SunaApp.tsx` 渲染链(`activeSection === "knowledge"` 分支后)插入:
 
 ```tsx
     ) : activeSection === "databases" ? (
@@ -1741,22 +1741,22 @@ export default function DatabasePage() {
   }, [connectionId]);
 
   return (
-    <div className="bloomery-db bloomery-page-surface">
-      <header className="bloomery-db-header">
+    <div className="suna-db suna-page-surface">
+      <header className="suna-db-header">
         <h1 id="db-heading">{t("dbTitle")}</h1>
       </header>
       {error && (
-        <div className="bloomery-settings-alert" role="alert">
+        <div className="suna-settings-alert" role="alert">
           <span>{error}</span>
         </div>
       )}
       {loading ? null : connections.length === 0 ? (
-        <div className="bloomery-extensions-empty">
+        <div className="suna-extensions-empty">
           <Database size={18} aria-hidden="true" />
           <span>{t("dbEmptyConnections")}</span>
         </div>
       ) : (
-        <div className="bloomery-db-toolbar">
+        <div className="suna-db-toolbar">
           <label>
             <span>{t("dbConnectionLabel")}</span>
             <select
@@ -1796,28 +1796,28 @@ export default function DatabasePage() {
 注:骨架版先渲染连接/库选择器;SQL 编辑器、表浏览、结果区在 Task 9/10 加入。为让 Step 1 测试通过,骨架需同时包含 `dbSqlLabel` textbox 与 `dbRun` 按钮 -- 在 toolbar 后补最小占位:
 
 ```tsx
-      <label className="bloomery-db-sql">
+      <label className="suna-db-sql">
         <span>{t("dbSqlLabel")}</span>
         <textarea aria-label={t("dbSqlLabel")} rows={5} />
       </label>
-      <button type="button" className="bloomery-action-primary" aria-label={t("dbRun")}>
+      <button type="button" className="suna-action-primary" aria-label={t("dbRun")}>
         {t("dbRun")}
       </button>
 ```
 
 (占位的 textarea/button 用受控 state 包好,Task 9 直接扩展。)
 
-`BloomeryApp.test.tsx` 的 desktop mock 对象补齐:`listDatabaseConnections: vi.fn().mockResolvedValue([])`(以及 `listDatabases/listDatabaseTables/listDatabaseQueryResults/listBackgroundTasks` 的空返回 mock)。
+`SunaApp.test.tsx` 的 desktop mock 对象补齐:`listDatabaseConnections: vi.fn().mockResolvedValue([])`(以及 `listDatabases/listDatabaseTables/listDatabaseQueryResults/listBackgroundTasks` 的空返回 mock)。
 
 - [ ] **Step 4: 运行确认通过**
 
-Run: `Set-Location frontend; npm test -- DatabasePage.test.tsx BloomeryApp.test.tsx; npm run build`
+Run: `Set-Location frontend; npm test -- DatabasePage.test.tsx SunaApp.test.tsx; npm run build`
 Expected: PASS + 构建通过。
 
 - [ ] **Step 5: Commit**
 
 ```powershell
-git add frontend/src/app/navigation.ts frontend/src/app/BloomeryApp.tsx frontend/src/app/BloomeryApp.test.tsx frontend/src/features/databases/DatabasePage.tsx frontend/src/features/databases/DatabasePage.test.tsx frontend/src/i18n/locale.tsx
+git add frontend/src/app/navigation.ts frontend/src/app/SunaApp.tsx frontend/src/app/SunaApp.test.tsx frontend/src/features/databases/DatabasePage.tsx frontend/src/features/databases/DatabasePage.test.tsx frontend/src/i18n/locale.tsx
 git commit -m "新增数据库一级导航与工作台骨架"
 ```
 
@@ -1828,7 +1828,7 @@ git commit -m "新增数据库一级导航与工作台骨架"
 **Files:**
 - Modify: `frontend/src/features/databases/DatabasePage.tsx`
 - Modify: `frontend/src/features/databases/DatabasePage.test.tsx`
-- Modify: `frontend/src/design/polish.css`(`.bloomery-db-*` 样式)
+- Modify: `frontend/src/design/polish.css`(`.suna-db-*` 样式)
 
 - [ ] **Step 1: 写失败的测试**
 
@@ -2030,13 +2030,13 @@ useEffect(() => {
 表浏览侧栏(连接/库加载完成后渲染):
 
 ```tsx
-<aside className="bloomery-db-tables" aria-label={t("dbTables")}>
+<aside className="suna-db-tables" aria-label={t("dbTables")}>
   <h2>{t("dbTables")}</h2>
   {tables.map((name) => (
     <button
       key={name}
       type="button"
-      className="bloomery-db-table-button"
+      className="suna-db-table-button"
       onClick={() => setSql(`SELECT TOP (${rowLimit}) * FROM [${name.replace(".", "].[")}]`)}
     >
       <code>{name}</code>
@@ -2048,19 +2048,19 @@ useEffect(() => {
 编辑器 + 动作区(toolbar 后):
 
 ```tsx
-<div className="bloomery-db-editor">
+<div className="suna-db-editor">
   <label>
     <span>{t("dbSqlLabel")}</span>
     <textarea
       aria-label={t("dbSqlLabel")}
       rows={6}
-      className="bloomery-db-sql-input"
+      className="suna-db-sql-input"
       value={sql}
       onChange={(event) => setSql(event.target.value)}
       spellCheck={false}
     />
   </label>
-  <div className="bloomery-db-actions">
+  <div className="suna-db-actions">
     <label>
       <span>{t("dbRowLimit")}</span>
       <select
@@ -2076,11 +2076,11 @@ useEffect(() => {
       </select>
     </label>
     {task && !isTerminal(task.state) ? (
-      <button type="button" className="bloomery-action-secondary" onClick={() => void cancel()} aria-label={t("dbCancel")}>
+      <button type="button" className="suna-action-secondary" onClick={() => void cancel()} aria-label={t("dbCancel")}>
         {t("dbCancel")}
       </button>
     ) : (
-      <button type="button" className="bloomery-action-primary" onClick={() => void run()} disabled={busy} aria-label={t("dbRun")}>
+      <button type="button" className="suna-action-primary" onClick={() => void run()} disabled={busy} aria-label={t("dbRun")}>
         {t("dbRun")}
       </button>
     )}
@@ -2092,7 +2092,7 @@ useEffect(() => {
 `polish.css` 末尾追加:
 
 ```css
-.bloomery-db {
+.suna-db {
   display: flex;
   flex-direction: column;
   gap: 16px;
@@ -2100,23 +2100,23 @@ useEffect(() => {
   min-height: 0;
 }
 
-.bloomery-db-toolbar {
+.suna-db-toolbar {
   display: flex;
   gap: 16px;
   flex-wrap: wrap;
   align-items: end;
 }
 
-.bloomery-db-toolbar label,
-.bloomery-db-actions label {
+.suna-db-toolbar label,
+.suna-db-actions label {
   display: flex;
   flex-direction: column;
   gap: 6px;
   font-size: 13px;
-  color: var(--bloomery-text-muted);
+  color: var(--suna-text-muted);
 }
 
-.bloomery-db-body {
+.suna-db-body {
   display: grid;
   grid-template-columns: 240px minmax(0, 1fr);
   gap: 16px;
@@ -2124,79 +2124,79 @@ useEffect(() => {
   flex: 1;
 }
 
-.bloomery-db-tables {
-  border: 1px solid var(--bloomery-line);
-  border-radius: var(--bloomery-radius);
+.suna-db-tables {
+  border: 1px solid var(--suna-line);
+  border-radius: var(--suna-radius);
   padding: 12px;
   overflow: auto;
-  background: var(--bloomery-bg-raised);
+  background: var(--suna-bg-raised);
 }
 
-.bloomery-db-table-button {
+.suna-db-table-button {
   display: block;
   width: 100%;
   text-align: left;
   padding: 6px 8px;
-  border-radius: var(--bloomery-radius-small);
+  border-radius: var(--suna-radius-small);
   background: transparent;
   border: none;
   cursor: pointer;
-  color: var(--bloomery-text);
+  color: var(--suna-text);
 }
 
-.bloomery-db-table-button:hover {
-  background: var(--bloomery-bg-hover);
+.suna-db-table-button:hover {
+  background: var(--suna-bg-hover);
 }
 
-.bloomery-db-sql-input {
-  font-family: var(--bloomery-mono);
+.suna-db-sql-input {
+  font-family: var(--suna-mono);
   width: 100%;
-  border-radius: var(--bloomery-radius-small);
-  border: 1px solid var(--bloomery-line);
+  border-radius: var(--suna-radius-small);
+  border: 1px solid var(--suna-line);
   padding: 10px;
   resize: vertical;
 }
 
-.bloomery-db-actions {
+.suna-db-actions {
   display: flex;
   gap: 12px;
   align-items: end;
 }
 
-.bloomery-db-result {
-  border: 1px solid var(--bloomery-line);
-  border-radius: var(--bloomery-radius);
+.suna-db-result {
+  border: 1px solid var(--suna-line);
+  border-radius: var(--suna-radius);
   overflow: auto;
   max-height: 420px;
 }
 
-.bloomery-db-result table {
+.suna-db-result table {
   border-collapse: collapse;
   width: 100%;
   font-size: 13px;
 }
 
-.bloomery-db-result th,
-.bloomery-db-result td {
-  border-bottom: 1px solid var(--bloomery-line);
+.suna-db-result th,
+.suna-db-result td {
+  border-bottom: 1px solid var(--suna-line);
   padding: 6px 10px;
   text-align: left;
   white-space: nowrap;
 }
 
-.bloomery-db-result th {
+.suna-db-result th {
   position: sticky;
   top: 0;
-  background: var(--bloomery-bg-soft);
+  background: var(--suna-bg-soft);
 }
 
-[data-theme="dark"] .bloomery-db-tables,
-[data-theme="dark"] .bloomery-db-result {
-  background: var(--bloomery-bg-raised);
+[data-theme="dark"] .suna-db-tables,
+[data-theme="dark"] .suna-db-result {
+  background: var(--suna-bg-raised);
 }
 ```
 
-(布局类 `bloomery-db-body` 用于包住表浏览侧栏与编辑器/结果列,实现时按此结构包 JSX。)
+(布局类 `suna-db-body` 用于包住表浏览侧栏与编辑器/结果列,实现时按此结构包 JSX。)
 
 - [ ] **Step 4: 运行确认通过**
 
@@ -2337,19 +2337,19 @@ const sendToAnalysis = async () => {
 结果区 JSX(编辑器之后;空态/结果态):
 
 ```tsx
-<section className="bloomery-db-result-section" aria-label={t("dbResultsTitle")}>
+<section className="suna-db-result-section" aria-label={t("dbResultsTitle")}>
   {result ? (
     <>
-      <div className="bloomery-db-result-meta">
+      <div className="suna-db-result-meta">
         <span>{t("dbDuration", { ms: result.duration_ms })}</span>
         {result.truncated && (
-          <span className="bloomery-db-truncated" role="status">
+          <span className="suna-db-truncated" role="status">
             {t("dbTruncatedNotice", { count: result.row_count })}
           </span>
         )}
         <button
           type="button"
-          className="bloomery-action-secondary"
+          className="suna-action-secondary"
           onClick={() => void sendToAnalysis()}
           disabled={sending}
           aria-label={t("dbSendToAnalysis")}
@@ -2357,7 +2357,7 @@ const sendToAnalysis = async () => {
           {sending ? t("dbSending") : t("dbSendToAnalysis")}
         </button>
       </div>
-      <div className="bloomery-db-result">
+      <div className="suna-db-result">
         <table>
           <thead>
             <tr>{result.columns.map((column) => <th key={column} scope="col">{column}</th>)}</tr>
@@ -2373,22 +2373,22 @@ const sendToAnalysis = async () => {
       </div>
     </>
   ) : (
-    <div className="bloomery-extensions-empty"><span>{t("dbResultEmpty")}</span></div>
+    <div className="suna-extensions-empty"><span>{t("dbResultEmpty")}</span></div>
   )}
 </section>
 
-<aside className="bloomery-db-history" aria-label={t("dbHistory")}>
+<aside className="suna-db-history" aria-label={t("dbHistory")}>
   <h2>{t("dbHistory")}</h2>
   {history.map((item) => (
     <button
       key={item.task_id}
       type="button"
-      className="bloomery-db-table-button"
+      className="suna-db-table-button"
       title={item.query_text}
       onClick={() => setSql(item.query_text)}
     >
       <code>{item.query_text}</code>
-      <span className="bloomery-db-history-meta">
+      <span className="suna-db-history-meta">
         {item.database_name || connectionName(connectionId)} · {item.row_count}
       </span>
     </button>
@@ -2498,7 +2498,7 @@ const settingsTabs: { id: SettingsTab; labelKey: MessageKey }[] = [
 JSX 改造:header/alert/notice 保持原位;其后插入 tablist,再把原有面板按 tab 分组:
 
 ```tsx
-<div className="bloomery-settings-tabs" role="tablist" aria-label={t("settingsTitle")}>
+<div className="suna-settings-tabs" role="tablist" aria-label={t("settingsTitle")}>
   {settingsTabs.map((tab) => (
     <button
       key={tab.id}
@@ -2507,7 +2507,7 @@ JSX 改造:header/alert/notice 保持原位;其后插入 tablist,再把原有面
       id={`settings-tab-${tab.id}`}
       aria-selected={activeTab === tab.id}
       aria-controls={`settings-panel-${tab.id}`}
-      className={`bloomery-settings-tab ${activeTab === tab.id ? "is-active" : ""}`}
+      className={`suna-settings-tab ${activeTab === tab.id ? "is-active" : ""}`}
       onClick={() => setActiveTab(tab.id)}
     >
       {t(tab.labelKey)}
@@ -2518,7 +2518,7 @@ JSX 改造:header/alert/notice 保持原位;其后插入 tablist,再把原有面
 <div role="tabpanel" id={`settings-panel-${activeTab}`} aria-labelledby={`settings-tab-${activeTab}`}>
   {activeTab === "general" && (
     <>
-      <div className="bloomery-settings-safety">…原安全提示 JSX 原样移入…</div>
+      <div className="suna-settings-safety">…原安全提示 JSX 原样移入…</div>
       <ThemeSelect />
     </>
   )}
@@ -2528,9 +2528,9 @@ JSX 改造:header/alert/notice 保持原位;其后插入 tablist,再把原有面
   {activeTab === "databases" && <DatabaseConnectionsPanel />}
   {activeTab === "providers" && (
     <>
-      <section className="bloomery-settings-plan">…原 plan section 原样移入…</section>
-      {loading ? <div className="bloomery-settings-loading">…原样…</div> : (
-        <div className="bloomery-settings-grid">…原 editors.map 原样移入…</div>
+      <section className="suna-settings-plan">…原 plan section 原样移入…</section>
+      {loading ? <div className="suna-settings-loading">…原样…</div> : (
+        <div className="suna-settings-grid">…原 editors.map 原样移入…</div>
       )}
     </>
   )}
@@ -2540,31 +2540,31 @@ JSX 改造:header/alert/notice 保持原位;其后插入 tablist,再把原有面
 `polish.css` 追加:
 
 ```css
-.bloomery-settings-tabs {
+.suna-settings-tabs {
   display: flex;
   gap: 8px;
-  border-bottom: 1px solid var(--bloomery-line);
+  border-bottom: 1px solid var(--suna-line);
   padding-bottom: 0;
 }
 
-.bloomery-settings-tab {
+.suna-settings-tab {
   border: none;
   background: transparent;
   padding: 10px 16px;
-  border-radius: var(--bloomery-radius-small) var(--bloomery-radius-small) 0 0;
+  border-radius: var(--suna-radius-small) var(--suna-radius-small) 0 0;
   cursor: pointer;
-  color: var(--bloomery-text-muted);
+  color: var(--suna-text-muted);
   border-bottom: 2px solid transparent;
 }
 
-.bloomery-settings-tab.is-active {
-  color: var(--bloomery-text);
-  border-bottom-color: var(--bloomery-accent);
+.suna-settings-tab.is-active {
+  color: var(--suna-text);
+  border-bottom-color: var(--suna-accent);
   font-weight: 600;
 }
 
-[data-theme="dark"] .bloomery-settings-tab.is-active {
-  color: var(--bloomery-text);
+[data-theme="dark"] .suna-settings-tab.is-active {
+  color: var(--suna-text);
 }
 ```
 
@@ -2686,7 +2686,7 @@ settingsDatabaseDuplicate: "A connection with the same host, port, and username 
   aria-checked={connection.enabled}
   aria-label={t("settingsDatabaseEnabled")}
   title={t("settingsDatabaseEnabled")}
-  className="bloomery-icon-button"
+  className="suna-icon-button"
   disabled={busy !== null}
   onClick={() =>
     void saveExisting(connection, !connection.enabled)
@@ -2726,7 +2726,7 @@ const saveExisting = async (connection: DatabaseConnectionSummary, enabled: bool
 
 ```tsx
 {connection.last_checked_at && (
-  <p className={connection.last_error ? "bloomery-mcp-error" : "bloomery-mcp-health is-healthy"}>
+  <p className={connection.last_error ? "suna-mcp-error" : "suna-mcp-health is-healthy"}>
     {connection.last_error
       ? `${t("settingsDatabaseLastChecked")}: ${connection.last_error}`
       : `${connection.last_version ?? ""} · ${t("settingsDatabaseLatency", { ms: connection.last_latency_ms ?? 0 })}`}
@@ -2742,7 +2742,7 @@ const saveExisting = async (connection: DatabaseConnectionSummary, enabled: bool
   item.host === draft.host.trim() &&
   item.port === (Number(draft.port) || 0) &&
   item.username === draft.username.trim()
-) && <p className="bloomery-settings-alert" role="status">{t("settingsDatabaseDuplicate")}</p>}
+) && <p className="suna-settings-alert" role="status">{t("settingsDatabaseDuplicate")}</p>}
 ```
 
 lucide 导入补 `ToggleLeft, ToggleRight`。
@@ -2769,7 +2769,7 @@ git commit -m "增强数据库连接面板的健康显示与编辑"
 - [ ] **Step 1: 前端全量**
 
 Run: `Set-Location frontend; npm test`
-Expected: Vitest 全部 PASS(注意 BloomeryApp/WorkbenchHome 等既有测试若因新导航按钮的布局断言失败,按最小改动适配)。
+Expected: Vitest 全部 PASS(注意 SunaApp/WorkbenchHome 等既有测试若因新导航按钮的布局断言失败,按最小改动适配)。
 
 - [ ] **Step 2: 前端构建与边界**
 

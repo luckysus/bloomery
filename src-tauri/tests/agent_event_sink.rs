@@ -1,14 +1,14 @@
-use bloomery::agent::protocol::{
+use suna::agent::protocol::{
     AgentEventData, AgentEventEnvelope, AgentMessageRole, AgentRunState, MessageDelta,
     RunCompleted, RunOutcome, RunStateChanged,
 };
-use bloomery::agent::runtime::{
+use suna::agent::runtime::{
     AgentContextCheckpoint, AgentEventPublisher, AgentEventSink, AgentLoopLimits,
     ContextCheckpointReason, SqliteAgentEventSink, TurnSnapshot,
 };
-use bloomery::providers::capabilities::{ChatImage, ChatMessage};
-use bloomery::storage::migrations::migrate;
-use bloomery::storage::repositories::{checkpoints, child_turns, events, runs, turn_snapshots};
+use suna::providers::capabilities::{ChatImage, ChatMessage};
+use suna::storage::migrations::migrate;
+use suna::storage::repositories::{checkpoints, child_turns, events, runs, turn_snapshots};
 use chrono::{DateTime, Utc};
 use rusqlite::{params, Connection};
 use std::sync::{Arc, Mutex};
@@ -321,7 +321,7 @@ fn child_turn_events_are_durable_and_orphans_are_interrupted() {
         1
     );
     let event = AgentEventEnvelope {
-        protocol_version: bloomery::agent::protocol::PROTOCOL_VERSION,
+        protocol_version: suna::agent::protocol::PROTOCOL_VERSION,
         event_id: id("77777777-7777-4777-8777-777777777777"),
         run_id: child_id,
         conversation_id: id(CONVERSATION_ID),

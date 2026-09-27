@@ -33,10 +33,10 @@ if ($sbomContent -notmatch 'project\.version|workerProjectVersion|workerVersion'
     throw "generate-sbom.ps1 must derive the Worker SBOM component version from project metadata"
 }
 if ($sbomContent -match 'version\s*=\s*"0\.1\.0"' -and
-    $sbomContent -match 'name\s*=\s*"bloomery-compute-worker"') {
+    $sbomContent -match 'name\s*=\s*"suna-compute-worker"') {
     throw "generate-sbom.ps1 must not hard-code the Worker SBOM version"
 }
-$missingOfficialKeyValidation = $buildReleaseContent -notmatch "BLOOMERY_OFFICIAL_PUBLIC_KEY_2026" `
+$missingOfficialKeyValidation = $buildReleaseContent -notmatch "SUNA_OFFICIAL_PUBLIC_KEY_2026" `
     -or $buildReleaseContent -notmatch "64 hexadecimal characters"
 if ($missingOfficialKeyValidation) {
     throw "signed release must require and validate the official domain-package public key"
@@ -45,21 +45,21 @@ $domainSignerPath = Join-Path $rustRoot "src\bin\sign_domain_package.rs"
 if (-not (Test-Path -LiteralPath $domainSignerPath -PathType Leaf)) {
     throw "release signing helper is missing: src/bin/sign_domain_package.rs"
 }
-if ($buildReleaseContent -notmatch "BLOOMERY_OFFICIAL_PRIVATE_KEY_2026" `
+if ($buildReleaseContent -notmatch "SUNA_OFFICIAL_PRIVATE_KEY_2026" `
     -or $buildReleaseContent -notmatch "sign_domain_package") {
     throw "signed release must generate the official domain-package signature"
 }
-if ($buildReleaseContent -notmatch "BLOOMERY_OFFICIAL_PRIVATE_KEY_2026.*64 hexadecimal characters") {
+if ($buildReleaseContent -notmatch "SUNA_OFFICIAL_PRIVATE_KEY_2026.*64 hexadecimal characters") {
     throw "signed release must validate the official domain-package private seed"
 }
-if ($buildReleaseContent -notmatch 'Remove-EnvironmentVariable\s+"BLOOMERY_OFFICIAL_PRIVATE_KEY_2026"') {
+if ($buildReleaseContent -notmatch 'Remove-EnvironmentVariable\s+"SUNA_OFFICIAL_PRIVATE_KEY_2026"') {
     throw "build-release.ps1 must remove the official domain private seed before unrelated build steps"
 }
 foreach ($sensitiveEnvironmentName in @(
     "TAURI_SIGNING_PRIVATE_KEY",
     "TAURI_SIGNING_PRIVATE_KEY_PASSWORD",
-    "BLOOMERY_AUTHENTICODE_PFX_BASE64",
-    "BLOOMERY_AUTHENTICODE_PFX_PASSWORD"
+    "SUNA_AUTHENTICODE_PFX_BASE64",
+    "SUNA_AUTHENTICODE_PFX_PASSWORD"
 )) {
     if ($buildReleaseContent -notmatch ('Remove-EnvironmentVariable\s+"' + [regex]::Escape($sensitiveEnvironmentName) + '"')) {
         throw "build-release.ps1 must remove signed-release secret environment variable: $sensitiveEnvironmentName"
@@ -78,7 +78,7 @@ $resourceProperties = @($tauriConfig.bundle.resources.PSObject.Properties.Name)
 if ($resourceProperties -notcontains "resources/compute-worker") {
     throw "tauri.conf.json must bundle the packaged compute worker"
 }
-if ($buildReleaseContent -notmatch "bloomery-python-worker-sbom.cdx.json") {
+if ($buildReleaseContent -notmatch "suna-python-worker-sbom.cdx.json") {
     throw "release artifacts must include the Python Worker SBOM generated from uv.lock"
 }
 if ($workerBuildContent -notmatch '\$uvCacheRoot\s*=\s*Join-Path\s+\$workerRoot') {
@@ -94,7 +94,7 @@ foreach ($requiredWorkerText in @(
     '$buildTempRoot',
     '$workerResourceRoot = Join-Path $buildTempRoot',
     '$releaseConfigPath',
-    "bloomery-compute-worker.exe",
+    "suna-compute-worker.exe",
     'Join-Path $workerRoot "build.ps1"'
 )) {
     if ($buildReleaseContent -notmatch [regex]::Escape($requiredWorkerText)) {
@@ -123,7 +123,7 @@ foreach ($requiredArtifactText in @(
     "compute-worker-addon",
     "Portable application binary",
     "Compress-Archive",
-    "Bloomery-"
+    "Suna-"
 )) {
     if ($buildReleaseContent -notmatch [regex]::Escape($requiredArtifactText)) {
         throw "scripts/build-release.ps1 must produce portable and compute Worker add-on artifacts: $requiredArtifactText"
@@ -165,7 +165,7 @@ foreach ($scriptDefinition in $requiredScripts) {
         foreach ($requiredSbomText in @(
             '$workerRoot',
             '"uv.lock"',
-            "bloomery-python-worker-sbom.cdx.json",
+            "suna-python-worker-sbom.cdx.json",
             "pkg:pypi/"
         )) {
             if ($content -notmatch [regex]::Escape($requiredSbomText)) {
@@ -236,8 +236,8 @@ if (-not (Test-Path -LiteralPath $authenticodeScript -PathType Leaf)) {
 $authenticodeContent = Get-Content -LiteralPath $authenticodeScript -Raw
 foreach ($requiredAuthenticodeText in @(
     "Set-StrictMode -Version Latest",
-    "BLOOMERY_AUTHENTICODE_PFX_BASE64",
-    "BLOOMERY_AUTHENTICODE_PFX_PASSWORD",
+    "SUNA_AUTHENTICODE_PFX_BASE64",
+    "SUNA_AUTHENTICODE_PFX_PASSWORD",
     "Get-AuthenticodeSignature",
     "signtool",
     "Remove-Item"
@@ -286,11 +286,11 @@ foreach ($requiredCurrentWorkerText in @(
         throw "build-release.ps1 must package the current Worker build, not stale target output: $requiredCurrentWorkerText"
     }
 }
-if ($buildReleaseContent -notmatch '\$buildArguments \+= @\("--", "--bin", "bloomery"\)') {
-    throw "build-release.ps1 must restrict the Tauri package build to the bloomery application binary"
+if ($buildReleaseContent -notmatch '\$buildArguments \+= @\("--", "--bin", "suna"\)') {
+    throw "build-release.ps1 must restrict the Tauri package build to the suna application binary"
 }
-if ($buildReleaseContent -notmatch '\$portableBuildArguments = @\("build", "--release", "--features", "custom-protocol", "--bin", "bloomery"\)') {
-    throw "build-release.ps1 must restrict the portable build to the bloomery application binary"
+if ($buildReleaseContent -notmatch '\$portableBuildArguments = @\("build", "--release", "--features", "custom-protocol", "--bin", "suna"\)') {
+    throw "build-release.ps1 must restrict the portable build to the suna application binary"
 }
 $portableWorkerCleanup = $buildReleaseContent.LastIndexOf('if (Test-Path -LiteralPath $portableWorkerSource)', [StringComparison]::Ordinal)
 $addonCopy = $buildReleaseContent.IndexOf('Copy-RequiredDirectory $portableWorkerSource (Join-Path $addonRoot "compute-worker")', [StringComparison]::Ordinal)
@@ -394,17 +394,17 @@ function powershell {
     $workerOutputRoot = [string]$Arguments[$outputIndex + 1]
     New-Item -ItemType Directory -Path $workerOutputRoot -Force | Out-Null
     foreach ($artifactName in @(
-        "bloomery-compute-worker.exe",
+        "suna-compute-worker.exe",
         "worker-artifact-manifest.json",
         "worker-sbom.json",
-        "bloomery-compute-worker.sha256"
+        "suna-compute-worker.sha256"
     )) {
         switch ($artifactName) {
             "worker-artifact-manifest.json" {
                 Set-Content -LiteralPath (Join-Path $workerOutputRoot $artifactName) -Value (@{
                     schema_version = "1.0.0"
-                    artifact = "bloomery-compute-worker"
-                    executable = "bloomery-compute-worker.exe"
+                    artifact = "suna-compute-worker"
+                    executable = "suna-compute-worker.exe"
                     sha256 = ("0" * 64)
                     signature = "unsigned-explicit"
                     signature_note = "contract fixture"
@@ -413,12 +413,12 @@ function powershell {
             "worker-sbom.json" {
                 Set-Content -LiteralPath (Join-Path $workerOutputRoot $artifactName) -Value (@{
                     schema_version = "1.0.0"
-                    component = "bloomery-compute-worker"
+                    component = "suna-compute-worker"
                     components = @(@{
-                        name = "bloomery-compute-worker"
+                        name = "suna-compute-worker"
                         sha256 = ("0" * 64)
                     }, @{
-                        name = "bloomery-compute-worker"
+                        name = "suna-compute-worker"
                     })
                 } | ConvertTo-Json)
             }
@@ -429,7 +429,7 @@ function powershell {
     }
     $global:LASTEXITCODE = 0
 }
-$contractOutput = Join-Path $env:TEMP ("bloomery-release-contract-" + [Guid]::NewGuid().ToString())
+$contractOutput = Join-Path $env:TEMP ("suna-release-contract-" + [Guid]::NewGuid().ToString())
 Assert-InjectedFailure -Name "build-release.ps1" -Invocation { & $buildScript -SkipTests -Bundles nsis -OutputDirectory $contractOutput } -ExpectedMessage "Unsigned Windows package build failed with exit code 37"
 Remove-Item Function:\cargo -ErrorAction SilentlyContinue
 Remove-Item Function:\powershell -ErrorAction SilentlyContinue

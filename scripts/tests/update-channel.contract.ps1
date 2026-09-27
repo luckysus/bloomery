@@ -32,7 +32,7 @@ foreach ($requiredPath in @($configPath, $capabilityPath, $cargoPath, $appPath, 
     }
 }
 
-Assert-NotContains $configPath "github.com/luckysus/bloomery/releases"
+Assert-NotContains $configPath "github.com/luckysus/suna/releases"
 Assert-NotContains $configPath '"updater"'
 Assert-NotContains $capabilityPath '"process:allow-restart"'
 Assert-NotContains $capabilityPath '"updater:default"'

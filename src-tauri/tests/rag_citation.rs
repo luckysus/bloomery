@@ -1,13 +1,13 @@
-use bloomery::rag::citation::{
+use suna::rag::citation::{
     load_evidence_pack, persist_evidence_pack, resolve_citation, CitationSourceState,
     RetrievalConfigSnapshot,
 };
-use bloomery::rag::model::{
+use suna::rag::model::{
     ChunkId, DocumentVersionId, KnowledgeBaseId, SourceDocumentId, SourceLocation,
 };
-use bloomery::rag::rerank::RerankDegradationReason;
-use bloomery::rag::retrieve::RetrievedChunk;
-use bloomery::storage::migrations::migrate;
+use suna::rag::rerank::RerankDegradationReason;
+use suna::rag::retrieve::RetrievedChunk;
+use suna::storage::migrations::migrate;
 use rusqlite::{params, Connection};
 use std::str::FromStr;
 

@@ -196,7 +196,7 @@ fn mcp_permission_risk(
     _read_only_hint: bool,
     _destructive_hint: Option<bool>,
 ) -> crate::agent::protocol::PermissionRisk {
-    // Remote annotations are published data, not Bloomery policy.
+    // Remote annotations are published data, not Suna policy.
     crate::agent::protocol::PermissionRisk::ConfirmationRequired
 }
 

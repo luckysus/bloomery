@@ -1,9 +1,9 @@
-use bloomery::rag::index::lifecycle::{
+use suna::rag::index::lifecycle::{
     build_hnsw, open_hnsw, open_with_flat_fallback, VectorRecord,
 };
-use bloomery::rag::index::vector::{CandidateFilter, IndexWatermark, VectorIndex};
-use bloomery::rag::model::{ChunkId, DocumentVersionId};
-use bloomery::storage::migrations::migrate;
+use suna::rag::index::vector::{CandidateFilter, IndexWatermark, VectorIndex};
+use suna::rag::model::{ChunkId, DocumentVersionId};
+use suna::storage::migrations::migrate;
 use rusqlite::{params, Connection};
 use sha2::{Digest, Sha256};
 use std::fs;
@@ -256,7 +256,7 @@ fn vector_database(records: &[VectorRecord]) -> Connection {
 }
 
 fn temp_root() -> PathBuf {
-    std::env::temp_dir().join(format!("bloomery-vector-{}", Uuid::new_v4()))
+    std::env::temp_dir().join(format!("suna-vector-{}", Uuid::new_v4()))
 }
 
 fn cleanup(path: impl AsRef<Path>) {

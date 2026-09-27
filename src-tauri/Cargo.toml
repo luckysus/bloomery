@@ -1,11 +1,11 @@
 [package]
-name = "bloomery"
+name = "suna"
 version = "1.0.0"
-description = "Bloomery - local-first AI agent workbench for the desktop"
-authors = ["Bloomery contributors"]
+description = "Suna - local-first AI agent workbench for the desktop"
+authors = ["Suna contributors"]
 license = "Apache-2.0"
 edition = "2021"
-default-run = "bloomery"
+default-run = "suna"
 
 [features]
 default = []

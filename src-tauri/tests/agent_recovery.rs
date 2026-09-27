@@ -1,11 +1,11 @@
-use bloomery::agent::protocol::{
+use suna::agent::protocol::{
     AgentEventData, AgentMessageRole, AgentRunState, MessageDelta, PermissionRequested,
     PermissionRisk, RunCompleted, RunOutcome, RunStateChanged, ToolRequested,
 };
-use bloomery::agent::runtime::{AgentRecoveryService, RecoveryAction};
-use bloomery::agent::session::{SessionService, StartRunOutcome, StartRunRequest};
-use bloomery::storage::migrations::migrate;
-use bloomery::storage::repositories::{events, runs};
+use suna::agent::runtime::{AgentRecoveryService, RecoveryAction};
+use suna::agent::session::{SessionService, StartRunOutcome, StartRunRequest};
+use suna::storage::migrations::migrate;
+use suna::storage::repositories::{events, runs};
 use chrono::{DateTime, Utc};
 use rusqlite::{params, Connection};
 use std::collections::HashSet;
@@ -208,7 +208,7 @@ fn stale_recovery_lease_can_be_taken_over_without_old_completion_closing_it() {
         &mut connection,
         run_id,
         "2026-08-05T08:11:02Z",
-        AgentEventData::RecoveryCompleted(bloomery::agent::protocol::RecoveryCompleted {
+        AgentEventData::RecoveryCompleted(suna::agent::protocol::RecoveryCompleted {
             recovery_id: first_id,
             action: "await_permissions".to_string(),
             outcome: Some(RunOutcome::Completed),

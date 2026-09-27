@@ -4,10 +4,10 @@ use std::sync::{Arc, Condvar, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
 
-use bloomery::storage::migrations::migrate;
-use bloomery::tasks::model::{NewTask, TaskState};
-use bloomery::tasks::repository;
-use bloomery::tasks::scheduler::{
+use suna::storage::migrations::migrate;
+use suna::tasks::model::{NewTask, TaskState};
+use suna::tasks::repository;
+use suna::tasks::scheduler::{
     Clock, EventSink, HandlerContext, HandlerError, HandlerFuture, HandlerOutcome, Scheduler,
     SchedulerConfig, SchedulerEvent, SchedulerState, TaskHandler,
 };
@@ -775,7 +775,7 @@ fn claim_reports_corrupt_persisted_schedule() {
 
 #[test]
 fn two_file_connections_claim_one_task() {
-    let path = std::env::temp_dir().join(format!("bloomery-task-{}.sqlite3", Uuid::new_v4()));
+    let path = std::env::temp_dir().join(format!("suna-task-{}.sqlite3", Uuid::new_v4()));
     let mut setup = Connection::open(&path).unwrap();
     migrate(&mut setup).unwrap();
     repository::create(&mut setup, task("workspace-a")).unwrap();
@@ -825,7 +825,7 @@ fn two_file_connections_claim_one_task() {
 
 #[test]
 fn stale_worker_cannot_mutate_a_reclaimed_task() {
-    let path = std::env::temp_dir().join(format!("bloomery-stale-{}.sqlite3", Uuid::new_v4()));
+    let path = std::env::temp_dir().join(format!("suna-stale-{}.sqlite3", Uuid::new_v4()));
     let mut old_worker = Connection::open(&path).unwrap();
     migrate(&mut old_worker).unwrap();
     let created = repository::create(&mut old_worker, task("workspace-a")).unwrap();
@@ -952,7 +952,7 @@ struct TestDatabase {
 impl TestDatabase {
     fn new() -> Self {
         let path =
-            std::env::temp_dir().join(format!("bloomery-scheduler-{}.sqlite3", Uuid::new_v4()));
+            std::env::temp_dir().join(format!("suna-scheduler-{}.sqlite3", Uuid::new_v4()));
         let mut connection = Connection::open(&path).expect("open scheduler database");
         migrate(&mut connection).expect("migrate scheduler database");
         drop(connection);
@@ -1010,7 +1010,7 @@ impl Clock for FakeClock {
     }
 }
 
-type HandlerFn = dyn Fn(bloomery::tasks::TaskRecord, HandlerContext) -> HandlerFuture + Send + Sync;
+type HandlerFn = dyn Fn(suna::tasks::TaskRecord, HandlerContext) -> HandlerFuture + Send + Sync;
 
 struct FakeHandler {
     kind: &'static str,
@@ -1022,7 +1022,7 @@ impl FakeHandler {
     fn new(
         kind: &'static str,
         resumable: bool,
-        run: impl Fn(bloomery::tasks::TaskRecord, HandlerContext) -> HandlerFuture
+        run: impl Fn(suna::tasks::TaskRecord, HandlerContext) -> HandlerFuture
             + Send
             + Sync
             + 'static,
@@ -1044,7 +1044,7 @@ impl TaskHandler for FakeHandler {
         self.resumable
     }
 
-    fn run(&self, task: bloomery::tasks::TaskRecord, context: HandlerContext) -> HandlerFuture {
+    fn run(&self, task: suna::tasks::TaskRecord, context: HandlerContext) -> HandlerFuture {
         (self.run)(task, context)
     }
 }

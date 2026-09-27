@@ -31,7 +31,7 @@ foreach ($relativePath in $workflows) {
         }
     }
     if ($relativePath -eq ".github\workflows\release.yml" -and
-        ($normalizedContent -notmatch "BLOOMERY_OFFICIAL_PRIVATE_KEY_2026")) {
+        ($normalizedContent -notmatch "SUNA_OFFICIAL_PRIVATE_KEY_2026")) {
         throw "$relativePath must pass the official domain-package private seed to signed release builds"
     }
     if ($normalizedContent -notmatch "scripts/(test|release-check)\.ps1") {
@@ -46,10 +46,10 @@ if ($releaseWorkflow -notmatch 'release-check\.ps1[^\r\n]*-Signed[^\r\n]*-Packag
 }
 foreach ($requiredSignedEnvironment in @(
     "TAURI_SIGNING_PRIVATE_KEY",
-    "BLOOMERY_OFFICIAL_PRIVATE_KEY_2026",
-    "BLOOMERY_AUTHENTICODE_PFX_BASE64",
-    "BLOOMERY_AUTHENTICODE_PFX_PASSWORD",
-    "BLOOMERY_AUTHENTICODE_TIMESTAMP_URL"
+    "SUNA_OFFICIAL_PRIVATE_KEY_2026",
+    "SUNA_AUTHENTICODE_PFX_BASE64",
+    "SUNA_AUTHENTICODE_PFX_PASSWORD",
+    "SUNA_AUTHENTICODE_TIMESTAMP_URL"
 )) {
     if ($releaseWorkflow -notmatch [regex]::Escape($requiredSignedEnvironment)) {
         throw ".github\workflows\release.yml must pass $requiredSignedEnvironment to signed release checks"
@@ -114,7 +114,7 @@ foreach ($requiredBenchmark in @(
     }
 }
 if ($normalizedQualityWorkflow -notmatch 'scripts/case-study\.ps1' -or
-    $normalizedQualityWorkflow -notmatch 'bloomery-steel-case-study-' -or
+    $normalizedQualityWorkflow -notmatch 'suna-steel-case-study-' -or
     $normalizedQualityWorkflow -notmatch 'artifacts/case-study/steel-case-study\.json') {
     throw ".github/workflows/quality.yml must run and retain the reproducible steel case-study report"
 }

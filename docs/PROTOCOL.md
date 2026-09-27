@@ -1,6 +1,6 @@
-# Bloomery Agent Event Protocol
+# Suna Agent Event Protocol
 
-This document defines the public event stream emitted by the Bloomery local-first
+This document defines the public event stream emitted by the Suna local-first
 agent runtime. The wire contract is protocol version `1` and is shared by the
 Rust runtime, the Tauri bridge, and any external replay client.
 
@@ -272,7 +272,7 @@ received by the renderer.
 
 The optional steel compute worker is a separate local process. It communicates
 with the Rust host over stdin/stdout using UTF-8 JSON frames. It does not open a
-network listener, own the Bloomery database, or receive provider credentials.
+network listener, own the Suna database, or receive provider credentials.
 
 Each frame uses a byte-accurate `Content-Length` header followed by a blank line
 and exactly that many UTF-8 JSON bytes:

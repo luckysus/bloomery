@@ -1,5 +1,5 @@
-use bloomery::steel::{preview_dataset, read_dataset_table, DatasetPreviewRequest};
-use bloomery::storage::{migrations::migrate, repositories::steel};
+use suna::steel::{preview_dataset, read_dataset_table, DatasetPreviewRequest};
+use suna::storage::{migrations::migrate, repositories::steel};
 use rusqlite::Connection;
 use std::fs;
 use std::io::{BufWriter, Write};
@@ -11,7 +11,7 @@ struct GeneratedXlsx(PathBuf);
 impl GeneratedXlsx {
     fn create(name: &str, entries: &[(&str, &[u8])]) -> Self {
         let directory =
-            std::env::temp_dir().join(format!("bloomery-steel-xlsx-{}", uuid::Uuid::new_v4()));
+            std::env::temp_dir().join(format!("suna-steel-xlsx-{}", uuid::Uuid::new_v4()));
         fs::create_dir_all(&directory).expect("create XLSX fixture directory");
         let path = directory.join(name);
         let file = fs::File::create(&path).expect("create XLSX fixture");
@@ -47,7 +47,7 @@ fn database() -> Connection {
 #[test]
 fn bounds_csv_rows_in_memory_without_losing_the_source_row_count() {
     let path =
-        std::env::temp_dir().join(format!("bloomery-steel-large-{}.csv", uuid::Uuid::new_v4()));
+        std::env::temp_dir().join(format!("suna-steel-large-{}.csv", uuid::Uuid::new_v4()));
     let file = fs::File::create(&path).expect("create large CSV fixture");
     let mut writer = BufWriter::new(file);
     writeln!(writer, "heat_id,yield_strength").expect("write header");
@@ -74,7 +74,7 @@ fn bounds_csv_rows_in_memory_without_losing_the_source_row_count() {
 #[test]
 fn bounds_xlsx_rows_in_memory_without_losing_the_source_row_count() {
     let directory =
-        std::env::temp_dir().join(format!("bloomery-steel-xlsx-{}", uuid::Uuid::new_v4()));
+        std::env::temp_dir().join(format!("suna-steel-xlsx-{}", uuid::Uuid::new_v4()));
     fs::create_dir_all(&directory).expect("create large XLSX fixture directory");
     let path = directory.join("large.xlsx");
     let file = fs::File::create(&path).expect("create large XLSX fixture");
@@ -213,7 +213,7 @@ fn xlsx_dataset_parser_skips_empty_sheets_when_no_sheet_is_requested() {
 #[test]
 fn xlsx_dataset_parser_does_not_decode_values_after_the_preview_limit() {
     let directory =
-        std::env::temp_dir().join(format!("bloomery-steel-xlsx-{}", uuid::Uuid::new_v4()));
+        std::env::temp_dir().join(format!("suna-steel-xlsx-{}", uuid::Uuid::new_v4()));
     fs::create_dir_all(&directory).expect("create capped XLSX fixture directory");
     let path = directory.join("capped.xlsx");
     let file = fs::File::create(&path).expect("create capped XLSX fixture");
@@ -276,7 +276,7 @@ fn xlsx_dataset_parser_does_not_decode_values_after_the_preview_limit() {
 #[test]
 fn csv_dataset_parser_preserves_unicode_and_escaped_quotes() {
     let path = std::env::temp_dir().join(format!(
-        "bloomery-steel-unicode-{}.csv",
+        "suna-steel-unicode-{}.csv",
         uuid::Uuid::new_v4()
     ));
     fs::write(
@@ -300,7 +300,7 @@ fn csv_dataset_parser_preserves_unicode_and_escaped_quotes() {
 #[test]
 fn csv_dataset_parser_rejects_unknown_sheet_and_warns_on_ragged_rows() {
     let path = std::env::temp_dir().join(format!(
-        "bloomery-steel-ragged-{}.csv",
+        "suna-steel-ragged-{}.csv",
         uuid::Uuid::new_v4()
     ));
     fs::write(&path, "heat_id,yield_strength\nH-01,355,extra\n").expect("write fixture");
@@ -328,7 +328,7 @@ fn csv_dataset_parser_rejects_unknown_sheet_and_warns_on_ragged_rows() {
 
 #[test]
 fn saves_a_preview_with_mapping_and_reuses_the_same_source_record() {
-    let path = std::env::temp_dir().join(format!("bloomery-steel-{}.csv", uuid::Uuid::new_v4()));
+    let path = std::env::temp_dir().join(format!("suna-steel-{}.csv", uuid::Uuid::new_v4()));
     fs::write(
         &path,
         "heat_id,yield_strength,grade\nH-01,355,Q355B\nH-02,360,Q355B\n",
@@ -403,7 +403,7 @@ fn saves_a_preview_with_mapping_and_reuses_the_same_source_record() {
 
 #[test]
 fn activates_only_a_dataset_with_a_canonical_mapping() {
-    let path = std::env::temp_dir().join(format!("bloomery-steel-{}.csv", uuid::Uuid::new_v4()));
+    let path = std::env::temp_dir().join(format!("suna-steel-{}.csv", uuid::Uuid::new_v4()));
     fs::write(&path, "heat_id,yield_strength\nH-01,355\n").expect("write fixture");
     let preview = preview_dataset(&DatasetPreviewRequest {
         source_path: path.to_string_lossy().into_owned(),
@@ -451,7 +451,7 @@ fn activates_only_a_dataset_with_a_canonical_mapping() {
 fn rejects_dataset_symlink_that_resolves_outside_its_selected_directory() {
     use std::os::windows::fs::symlink_file;
 
-    let root = std::env::temp_dir().join(format!("bloomery-steel-path-{}", uuid::Uuid::new_v4()));
+    let root = std::env::temp_dir().join(format!("suna-steel-path-{}", uuid::Uuid::new_v4()));
     let selected = root.join("selected");
     let outside = root.join("outside");
     fs::create_dir_all(&selected).expect("create selected directory");

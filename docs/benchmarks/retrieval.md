@@ -1,4 +1,4 @@
-# Bloomery 100k Local Retrieval Gate
+# Suna 100k Local Retrieval Gate
 
 ## Result
 
@@ -37,7 +37,7 @@ Recall is the fraction of each query's known relevant chunk IDs present in the f
 
 ## Reproduce
 
-Run from the Bloomery repository root:
+Run from the Suna repository root:
 
 ```powershell
 powershell -File scripts/benchmark-retrieval.ps1

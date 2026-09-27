@@ -6,7 +6,7 @@
   "restricted_text_redistributed": false,
   "provenance": {
     "kind": "repository-authored-synthetic",
-    "description": "Synthetic demonstration rows authored for deterministic Bloomery release verification.",
+    "description": "Synthetic demonstration rows authored for deterministic Suna release verification.",
     "source_ledger": "../../domain-packs/steel/assets/source-ledger.json"
   },
   "dataset": {

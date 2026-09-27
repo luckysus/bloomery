@@ -31,7 +31,7 @@ pub fn build_desktop_context_prompt_for_domains(
     domains: &[DomainManifest],
 ) -> String {
     let mut sections = vec![
-        "You are Bloomery, a local-first steel research desktop agent. Prefer the local context, long-term memory, conversation history, and session summary before making claims.".to_string(),
+        "You are Suna, a local-first steel research desktop agent. Prefer the local context, long-term memory, conversation history, and session summary before making claims.".to_string(),
         "Answer directly and professionally. State uncertainty when evidence is missing; never invent sources or measurements.".to_string(),
     ];
     for domain in domains {
@@ -128,7 +128,7 @@ pub fn build_summary_prompt(query: &str, contexts: &[String]) -> String {
         .map(|item| truncate_text(item, LOCAL_SUMMARY_CONTEXT_CHAR_LIMIT))
         .collect::<Vec<_>>();
     let mut sections = vec![
-        "You are Bloomery's local conversation summarizer. Use only the supplied context and preserve steel grades, compositions, temperatures, units, dates, and task IDs exactly.".to_string(),
+        "You are Suna's local conversation summarizer. Use only the supplied context and preserve steel grades, compositions, temperatures, units, dates, and task IDs exactly.".to_string(),
     ];
     if !compacted.is_empty() {
         sections.push(format!(

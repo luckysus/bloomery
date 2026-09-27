@@ -100,7 +100,7 @@ recorded verbatim rather than hidden.
 ## 7. Packaging / 打包
 
 Command / 命令: `powershell -File compute-worker/build.ps1 -SkipTests`
-Produces `bloomery-compute-worker.exe` from the committed `uv.lock`, plus
+Produces `suna-compute-worker.exe` from the committed `uv.lock`, plus
 `worker-artifact-manifest.json` (SHA-256, Python and package versions,
 `signature: unsigned-explicit`), `worker-sbom.json`, and a checksum file.
 Expected: the packaged executable answers hello/shutdown frames without system

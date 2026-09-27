@@ -215,7 +215,7 @@ fn diagnostic_from_error(error: &str) -> McpDiagnostic {
         return McpDiagnostic {
             code: "missing_credential".to_string(),
             message: "MCP server is missing a configured credential.".to_string(),
-            suggested_action: "Edit the server and save the required token or environment value; Bloomery stores it in Windows Credential Manager.".to_string(),
+            suggested_action: "Edit the server and save the required token or environment value; Suna stores it in Windows Credential Manager.".to_string(),
         };
     }
     if lower.contains("timed out") || lower.contains("timeout") {
@@ -237,7 +237,7 @@ fn diagnostic_from_error(error: &str) -> McpDiagnostic {
     if lower.contains("failed to start") {
         return McpDiagnostic {
             code: "process_start_failed".to_string(),
-            message: "Bloomery could not start the MCP stdio process.".to_string(),
+            message: "Suna could not start the MCP stdio process.".to_string(),
             suggested_action: "Check the executable path, arguments, working directory, and inherited environment allowlist.".to_string(),
         };
     }

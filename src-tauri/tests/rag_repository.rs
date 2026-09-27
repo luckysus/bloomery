@@ -1,10 +1,10 @@
-use bloomery::rag::model::{
+use suna::rag::model::{
     ChunkId, IngestAttemptState, NewAsset, NewChunk, NewChunkEmbedding, NewDocumentVersion,
     NewSourceDocument, Rect, SourceLocation, VectorWatermark,
 };
-use bloomery::storage::migrations::migrate;
-use bloomery::storage::repositories::knowledge;
-use bloomery::tasks::{repository as task_repository, NewTask, TaskState};
+use suna::storage::migrations::migrate;
+use suna::storage::repositories::knowledge;
+use suna::tasks::{repository as task_repository, NewTask, TaskState};
 use rusqlite::Connection;
 
 const WORKSPACE: &str = "workspace-a";

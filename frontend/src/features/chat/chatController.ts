@@ -38,7 +38,7 @@ function exportFileName(title: string, extension: string) {
     .replace(/[<>:"/\\|?*\u0000-\u001f]/g, "-")
     .slice(0, 80)
     .trim();
-  return `${safeTitle || "bloomery-conversation"}.${extension}`;
+  return `${safeTitle || "suna-conversation"}.${extension}`;
 }
 
 function shouldRunSmartSearch(question: string) {

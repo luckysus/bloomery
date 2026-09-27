@@ -1,5 +1,5 @@
-use bloomery::compute::protocol::{encode_frame, WorkerRequest};
-use bloomery::compute::worker::{read_response, WorkerClient, WorkerConfig};
+use suna::compute::protocol::{encode_frame, WorkerRequest};
+use suna::compute::worker::{read_response, WorkerClient, WorkerConfig};
 use serde_json::json;
 use std::fs;
 use std::io::Cursor;
@@ -11,7 +11,7 @@ use std::time::{Duration, Instant};
 
 #[test]
 fn supervisor_rejects_a_missing_worker_before_spawning() {
-    let path = PathBuf::from(format!("missing-bloomery-worker-{}", uuid::Uuid::new_v4()));
+    let path = PathBuf::from(format!("missing-suna-worker-{}", uuid::Uuid::new_v4()));
     let error =
         WorkerClient::spawn(WorkerConfig::new(path)).expect_err("missing worker must be rejected");
     assert!(error
@@ -63,7 +63,7 @@ fn supervisor_round_trips_a_real_python_training_worker() {
         .join("..")
         .join("compute-worker");
     let mut config = WorkerConfig::new(executable);
-    config.args = vec!["-m".into(), "bloomery_worker".into()];
+    config.args = vec!["-m".into(), "suna_worker".into()];
     config.working_directory = Some(working_directory);
     let mut client = WorkerClient::spawn(config).expect("spawn Python compute worker");
 
@@ -157,7 +157,7 @@ time.sleep(30)
 
     assert!(matches!(
         error,
-        bloomery::compute::worker::WorkerSupervisorError::Cancelled
+        suna::compute::worker::WorkerSupervisorError::Cancelled
     ));
     assert!(
         started.elapsed() < Duration::from_secs(5),
@@ -180,7 +180,7 @@ fn supervisor_cancellation_terminates_worker_descendants() {
         .map(PathBuf::from)
         .expect("Python lookup must return an executable");
     let marker = std::env::temp_dir().join(format!(
-        "bloomery-worker-descendant-{}.marker",
+        "suna-worker-descendant-{}.marker",
         uuid::Uuid::new_v4()
     ));
     let script = r#"
@@ -234,7 +234,7 @@ time.sleep(30)
 
     assert!(matches!(
         error,
-        bloomery::compute::worker::WorkerSupervisorError::Cancelled
+        suna::compute::worker::WorkerSupervisorError::Cancelled
     ));
     std::thread::sleep(Duration::from_secs(2));
     assert!(

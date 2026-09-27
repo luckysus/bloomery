@@ -78,10 +78,10 @@ pub fn format_panic(info: &PanicHookInfo<'_>) -> String {
 /// 是否在 panic 时额外打印栈帧回溯。
 ///
 /// 仅在 debug 构建（`cfg!(debug_assertions)`）或显式设置了
-/// `BLOOMERY_PANIC_BACKTRACE` 环境变量时启用；release 且未设该变量时返回
+/// `SUNA_PANIC_BACKTRACE` 环境变量时启用；release 且未设该变量时返回
 /// `false`，保持仅输出一行脱敏 panic 消息的默认行为。
 fn backtrace_enabled() -> bool {
-    cfg!(debug_assertions) || std::env::var_os("BLOOMERY_PANIC_BACKTRACE").is_some()
+    cfg!(debug_assertions) || std::env::var_os("SUNA_PANIC_BACKTRACE").is_some()
 }
 
 /// 构造 panic hook 需要写入 stderr 的诊断行序列。
@@ -102,7 +102,7 @@ pub fn format_panic_diagnostics(info: &PanicHookInfo<'_>) -> Vec<String> {
 /// 安装脱敏 panic hook（进程级，幂等）。
 ///
 /// 安装后，任何 panic 的输出都会先经过 [`format_panic`] 脱敏，再写入 stderr，
-/// 避免凭据明文出现在崩溃报告中。debug 构建或设置 `BLOOMERY_PANIC_BACKTRACE`
+/// 避免凭据明文出现在崩溃报告中。debug 构建或设置 `SUNA_PANIC_BACKTRACE`
 /// 时，会额外打印脱敏后的栈帧回溯以恢复诊断能力。
 pub fn install_panic_hook() {
     PANIC_HOOK.call_once(|| {

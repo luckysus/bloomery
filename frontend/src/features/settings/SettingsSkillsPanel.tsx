@@ -26,13 +26,13 @@ export default function SettingsSkillsPanel() {
     }
   };
 
-  if (loading) return <p className="bloomery-settings-loading"><LoaderCircle size={16} className="bloomery-spin" />{t("loading")}</p>;
+  if (loading) return <p className="suna-settings-loading"><LoaderCircle size={16} className="suna-spin" />{t("loading")}</p>;
   return (
-    <section className="bloomery-settings-extension-list" aria-labelledby="settings-skills-heading">
+    <section className="suna-settings-extension-list" aria-labelledby="settings-skills-heading">
       <h2 id="settings-skills-heading">{t("settingsCategorySkill")}</h2>
       {error && <p role="alert">{error}</p>}
-      {catalog.skills.length === 0 ? <p className="bloomery-settings-empty"><Puzzle size={16} />{t("extensionsNoSkills")}</p> : catalog.skills.map((skill) => (
-        <article className="bloomery-settings-extension-row" key={`${skill.name}-${skill.source.path}`}>
+      {catalog.skills.length === 0 ? <p className="suna-settings-empty"><Puzzle size={16} />{t("extensionsNoSkills")}</p> : catalog.skills.map((skill) => (
+        <article className="suna-settings-extension-row" key={`${skill.name}-${skill.source.path}`}>
           <FileCode2 size={17} aria-hidden="true" />
           <div><strong>{skill.name}</strong><span>{skill.description}</span></div>
           <label><input type="checkbox" checked={skill.enabled} disabled={busy === skill.name} onChange={() => void toggle(skill)} />{skill.enabled ? t("extensionsEnabled") : t("extensionsDisabled")}</label>

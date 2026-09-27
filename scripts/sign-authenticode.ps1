@@ -6,34 +6,34 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
-$pfxBase64 = [string]$env:BLOOMERY_AUTHENTICODE_PFX_BASE64
-$pfxPassword = [string]$env:BLOOMERY_AUTHENTICODE_PFX_PASSWORD
-$timestampUrl = [string]$env:BLOOMERY_AUTHENTICODE_TIMESTAMP_URL
+$pfxBase64 = [string]$env:SUNA_AUTHENTICODE_PFX_BASE64
+$pfxPassword = [string]$env:SUNA_AUTHENTICODE_PFX_PASSWORD
+$timestampUrl = [string]$env:SUNA_AUTHENTICODE_TIMESTAMP_URL
 
 if ([string]::IsNullOrWhiteSpace($pfxBase64)) {
-    throw "BLOOMERY_AUTHENTICODE_PFX_BASE64 is required for an Authenticode release"
+    throw "SUNA_AUTHENTICODE_PFX_BASE64 is required for an Authenticode release"
 }
 if ([string]::IsNullOrWhiteSpace($pfxPassword)) {
-    throw "BLOOMERY_AUTHENTICODE_PFX_PASSWORD is required for an Authenticode release"
+    throw "SUNA_AUTHENTICODE_PFX_PASSWORD is required for an Authenticode release"
 }
 if ([string]::IsNullOrWhiteSpace($timestampUrl)) {
-    throw "BLOOMERY_AUTHENTICODE_TIMESTAMP_URL is required for an Authenticode release"
+    throw "SUNA_AUTHENTICODE_TIMESTAMP_URL is required for an Authenticode release"
 }
 
 $timestampUri = $null
 if (-not [Uri]::TryCreate($timestampUrl, [UriKind]::Absolute, [ref]$timestampUri) -or
     $timestampUri.Scheme -ne "https") {
-    throw "BLOOMERY_AUTHENTICODE_TIMESTAMP_URL must be an absolute HTTPS URL"
+    throw "SUNA_AUTHENTICODE_TIMESTAMP_URL must be an absolute HTTPS URL"
 }
 
 try {
     $pfxBytes = [Convert]::FromBase64String($pfxBase64)
 }
 catch {
-    throw "BLOOMERY_AUTHENTICODE_PFX_BASE64 is not valid base64"
+    throw "SUNA_AUTHENTICODE_PFX_BASE64 is not valid base64"
 }
 if ($pfxBytes.Length -eq 0) {
-    throw "BLOOMERY_AUTHENTICODE_PFX_BASE64 decoded to an empty certificate"
+    throw "SUNA_AUTHENTICODE_PFX_BASE64 decoded to an empty certificate"
 }
 
 $signTool = Get-Command "signtool.exe" -ErrorAction SilentlyContinue
@@ -73,7 +73,7 @@ if ($signablePaths.Count -eq 0) {
     exit 0
 }
 
-$temporaryRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("bloomery-authenticode-" + [Guid]::NewGuid().ToString("N"))
+$temporaryRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("suna-authenticode-" + [Guid]::NewGuid().ToString("N"))
 $pfxPath = Join-Path $temporaryRoot "signing.pfx"
 $certificate = $null
 $certificateWasAlreadyPresent = $false

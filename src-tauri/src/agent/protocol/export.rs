@@ -1,6 +1,6 @@
 use serde_json::{json, Map, Value};
 
-const PROTOCOL_SCHEMA_ID: &str = "https://bloomery.dev/protocol/v1/event.schema.json";
+const PROTOCOL_SCHEMA_ID: &str = "https://suna.dev/protocol/v1/event.schema.json";
 
 pub fn json_schema() -> String {
     let mut definitions = Map::new();
@@ -374,8 +374,8 @@ pub fn json_schema() -> String {
     let schema = json!({
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "$id": PROTOCOL_SCHEMA_ID,
-        "title": "Bloomery Agent Event Envelope",
-        "description": "Versioned events emitted by the local-first Bloomery agent runtime.",
+        "title": "Suna Agent Event Envelope",
+        "description": "Versioned events emitted by the local-first Suna agent runtime.",
         "type": "object",
         "allOf": [
             {"$ref": "#/$defs/envelope_base"},

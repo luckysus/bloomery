@@ -1,4 +1,4 @@
-# Bloomery Startup and Idle Memory Gate
+# Suna Startup and Idle Memory Gate
 
 ## Result
 
@@ -12,7 +12,7 @@ Cold start and idle memory passed on 2026-08-13.
 | Idle working-set P95 | 28.4570 MB | <= 300 MB |
 
 The benchmark launches the actual release binary
-`src-tauri/target/release/bloomery.exe`. Each round uses a fresh temporary
+`src-tauri/target/release/suna.exe`. Each round uses a fresh temporary
 `APPDATA` and `LOCALAPPDATA` directory, waits for the real main window handle,
 settles for three seconds, samples the process working set ten times, and
 terminates the process tree before deleting the temporary profile.
@@ -29,7 +29,7 @@ terminates the process tree before deleting the temporary profile.
 
 ## Reproduce
 
-Run from the Bloomery repository root:
+Run from the Suna repository root:
 
 ```powershell
 powershell -File scripts/benchmark-startup.ps1

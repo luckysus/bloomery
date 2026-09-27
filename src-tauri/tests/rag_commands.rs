@@ -1,20 +1,20 @@
-use bloomery::rag::index::lifecycle::open_hnsw;
-use bloomery::rag::index::rebuild::{
+use suna::rag::index::lifecycle::open_hnsw;
+use suna::rag::index::rebuild::{
     index_root, load_index_snapshot, queue_index_rebuild, IndexRebuildHandler, IndexRebuildRequest,
     INDEX_REBUILD_KIND,
 };
-use bloomery::rag::index::vector::VectorIndex;
-use bloomery::rag::model::{
+use suna::rag::index::vector::VectorIndex;
+use suna::rag::model::{
     ChunkId, NewChunk, NewChunkEmbedding, NewDocumentVersion, NewSourceDocument, SourceLocation,
     VectorWatermark,
 };
-use bloomery::storage::migrations::migrate;
-use bloomery::storage::repositories::knowledge;
-use bloomery::tasks::repository as task_repository;
-use bloomery::tasks::scheduler::{
+use suna::storage::migrations::migrate;
+use suna::storage::repositories::knowledge;
+use suna::tasks::repository as task_repository;
+use suna::tasks::scheduler::{
     EventSink, Scheduler, SchedulerConfig, SchedulerEvent, SystemClock,
 };
-use bloomery::tasks::TaskState;
+use suna::tasks::TaskState;
 use rusqlite::Connection;
 use sha2::{Digest, Sha256};
 use std::sync::Arc;
@@ -258,9 +258,9 @@ fn index_rebuild_is_a_restart_safe_background_task() {
 
 #[test]
 fn index_rebuild_handler_materializes_and_reopens_hnsw() {
-    let root = std::env::temp_dir().join(format!("bloomery-command-{}", uuid::Uuid::new_v4()));
+    let root = std::env::temp_dir().join(format!("suna-command-{}", uuid::Uuid::new_v4()));
     std::fs::create_dir_all(&root).unwrap();
-    let database_path = root.join("bloomery.sqlite3");
+    let database_path = root.join("suna.sqlite3");
     let mut connection = Connection::open(&database_path).unwrap();
     connection
         .pragma_update(None, "foreign_keys", true)
@@ -341,10 +341,10 @@ fn database() -> Connection {
 
 fn seed_active_document(
     connection: &mut Connection,
-    base_id: bloomery::rag::model::KnowledgeBaseId,
+    base_id: suna::rag::model::KnowledgeBaseId,
     name: &str,
     text: &str,
-) -> bloomery::storage::repositories::knowledge::SourceDocumentRecord {
+) -> suna::storage::repositories::knowledge::SourceDocumentRecord {
     let document = knowledge::create_source_document(
         connection,
         WORKSPACE,

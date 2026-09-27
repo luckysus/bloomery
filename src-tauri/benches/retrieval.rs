@@ -1,11 +1,11 @@
-use bloomery::rag::index::fts::{search as search_fts, FtsSearchRequest};
-use bloomery::rag::index::lifecycle::{build_hnsw, open_hnsw, HnswVectorIndex};
-use bloomery::rag::index::rebuild::{index_root, load_index_snapshot, IndexRebuildRequest};
-use bloomery::rag::index::vector::{CandidateFilter, VectorIndex};
-use bloomery::rag::model::{DocumentVersionId, KnowledgeBaseId};
-use bloomery::rag::retrieve::rrf::{reciprocal_rank_fusion, RankedChunk};
-use bloomery::rag::retrieve::{retrieve, HybridSearchRequest};
-use bloomery::storage::migrations::migrate;
+use suna::rag::index::fts::{search as search_fts, FtsSearchRequest};
+use suna::rag::index::lifecycle::{build_hnsw, open_hnsw, HnswVectorIndex};
+use suna::rag::index::rebuild::{index_root, load_index_snapshot, IndexRebuildRequest};
+use suna::rag::index::vector::{CandidateFilter, VectorIndex};
+use suna::rag::model::{DocumentVersionId, KnowledgeBaseId};
+use suna::rag::retrieve::rrf::{reciprocal_rank_fusion, RankedChunk};
+use suna::rag::retrieve::{retrieve, HybridSearchRequest};
+use suna::storage::migrations::migrate;
 use rusqlite::{params, Connection};
 use serde::Serialize;
 use sha2::{Digest, Sha256};
@@ -164,12 +164,12 @@ struct BenchmarkReport {
 }
 
 fn main() -> AnyResult<()> {
-    let root = std::env::temp_dir().join(format!("bloomery-retrieval-{}", uuid::Uuid::new_v4()));
+    let root = std::env::temp_dir().join(format!("suna-retrieval-{}", uuid::Uuid::new_v4()));
     fs::create_dir_all(&root)?;
     let result = run_benchmark(&root);
     cleanup(&root);
     let report = result?;
-    let output = std::env::var_os("BLOOMERY_BENCHMARK_OUTPUT")
+    let output = std::env::var_os("SUNA_BENCHMARK_OUTPUT")
         .map(PathBuf::from)
         .unwrap_or_else(|| PathBuf::from("target/retrieval-benchmark.json"));
     if let Some(parent) = output.parent() {
@@ -313,7 +313,7 @@ fn total_search(
     connection: &Connection,
     index: &HnswVectorIndex,
     case: &QueryCase,
-) -> AnyResult<Vec<bloomery::rag::retrieve::RetrievedChunk>> {
+) -> AnyResult<Vec<suna::rag::retrieve::RetrievedChunk>> {
     Ok(retrieve(
         connection,
         index,

@@ -1,4 +1,4 @@
-use bloomery::steel::{analyze_dataset, DatasetAnalysisRequest, DatasetValueFrequency};
+use suna::steel::{analyze_dataset, DatasetAnalysisRequest, DatasetValueFrequency};
 
 #[test]
 fn summarizes_numeric_distribution_and_iqr_outlier_evidence() {

@@ -78,16 +78,16 @@ pub async fn probe_siliconflow(
     match capability {
         ProviderCapability::Embedding => {
             provider
-                .embed(vec!["Bloomery provider probe".to_string()])
+                .embed(vec!["Suna provider probe".to_string()])
                 .await?;
         }
         ProviderCapability::Rerank => {
             provider
                 .rerank(
-                    "Bloomery provider probe".to_string(),
+                    "Suna provider probe".to_string(),
                     vec![RerankDocument {
                         id: "probe".to_string(),
-                        text: "Bloomery provider probe".to_string(),
+                        text: "Suna provider probe".to_string(),
                     }],
                 )
                 .await?;

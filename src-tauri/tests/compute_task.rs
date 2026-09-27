@@ -1,4 +1,4 @@
-use bloomery::compute::handler::{
+use suna::compute::handler::{
     ComputeExportOnnxTaskHandler, ComputeOnnxPredictionTaskHandler, ComputeOptimizationTaskHandler,
     ComputePredictionTaskHandler, ComputeSklearnTrainingTaskHandler, ComputeTaskHandler,
     ComputeTrainedPredictionTaskHandler, COMPUTE_EXPORT_ONNX_KIND,
@@ -6,12 +6,12 @@ use bloomery::compute::handler::{
     COMPUTE_PREDICT_ONNX_KIND, COMPUTE_PREDICT_TRAINED_KIND, COMPUTE_TRAIN_LINEAR_REGRESSION_KIND,
     COMPUTE_TRAIN_SKLEARN_KIND,
 };
-use bloomery::compute::protocol::WorkerRequest;
-use bloomery::compute::worker::{WorkerClient, WorkerConfig};
-use bloomery::storage::migrations::migrate;
-use bloomery::tasks::model::{NewTask, TaskState};
-use bloomery::tasks::repository;
-use bloomery::tasks::scheduler::{
+use suna::compute::protocol::WorkerRequest;
+use suna::compute::worker::{WorkerClient, WorkerConfig};
+use suna::storage::migrations::migrate;
+use suna::tasks::model::{NewTask, TaskState};
+use suna::tasks::repository;
+use suna::tasks::scheduler::{
     EventSink, Scheduler, SchedulerConfig, SchedulerEvent, SystemClock,
 };
 use rusqlite::Connection;
@@ -38,7 +38,7 @@ fn python_worker_config() -> WorkerConfig {
         .join("..")
         .join("compute-worker");
     let venv_python = worker_root.join(".venv").join("Scripts").join("python.exe");
-    let executable = std::env::var_os("BLOOMERY_COMPUTE_WORKER_PYTHON")
+    let executable = std::env::var_os("SUNA_COMPUTE_WORKER_PYTHON")
         .map(PathBuf::from)
         .filter(|path| path.is_file())
         .or_else(|| venv_python.is_file().then_some(venv_python))
@@ -56,7 +56,7 @@ fn python_worker_config() -> WorkerConfig {
         })
         .expect("Python lookup must return an executable");
     let mut config = WorkerConfig::new(executable);
-    config.args = vec!["-m".into(), "bloomery_worker".into()];
+    config.args = vec!["-m".into(), "suna_worker".into()];
     config.working_directory = Some(worker_root);
     config
 }
@@ -138,7 +138,7 @@ fn onnx_model_path_and_hash() -> (PathBuf, String) {
 #[test]
 fn scheduler_runs_training_and_persists_a_queryable_result() {
     let path = std::env::temp_dir().join(format!(
-        "bloomery-compute-task-{}.sqlite3",
+        "suna-compute-task-{}.sqlite3",
         uuid::Uuid::new_v4()
     ));
     let mut connection = Connection::open(&path).expect("open task database");
@@ -228,7 +228,7 @@ fn scheduler_runs_training_and_persists_a_queryable_result() {
 #[test]
 fn scheduler_runs_prediction_and_records_applicability_metadata() {
     let path = std::env::temp_dir().join(format!(
-        "bloomery-predict-task-{}.sqlite3",
+        "suna-predict-task-{}.sqlite3",
         uuid::Uuid::new_v4()
     ));
     let mut connection = Connection::open(&path).expect("open task database");
@@ -360,7 +360,7 @@ fn decode_base64(input: &str) -> Vec<u8> {
 #[test]
 fn scheduler_trains_sklearn_model_and_predicts_through_trained_path() {
     let path = std::env::temp_dir().join(format!(
-        "bloomery-sklearn-task-{}.sqlite3",
+        "suna-sklearn-task-{}.sqlite3",
         uuid::Uuid::new_v4()
     ));
     let mut connection = Connection::open(&path).expect("open task database");
@@ -520,7 +520,7 @@ fn scheduler_trains_sklearn_model_and_predicts_through_trained_path() {
 #[test]
 fn scheduler_exports_onnx_and_imported_model_matches_source_predictions() {
     let path = std::env::temp_dir().join(format!(
-        "bloomery-export-task-{}.sqlite3",
+        "suna-export-task-{}.sqlite3",
         uuid::Uuid::new_v4()
     ));
     let mut connection = Connection::open(&path).expect("open task database");
@@ -612,7 +612,7 @@ fn scheduler_exports_onnx_and_imported_model_matches_source_predictions() {
         exported["model_sha256"].as_str().expect("model sha256")
     );
     let model_path =
-        std::env::temp_dir().join(format!("bloomery-exported-{}.onnx", uuid::Uuid::new_v4()));
+        std::env::temp_dir().join(format!("suna-exported-{}.onnx", uuid::Uuid::new_v4()));
     std::fs::write(&model_path, &model_bytes).expect("write exported model");
 
     // Import the exported model through the ONNX prediction pipeline and
@@ -698,7 +698,7 @@ fn scheduler_exports_onnx_and_imported_model_matches_source_predictions() {
 #[test]
 fn scheduler_runs_optimization_and_enforces_constraints() {
     let path = std::env::temp_dir().join(format!(
-        "bloomery-optimize-task-{}.sqlite3",
+        "suna-optimize-task-{}.sqlite3",
         uuid::Uuid::new_v4()
     ));
     let mut connection = Connection::open(&path).expect("open task database");
@@ -817,7 +817,7 @@ fn scheduler_runs_optimization_and_enforces_constraints() {
 #[test]
 fn scheduler_runs_onnx_prediction_and_persists_model_provenance() {
     let path = std::env::temp_dir().join(format!(
-        "bloomery-onnx-task-{}.sqlite3",
+        "suna-onnx-task-{}.sqlite3",
         uuid::Uuid::new_v4()
     ));
     let (model_path, model_sha256) = onnx_model_path_and_hash();

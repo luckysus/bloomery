@@ -1,4 +1,4 @@
-use bloomery::storage::secrets::{
+use suna::storage::secrets::{
     KeyringSecretStore, SecretError, SecretRef, SecretStatus, SecretStore, SecretValue,
 };
 use std::collections::HashMap;
@@ -106,7 +106,7 @@ fn windows_credential_manager_smoke() {
         store: &store,
         reference: &reference,
     };
-    let value = SecretValue::new(format!("bloomery-smoke-{}", Uuid::new_v4())).unwrap();
+    let value = SecretValue::new(format!("suna-smoke-{}", Uuid::new_v4())).unwrap();
 
     store.set(&reference, &value).expect("set keyring secret");
     assert_eq!(store.get(&reference).unwrap(), value);

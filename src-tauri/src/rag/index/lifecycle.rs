@@ -255,7 +255,7 @@ fn spawn_worker(
     let (sender, receiver) = mpsc::sync_channel::<SearchMessage>(8);
     let (ready_sender, ready_receiver) = mpsc::sync_channel(1);
     std::thread::Builder::new()
-        .name("bloomery-hnsw".to_string())
+        .name("suna-hnsw".to_string())
         .spawn(move || {
             let mut io = HnswIo::new(&directory, HNSW_BASENAME);
             let hnsw: Hnsw<'_, f32, DistCosine> = match io.load_hnsw() {

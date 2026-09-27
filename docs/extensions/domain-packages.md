@@ -1,8 +1,8 @@
 # Domain Packages / 领域包
 
-Bloomery domain packages are declaration-only extensions. They add prompts, terminology, retrieval policy, data mappings, evaluation cases, and static assets. They cannot install binaries, run scripts, start processes, or grant permissions.
+Suna domain packages are declaration-only extensions. They add prompts, terminology, retrieval policy, data mappings, evaluation cases, and static assets. They cannot install binaries, run scripts, start processes, or grant permissions.
 
-Bloomery 领域包是声明式扩展，只能提供提示词、术语、检索策略、数据映射、评测用例和静态资源。它们不能安装二进制文件、执行脚本、启动进程或授予权限。
+Suna 领域包是声明式扩展，只能提供提示词、术语、检索策略、数据映射、评测用例和静态资源。它们不能安装二进制文件、执行脚本、启动进程或授予权限。
 
 ## Package Layout / 目录结构
 
@@ -20,31 +20,31 @@ package/
 
 ## Trust Model / 信任模型
 
-- `official_signed`: the package digest is signed with Ed25519 and the key id is present in Bloomery's embedded official trust store.
+- `official_signed`: the package digest is signed with Ed25519 and the key id is present in Suna's embedded official trust store.
 - `third_party_unsigned`: no signature is present. The package remains isolated and declaration-only, but the UI must show the unsigned warning.
 - A signature with an unknown key, a mismatched digest, or invalid signature bytes is rejected. A package must never become official merely because its author or package id looks official.
 
-- `official_signed`：包摘要由 Ed25519 签名，且 key id 位于 Bloomery 内置官方信任源中。
+- `official_signed`：包摘要由 Ed25519 签名，且 key id 位于 Suna 内置官方信任源中。
 - `third_party_unsigned`：没有签名。包可以在隔离的声明式边界内使用，但界面必须展示未签名警告。
 - 未知 key、摘要不匹配或签名格式错误都会拒绝安装。不能因为作者名或包 ID 看起来像官方内容就授予官方信任。
 
 Development builds without a provisioned official public key trust no signed
 package as official. A signed release must provide the 64-hex-character
-`BLOOMERY_OFFICIAL_PUBLIC_KEY_2026` build variable; the Rust host embeds that
+`SUNA_OFFICIAL_PUBLIC_KEY_2026` build variable; the Rust host embeds that
 public value at compile time. Generate the key pair offline, publish the key id
 and rotation policy, and keep the private key outside the repository and CI logs.
 
 未注入正式公钥的开发构建不会把任何签名包标记为官方包。签名发布必须提供
-64 位十六进制的 `BLOOMERY_OFFICIAL_PUBLIC_KEY_2026` 构建变量，Rust 主程序
+64 位十六进制的 `SUNA_OFFICIAL_PUBLIC_KEY_2026` 构建变量，Rust 主程序
 会在编译时嵌入该公钥。必须离线生成密钥对，公开 key id 和轮换策略，并确保
 私钥不进入仓库或 CI 日志。
 ## Signing / 签名
 
-The signer computes Bloomery's deterministic package digest over every package file except `signature.json`. The signature envelope is:
+The signer computes Suna's deterministic package digest over every package file except `signature.json`. The signature envelope is:
 
 ```json
 {
-  "key_id": "bloomery-official-2026",
+  "key_id": "suna-official-2026",
   "algorithm": "ed25519",
   "package_sha256": "<64 lowercase hex characters>",
   "signature": "<128 hex characters>"

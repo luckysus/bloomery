@@ -1,10 +1,10 @@
-use bloomery::providers::capabilities::{
+use suna::providers::capabilities::{
     DocumentParseRequest, DocumentParserProvider, RemoteTaskId,
 };
-use bloomery::providers::http::ProviderErrorCode;
-use bloomery::providers::mineru::MinerUProvider;
-use bloomery::providers::profiles::{ProviderKind, ProviderProfile};
-use bloomery::storage::secrets::SecretValue;
+use suna::providers::http::ProviderErrorCode;
+use suna::providers::mineru::MinerUProvider;
+use suna::providers::profiles::{ProviderKind, ProviderProfile};
+use suna::storage::secrets::SecretValue;
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
 use std::thread::{self, JoinHandle};

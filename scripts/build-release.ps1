@@ -17,7 +17,7 @@ $workerRoot = Join-Path $repoRoot "compute-worker"
 $workerBuildScript = Join-Path $workerRoot "build.ps1"
 $domainPackageRoot = Join-Path $repoRoot "domain-packs\steel"
 $domainSignaturePath = Join-Path $domainPackageRoot "signature.json"
-$buildTempRoot = Join-Path $repoRoot ".bloomery-temp"
+$buildTempRoot = Join-Path $repoRoot ".suna-temp"
 $workerResourceRoot = Join-Path $buildTempRoot ("worker-resource-" + [Guid]::NewGuid().ToString("N"))
 $releaseConfigPath = Join-Path $buildTempRoot ("tauri-config-" + [Guid]::NewGuid().ToString("N") + ".json")
 $authenticodeScript = Join-Path $PSScriptRoot "sign-authenticode.ps1"
@@ -223,10 +223,10 @@ function Update-WorkerArtifactMetadata {
         [Parameter(Mandatory = $true)][string]$WorkerRoot
     )
 
-    $executable = Join-Path $WorkerRoot "bloomery-compute-worker.exe"
+    $executable = Join-Path $WorkerRoot "suna-compute-worker.exe"
     $manifestPath = Join-Path $WorkerRoot "worker-artifact-manifest.json"
     $sbomPath = Join-Path $WorkerRoot "worker-sbom.json"
-    $checksumPath = Join-Path $WorkerRoot "bloomery-compute-worker.sha256"
+    $checksumPath = Join-Path $WorkerRoot "suna-compute-worker.sha256"
     foreach ($requiredPath in @($executable, $manifestPath, $sbomPath)) {
         if (-not (Test-Path -LiteralPath $requiredPath -PathType Leaf)) {
             throw "Worker metadata file is missing: $requiredPath"
@@ -251,7 +251,7 @@ function Update-WorkerArtifactMetadata {
 
     $sbom = Get-Content -LiteralPath $sbomPath -Raw | ConvertFrom-Json
     foreach ($component in @($sbom.components)) {
-        if ([string]$component.name -eq "bloomery-compute-worker" -and
+        if ([string]$component.name -eq "suna-compute-worker" -and
             $null -ne $component.PSObject.Properties["sha256"]) {
             $component.sha256 = $hash
         }
@@ -263,7 +263,7 @@ function Update-WorkerArtifactMetadata {
     )
     [System.IO.File]::WriteAllText(
         $checksumPath,
-        ("{0}  bloomery-compute-worker.exe" -f $hash),
+        ("{0}  suna-compute-worker.exe" -f $hash),
         [System.Text.UTF8Encoding]::new($false)
     )
 }
@@ -279,7 +279,7 @@ if (-not $version) {
 }
 
 if ([string]::IsNullOrWhiteSpace($OutputDirectory)) {
-    $OutputDirectory = Join-Path $repoRoot ("artifacts\\Bloomery-" + $version)
+    $OutputDirectory = Join-Path $repoRoot ("artifacts\\Suna-" + $version)
 }
 $outputPath = [System.IO.Path]::GetFullPath($OutputDirectory)
 if (Test-Path -LiteralPath $outputPath) {
@@ -306,19 +306,19 @@ try {
             throw "Authenticode signing script is missing: $authenticodeScript"
         }
         foreach ($requiredAuthenticodeVariable in @(
-            "BLOOMERY_AUTHENTICODE_PFX_BASE64",
-            "BLOOMERY_AUTHENTICODE_PFX_PASSWORD",
-            "BLOOMERY_AUTHENTICODE_TIMESTAMP_URL"
+            "SUNA_AUTHENTICODE_PFX_BASE64",
+            "SUNA_AUTHENTICODE_PFX_PASSWORD",
+            "SUNA_AUTHENTICODE_TIMESTAMP_URL"
         )) {
             if ([string]::IsNullOrWhiteSpace([string](Get-Item -Path ("Env:" + $requiredAuthenticodeVariable)).Value)) {
                 throw "$requiredAuthenticodeVariable is required for a signed release"
             }
         }
-        if ([string]::IsNullOrWhiteSpace($env:BLOOMERY_OFFICIAL_PRIVATE_KEY_2026)) {
-            throw "BLOOMERY_OFFICIAL_PRIVATE_KEY_2026 is required for a signed release"
+        if ([string]::IsNullOrWhiteSpace($env:SUNA_OFFICIAL_PRIVATE_KEY_2026)) {
+            throw "SUNA_OFFICIAL_PRIVATE_KEY_2026 is required for a signed release"
         }
-        if ($env:BLOOMERY_OFFICIAL_PRIVATE_KEY_2026 -notmatch '^[0-9a-fA-F]{64}$') {
-            throw "BLOOMERY_OFFICIAL_PRIVATE_KEY_2026 must be exactly 64 hexadecimal characters"
+        if ($env:SUNA_OFFICIAL_PRIVATE_KEY_2026 -notmatch '^[0-9a-fA-F]{64}$') {
+            throw "SUNA_OFFICIAL_PRIVATE_KEY_2026 must be exactly 64 hexadecimal characters"
         }
         if (-not (Test-Path -LiteralPath $domainPackageRoot -PathType Container)) {
             throw "Official steel domain package is missing: $domainPackageRoot"
@@ -342,7 +342,7 @@ try {
             throw "Domain package signer completed without signature.json"
         }
         $domainSignatureCreated = $true
-        Remove-EnvironmentVariable "BLOOMERY_OFFICIAL_PRIVATE_KEY_2026"
+        Remove-EnvironmentVariable "SUNA_OFFICIAL_PRIVATE_KEY_2026"
     }
     if (-not (Test-Path -LiteralPath $workerBuildScript -PathType Leaf)) {
         throw "Compute worker build script is missing: $workerBuildScript"
@@ -361,7 +361,7 @@ try {
     }
     Invoke-Checked "Compute Worker package" "powershell" $workerBuildArguments $repoRoot
 
-    $workerExecutable = Join-Path $workerBuildOutput "bloomery-compute-worker.exe"
+    $workerExecutable = Join-Path $workerBuildOutput "suna-compute-worker.exe"
     if ($Signed) {
         Invoke-Authenticode "Authenticode compute Worker signature" @($workerExecutable)
         Assert-AuthenticodeValid "Authenticode compute Worker signature" @($workerExecutable)
@@ -393,22 +393,22 @@ try {
         if ([string]::IsNullOrWhiteSpace($env:TAURI_SIGNING_PRIVATE_KEY)) {
             throw "TAURI_SIGNING_PRIVATE_KEY is required for a signed release"
         }
-        if ([string]::IsNullOrWhiteSpace($env:BLOOMERY_OFFICIAL_PUBLIC_KEY_2026)) {
-            throw "BLOOMERY_OFFICIAL_PUBLIC_KEY_2026 is required for a signed release"
+        if ([string]::IsNullOrWhiteSpace($env:SUNA_OFFICIAL_PUBLIC_KEY_2026)) {
+            throw "SUNA_OFFICIAL_PUBLIC_KEY_2026 is required for a signed release"
         }
-        if ($env:BLOOMERY_OFFICIAL_PUBLIC_KEY_2026 -notmatch '^[0-9a-fA-F]{64}$') {
-            throw "BLOOMERY_OFFICIAL_PUBLIC_KEY_2026 must be exactly 64 hexadecimal characters"
+        if ($env:SUNA_OFFICIAL_PUBLIC_KEY_2026 -notmatch '^[0-9a-fA-F]{64}$') {
+            throw "SUNA_OFFICIAL_PUBLIC_KEY_2026 must be exactly 64 hexadecimal characters"
         }
-        if ([string]::IsNullOrWhiteSpace($env:BLOOMERY_UPDATER_PUBLIC_KEY)) {
-            throw "BLOOMERY_UPDATER_PUBLIC_KEY is required for a signed release"
+        if ([string]::IsNullOrWhiteSpace($env:SUNA_UPDATER_PUBLIC_KEY)) {
+            throw "SUNA_UPDATER_PUBLIC_KEY is required for a signed release"
         }
-        if ([string]::IsNullOrWhiteSpace($env:BLOOMERY_UPDATER_ENDPOINT)) {
-            throw "BLOOMERY_UPDATER_ENDPOINT is required for a signed release"
+        if ([string]::IsNullOrWhiteSpace($env:SUNA_UPDATER_ENDPOINT)) {
+            throw "SUNA_UPDATER_ENDPOINT is required for a signed release"
         }
-        if ([string]::IsNullOrWhiteSpace($env:BLOOMERY_RELEASE_ASSET_BASE_URL)) {
-            throw "BLOOMERY_RELEASE_ASSET_BASE_URL is required for a signed release"
+        if ([string]::IsNullOrWhiteSpace($env:SUNA_RELEASE_ASSET_BASE_URL)) {
+            throw "SUNA_RELEASE_ASSET_BASE_URL is required for a signed release"
         }
-        $updaterConfigPath = Join-Path $env:TEMP ("bloomery-updater-" + [Guid]::NewGuid().ToString("N") + ".json")
+        $updaterConfigPath = Join-Path $env:TEMP ("suna-updater-" + [Guid]::NewGuid().ToString("N") + ".json")
         $configScript = Join-Path $PSScriptRoot "write-updater-config.ps1"
         Invoke-Checked "Signed updater configuration" "powershell" @(
             "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $configScript,
@@ -421,13 +421,13 @@ try {
     if ($Offline) {
         $buildArguments = @("--offline") + $buildArguments
     }
-    $buildArguments += @("--", "--bin", "bloomery")
+    $buildArguments += @("--", "--bin", "suna")
     try {
         $buildName = if ($Signed) { "Signed Windows package build" } else { "Unsigned Windows package build" }
         Invoke-Checked $buildName "cargo" $buildArguments $rustRoot
         if ($Signed) {
             Assert-AuthenticodeValid "Authenticode packaged Worker verification" @(
-                (Join-Path $workerResourceRoot "bloomery-compute-worker.exe")
+                (Join-Path $workerResourceRoot "suna-compute-worker.exe")
             )
         }
     } finally {
@@ -442,10 +442,10 @@ try {
     if ($Signed) {
         Remove-EnvironmentVariable "TAURI_SIGNING_PRIVATE_KEY"
         Remove-EnvironmentVariable "TAURI_SIGNING_PRIVATE_KEY_PASSWORD"
-        Remove-EnvironmentVariable "BLOOMERY_AUTHENTICODE_PFX_BASE64"
-        Remove-EnvironmentVariable "BLOOMERY_AUTHENTICODE_PFX_PASSWORD"
-        Remove-EnvironmentVariable "BLOOMERY_AUTHENTICODE_TIMESTAMP_URL"
-        Remove-EnvironmentVariable "BLOOMERY_OFFICIAL_PRIVATE_KEY_2026"
+        Remove-EnvironmentVariable "SUNA_AUTHENTICODE_PFX_BASE64"
+        Remove-EnvironmentVariable "SUNA_AUTHENTICODE_PFX_PASSWORD"
+        Remove-EnvironmentVariable "SUNA_AUTHENTICODE_TIMESTAMP_URL"
+        Remove-EnvironmentVariable "SUNA_OFFICIAL_PRIVATE_KEY_2026"
     }
     if ($domainSignatureCreated -and (Test-Path -LiteralPath $domainSignaturePath -PathType Leaf)) {
         Remove-Item -LiteralPath $domainSignaturePath -Force
@@ -464,7 +464,7 @@ try {
     }
 }
 
-$portableBuildArguments = @("build", "--release", "--features", "custom-protocol", "--bin", "bloomery")
+$portableBuildArguments = @("build", "--release", "--features", "custom-protocol", "--bin", "suna")
 if ($Offline) {
     $portableBuildArguments += "--offline"
 }
@@ -504,21 +504,21 @@ foreach ($metadataFile in @("LICENSE", "NOTICE")) {
 }
 
 $runtimeRoot = Join-Path $rustRoot "target\release"
-$portableName = "Bloomery-$version-windows-x64-portable"
+$portableName = "Suna-$version-windows-x64-portable"
 $portableStage = Join-Path $buildTempRoot ($portableName + "-" + [Guid]::NewGuid().ToString("N"))
 $portableRoot = Join-Path $portableStage $portableName
-$addonName = "Bloomery-$version-compute-worker-addon-windows-x64"
+$addonName = "Suna-$version-compute-worker-addon-windows-x64"
 $addonStage = Join-Path $buildTempRoot ($addonName + "-" + [Guid]::NewGuid().ToString("N"))
 $addonRoot = Join-Path $addonStage $addonName
 try {
     New-Item -ItemType Directory -Path $portableRoot, $addonRoot -Force | Out-Null
-    Copy-RequiredFile (Join-Path $runtimeRoot "bloomery.exe") (Join-Path $portableRoot "bloomery.exe")
+    Copy-RequiredFile (Join-Path $runtimeRoot "suna.exe") (Join-Path $portableRoot "suna.exe")
     if ($Signed) {
         Invoke-Authenticode "Authenticode portable binaries" @(
-            (Join-Path $portableRoot "bloomery.exe")
+            (Join-Path $portableRoot "suna.exe")
         )
         Assert-AuthenticodeValid "Authenticode portable binaries" @(
-            (Join-Path $portableRoot "bloomery.exe")
+            (Join-Path $portableRoot "suna.exe")
         )
     }
     Copy-RequiredDirectory (Join-Path $runtimeRoot "domain-packs") (Join-Path $portableRoot "domain-packs")
@@ -530,9 +530,9 @@ try {
     Copy-RequiredDirectory $portableWorkerSource (Join-Path $addonRoot "compute-worker")
     if ($Signed) {
         Assert-AuthenticodeValid "Authenticode packaged Worker verification" @(
-            (Join-Path $portableWorkerSource "bloomery-compute-worker.exe"),
-            (Join-Path $portableRoot "compute-worker\bloomery-compute-worker.exe"),
-            (Join-Path $addonRoot "compute-worker\bloomery-compute-worker.exe")
+            (Join-Path $portableWorkerSource "suna-compute-worker.exe"),
+            (Join-Path $portableRoot "compute-worker\suna-compute-worker.exe"),
+            (Join-Path $addonRoot "compute-worker\suna-compute-worker.exe")
         )
     }
     New-ZipFromDirectory $portableRoot (Join-Path $outputPath ($portableName + ".zip"))
@@ -563,7 +563,7 @@ if ($Signed) {
         "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $updaterManifestScript,
         "-ArtifactDirectory", $outputPath,
         "-Version", $version,
-        "-ReleaseBaseUrl", $env:BLOOMERY_RELEASE_ASSET_BASE_URL
+        "-ReleaseBaseUrl", $env:SUNA_RELEASE_ASSET_BASE_URL
     ) $repoRoot
 }
 
@@ -579,10 +579,10 @@ if ($Offline) {
 }
 Invoke-Checked "SBOM and third-party notices" "powershell" $sbomArguments $repoRoot
 foreach ($requiredReleaseFile in @(
-    "bloomery-rust-sbom.cdx.json",
-    "bloomery-frontend-sbom.cdx.json",
-    "bloomery-frontend-sbom.spdx.json",
-    "bloomery-python-worker-sbom.cdx.json",
+    "suna-rust-sbom.cdx.json",
+    "suna-frontend-sbom.cdx.json",
+    "suna-frontend-sbom.spdx.json",
+    "suna-python-worker-sbom.cdx.json",
     "THIRD_PARTY_NOTICES.txt"
 )) {
     $requiredPath = Join-Path $outputPath $requiredReleaseFile

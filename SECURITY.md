@@ -1,7 +1,7 @@
 # Security Policy / 安全策略
 
-**Bloomery is a local-first desktop application. Your data never leaves your machine unless you configure an external provider.**
-**Bloomery 是本地优先的桌面应用。除非你主动配置外部 Provider，否则数据不会离开你的电脑。**
+**Suna is a local-first desktop application. Your data never leaves your machine unless you configure an external provider.**
+**Suna 是本地优先的桌面应用。除非你主动配置外部 Provider，否则数据不会离开你的电脑。**
 
 ## Reporting vulnerabilities / 报告漏洞
 

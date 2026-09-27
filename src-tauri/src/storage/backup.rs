@@ -13,7 +13,7 @@ use zip::{CompressionMethod, ZipArchive, ZipWriter};
 use crate::domains::{self, DomainTrustStore};
 
 const FORMAT_VERSION: u32 = 1;
-const DATABASE_ENTRY: &str = "bloomery.sqlite3";
+const DATABASE_ENTRY: &str = "suna.sqlite3";
 const CONTENT_PREFIX: &str = "content/";
 const CONTENT_DIRECTORIES: [&str; 2] = ["objects", "indexes"];
 const MAX_FILES: usize = 100_000;
@@ -255,9 +255,9 @@ fn restore_backup_internal(
         .map_err(|error| format!("create restore content directory failed: {error}"))?;
 
     let staging_database =
-        database_parent.join(format!(".bloomery-restore-{}.sqlite3", Uuid::new_v4()));
+        database_parent.join(format!(".suna-restore-{}.sqlite3", Uuid::new_v4()));
     let staging_content =
-        content_parent.join(format!(".bloomery-content-restore-{}", Uuid::new_v4()));
+        content_parent.join(format!(".suna-content-restore-{}", Uuid::new_v4()));
     let result = extract_backup(
         &mut archive,
         &manifest,
@@ -516,7 +516,7 @@ fn validate_and_migrate_staged_database(path: &Path) -> Result<(), String> {
         )
         .map_err(|error| format!("inspect restored database schema failed: {error}"))?;
     if core_table_count != 3 {
-        return Err("restored database is not a Bloomery database".to_string());
+        return Err("restored database is not a Suna database".to_string());
     }
     let migration_table_count: i64 = connection
         .query_row(
@@ -528,7 +528,7 @@ fn validate_and_migrate_staged_database(path: &Path) -> Result<(), String> {
         )
         .map_err(|error| format!("inspect restored database schema failed: {error}"))?;
     if migration_table_count != 1 {
-        return Err("restored database is not a Bloomery database".to_string());
+        return Err("restored database is not a Suna database".to_string());
     }
     let migration_count: i64 = connection
         .query_row("SELECT COUNT(*) FROM schema_migrations", [], |row| {
@@ -536,12 +536,12 @@ fn validate_and_migrate_staged_database(path: &Path) -> Result<(), String> {
         })
         .map_err(|error| format!("inspect restored database migrations failed: {error}"))?;
     if migration_count == 0 {
-        return Err("restored database is not a Bloomery database".to_string());
+        return Err("restored database is not a Suna database".to_string());
     }
     drop(connection);
 
     let (migrated, _) = crate::storage::database::open(path)
-        .map_err(|error| format!("migrate restored Bloomery database failed: {error}"))?;
+        .map_err(|error| format!("migrate restored Suna database failed: {error}"))?;
     migrated
         .execute_batch("PRAGMA wal_checkpoint(TRUNCATE)")
         .map_err(|error| format!("checkpoint restored database failed: {error}"))?;
@@ -558,7 +558,7 @@ fn install_restored_files(
     let parent = database_path
         .parent()
         .ok_or_else(|| "restore database parent is required".to_string())?;
-    let rollback_root = parent.join(format!(".bloomery-rollback-{}", Uuid::new_v4()));
+    let rollback_root = parent.join(format!(".suna-rollback-{}", Uuid::new_v4()));
     let rollback_content = rollback_root.join("content");
     fs::create_dir_all(&rollback_content)
         .map_err(|error| format!("create restore rollback directory failed: {error}"))?;
@@ -791,12 +791,12 @@ mod tests {
 
     #[test]
     fn preview_uses_the_supplied_archive_handle_not_the_path() {
-        let root = std::env::temp_dir().join(format!("bloomery-backup-handle-{}", Uuid::new_v4()));
+        let root = std::env::temp_dir().join(format!("suna-backup-handle-{}", Uuid::new_v4()));
         fs::create_dir_all(&root).expect("create fixture root");
         let database = root.join("source.sqlite3");
         let mut connection = Connection::open(&database).expect("open database");
         migrate(&mut connection).expect("migrate database");
-        let archive = root.join("source.bloomery-backup");
+        let archive = root.join("source.suna-backup");
         create_backup(&connection, &database, &root.join("content"), &archive)
             .expect("create backup");
 

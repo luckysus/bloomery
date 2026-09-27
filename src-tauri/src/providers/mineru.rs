@@ -488,7 +488,7 @@ fn data_id(file_name: &str, bytes: &[u8]) -> String {
         file_name.to_string()
     } else {
         let digest = format!("{:x}", Sha256::digest(bytes));
-        format!("bloomery-{}", &digest[..32])
+        format!("suna-{}", &digest[..32])
     }
 }
 

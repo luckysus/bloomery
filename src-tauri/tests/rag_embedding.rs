@@ -1,13 +1,13 @@
-use bloomery::providers::capabilities::EmbeddingResponse;
-use bloomery::providers::http::{ProviderError, ProviderErrorCode};
-use bloomery::rag::index::{
+use suna::providers::capabilities::EmbeddingResponse;
+use suna::providers::http::{ProviderError, ProviderErrorCode};
+use suna::rag::index::{
     embed_version, EmbeddingIndexRequest, EmbeddingRemote, EmbeddingRemoteFuture,
 };
-use bloomery::rag::model::{
+use suna::rag::model::{
     ChunkId, DocumentVersionId, NewChunk, NewDocumentVersion, NewSourceDocument, SourceLocation,
 };
-use bloomery::storage::migrations::migrate;
-use bloomery::storage::repositories::knowledge;
+use suna::storage::migrations::migrate;
+use suna::storage::repositories::knowledge;
 use rusqlite::Connection;
 use sha2::{Digest, Sha256};
 use std::collections::VecDeque;
@@ -308,7 +308,7 @@ fn table_count(connection: &Connection, table: &str) -> i64 {
 fn source_document_id(
     connection: &Connection,
     version: DocumentVersionId,
-) -> bloomery::rag::model::SourceDocumentId {
+) -> suna::rag::model::SourceDocumentId {
     let value: String = connection
         .query_row(
             "SELECT document_id FROM knowledge_document_versions WHERE id = ?1",

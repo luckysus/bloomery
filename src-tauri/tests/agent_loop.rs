@@ -1,20 +1,20 @@
-use bloomery::agent::context::{ContextItem, ContextSource};
-use bloomery::agent::protocol::{
+use suna::agent::context::{ContextItem, ContextSource};
+use suna::agent::protocol::{
     AgentEventData, AgentEventEnvelope, AgentMessageRole, AgentRunState, RunCompleted, RunOutcome,
     RunStateChanged,
 };
-use bloomery::agent::runtime::{
+use suna::agent::runtime::{
     AgentContextCheckpoint, AgentEventSink, AgentHooks, AgentInputQueue, AgentLoop,
     AgentLoopLimits, AgentLoopRequest, AgentLoopResume, CancellationToken, ContextCheckpointReason,
     ContextEntry, DenyPermissions, HookDecision, ModelAdapter, ModelFuture, NoopToolExecutor,
     PermissionRequest, PermissionResolver, ResumableToolCall, ToolExecutionError, ToolExecutor,
     ToolFuture, ToolHandler, ToolInvocation, ToolRegistration,
 };
-use bloomery::providers::capabilities::{
+use suna::providers::capabilities::{
     ChatEvent, ChatRequest, ChatResponse, ChatToolCall, ChatUsage, ProviderCapabilities,
 };
-use bloomery::providers::http::{ProviderError, ProviderErrorCode};
-use bloomery::providers::profiles::ProviderKind;
+use suna::providers::http::{ProviderError, ProviderErrorCode};
+use suna::providers::profiles::ProviderKind;
 use chrono::Utc;
 use serde_json::{json, Value};
 use std::future::Future;
@@ -154,8 +154,8 @@ impl PermissionResolver for AllowPermissions {
         &self,
         _request: PermissionRequest,
         _cancellation: CancellationToken,
-    ) -> Pin<Box<dyn Future<Output = bloomery::agent::protocol::PermissionDecision> + Send>> {
-        Box::pin(async { bloomery::agent::protocol::PermissionDecision::AllowOnce })
+    ) -> Pin<Box<dyn Future<Output = suna::agent::protocol::PermissionDecision> + Send>> {
+        Box::pin(async { suna::agent::protocol::PermissionDecision::AllowOnce })
     }
 }
 
@@ -224,12 +224,12 @@ impl ToolExecutor for TestTools {
 fn tool(
     id: &str,
     name: &str,
-    risk: bloomery::agent::protocol::PermissionRisk,
+    risk: suna::agent::protocol::PermissionRisk,
     read_only: bool,
     handler: Arc<dyn ToolHandler>,
 ) -> ToolRegistration {
     ToolRegistration::new(
-        bloomery::agent::tool_repair::ToolSpec {
+        suna::agent::tool_repair::ToolSpec {
             id: id.to_string(),
             name: name.to_string(),
             input_schema: json!({
@@ -268,7 +268,7 @@ fn hooks_rewrite_tool_input_and_output_before_next_model_round() {
         registrations: vec![tool(
             "search.v1",
             "search",
-            bloomery::agent::protocol::PermissionRisk::Automatic,
+            suna::agent::protocol::PermissionRisk::Automatic,
             true,
             Arc::new(StaticHandler {
                 output: json!({"answer": "original"}),
@@ -325,7 +325,7 @@ fn invalid_hook_replacements_never_reach_tool_execution() {
             registrations: vec![tool(
                 "search.v1",
                 "search",
-                bloomery::agent::protocol::PermissionRisk::Automatic,
+                suna::agent::protocol::PermissionRisk::Automatic,
                 true,
                 Arc::new(StaticHandler {
                     output: json!({}),
@@ -374,7 +374,7 @@ impl AgentHooks for RewriteHooks {
     }
 }
 
-fn request(evidence: Option<bloomery::agent::runtime::EvidenceAttachment>) -> AgentLoopRequest {
+fn request(evidence: Option<suna::agent::runtime::EvidenceAttachment>) -> AgentLoopRequest {
     AgentLoopRequest {
         assistant_message_id: Uuid::new_v4(),
         context: vec![
@@ -451,7 +451,7 @@ impl AgentEventSink for RecordingSink {
     ) -> Result<Vec<AgentEventEnvelope>, String> {
         let state = self.push(AgentEventData::RunStateChanged(changed));
         let completed = self.push(AgentEventData::RunCompleted(
-            bloomery::agent::protocol::RunCompleted {
+            suna::agent::protocol::RunCompleted {
                 outcome,
                 assistant_message_id,
             },
@@ -587,7 +587,7 @@ fn one_automatic_tool_is_observed_before_the_final_answer() {
         registrations: vec![tool(
             "search.v1",
             "search",
-            bloomery::agent::protocol::PermissionRisk::Automatic,
+            suna::agent::protocol::PermissionRisk::Automatic,
             true,
             Arc::new(StaticHandler {
                 output: json!({"answer": "Q355B"}),
@@ -615,7 +615,7 @@ fn one_automatic_tool_is_observed_before_the_final_answer() {
     assert!(sink.events.iter().any(|event| matches!(
         &event.data,
         AgentEventData::ToolCompleted(completed)
-            if completed.outcome == bloomery::agent::protocol::ToolOutcome::Succeeded
+            if completed.outcome == suna::agent::protocol::ToolOutcome::Succeeded
     )));
     assert!(model.requests.lock().unwrap().len() >= 2);
 }
@@ -627,7 +627,7 @@ fn deepseek_reasoning_is_replayed_on_the_next_tool_round() {
         registrations: vec![tool(
             "search.v1",
             "search",
-            bloomery::agent::protocol::PermissionRisk::Automatic,
+            suna::agent::protocol::PermissionRisk::Automatic,
             true,
             Arc::new(StaticHandler {
                 output: json!({"answer": "Q355B"}),
@@ -681,14 +681,14 @@ fn independent_read_tools_run_in_parallel() {
             tool(
                 "read-a.v1",
                 "read_a",
-                bloomery::agent::protocol::PermissionRisk::Automatic,
+                suna::agent::protocol::PermissionRisk::Automatic,
                 true,
                 handler(),
             ),
             tool(
                 "read-b.v1",
                 "read_b",
-                bloomery::agent::protocol::PermissionRisk::Automatic,
+                suna::agent::protocol::PermissionRisk::Automatic,
                 true,
                 handler(),
             ),
@@ -732,14 +732,14 @@ fn write_tools_are_serialized() {
             tool(
                 "write-a.v1",
                 "write_a",
-                bloomery::agent::protocol::PermissionRisk::Automatic,
+                suna::agent::protocol::PermissionRisk::Automatic,
                 false,
                 handler(),
             ),
             tool(
                 "write-b.v1",
                 "write_b",
-                bloomery::agent::protocol::PermissionRisk::Automatic,
+                suna::agent::protocol::PermissionRisk::Automatic,
                 false,
                 handler(),
             ),
@@ -774,7 +774,7 @@ fn malformed_tool_call_is_repaired_with_a_bounded_model_retry() {
         registrations: vec![tool(
             "search.v1",
             "search",
-            bloomery::agent::protocol::PermissionRisk::Automatic,
+            suna::agent::protocol::PermissionRisk::Automatic,
             true,
             Arc::new(StaticHandler {
                 output: json!({"ok": true}),
@@ -804,7 +804,7 @@ fn malformed_tool_call_is_repaired_with_a_bounded_model_retry() {
 fn rag_answer_attaches_evidence_and_accepts_known_citations() {
     let model = ScriptedModel::script(vec![response("Yield is 355 MPa [1].", vec![])]);
     let mut sink = RecordingSink::new();
-    let evidence = bloomery::agent::runtime::EvidenceAttachment {
+    let evidence = suna::agent::runtime::EvidenceAttachment {
         evidence_pack_id: Uuid::new_v4(),
         citation_numbers: vec![1],
     };
@@ -1003,7 +1003,7 @@ fn oversized_tool_output_is_bounded_before_the_next_model_call() {
         registrations: vec![tool(
             "large.v1",
             "large",
-            bloomery::agent::protocol::PermissionRisk::Automatic,
+            suna::agent::protocol::PermissionRisk::Automatic,
             true,
             Arc::new(StaticHandler {
                 output: Value::String("x".repeat(128 * 1024)),
@@ -1043,7 +1043,7 @@ fn denied_write_tool_is_never_executed_and_is_returned_as_an_observation() {
         registrations: vec![tool(
             "write.v1",
             "write",
-            bloomery::agent::protocol::PermissionRisk::ConfirmationRequired,
+            suna::agent::protocol::PermissionRisk::ConfirmationRequired,
             false,
             Arc::new(StaticHandler {
                 output: json!({"should_not": "run"}),
@@ -1074,7 +1074,7 @@ fn denied_write_tool_is_never_executed_and_is_returned_as_an_observation() {
     assert!(sink.events.iter().any(|event| matches!(
         &event.data,
         AgentEventData::ToolCompleted(completed)
-            if completed.outcome == bloomery::agent::protocol::ToolOutcome::Failed
+            if completed.outcome == suna::agent::protocol::ToolOutcome::Failed
     )));
 }
 
@@ -1082,7 +1082,7 @@ fn denied_write_tool_is_never_executed_and_is_returned_as_an_observation() {
 fn citation_to_missing_evidence_fails_before_completion() {
     let model = ScriptedModel::script(vec![response("value [2]", vec![])]);
     let mut sink = RecordingSink::new();
-    let evidence = bloomery::agent::runtime::EvidenceAttachment {
+    let evidence = suna::agent::runtime::EvidenceAttachment {
         evidence_pack_id: Uuid::new_v4(),
         citation_numbers: vec![1],
     };
@@ -1113,7 +1113,7 @@ fn model_call_budget_stops_before_the_next_turn() {
         registrations: vec![tool(
             "search.v1",
             "search",
-            bloomery::agent::protocol::PermissionRisk::Automatic,
+            suna::agent::protocol::PermissionRisk::Automatic,
             true,
             Arc::new(StaticHandler {
                 output: json!({"ok": true}),
@@ -1149,7 +1149,7 @@ fn tool_call_budget_stops_before_tool_execution() {
         registrations: vec![tool(
             "search.v1",
             "search",
-            bloomery::agent::protocol::PermissionRisk::Automatic,
+            suna::agent::protocol::PermissionRisk::Automatic,
             true,
             Arc::new(StaticHandler {
                 output: json!({"ok": true}),
@@ -1234,7 +1234,7 @@ fn assistant_result_checkpoint_is_only_saved_at_a_natural_stop() {
         registrations: vec![tool(
             "search.v1",
             "search",
-            bloomery::agent::protocol::PermissionRisk::Automatic,
+            suna::agent::protocol::PermissionRisk::Automatic,
             true,
             Arc::new(StaticHandler {
                 output: json!({"ok": true}),
@@ -1279,8 +1279,8 @@ fn loop_resumes_from_a_model_call_checkpoint_without_rebuilding_history() {
     let model = ScriptedModel::answer("resumed answer");
     let mut request = request(None);
     let checkpoint_messages = vec![
-        bloomery::providers::capabilities::ChatMessage::new("system", "checkpoint system"),
-        bloomery::providers::capabilities::ChatMessage::new("user", "checkpoint request"),
+        suna::providers::capabilities::ChatMessage::new("system", "checkpoint system"),
+        suna::providers::capabilities::ChatMessage::new("user", "checkpoint request"),
     ];
     request.resume = Some(AgentLoopResume {
         checkpoint: AgentContextCheckpoint {
@@ -1321,7 +1321,7 @@ fn loop_resumes_idempotent_tools_from_the_persisted_call_batch() {
         registrations: vec![tool(
             "search.v1",
             "search",
-            bloomery::agent::protocol::PermissionRisk::Automatic,
+            suna::agent::protocol::PermissionRisk::Automatic,
             true,
             Arc::new(StaticHandler {
                 output: json!({"ok": true}),
@@ -1340,8 +1340,8 @@ fn loop_resumes_idempotent_tools_from_the_persisted_call_batch() {
             tool_round: 0,
             recovery_attempt: 0,
             messages: vec![
-                bloomery::providers::capabilities::ChatMessage::new("system", "checkpoint"),
-                bloomery::providers::capabilities::ChatMessage::new("user", "search"),
+                suna::providers::capabilities::ChatMessage::new("system", "checkpoint"),
+                suna::providers::capabilities::ChatMessage::new("user", "search"),
             ],
         },
         state: AgentRunState::ExecutingTools,

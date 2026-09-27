@@ -31,17 +31,17 @@ export default function PermissionRulesPanel({ rules, busyId, onRevoke }: Permis
   const { t } = useLocale();
 
   return (
-    <section className="bloomery-settings-permissions" aria-labelledby="settings-permissions-heading">
-      <div className="bloomery-settings-permissions-heading">
+    <section className="suna-settings-permissions" aria-labelledby="settings-permissions-heading">
+      <div className="suna-settings-permissions-heading">
         <div>
           <h2 id="settings-permissions-heading">{t("permissionRulesTitle")}</h2>
         </div>
         <ShieldCheck size={21} aria-hidden="true" />
       </div>
-      {rules.length === 0 ? <p className="bloomery-settings-permissions-empty">{t("permissionRulesEmpty")}</p> : (
-        <div className="bloomery-settings-permissions-list">
+      {rules.length === 0 ? <p className="suna-settings-permissions-empty">{t("permissionRulesEmpty")}</p> : (
+        <div className="suna-settings-permissions-list">
           {rules.map((rule) => (
-            <article className="bloomery-settings-permission" key={rule.id}>
+            <article className="suna-settings-permission" key={rule.id}>
               <div>
                 <strong>{rule.tool_id}</strong>
                 <span>{t("permissionRuleVersion")}: {rule.tool_version.major}.{rule.tool_version.minor}.{rule.tool_version.patch}</span>
@@ -50,7 +50,7 @@ export default function PermissionRulesPanel({ rules, busyId, onRevoke }: Permis
               </div>
               <button
                 type="button"
-                className="bloomery-icon-button bloomery-settings-permission-revoke"
+                className="suna-icon-button suna-settings-permission-revoke"
                 aria-label={`${t("permissionRevoke")} ${rule.tool_id}`}
                 title={t("permissionRevoke")}
                 disabled={busyId === rule.id}
@@ -58,7 +58,7 @@ export default function PermissionRulesPanel({ rules, busyId, onRevoke }: Permis
                   if (window.confirm(t("permissionRuleRevokeConfirm"))) onRevoke(rule);
                 }}
               >
-                {busyId === rule.id ? <LoaderCircle size={16} className="bloomery-spin" /> : <Trash2 size={16} aria-hidden="true" />}
+                {busyId === rule.id ? <LoaderCircle size={16} className="suna-spin" /> : <Trash2 size={16} aria-hidden="true" />}
               </button>
             </article>
           ))}

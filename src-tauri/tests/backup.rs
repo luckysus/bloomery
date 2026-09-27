@@ -1,6 +1,6 @@
-use bloomery::storage::backup::{create_backup, preview_backup, restore_backup};
-use bloomery::storage::migrations::migrate;
-use bloomery::{
+use suna::storage::backup::{create_backup, preview_backup, restore_backup};
+use suna::storage::migrations::migrate;
+use suna::{
     domains::{install_package, DomainTrustStore},
     storage::{
         backup::restore_backup_with_domain_validation,
@@ -15,7 +15,7 @@ use uuid::Uuid;
 use zip::write::SimpleFileOptions;
 
 fn fixture_root(label: &str) -> std::path::PathBuf {
-    std::env::temp_dir().join(format!("bloomery-backup-{label}-{}", Uuid::new_v4()))
+    std::env::temp_dir().join(format!("suna-backup-{label}-{}", Uuid::new_v4()))
 }
 
 fn write_domain_package(root: &std::path::Path) {
@@ -28,7 +28,7 @@ fn write_domain_package(root: &std::path::Path) {
             "id": "steel",
             "version": "1.0.0",
             "compatibility": {"min_app_version": "0.1.0", "max_app_version": null},
-            "author": "Bloomery contributors",
+            "author": "Suna contributors",
             "license": "Apache-2.0",
             "prompts": {"system": "Use steel terminology.", "workflow": "Cite sources."},
             "retrieval": {"required_tags": ["steel"], "citation_required": true, "max_evidence_items": 12},
@@ -68,7 +68,7 @@ fn backup_round_trip_restores_database_and_content_without_staging_files() {
         )
         .expect("write setting");
 
-    let archive = root.join("bloomery.bloomery-backup");
+    let archive = root.join("suna.suna-backup");
     let summary = create_backup(&connection, &source_database, &source_root, &archive)
         .expect("create backup");
     assert_eq!(summary.content_file_count, 2);
@@ -108,7 +108,7 @@ fn backup_preview_validates_archive_without_mutating_restore_targets() {
     let database = root.join("source.sqlite3");
     let mut connection = Connection::open(&database).expect("open database");
     migrate(&mut connection).expect("migrate database");
-    let archive = root.join("preview.bloomery-backup");
+    let archive = root.join("preview.suna-backup");
     create_backup(&connection, &database, &root.join("content"), &archive).expect("create backup");
 
     let preview = preview_backup(&archive).expect("preview backup");
@@ -140,7 +140,7 @@ fn restore_replaces_existing_database_and_content() {
             [],
         )
         .expect("write source setting");
-    let archive = root.join("replace.bloomery-backup");
+    let archive = root.join("replace.suna-backup");
     create_backup(&source, &source_database, &source_content, &archive).expect("create backup");
 
     fs::create_dir_all(target_content.join("objects")).expect("create target content");
@@ -189,7 +189,7 @@ fn restore_rejects_tampered_domain_package_without_touching_target() {
     let mut source = Connection::open(&source_database).expect("open source database");
     migrate(&mut source).expect("migrate source database");
     upsert_domain_package(&mut source, "local", &installed).expect("persist domain package");
-    let archive = root.join("tampered-domain.bloomery-backup");
+    let archive = root.join("tampered-domain.suna-backup");
     create_backup(
         &source,
         &source_database,
@@ -241,7 +241,7 @@ fn restore_rejects_archive_path_traversal_before_writing_files() {
     let manifest = serde_json::to_vec(&json!({
         "formatVersion": 1,
         "createdAt": "2026-08-07T00:00:00Z",
-        "databaseEntry": "bloomery.sqlite3",
+        "databaseEntry": "suna.sqlite3",
         "contentPrefix": "content/",
         "contentFileCount": 0
     }))
@@ -270,7 +270,7 @@ fn manifest_bytes(format_version: u32, content_file_count: usize) -> Vec<u8> {
     serde_json::to_vec(&json!({
         "formatVersion": format_version,
         "createdAt": "2026-08-08T00:00:00Z",
-        "databaseEntry": "bloomery.sqlite3",
+        "databaseEntry": "suna.sqlite3",
         "contentPrefix": "content/",
         "contentFileCount": content_file_count
     }))
@@ -291,7 +291,7 @@ fn build_archive(
         .expect("start manifest");
     writer.write_all(manifest).expect("write manifest");
     writer
-        .start_file("bloomery.sqlite3", options)
+        .start_file("suna.sqlite3", options)
         .expect("start database");
     writer.write_all(database).expect("write database");
     for (name, bytes) in content {
@@ -336,9 +336,9 @@ fn assert_no_staging_leftovers(root: &std::path::Path) {
     for entry in fs::read_dir(root).expect("read fixture root").flatten() {
         let name = entry.file_name().to_string_lossy().to_string();
         assert!(
-            !name.starts_with(".bloomery-restore-")
-                && !name.starts_with(".bloomery-content-restore-")
-                && !name.starts_with(".bloomery-rollback-"),
+            !name.starts_with(".suna-restore-")
+                && !name.starts_with(".suna-content-restore-")
+                && !name.starts_with(".suna-rollback-"),
             "restore left staging/rollback artifact behind: {name}"
         );
     }
@@ -358,7 +358,7 @@ fn restore_rejects_truncated_archive_without_touching_target() {
             [],
         )
         .expect("seed source row");
-    let full = root.join("full.bloomery-backup");
+    let full = root.join("full.suna-backup");
     create_backup(
         &source,
         &source_database,
@@ -370,7 +370,7 @@ fn restore_rejects_truncated_archive_without_touching_target() {
 
     // 头部完整、内容截断：仅保留前半段字节，破坏 ZIP 中央目录。
     let bytes = fs::read(&full).expect("read full backup");
-    let archive = root.join("truncated.bloomery-backup");
+    let archive = root.join("truncated.suna-backup");
     fs::write(&archive, &bytes[..bytes.len() / 2]).expect("write truncated backup");
 
     let target_database = root.join("target.sqlite3");
@@ -389,7 +389,7 @@ fn restore_rejects_truncated_archive_without_touching_target() {
 fn restore_rejects_content_count_mismatch_without_touching_target() {
     let root = fixture_root("count-mismatch");
     fs::create_dir_all(&root).expect("create root");
-    let archive = root.join("mismatch.bloomery-backup");
+    let archive = root.join("mismatch.suna-backup");
     // manifest 声明 3 个内容文件，归档内实际为 0 个 —— 条目一致性校验必须拒绝。
     build_archive(
         &archive,
@@ -414,7 +414,7 @@ fn restore_rejects_content_count_mismatch_without_touching_target() {
 fn restore_rejects_incompatible_manifest_version_without_touching_target() {
     let root = fixture_root("bad-version");
     fs::create_dir_all(&root).expect("create root");
-    let archive = root.join("version.bloomery-backup");
+    let archive = root.join("version.suna-backup");
     build_archive(
         &archive,
         &manifest_bytes(999, 0),
@@ -438,7 +438,7 @@ fn restore_rejects_incompatible_manifest_version_without_touching_target() {
 fn restore_rejects_corrupt_database_header_without_touching_target() {
     let root = fixture_root("bad-db");
     fs::create_dir_all(&root).expect("create root");
-    let archive = root.join("corrupt.bloomery-backup");
+    let archive = root.join("corrupt.suna-backup");
     // manifest 合法、0 个内容文件，但数据库条目不是合法 SQLite 文件。
     build_archive(
         &archive,
@@ -460,7 +460,7 @@ fn restore_rejects_corrupt_database_header_without_touching_target() {
 }
 
 #[test]
-fn restore_rejects_a_valid_non_bloomery_database_without_touching_target() {
+fn restore_rejects_a_valid_non_suna_database_without_touching_target() {
     let root = fixture_root("foreign-database");
     fs::create_dir_all(&root).expect("create root");
 
@@ -475,7 +475,7 @@ fn restore_rejects_a_valid_non_bloomery_database_without_touching_target() {
     drop(foreign);
     let foreign_bytes = fs::read(&foreign_database).expect("read foreign database");
 
-    let archive = root.join("foreign.bloomery-backup");
+    let archive = root.join("foreign.suna-backup");
     build_archive(&archive, &manifest_bytes(1, 0), &foreign_bytes, &[]);
 
     let target_database = root.join("target.sqlite3");
@@ -483,9 +483,9 @@ fn restore_rejects_a_valid_non_bloomery_database_without_touching_target() {
     seed_target(&target_database, &target_content);
 
     let error = restore_backup(&archive, &target_database, &target_content)
-        .expect_err("a valid non-Bloomery database must be rejected");
+        .expect_err("a valid non-Suna database must be rejected");
     assert!(
-        error.contains("Bloomery database"),
+        error.contains("Suna database"),
         "unexpected error: {error}"
     );
     assert_target_intact(&target_database, &target_content);

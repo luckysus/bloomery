@@ -41,23 +41,23 @@ export default function SettingsPreferencesPanel({ mode }: { mode: "general" | "
     window.setTimeout(() => setSaved(false), 1200);
   };
   const toggle = (key: keyof Preferences, label: string) => (
-    <label className="bloomery-settings-preference"><span>{label}</span><input type="checkbox" checked={Boolean(value[key])} onChange={(event) => void update({ [key]: event.target.checked })} /></label>
+    <label className="suna-settings-preference"><span>{label}</span><input type="checkbox" checked={Boolean(value[key])} onChange={(event) => void update({ [key]: event.target.checked })} /></label>
   );
   return (
-    <section className="bloomery-settings-preferences">
+    <section className="suna-settings-preferences">
       <h2>{t(mode === "general" ? "settingsTabGeneral" : "settingsCategoryAppearance")}</h2>
       <p>{t(mode === "general" ? "settingsGeneralCopy" : "settingsAppearanceCopy")}</p>
-      {mode === "general" ? <div className="bloomery-settings-preference-list">
+      {mode === "general" ? <div className="suna-settings-preference-list">
         {toggle("restoreSession", t("settingsRestoreSession"))}
         {toggle("saveDrafts", t("settingsSaveDrafts"))}
         {toggle("showToolDetails", t("settingsShowToolDetails"))}
         {toggle("confirmDangerous", t("settingsConfirmDangerous"))}
       </div> : <>
         <ThemeSelect />
-        <label className="bloomery-settings-field">{t("settingsDensity")}<select value={value.density} onChange={(event) => void update({ density: event.target.value as Preferences["density"] })}><option value="comfortable">{t("settingsDensityComfortable")}</option><option value="standard">{t("settingsDensityStandard")}</option><option value="compact">{t("settingsDensityCompact")}</option></select></label>
-        <div className="bloomery-settings-preference-list">{toggle("reduceMotion", t("settingsReduceMotion"))}{toggle("inspector", t("settingsShowInspector"))}</div>
+        <label className="suna-settings-field">{t("settingsDensity")}<select value={value.density} onChange={(event) => void update({ density: event.target.value as Preferences["density"] })}><option value="comfortable">{t("settingsDensityComfortable")}</option><option value="standard">{t("settingsDensityStandard")}</option><option value="compact">{t("settingsDensityCompact")}</option></select></label>
+        <div className="suna-settings-preference-list">{toggle("reduceMotion", t("settingsReduceMotion"))}{toggle("inspector", t("settingsShowInspector"))}</div>
       </>}
-      {saved && <span className="bloomery-settings-inline-saved" role="status">{t("settingsSaved")}</span>}
+      {saved && <span className="suna-settings-inline-saved" role="status">{t("settingsSaved")}</span>}
     </section>
   );
 }

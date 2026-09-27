@@ -20,21 +20,21 @@ export default function DiagnosticsHeader({
 }: Props) {
   const { t } = useLocale();
   return (
-    <header className="bloomery-diagnostics-header">
+    <header className="suna-diagnostics-header">
       <div>
         <h1 id="diagnostics-heading">{t("diagnosticsTitle")}</h1>
       </div>
-      <div className="bloomery-diagnostics-actions">
-        <button type="button" className="bloomery-icon-button" onClick={onRefresh} disabled={loading} aria-label={t("diagnosticsRefresh")} title={t("diagnosticsRefresh")}>
+      <div className="suna-diagnostics-actions">
+        <button type="button" className="suna-icon-button" onClick={onRefresh} disabled={loading} aria-label={t("diagnosticsRefresh")} title={t("diagnosticsRefresh")}>
           <RefreshCw size={18} aria-hidden="true" />
         </button>
-        <button type="button" className="bloomery-action-secondary" onClick={onExport} disabled={loading || busy}>
+        <button type="button" className="suna-action-secondary" onClick={onExport} disabled={loading || busy}>
           <Download size={16} aria-hidden="true" />{t("diagnosticsExport")}
         </button>
-        <button type="button" className="bloomery-action-secondary" onClick={onCreateBackup} disabled={loading || busy}>
+        <button type="button" className="suna-action-secondary" onClick={onCreateBackup} disabled={loading || busy}>
           <Download size={16} aria-hidden="true" />{t("diagnosticsBackupExport")}
         </button>
-        <button type="button" className="bloomery-action-secondary" onClick={onRestoreBackup} disabled={loading || busy}>
+        <button type="button" className="suna-action-secondary" onClick={onRestoreBackup} disabled={loading || busy}>
           <Upload size={16} aria-hidden="true" />{t("diagnosticsBackupRestore")}
         </button>
       </div>

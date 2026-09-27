@@ -14,7 +14,7 @@ import DatabaseConnectionsPanel from "./DatabaseConnectionsPanel";
 import KnowledgeDatabasePanel from "./KnowledgeDatabasePanel";
 import SettingsSkillsPanel from "./SettingsSkillsPanel";
 import McpServersPanel from "../extensions/McpServersPanel";
-import { BLOOMERY_VERSION } from "../../version";
+import { SUNA_VERSION } from "../../version";
 import SettingsPreferencesPanel from "./SettingsPreferencesPanel";
 import SettingsAgentPanel from "./SettingsAgentPanel";
 import SettingsProvidersPanel from "./SettingsProvidersPanel";
@@ -67,7 +67,7 @@ export default function SettingsPage({ onOpenDiagnostics }: SettingsPageProps) {
   const [permissionBusyId, setPermissionBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const [accountName, setAccountName] = useState("Bloomery");
+  const [accountName, setAccountName] = useState("Suna");
   const [shortcutSend, setShortcutSend] = useState("Ctrl+Enter");
   const [query, setQuery] = useState("");
   const [fileInputKey, setFileInputKey] = useState(0);
@@ -101,7 +101,7 @@ export default function SettingsPage({ onOpenDiagnostics }: SettingsPageProps) {
       ));
       const accountValue = parseObject(await desktop.getSetting("profile.account"));
       const shortcutValue = parseObject(await desktop.getSetting("ui.shortcuts"));
-      setAccountName(typeof accountValue.display_name === "string" && accountValue.display_name.trim() ? accountValue.display_name : "Bloomery");
+      setAccountName(typeof accountValue.display_name === "string" && accountValue.display_name.trim() ? accountValue.display_name : "Suna");
       setShortcutSend(typeof shortcutValue.send === "string" && shortcutValue.send ? shortcutValue.send : "Ctrl+Enter");
     } catch (cause) {
       setError(errorMessage(cause, t("settingsLoadError")));
@@ -111,7 +111,7 @@ export default function SettingsPage({ onOpenDiagnostics }: SettingsPageProps) {
   };
 
   const saveAccount = async () => {
-    await desktop.setSetting("profile.account", JSON.stringify({ version: 1, display_name: accountName.trim() || "Bloomery" }));
+    await desktop.setSetting("profile.account", JSON.stringify({ version: 1, display_name: accountName.trim() || "Suna" }));
     setNotice(t("settingsSaved"));
   };
 
@@ -126,9 +126,9 @@ export default function SettingsPage({ onOpenDiagnostics }: SettingsPageProps) {
       desktop.setSetting("ui.preferences", JSON.stringify({})),
       desktop.setSetting("agent.preferences", JSON.stringify({})),
       desktop.setSetting("ui.shortcuts", JSON.stringify({})),
-      desktop.setSetting("profile.account", JSON.stringify({ display_name: "Bloomery" })),
+      desktop.setSetting("profile.account", JSON.stringify({ display_name: "Suna" })),
     ]);
-    setAccountName("Bloomery");
+    setAccountName("Suna");
     setShortcutSend("Ctrl+Enter");
     setNotice(t("settingsResetDone"));
   };
@@ -136,7 +136,7 @@ export default function SettingsPage({ onOpenDiagnostics }: SettingsPageProps) {
     const payload = { version: 1, exported_at: new Date().toISOString(), settings: { account: accountName, shortcutSend } };
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
-    const anchor = document.createElement("a"); anchor.href = url; anchor.download = "bloomery-settings.json"; anchor.click(); URL.revokeObjectURL(url);
+    const anchor = document.createElement("a"); anchor.href = url; anchor.download = "suna-settings.json"; anchor.click(); URL.revokeObjectURL(url);
     setNotice(t("settingsExported"));
   };
   const importSettings = async (file: File) => {
@@ -296,56 +296,56 @@ export default function SettingsPage({ onOpenDiagnostics }: SettingsPageProps) {
   };
 
   return (
-    <section className="bloomery-settings bloomery-page-surface" aria-labelledby="settings-heading">
-      <header className="bloomery-settings-header">
+    <section className="suna-settings suna-page-surface" aria-labelledby="settings-heading">
+      <header className="suna-settings-header">
         <div>
           <h1 id="settings-heading">{t("settingsTitle")}</h1>
         </div>
-        <div className="bloomery-settings-header-actions">
+        <div className="suna-settings-header-actions">
           <LanguageSelect />
           {onOpenDiagnostics && (
             <button
               type="button"
-              className="bloomery-action-secondary bloomery-settings-diagnostics-button"
+              className="suna-action-secondary suna-settings-diagnostics-button"
               onClick={onOpenDiagnostics}
             >
               <Activity size={16} aria-hidden="true" />
               {t("settingsDiagnostics")}
             </button>
           )}
-          <button type="button" className="bloomery-icon-button" onClick={() => void load()} disabled={loading} aria-label={t("settingsRefresh")} title={t("settingsRefresh")}>
+          <button type="button" className="suna-icon-button" onClick={() => void load()} disabled={loading} aria-label={t("settingsRefresh")} title={t("settingsRefresh")}>
             <Settings2 size={18} aria-hidden="true" />
           </button>
         </div>
       </header>
 
-      {error && <div className="bloomery-settings-alert" role="alert"><AlertCircle size={17} aria-hidden="true" /><span>{error}</span></div>}
-      {notice && <div className="bloomery-settings-notice" role="status"><Check size={17} aria-hidden="true" /><span>{notice}</span></div>}
-      <div className="bloomery-settings-toolbar">
+      {error && <div className="suna-settings-alert" role="alert"><AlertCircle size={17} aria-hidden="true" /><span>{error}</span></div>}
+      {notice && <div className="suna-settings-notice" role="status"><Check size={17} aria-hidden="true" /><span>{notice}</span></div>}
+      <div className="suna-settings-toolbar">
         <input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder={t("settingsSearchPlaceholder")} aria-label={t("settingsSearch")} />
-        <button type="button" className="bloomery-action-secondary" onClick={exportSettings}>{t("settingsExport")}</button>
-        <label className="bloomery-action-secondary">{t("settingsImport")}<input key={fileInputKey} type="file" accept="application/json" hidden onChange={(event) => { const file = event.target.files?.[0]; if (file) void importSettings(file); }} /></label>
-        <button type="button" className="bloomery-action-secondary" onClick={() => void resetPreferences()}>{t("settingsReset")}</button>
+        <button type="button" className="suna-action-secondary" onClick={exportSettings}>{t("settingsExport")}</button>
+        <label className="suna-action-secondary">{t("settingsImport")}<input key={fileInputKey} type="file" accept="application/json" hidden onChange={(event) => { const file = event.target.files?.[0]; if (file) void importSettings(file); }} /></label>
+        <button type="button" className="suna-action-secondary" onClick={() => void resetPreferences()}>{t("settingsReset")}</button>
       </div>
 
-      <div className="bloomery-settings-layout">
+      <div className="suna-settings-layout">
         <SettingsTabList tabs={visibleTabs} activeTab={activeTab} onSelect={setActiveTab} />
 
         <div role="tabpanel" id={`settings-panel-${activeTab}`} aria-labelledby={`settings-tab-${activeTab}`}>
         {activeTab === "account" && (
-          <section className="bloomery-settings-category">
+          <section className="suna-settings-category">
             <h2>{t("settingsCategoryAccount")}</h2>
             <p>{t("settingsAccountCopy")}</p>
-            <div className="bloomery-account-summary"><span className="bloomery-account-avatar">B</span><div><strong>{accountName}</strong><span>{t("localAccount")}</span></div></div>
-            <label className="bloomery-settings-field">{t("settingsAccountName")}<input value={accountName} onChange={(event) => setAccountName(event.target.value)} /></label>
-            <button type="button" className="bloomery-action-primary" onClick={() => void saveAccount()}>{t("settingsSave")}</button>
+            <div className="suna-account-summary"><span className="suna-account-avatar">B</span><div><strong>{accountName}</strong><span>{t("localAccount")}</span></div></div>
+            <label className="suna-settings-field">{t("settingsAccountName")}<input value={accountName} onChange={(event) => setAccountName(event.target.value)} /></label>
+            <button type="button" className="suna-action-primary" onClick={() => void saveAccount()}>{t("settingsSave")}</button>
           </section>
         )}
         {activeTab === "general" && (
-          <><SettingsPreferencesPanel mode="general" /><div className="bloomery-settings-safety"><KeyRound size={18} aria-hidden="true" /><div><strong>{t("settingsSecretTitle")}</strong><span>{t("settingsSecretCopy")}</span></div></div></>
+          <><SettingsPreferencesPanel mode="general" /><div className="suna-settings-safety"><KeyRound size={18} aria-hidden="true" /><div><strong>{t("settingsSecretTitle")}</strong><span>{t("settingsSecretCopy")}</span></div></div></>
         )}
         {activeTab === "appearance" && <SettingsPreferencesPanel mode="appearance" />}
-        {activeTab === "knowledge" && <section className="bloomery-settings-category"><h2>{t("settingsCategoryKnowledge")}</h2><p>{t("settingsKnowledgeCopy")}</p><KnowledgeDatabasePanel /><SettingsProvidersPanel plan={plan} loading={loading} editors={editors.filter((editor) => editor.slot !== "chat")} busySlot={busySlot} testingSlot={testingSlot} onChange={updateEditor} onSubmit={saveEditor} onTest={(editor) => void testEditor(editor)} onDelete={(editor) => void deleteEditor(editor)} onPlanChange={(nextPlan) => void changePlan(nextPlan)} /></section>}
+        {activeTab === "knowledge" && <section className="suna-settings-category"><h2>{t("settingsCategoryKnowledge")}</h2><p>{t("settingsKnowledgeCopy")}</p><KnowledgeDatabasePanel /><SettingsProvidersPanel plan={plan} loading={loading} editors={editors.filter((editor) => editor.slot !== "chat")} busySlot={busySlot} testingSlot={testingSlot} onChange={updateEditor} onSubmit={saveEditor} onTest={(editor) => void testEditor(editor)} onDelete={(editor) => void deleteEditor(editor)} onPlanChange={(nextPlan) => void changePlan(nextPlan)} /></section>}
         {activeTab === "agent" && <><SettingsAgentPanel /><PermissionRulesPanel rules={permissionRules} busyId={permissionBusyId} onRevoke={(rule) => void revokePermission(rule)} /></>}
         {activeTab === "mcp" && <McpServersPanel />}
         {activeTab === "skill" && <SettingsSkillsPanel />}
@@ -364,8 +364,8 @@ export default function SettingsPage({ onOpenDiagnostics }: SettingsPageProps) {
             onPlanChange={(nextPlan) => void changePlan(nextPlan)}
           />
         )}
-        {activeTab === "shortcuts" && <section className="bloomery-settings-category"><h2>{t("settingsCategoryShortcuts")}</h2><p>{t("settingsShortcutsCopy")}</p><label className="bloomery-settings-field">{t("settingsShortcutSend")}<select value={shortcutSend} onChange={(event) => void saveShortcut(event.target.value)}><option>Ctrl+Enter</option><option>Enter</option></select></label></section>}
-        {activeTab === "about" && <section className="bloomery-settings-category"><h2>{t("settingsCategoryAbout")}</h2><p>{t("settingsAboutCopy")}</p><dl className="bloomery-settings-about"><div><dt>{t("settingsVersion")}</dt><dd>{BLOOMERY_VERSION}</dd></div><div><dt>{t("settingsRuntime")}</dt><dd>Tauri Desktop</dd></div></dl></section>}
+        {activeTab === "shortcuts" && <section className="suna-settings-category"><h2>{t("settingsCategoryShortcuts")}</h2><p>{t("settingsShortcutsCopy")}</p><label className="suna-settings-field">{t("settingsShortcutSend")}<select value={shortcutSend} onChange={(event) => void saveShortcut(event.target.value)}><option>Ctrl+Enter</option><option>Enter</option></select></label></section>}
+        {activeTab === "about" && <section className="suna-settings-category"><h2>{t("settingsCategoryAbout")}</h2><p>{t("settingsAboutCopy")}</p><dl className="suna-settings-about"><div><dt>{t("settingsVersion")}</dt><dd>{SUNA_VERSION}</dd></div><div><dt>{t("settingsRuntime")}</dt><dd>Tauri Desktop</dd></div></dl></section>}
         </div>
       </div>
     </section>

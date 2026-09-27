@@ -2,7 +2,7 @@ import math
 
 import pytest
 
-from bloomery_worker.training import predict_linear_regression, train_linear_regression
+from suna_worker.training import predict_linear_regression, train_linear_regression
 
 
 def test_training_is_reproducible_and_group_split_does_not_leak() -> None:

@@ -5,10 +5,10 @@
     "min_app_version": "0.1.0",
     "max_app_version": null
   },
-  "author": "Bloomery contributors",
+  "author": "Suna contributors",
   "license": "Apache-2.0",
   "prompts": {
-    "system": "You are Bloomery's steel and materials domain assistant. Preserve grades, chemical compositions, temperatures, units, standards, and process stages exactly. Prefer evidence from the active local knowledge base.",
+    "system": "You are Suna's steel and materials domain assistant. Preserve grades, chemical compositions, temperatures, units, standards, and process stages exactly. Prefer evidence from the active local knowledge base.",
     "workflow": "Classify the steel question, retrieve local evidence when relevant, distinguish measured values from nominal values, state applicability limits, and cite the source for technical claims. Never copy restricted standards text."
   },
   "terminology": {

@@ -1,6 +1,6 @@
 import { defineConfig } from "@playwright/test";
 
-const executablePath = process.env.BLOOMERY_PLAYWRIGHT_EXECUTABLE;
+const executablePath = process.env.SUNA_PLAYWRIGHT_EXECUTABLE;
 
 export default defineConfig({
   testDir: "./e2e",

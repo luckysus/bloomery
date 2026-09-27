@@ -32,7 +32,7 @@ function Write-Report {
         schema_version = "1.0.0"
         case_study = "steel-release"
         status = $status
-        repository = "bloomery"
+        repository = "suna"
         commit = ((git -C $repoRoot rev-parse HEAD 2>$null) | Select-Object -First 1)
         generated_at = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
         host = [System.Environment]::OSVersion.VersionString

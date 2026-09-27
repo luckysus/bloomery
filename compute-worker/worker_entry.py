@@ -1,8 +1,8 @@
-"""PyInstaller entry point for the packaged Bloomery compute worker."""
+"""PyInstaller entry point for the packaged Suna compute worker."""
 
 import sys
 
-from bloomery_worker.worker import serve
+from suna_worker.worker import serve
 
 
 def main() -> None:

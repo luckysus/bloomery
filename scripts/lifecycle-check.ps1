@@ -106,12 +106,12 @@ if ($signature.Status -eq "NotSigned" -and -not $AllowUnsigned) {
     throw "-RunInstallerSmoke requires -AllowUnsigned for an unsigned engineering installer"
 }
 
-$tempRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("bloomery-lifecycle-" + [guid]::NewGuid().ToString("N"))
+$tempRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("suna-lifecycle-" + [guid]::NewGuid().ToString("N"))
 $unicodeInstallDirectoryName = -join ([char[]](0x5B89, 0x88C5, 0x8DEF, 0x5F84))
 $unicodeDataDirectoryName = -join ([char[]](0x7528, 0x6237, 0x6570, 0x636E))
 $installRoot = Join-Path $tempRoot $unicodeInstallDirectoryName
 $dataRoot = Join-Path $tempRoot $unicodeDataDirectoryName
-$oldBloomeryDataDir = $env:BLOOMERY_DATA_DIR
+$oldSunaDataDir = $env:SUNA_DATA_DIR
 
 try {
     if (-not (Test-Path -LiteralPath $tauriConfigPath -PathType Leaf)) {
@@ -129,27 +129,27 @@ try {
         throw "Installer exited with code $($installProcess.ExitCode)"
     }
 
-    $application = Get-ChildItem -LiteralPath $installRoot -Filter "Bloomery.exe" -File -Recurse | Select-Object -First 1
+    $application = Get-ChildItem -LiteralPath $installRoot -Filter "Suna.exe" -File -Recurse | Select-Object -First 1
     if ($null -eq $application) {
-        throw "Installed Bloomery.exe was not found under $installRoot"
+        throw "Installed Suna.exe was not found under $installRoot"
     }
 
-    $env:BLOOMERY_DATA_DIR = $dataRoot
+    $env:SUNA_DATA_DIR = $dataRoot
     $applicationProcess = Start-Process -FilePath $application.FullName -WorkingDirectory $installRoot -PassThru
     $applicationDataDirectory = $dataRoot
-    $databasePath = Join-Path $applicationDataDirectory "bloomery.sqlite3"
+    $databasePath = Join-Path $applicationDataDirectory "suna.sqlite3"
     if (-not (Wait-For-ApplicationReady -Process $applicationProcess -DatabasePath $databasePath -Phase "Installer smoke")) {
         if (-not $applicationProcess.HasExited) {
             Stop-Process -Id $applicationProcess.Id -Force
             $applicationProcess.WaitForExit(10000)
         }
         $exitCode = if ($applicationProcess.HasExited) { $applicationProcess.ExitCode } else { "unknown" }
-        throw "Bloomery did not create its app-data database at $databasePath (exit code $exitCode)"
+        throw "Suna did not create its app-data database at $databasePath (exit code $exitCode)"
     }
     if (-not $applicationProcess.HasExited) {
         Stop-Process -Id $applicationProcess.Id -Force
         if (-not $applicationProcess.WaitForExit(10000)) {
-            throw "Bloomery process did not exit after the lifecycle smoke stop request"
+            throw "Suna process did not exit after the lifecycle smoke stop request"
         }
     }
     $sentinelPath = Join-Path $applicationDataDirectory "retention-sentinel.txt"
@@ -175,10 +175,10 @@ try {
     Write-Output "Installer smoke passed: install, launch, app-data database creation, uninstall, Unicode path, and data retention."
 }
 finally {
-    if ($null -eq $oldBloomeryDataDir) {
-        Remove-Item Env:\BLOOMERY_DATA_DIR -ErrorAction SilentlyContinue
+    if ($null -eq $oldSunaDataDir) {
+        Remove-Item Env:\SUNA_DATA_DIR -ErrorAction SilentlyContinue
     } else {
-        $env:BLOOMERY_DATA_DIR = $oldBloomeryDataDir
+        $env:SUNA_DATA_DIR = $oldSunaDataDir
     }
     if (Test-Path -LiteralPath $tempRoot) {
         Remove-Item -LiteralPath $tempRoot -Recurse -Force

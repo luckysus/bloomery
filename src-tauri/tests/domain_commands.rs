@@ -6,13 +6,13 @@
 //! the repository functions the commands delegate to must return stable structures, and
 //! `commands.rs` must keep every domain command registered in the single handler module.
 
-use bloomery::app::domain_commands::DomainInstallResult;
-use bloomery::domains::{
+use suna::app::domain_commands::DomainInstallResult;
+use suna::domains::{
     install_package, load_package, resolve_resource_path, DomainTrust, DomainTrustStore,
     InstalledDomainPackage,
 };
-use bloomery::storage::migrations::migrate;
-use bloomery::storage::repositories::domains::{
+use suna::storage::migrations::migrate;
+use suna::storage::repositories::domains::{
     activate, impact, list, remove, upsert, DomainPackageRecord,
 };
 use rusqlite::Connection;
@@ -26,7 +26,7 @@ struct TempPackage(PathBuf);
 
 impl TempPackage {
     fn new() -> Self {
-        let root = std::env::temp_dir().join(format!("bloomery-domain-cmd-{}", Uuid::new_v4()));
+        let root = std::env::temp_dir().join(format!("suna-domain-cmd-{}", Uuid::new_v4()));
         fs::create_dir_all(root.join("assets")).expect("create package root");
         Self(root)
     }
@@ -55,7 +55,7 @@ fn valid_manifest() -> serde_json::Value {
         "id": "steel",
         "version": "1.0.0",
         "compatibility": {"min_app_version": "0.1.0", "max_app_version": null},
-        "author": "Bloomery contributors",
+        "author": "Suna contributors",
         "license": "Apache-2.0",
         "prompts": {"system": "Use steel terminology.", "workflow": "Cite the source."},
         "terminology": {"Q355B": "Chinese structural steel grade"},
@@ -363,7 +363,7 @@ fn install_package_blocks_path_traversal_and_marks_unsigned_third_party() {
 
     // A non-existent source is rejected before any filesystem mutation.
     let missing_root = TempPackage::new();
-    let missing_source = std::env::temp_dir().join(format!("bloomery-missing-{}", Uuid::new_v4()));
+    let missing_source = std::env::temp_dir().join(format!("suna-missing-{}", Uuid::new_v4()));
     assert!(
         install_package(
             &missing_source,

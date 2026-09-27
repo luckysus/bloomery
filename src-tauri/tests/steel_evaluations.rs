@@ -1,4 +1,4 @@
-use bloomery::steel::{parse_suite, run_rust_categories};
+use suna::steel::{parse_suite, run_rust_categories};
 use serde_json::json;
 use std::path::PathBuf;
 

@@ -41,9 +41,9 @@ export default function SettingsProviderCard({
   };
 
   return (
-    <form className="bloomery-settings-card" onSubmit={(event) => void onSubmit(event, editor)}>
-      <div className="bloomery-settings-card-heading"><div><span className="bloomery-settings-card-icon"><PlugZap size={17} aria-hidden="true" /></span><h2>{t(slotTitles[editor.slot])}</h2></div><span className={`bloomery-settings-status ${editor.secretConfigured ? "is-configured" : "is-missing"}`}>{editor.secretConfigured ? t("settingsSecretConfigured") : t("settingsSecretMissing")}</span></div>
-      <div className="bloomery-settings-fields">
+    <form className="suna-settings-card" onSubmit={(event) => void onSubmit(event, editor)}>
+      <div className="suna-settings-card-heading"><div><span className="suna-settings-card-icon"><PlugZap size={17} aria-hidden="true" /></span><h2>{t(slotTitles[editor.slot])}</h2></div><span className={`suna-settings-status ${editor.secretConfigured ? "is-configured" : "is-missing"}`}>{editor.secretConfigured ? t("settingsSecretConfigured") : t("settingsSecretMissing")}</span></div>
+      <div className="suna-settings-fields">
         {editor.slot === "chat" && (
           <>
             <label htmlFor="settings-chat-kind">{t("settingsProviderType")}</label>
@@ -73,11 +73,11 @@ export default function SettingsProviderCard({
         <label htmlFor={`settings-${editor.slot}-key`}>{t("settingsApiKey")}</label>
         <input id={`settings-${editor.slot}-key`} aria-label={`provider.${editor.slot}.apiKey`} type="password" autoComplete="new-password" value={editor.apiKey} onChange={(event) => update("apiKey", event.target.value)} placeholder={t("settingsApiKeyPlaceholder")} />
       </div>
-      <label className="bloomery-settings-enabled"><input type="checkbox" checked={editor.enabled} onChange={(event) => update("enabled", event.target.checked)} />{t("settingsEnabled")}</label>
-      <div className="bloomery-settings-card-actions">
-        <button type="submit" className="bloomery-action-primary" disabled={busy}><Save size={16} aria-hidden="true" />{busy ? t("saving") : t("settingsSave")}</button>
-        <button type="button" className="bloomery-action-secondary" onClick={() => void onTest(editor)} disabled={testing || busy}><PlugZap size={16} aria-hidden="true" />{testing ? t("testing") : t("settingsTest")}</button>
-        {editor.id && <button type="button" className="bloomery-icon-button bloomery-settings-delete" onClick={() => void onDelete(editor)} disabled={busy} aria-label={`${t("settingsDelete")} ${editor.displayName}`} title={t("settingsDelete")}><Trash2 size={16} aria-hidden="true" /></button>}
+      <label className="suna-settings-enabled"><input type="checkbox" checked={editor.enabled} onChange={(event) => update("enabled", event.target.checked)} />{t("settingsEnabled")}</label>
+      <div className="suna-settings-card-actions">
+        <button type="submit" className="suna-action-primary" disabled={busy}><Save size={16} aria-hidden="true" />{busy ? t("saving") : t("settingsSave")}</button>
+        <button type="button" className="suna-action-secondary" onClick={() => void onTest(editor)} disabled={testing || busy}><PlugZap size={16} aria-hidden="true" />{testing ? t("testing") : t("settingsTest")}</button>
+        {editor.id && <button type="button" className="suna-icon-button suna-settings-delete" onClick={() => void onDelete(editor)} disabled={busy} aria-label={`${t("settingsDelete")} ${editor.displayName}`} title={t("settingsDelete")}><Trash2 size={16} aria-hidden="true" /></button>}
       </div>
     </form>
   );

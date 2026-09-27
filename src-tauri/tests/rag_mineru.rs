@@ -1,22 +1,22 @@
-use bloomery::providers::capabilities::{
+use suna::providers::capabilities::{
     DocumentParseRequest, DocumentTaskState, DocumentTaskStatus, ParsedDocumentArtifact,
     RemoteTaskId,
 };
-use bloomery::providers::http::{ProviderError, ProviderErrorCode};
-use bloomery::rag::model::{DocumentVersionId, SourceDocumentId};
-use bloomery::rag::parse::{parse_mineru_artifact, DocumentBlock, ParseLimits};
-use bloomery::rag::tasks::{
+use suna::providers::http::{ProviderError, ProviderErrorCode};
+use suna::rag::model::{DocumentVersionId, SourceDocumentId};
+use suna::rag::parse::{parse_mineru_artifact, DocumentBlock, ParseLimits};
+use suna::rag::tasks::{
     decode_mineru_checkpoint, MinerUCheckpoint, MinerUPostprocessor, MinerUProcessFuture,
     MinerURemote, MinerURemoteFactory, MinerURemoteFuture, MinerUStage, MinerUTaskHandler,
     MinerUTaskPayload, MinerUUploadTicket, StoredObjectRef, TaskFinalization, MINERU_TASK_KIND,
 };
-use bloomery::storage::migrations::migrate;
-use bloomery::tasks::repository;
-use bloomery::tasks::scheduler::{
+use suna::storage::migrations::migrate;
+use suna::tasks::repository;
+use suna::tasks::scheduler::{
     Clock, EventSink, HandlerError, Scheduler, SchedulerConfig, SchedulerEvent, SystemClock,
     TaskHandler,
 };
-use bloomery::tasks::{NewTask, TaskState};
+use suna::tasks::{NewTask, TaskState};
 use chrono::{DateTime, Utc};
 use rusqlite::Connection;
 use sha2::{Digest, Sha256};
@@ -712,7 +712,7 @@ impl MinerUPostprocessor for FakePostprocessor {
         &self,
         workspace_id: String,
         _payload: MinerUTaskPayload,
-        _is_cancelled: bloomery::rag::tasks::CancellationCheck,
+        _is_cancelled: suna::rag::tasks::CancellationCheck,
     ) -> MinerUProcessFuture<String> {
         assert_eq!(workspace_id, "workspace-a");
         self.calls.lock().unwrap().push("embed");
@@ -752,7 +752,7 @@ struct TestWorkspace {
 
 impl TestWorkspace {
     fn new() -> Self {
-        let root = std::env::temp_dir().join(format!("bloomery-mineru-{}", Uuid::new_v4()));
+        let root = std::env::temp_dir().join(format!("suna-mineru-{}", Uuid::new_v4()));
         fs::create_dir_all(&root).expect("create test workspace");
         let database = root.join("tasks.sqlite3");
         let mut connection = Connection::open(&database).expect("open test database");
@@ -769,7 +769,7 @@ impl TestWorkspace {
         object
     }
 
-    fn create_task(&self, payload: MinerUTaskPayload) -> bloomery::tasks::TaskRecord {
+    fn create_task(&self, payload: MinerUTaskPayload) -> suna::tasks::TaskRecord {
         let checkpoint = MinerUCheckpoint::source_stored(payload.source.clone());
         self.create_task_with_checkpoint(payload, checkpoint)
     }
@@ -778,7 +778,7 @@ impl TestWorkspace {
         &self,
         payload: MinerUTaskPayload,
         checkpoint: MinerUCheckpoint,
-    ) -> bloomery::tasks::TaskRecord {
+    ) -> suna::tasks::TaskRecord {
         repository::create(
             &mut Connection::open(&self.database).unwrap(),
             NewTask {
@@ -793,7 +793,7 @@ impl TestWorkspace {
         .expect("create MinerU task")
     }
 
-    fn task(&self, id: Uuid) -> bloomery::tasks::TaskRecord {
+    fn task(&self, id: Uuid) -> suna::tasks::TaskRecord {
         repository::get(
             &Connection::open(&self.database).expect("open task database"),
             "workspace-a",

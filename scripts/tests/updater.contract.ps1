@@ -45,9 +45,9 @@ if ($build -match 'Unsigned release artifacts written' -and $build -notmatch '\$
     throw "build-release.ps1 must not label signed artifacts as unsigned"
 }
 foreach ($requiredText in @(
-    "BLOOMERY_UPDATER_PUBLIC_KEY",
-    "BLOOMERY_UPDATER_ENDPOINT",
-    "BLOOMERY_RELEASE_ASSET_BASE_URL",
+    "SUNA_UPDATER_PUBLIC_KEY",
+    "SUNA_UPDATER_ENDPOINT",
+    "SUNA_RELEASE_ASSET_BASE_URL",
     "generate-updater-manifest.ps1",
     "--config",
     "TAURI_SIGNING_PRIVATE_KEY"
@@ -57,14 +57,14 @@ foreach ($requiredText in @(
     }
 }
 
-$configFixtureRoot = Join-Path $env:TEMP ("bloomery-updater-config-" + [Guid]::NewGuid().ToString("N"))
+$configFixtureRoot = Join-Path $env:TEMP ("suna-updater-config-" + [Guid]::NewGuid().ToString("N"))
 $configFixturePath = Join-Path $configFixtureRoot "overlay.json"
 $configEnvironmentNames = @(
-    "BLOOMERY_UPDATER_PUBLIC_KEY",
-    "BLOOMERY_UPDATER_ENDPOINT",
-    "BLOOMERY_AUTHENTICODE_PFX_BASE64",
-    "BLOOMERY_AUTHENTICODE_PFX_PASSWORD",
-    "BLOOMERY_AUTHENTICODE_TIMESTAMP_URL"
+    "SUNA_UPDATER_PUBLIC_KEY",
+    "SUNA_UPDATER_ENDPOINT",
+    "SUNA_AUTHENTICODE_PFX_BASE64",
+    "SUNA_AUTHENTICODE_PFX_PASSWORD",
+    "SUNA_AUTHENTICODE_TIMESTAMP_URL"
 )
 $configEnvironmentSnapshot = @{}
 foreach ($name in $configEnvironmentNames) {
@@ -76,11 +76,11 @@ foreach ($name in $configEnvironmentNames) {
 }
 try {
     New-Item -ItemType Directory -Path $configFixtureRoot -Force | Out-Null
-    $env:BLOOMERY_UPDATER_PUBLIC_KEY = "test-public-key"
-    $env:BLOOMERY_UPDATER_ENDPOINT = "https://github.com/luckysus/bloomery/releases/latest/download/latest.json"
-    $env:BLOOMERY_AUTHENTICODE_PFX_BASE64 = "ZmFrZQ=="
-    $env:BLOOMERY_AUTHENTICODE_PFX_PASSWORD = "test-password"
-    $env:BLOOMERY_AUTHENTICODE_TIMESTAMP_URL = "http://timestamp.example.test"
+    $env:SUNA_UPDATER_PUBLIC_KEY = "test-public-key"
+    $env:SUNA_UPDATER_ENDPOINT = "https://github.com/luckysus/suna/releases/latest/download/latest.json"
+    $env:SUNA_AUTHENTICODE_PFX_BASE64 = "ZmFrZQ=="
+    $env:SUNA_AUTHENTICODE_PFX_PASSWORD = "test-password"
+    $env:SUNA_AUTHENTICODE_TIMESTAMP_URL = "http://timestamp.example.test"
     $timestampError = ""
     try {
         & $configScript -OutputPath $configFixturePath
@@ -122,14 +122,14 @@ try {
     }
 }
 
-$manifestFixtureRoot = Join-Path $env:TEMP ("bloomery-updater-manifest-" + [Guid]::NewGuid().ToString("N"))
-$manifestFixture = Join-Path $manifestFixtureRoot "Bloomery_0.1.0_x64-setup.exe"
+$manifestFixtureRoot = Join-Path $env:TEMP ("suna-updater-manifest-" + [Guid]::NewGuid().ToString("N"))
+$manifestFixture = Join-Path $manifestFixtureRoot "Suna_0.1.0_x64-setup.exe"
 $manifestFixtureSignature = $manifestFixture + ".sig"
-$msiManifestFixture = Join-Path $manifestFixtureRoot "Bloomery_0.1.0_x64.msi"
+$msiManifestFixture = Join-Path $manifestFixtureRoot "Suna_0.1.0_x64.msi"
 $msiManifestFixtureSignature = $msiManifestFixture + ".sig"
-$legacyManifestFixture = Join-Path $manifestFixtureRoot "Bloomery_0.1.0_x64.nsis.zip"
+$legacyManifestFixture = Join-Path $manifestFixtureRoot "Suna_0.1.0_x64.nsis.zip"
 $legacyManifestFixtureSignature = $legacyManifestFixture + ".sig"
-$legacyMsiManifestFixture = Join-Path $manifestFixtureRoot "Bloomery_0.1.0_x64.msi.zip"
+$legacyMsiManifestFixture = Join-Path $manifestFixtureRoot "Suna_0.1.0_x64.msi.zip"
 $legacyMsiManifestFixtureSignature = $legacyMsiManifestFixture + ".sig"
 $manifestFixtureOutput = Join-Path $manifestFixtureRoot "latest.json"
 try {
@@ -143,7 +143,7 @@ try {
     Set-Content -LiteralPath $legacyMsiManifestFixture -Value "legacy-msi-candidate" -Encoding ASCII
     Set-Content -LiteralPath $legacyMsiManifestFixtureSignature -Value "legacy-msi-test-signature" -Encoding ASCII
     $global:LASTEXITCODE = 0
-    & $manifestScript -ArtifactDirectory $manifestFixtureRoot -Version "0.1.0" -ReleaseBaseUrl "https://github.com/luckysus/bloomery/releases/download/v0.1.0" -OutputPath $manifestFixtureOutput
+    & $manifestScript -ArtifactDirectory $manifestFixtureRoot -Version "0.1.0" -ReleaseBaseUrl "https://github.com/luckysus/suna/releases/download/v0.1.0" -OutputPath $manifestFixtureOutput
     if ($LASTEXITCODE -ne 0) {
         throw "Updater manifest fixture failed with exit code $LASTEXITCODE"
     }
@@ -160,13 +160,13 @@ try {
     if ($null -eq $genericPlatform) {
         throw "Updater manifest fixture is missing the portable Windows platform fallback"
     }
-    if ($nsisPlatform.url -notmatch 'Bloomery_0\.1\.0_x64-setup\.exe$' -or $nsisPlatform.signature -ne 'test-signature') {
+    if ($nsisPlatform.url -notmatch 'Suna_0\.1\.0_x64-setup\.exe$' -or $nsisPlatform.signature -ne 'test-signature') {
         throw "Updater manifest fixture did not prefer the signed NSIS installer"
     }
-    if ($msiPlatform.url -notmatch 'Bloomery_0\.1\.0_x64\.msi$' -or $msiPlatform.signature -ne 'msi-test-signature') {
+    if ($msiPlatform.url -notmatch 'Suna_0\.1\.0_x64\.msi$' -or $msiPlatform.signature -ne 'msi-test-signature') {
         throw "Updater manifest fixture did not select the signed MSI installer"
     }
-    if ($genericPlatform.url -notmatch 'Bloomery_0\.1\.0_x64-setup\.exe$' -or $genericPlatform.signature -ne 'test-signature') {
+    if ($genericPlatform.url -notmatch 'Suna_0\.1\.0_x64-setup\.exe$' -or $genericPlatform.signature -ne 'test-signature') {
         throw "Updater manifest fixture did not use the signed NSIS installer for portable fallback"
     }
 
@@ -177,7 +177,7 @@ try {
         & $manifestScript `
             -ArtifactDirectory $manifestFixtureRoot `
             -Version "1.0" `
-            -ReleaseBaseUrl "https://github.com/luckysus/bloomery/releases/download/v1.0.0-test" `
+            -ReleaseBaseUrl "https://github.com/luckysus/suna/releases/download/v1.0.0-test" `
             -OutputPath $invalidVersionOutput
         if ($LASTEXITCODE -eq 0) {
             $invalidVersionAccepted = $true
@@ -198,7 +198,7 @@ try {
         & $manifestScript `
             -ArtifactDirectory $manifestFixtureRoot `
             -Version "0.1.0" `
-            -ReleaseBaseUrl "https://github.com/luckysus/bloomery/releases/download/v9.9.9" `
+            -ReleaseBaseUrl "https://github.com/luckysus/suna/releases/download/v9.9.9" `
             -OutputPath (Join-Path $manifestFixtureRoot "mismatched-base.json")
         if ($LASTEXITCODE -eq 0) {
             $mismatchedBaseAccepted = $true

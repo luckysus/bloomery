@@ -1,5 +1,5 @@
-use bloomery::agent::protocol::PermissionRisk;
-use bloomery::agent::tool_repair::{
+use suna::agent::protocol::PermissionRisk;
+use suna::agent::tool_repair::{
     repair_tool_call, repair_tool_call_with_retries, ToolRepairError, ToolSpec, MAX_REPAIR_RETRIES,
 };
 use serde_json::{json, Value};

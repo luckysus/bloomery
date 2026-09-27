@@ -1,9 +1,9 @@
-use bloomery::agent::protocol::{AgentEventData, AgentRunState};
-use bloomery::agent::session::model::{SessionSnapshot, StartRunRequest};
-use bloomery::agent::session::service::SessionService;
-use bloomery::models::ConversationSnapshotMessage;
-use bloomery::storage::migrations::migrate;
-use bloomery::storage::repositories::runs::{self, NewAgentRun};
+use suna::agent::protocol::{AgentEventData, AgentRunState};
+use suna::agent::session::model::{SessionSnapshot, StartRunRequest};
+use suna::agent::session::service::SessionService;
+use suna::models::ConversationSnapshotMessage;
+use suna::storage::migrations::migrate;
+use suna::storage::repositories::runs::{self, NewAgentRun};
 use chrono::{TimeZone, Utc};
 use rusqlite::{params, Connection};
 use uuid::Uuid;

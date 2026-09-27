@@ -1,3 +1,3 @@
 import packageManifest from "../package.json";
 
-export const BLOOMERY_VERSION = packageManifest.version;
+export const SUNA_VERSION = packageManifest.version;

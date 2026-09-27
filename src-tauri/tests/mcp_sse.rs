@@ -1,4 +1,4 @@
-use bloomery::mcp::{McpClientConfig, McpLegacySseConfig, McpSupervisor, McpTransportConfig};
+use suna::mcp::{McpClientConfig, McpLegacySseConfig, McpSupervisor, McpTransportConfig};
 use serde_json::{json, Value};
 use std::{
     collections::HashMap,
@@ -46,7 +46,7 @@ async fn legacy_sse_initializes_lists_tools_and_injects_auth() {
 #[tokio::test]
 async fn legacy_sse_reconnects_with_last_event_id() {
     let (url, state, server) = spawn_fixture(true).await;
-    let config = McpLegacySseConfig::new(url).with_sse(bloomery::mcp::McpSseConfig::new(
+    let config = McpLegacySseConfig::new(url).with_sse(suna::mcp::McpSseConfig::new(
         Some(2),
         Duration::from_millis(5),
     ));

@@ -1,5 +1,5 @@
-use bloomery::storage::migrations::migrate;
-use bloomery::storage::repositories::database_query_results::{
+use suna::storage::migrations::migrate;
+use suna::storage::repositories::database_query_results::{
     self, QueryResultRecord, QueryResultSummary,
 };
 use rusqlite::Connection;

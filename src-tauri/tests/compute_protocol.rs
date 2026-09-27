@@ -1,4 +1,4 @@
-use bloomery::compute::protocol::{
+use suna::compute::protocol::{
     encode_frame, parse_request, read_frame, write_frame, FrameError, WorkerRequest,
     PROTOCOL_VERSION,
 };
@@ -95,7 +95,7 @@ fn response_envelope_requires_the_current_protocol_version() {
     }))
     .expect("encode response");
 
-    let error = bloomery::compute::worker::read_response(&mut Cursor::new(bytes), "run-1")
+    let error = suna::compute::worker::read_response(&mut Cursor::new(bytes), "run-1")
         .expect_err("response with stale protocol metadata must be rejected");
     assert!(error.to_string().contains("protocol"));
 }

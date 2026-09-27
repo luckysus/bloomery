@@ -7,8 +7,8 @@ fn local_workspace_is_stable() {
 
 #[test]
 fn configured_data_directory_prefers_absolute_override() {
-    let default = std::env::temp_dir().join("bloomery-default-data");
-    let override_path = std::env::temp_dir().join("bloomery-override-data");
+    let default = std::env::temp_dir().join("suna-default-data");
+    let override_path = std::env::temp_dir().join("suna-override-data");
 
     let resolved = configured_data_directory(default, Some(override_path.clone()))
         .expect("absolute data directory override should be accepted");
@@ -19,7 +19,7 @@ fn configured_data_directory_prefers_absolute_override() {
 #[test]
 fn configured_data_directory_rejects_relative_override() {
     let result = configured_data_directory(
-        std::env::temp_dir().join("bloomery-default-data"),
+        std::env::temp_dir().join("suna-default-data"),
         Some(PathBuf::from("relative-data")),
     );
 
@@ -28,10 +28,10 @@ fn configured_data_directory_rejects_relative_override() {
 
 #[test]
 fn production_scheduler_registers_mineru_ingest_handler() {
-    let root = std::env::temp_dir().join(format!("bloomery-handlers-{}", uuid::Uuid::new_v4()));
+    let root = std::env::temp_dir().join(format!("suna-handlers-{}", uuid::Uuid::new_v4()));
     std::fs::create_dir_all(&root).expect("create handler root");
     let handlers =
-        rag_task_handlers_with_compute(root.join("bloomery.sqlite3"), root.clone(), None);
+        rag_task_handlers_with_compute(root.join("suna.sqlite3"), root.clone(), None);
 
     assert_eq!(handlers.len(), 10);
     assert!(handlers.iter().any(|handler| {

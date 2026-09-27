@@ -234,7 +234,7 @@ if ($Performance) {
 
 if ($Package) {
     $buildScript = Join-Path $PSScriptRoot "build-release.ps1"
-    $packageOutputPath = Join-Path $repoRoot ("artifacts\Bloomery-" + $tauriVersion + "-release-check-" + [Guid]::NewGuid().ToString("N"))
+    $packageOutputPath = Join-Path $repoRoot ("artifacts\Suna-" + $tauriVersion + "-release-check-" + [Guid]::NewGuid().ToString("N"))
     $packageArguments = @(
         "-NoProfile",
         "-ExecutionPolicy", "Bypass",
@@ -299,4 +299,4 @@ if ($WithE2E) {
     Invoke-Checked "Frontend end-to-end tests" "npm" @("run", "test:e2e") $frontendRoot
 }
 
-Write-Host ("Release checks passed for Bloomery " + $tauriVersion + ".")
+Write-Host ("Release checks passed for Suna " + $tauriVersion + ".")

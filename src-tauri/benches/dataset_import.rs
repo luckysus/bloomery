@@ -1,4 +1,4 @@
-use bloomery::steel::{preview_dataset, DatasetPreviewRequest};
+use suna::steel::{preview_dataset, DatasetPreviewRequest};
 use serde::Serialize;
 use sha2::{Digest, Sha256};
 use std::error::Error;
@@ -69,12 +69,12 @@ struct BenchmarkReport {
 
 fn main() -> AnyResult<()> {
     let root =
-        std::env::temp_dir().join(format!("bloomery-dataset-import-{}", uuid::Uuid::new_v4()));
+        std::env::temp_dir().join(format!("suna-dataset-import-{}", uuid::Uuid::new_v4()));
     fs::create_dir_all(&root)?;
     let result = run_benchmark(&root);
     cleanup(&root);
     let report = result?;
-    let output = std::env::var_os("BLOOMERY_BENCHMARK_OUTPUT")
+    let output = std::env::var_os("SUNA_BENCHMARK_OUTPUT")
         .map(PathBuf::from)
         .unwrap_or_else(|| PathBuf::from("target/dataset-import-benchmark.json"));
     if let Some(parent) = output.parent() {

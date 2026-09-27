@@ -1,5 +1,5 @@
-use bloomery::storage::migrations::migrate;
-use bloomery::tasks::cron_repository::{acknowledge, pending, schedule, tick};
+use suna::storage::migrations::migrate;
+use suna::tasks::cron_repository::{acknowledge, pending, schedule, tick};
 use chrono::{TimeZone, Utc};
 use rusqlite::Connection;
 

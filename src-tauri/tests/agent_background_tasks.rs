@@ -1,8 +1,8 @@
-use bloomery::agent::runtime::{
+use suna::agent::runtime::{
     BackgroundTasksTool, CancellationToken, ToolExecutor, ToolInvocation,
 };
-use bloomery::storage::migrations::migrate;
-use bloomery::tasks::{repository, NewTask, TaskState};
+use suna::storage::migrations::migrate;
+use suna::tasks::{repository, NewTask, TaskState};
 use rusqlite::Connection;
 use serde_json::{json, Value};
 use uuid::Uuid;
@@ -18,7 +18,7 @@ fn invocation(arguments: Value) -> ToolInvocation {
 
 #[test]
 fn background_queries_read_current_commits_and_keep_workspace_and_input_boundaries() {
-    let path = std::env::temp_dir().join(format!("bloomery-task-query-{}.sqlite3", Uuid::new_v4()));
+    let path = std::env::temp_dir().join(format!("suna-task-query-{}.sqlite3", Uuid::new_v4()));
     let mut writer = Connection::open(&path).unwrap();
     migrate(&mut writer).unwrap();
     let tool = BackgroundTasksTool::from_connection(&writer, "local").unwrap();

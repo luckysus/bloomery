@@ -125,7 +125,7 @@ mod tests {
 
     #[test]
     fn storage_health_reports_safe_database_and_disk_metadata() {
-        let path = std::env::temp_dir().join(format!("bloomery-health-{}.sqlite3", Uuid::new_v4()));
+        let path = std::env::temp_dir().join(format!("suna-health-{}.sqlite3", Uuid::new_v4()));
         let mut connection = Connection::open(&path).expect("open database");
         migrate(&mut connection).expect("migrate database");
 

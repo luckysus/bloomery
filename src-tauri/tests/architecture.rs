@@ -241,7 +241,7 @@ fn tauri_frontend_hooks_run_from_the_frontend_directory() {
     );
     assert!(
         config.contains(r#""devUrl": "http://127.0.0.1:1420""#),
-        "Tauri must use Bloomery's isolated development port"
+        "Tauri must use Suna's isolated development port"
     );
 }
 
@@ -259,11 +259,11 @@ fn release_build_declares_tauri_custom_protocol_feature() {
 }
 
 #[test]
-fn tauri_package_declares_bloomery_as_default_run_binary() {
+fn tauri_package_declares_suna_as_default_run_binary() {
     let cargo_manifest = source(manifest_dir().join("Cargo.toml"));
     assert!(
-        cargo_manifest.contains("default-run = \"bloomery\""),
-        "Cargo.toml must select bloomery as the Tauri application binary when helper binaries exist"
+        cargo_manifest.contains("default-run = \"suna\""),
+        "Cargo.toml must select suna as the Tauri application binary when helper binaries exist"
     );
 }
 

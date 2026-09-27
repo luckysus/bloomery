@@ -1,16 +1,16 @@
-use bloomery::providers::capabilities::EmbeddingResponse;
-use bloomery::rag::index::{EmbeddingRemote, EmbeddingRemoteFactory, EmbeddingRemoteFuture};
-use bloomery::rag::model::{
+use suna::providers::capabilities::EmbeddingResponse;
+use suna::rag::index::{EmbeddingRemote, EmbeddingRemoteFactory, EmbeddingRemoteFuture};
+use suna::rag::model::{
     DocumentVersionId, NewDocumentVersion, NewSourceDocument, SourceDocumentId, SourceLocation,
 };
-use bloomery::rag::parse::{DocumentBlock, ParsedDocument};
-use bloomery::rag::tasks::{
+use suna::rag::parse::{DocumentBlock, ParsedDocument};
+use suna::rag::tasks::{
     LocalRagPostprocessor, MinerUPostprocessor, MinerUTaskPayload, StoredObjectRef,
     TaskFinalization, MINERU_TASK_KIND,
 };
-use bloomery::storage::migrations::migrate;
-use bloomery::storage::repositories::knowledge;
-use bloomery::tasks::{repository as task_repository, NewTask, TaskState};
+use suna::storage::migrations::migrate;
+use suna::storage::repositories::knowledge;
+use suna::tasks::{repository as task_repository, NewTask, TaskState};
 use rusqlite::Connection;
 use sha2::{Digest, Sha256};
 use std::fs;
@@ -136,7 +136,7 @@ impl EmbeddingRemoteFactory for FakeEmbeddingFactory {
         _profile_id: Uuid,
         _expected_revision: u64,
         _expected_secret_generation: u64,
-    ) -> Result<Arc<dyn EmbeddingRemote>, bloomery::rag::index::EmbeddingError> {
+    ) -> Result<Arc<dyn EmbeddingRemote>, suna::rag::index::EmbeddingError> {
         assert_eq!(workspace_id, WORKSPACE);
         Ok(Arc::new(FakeEmbeddingRemote))
     }
@@ -170,9 +170,9 @@ struct PipelineFixture {
 
 impl PipelineFixture {
     fn new() -> Self {
-        let root = std::env::temp_dir().join(format!("bloomery-pipeline-{}", Uuid::new_v4()));
+        let root = std::env::temp_dir().join(format!("suna-pipeline-{}", Uuid::new_v4()));
         fs::create_dir_all(&root).unwrap();
-        let database = root.join("bloomery.sqlite3");
+        let database = root.join("suna.sqlite3");
         let mut connection = Connection::open(&database).unwrap();
         migrate(&mut connection).unwrap();
         Self { root, database }

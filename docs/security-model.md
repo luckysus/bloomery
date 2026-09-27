@@ -1,6 +1,6 @@
-# Bloomery Security Model
+# Suna Security Model
 
-Bloomery is a Windows-first, local-first desktop application. The security
+Suna is a Windows-first, local-first desktop application. The security
 boundary is enforced in the Rust host and the desktop bridge; the React UI is
 not treated as a security boundary.
 

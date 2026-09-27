@@ -1,4 +1,4 @@
-use bloomery::skills::{
+use suna::skills::{
     discover_skills, render_enabled_skills, render_relevant_skills, summarize_skills,
     SkillErrorCode, SkillRecord, SkillRoot, SkillScope, SkillSource,
 };
@@ -12,7 +12,7 @@ struct TempRoot(PathBuf);
 
 impl TempRoot {
     fn new() -> Self {
-        let path = std::env::temp_dir().join(format!("bloomery-skills-{}", Uuid::new_v4()));
+        let path = std::env::temp_dir().join(format!("suna-skills-{}", Uuid::new_v4()));
         fs::create_dir_all(&path).expect("create temporary skill root");
         Self(path)
     }
@@ -48,7 +48,7 @@ fn discovers_frontmatter_and_preserves_markdown_body() {
     write_skill(
         root_dir.path(),
         "steel-review",
-        "name: steel-review\ndescription: Review steel process data\nversion: 1.2.0\ntags: [steel, review]\ncompatibility: bloomery>=0.1.0",
+        "name: steel-review\ndescription: Review steel process data\nversion: 1.2.0\ntags: [steel, review]\ncompatibility: suna>=0.1.0",
         "# Review\n\nUse the local evidence before making a claim.",
     );
 
@@ -73,7 +73,7 @@ fn accepts_skill_frontmatter_without_optional_version() {
     write_skill(
         root_dir.path(),
         "minimal-frontmatter",
-        "name: minimal-frontmatter\ndescription: A reusable Bloomery Skill",
+        "name: minimal-frontmatter\ndescription: A reusable Suna Skill",
         "Follow the local evidence policy.",
     );
 
@@ -155,7 +155,7 @@ fn duplicate_skill_is_isolated_and_incompatible_skill_is_rejected() {
     write_skill(
         second.path(),
         "future",
-        "name: future\ndescription: Future\nversion: 1.0.0\ncompatibility: bloomery>=9.0.0",
+        "name: future\ndescription: Future\nversion: 1.0.0\ncompatibility: suna>=9.0.0",
         "future",
     );
 
@@ -215,11 +215,11 @@ fn enabled_skills_render_bounded_context_and_exact_versions() {
         description: "Review steel evidence".to_string(),
         version: "1.2.0".to_string(),
         tags: vec!["steel".to_string()],
-        compatibility: vec!["bloomery>=0.1.0".to_string()],
+        compatibility: vec!["suna>=0.1.0".to_string()],
         body: "Use the source document.\n".repeat(4_000),
         source: SkillSource {
             scope: SkillScope::User,
-            path: PathBuf::from("user/.bloomery/skills/steel-review/SKILL.md"),
+            path: PathBuf::from("user/.suna/skills/steel-review/SKILL.md"),
         },
         content_sha256: "abc123".to_string(),
     };
@@ -247,7 +247,7 @@ fn query_render_loads_only_matching_enabled_skills() {
         body: "Use steel evidence.".to_string(),
         source: SkillSource {
             scope: SkillScope::User,
-            path: PathBuf::from("user/.bloomery/skills/steel-review/SKILL.md"),
+            path: PathBuf::from("user/.suna/skills/steel-review/SKILL.md"),
         },
         content_sha256: "abc123".to_string(),
     };
@@ -260,7 +260,7 @@ fn query_render_loads_only_matching_enabled_skills() {
         body: "Improve prose.".to_string(),
         source: SkillSource {
             scope: SkillScope::User,
-            path: PathBuf::from("user/.bloomery/skills/writing-polish/SKILL.md"),
+            path: PathBuf::from("user/.suna/skills/writing-polish/SKILL.md"),
         },
         content_sha256: "def456".to_string(),
     };
@@ -285,7 +285,7 @@ fn skill_summaries_expose_state_without_skill_body() {
         body: "private prompt body".to_string(),
         source: SkillSource {
             scope: SkillScope::User,
-            path: PathBuf::from("user/.bloomery/skills/steel-review/SKILL.md"),
+            path: PathBuf::from("user/.suna/skills/steel-review/SKILL.md"),
         },
         content_sha256: "def456".to_string(),
     };

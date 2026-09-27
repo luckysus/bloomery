@@ -1,4 +1,4 @@
-# Bloomery 100k Steel Dataset Import Gate
+# Suna 100k Steel Dataset Import Gate
 
 ## Result
 
@@ -33,7 +33,7 @@ The generated CSV contains heat ID, grade, process, chemistry, temperature, mech
 
 ## Reproduce
 
-Run from the Bloomery repository root:
+Run from the Suna repository root:
 
 ```powershell
 powershell -File scripts/benchmark-dataset-import.ps1

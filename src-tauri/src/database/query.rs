@@ -33,7 +33,7 @@ pub fn normalize_query(sql: &str) -> Result<String, String> {
 
 /// 外层 TOP (n) + 派生表包装，使写操作在结构上不可能执行。
 pub fn wrap_query(sql: &str, row_limit: u64) -> String {
-    format!("SELECT TOP ({row_limit}) * FROM ({sql}) AS [_bloomery_query]")
+    format!("SELECT TOP ({row_limit}) * FROM ({sql}) AS [_suna_query]")
 }
 
 #[cfg(test)]
@@ -83,7 +83,7 @@ mod tests {
     fn wrap_forces_top_and_derived_table() {
         let wrapped = wrap_query("SELECT a FROM t", 500);
         assert!(wrapped.starts_with("SELECT TOP (500) * FROM ("));
-        assert!(wrapped.ends_with(") AS [_bloomery_query]"));
+        assert!(wrapped.ends_with(") AS [_suna_query]"));
         assert!(wrap_query("SELECT 1", 1).contains("TOP (1)"));
     }
 

@@ -15,22 +15,22 @@ export default function DatasetAnalysisResult({ analysis }: { analysis: DatasetA
   const { t } = useLocale();
   const columnNames = new Map(analysis.columns.map((column) => [column.ordinal, column.name]));
   return (
-    <section className="bloomery-dataset-analysis" data-testid="dataset-analysis-result" aria-labelledby="dataset-analysis-heading">
-      <div className="bloomery-section-heading">
+    <section className="suna-dataset-analysis" data-testid="dataset-analysis-result" aria-labelledby="dataset-analysis-heading">
+      <div className="suna-section-heading">
         <div>
           <h3 id="dataset-analysis-heading">{t("analysisDatasetAnalysisTitle")}</h3>
         </div>
         <BarChart3 size={19} aria-hidden="true" />
       </div>
-      <div className="bloomery-dataset-analysis-summary">
+      <div className="suna-dataset-analysis-summary">
         <div><span>{t("analysisDatasetAnalyzedRows")}</span><strong>{analysis.analyzedRowCount}</strong></div>
         <div><span>{t("analysisDatasetExcludedRows")}</span><strong>{analysis.excludedRowCount}</strong></div>
       </div>
       {analysis.warnings.length > 0 && (
-        <p className="bloomery-dataset-warning"><TriangleAlert size={15} aria-hidden="true" />{analysis.warnings.join("; ")}</p>
+        <p className="suna-dataset-warning"><TriangleAlert size={15} aria-hidden="true" />{analysis.warnings.join("; ")}</p>
       )}
-      <div className="bloomery-dataset-table-wrap">
-        <table className="bloomery-dataset-table bloomery-dataset-analysis-table">
+      <div className="suna-dataset-table-wrap">
+        <table className="suna-dataset-table suna-dataset-analysis-table">
           <thead>
             <tr>
               <th>{t("analysisDatasetColumn")}</th>
@@ -63,7 +63,7 @@ export default function DatasetAnalysisResult({ analysis }: { analysis: DatasetA
         </table>
       </div>
       {analysis.columns.some((column) => column.topValues.length > 0) && (
-        <div className="bloomery-dataset-top-values">
+        <div className="suna-dataset-top-values">
           <span>{t("analysisDatasetTopValues")}</span>
           {analysis.columns.filter((column) => column.topValues.length > 0).map((column) => (
             <p key={column.ordinal}><strong>{column.name}</strong> {column.topValues.map((item) => `${item.value} (${item.count})`).join(" · ")}</p>
@@ -71,16 +71,16 @@ export default function DatasetAnalysisResult({ analysis }: { analysis: DatasetA
         </div>
       )}
       {analysis.columns.some((column) => column.distribution.length > 0) && (
-        <div className="bloomery-dataset-distributions">
-          <div className="bloomery-dataset-subheading"><strong>{t("analysisDatasetDistribution")}</strong></div>
+        <div className="suna-dataset-distributions">
+          <div className="suna-dataset-subheading"><strong>{t("analysisDatasetDistribution")}</strong></div>
           {analysis.columns.filter((column) => column.distribution.length > 0).map((column) => {
             const peak = Math.max(...column.distribution.map((bin) => bin.count), 1);
             return (
-              <div className="bloomery-dataset-distribution" data-testid={`dataset-distribution-${column.ordinal}`} key={column.ordinal}>
-                <div className="bloomery-dataset-distribution-heading"><strong>{column.name}</strong><span>{column.unit ?? ""}</span></div>
-                <div className="bloomery-dataset-distribution-bars" role="img" aria-label={`${column.name} ${t("analysisDatasetDistribution")}`}>
+              <div className="suna-dataset-distribution" data-testid={`dataset-distribution-${column.ordinal}`} key={column.ordinal}>
+                <div className="suna-dataset-distribution-heading"><strong>{column.name}</strong><span>{column.unit ?? ""}</span></div>
+                <div className="suna-dataset-distribution-bars" role="img" aria-label={`${column.name} ${t("analysisDatasetDistribution")}`}>
                   {column.distribution.map((bin) => (
-                    <div className="bloomery-dataset-distribution-bin" key={`${bin.lowerBound}-${bin.upperBound}`} title={`${bin.lowerBound} - ${bin.upperBound}: ${bin.count}`}>
+                    <div className="suna-dataset-distribution-bin" key={`${bin.lowerBound}-${bin.upperBound}`} title={`${bin.lowerBound} - ${bin.upperBound}: ${bin.count}`}>
                       <span style={{ height: `${bin.count === 0 ? 0 : Math.max(8, (bin.count / peak) * 100)}%` }} />
                       <small>{bin.count}</small>
                     </div>
@@ -92,10 +92,10 @@ export default function DatasetAnalysisResult({ analysis }: { analysis: DatasetA
         </div>
       )}
       {analysis.groups.length > 0 && (
-        <div className="bloomery-dataset-group-summary">
-          <div className="bloomery-dataset-subheading"><strong>{t("analysisDatasetGroupSummary")}</strong></div>
-          <div className="bloomery-dataset-table-wrap">
-            <table className="bloomery-dataset-table">
+        <div className="suna-dataset-group-summary">
+          <div className="suna-dataset-subheading"><strong>{t("analysisDatasetGroupSummary")}</strong></div>
+          <div className="suna-dataset-table-wrap">
+            <table className="suna-dataset-table">
               <thead><tr><th>{t("analysisDatasetGroupKey")}</th><th>{t("analysisDatasetRows")}</th><th>{t("analysisDatasetGroupMetrics")}</th></tr></thead>
               <tbody>
                 {analysis.groups.map((group) => (
@@ -111,10 +111,10 @@ export default function DatasetAnalysisResult({ analysis }: { analysis: DatasetA
         </div>
       )}
       {analysis.correlations.length > 0 && (
-        <div className="bloomery-dataset-correlations">
-          <div className="bloomery-dataset-subheading"><strong>{t("analysisDatasetCorrelationResults")}</strong></div>
-          <div className="bloomery-dataset-table-wrap">
-            <table className="bloomery-dataset-table">
+        <div className="suna-dataset-correlations">
+          <div className="suna-dataset-subheading"><strong>{t("analysisDatasetCorrelationResults")}</strong></div>
+          <div className="suna-dataset-table-wrap">
+            <table className="suna-dataset-table">
               <thead><tr><th>{t("analysisDatasetCorrelationPair")}</th><th>{t("analysisDatasetSamples")}</th><th>{t("analysisDatasetPearson")}</th></tr></thead>
               <tbody>
                 {analysis.correlations.map((correlation) => (

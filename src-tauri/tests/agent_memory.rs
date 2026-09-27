@@ -1,11 +1,11 @@
-use bloomery::agent::context::{
+use suna::agent::context::{
     extract_memory_candidate, normalize_memory_key, MemoryCandidate, MemoryCandidateError,
     MemoryStatus, AUTO_MEMORY_WRITE_SETTING,
 };
-use bloomery::agent::session::{SessionService, StartRunRequest};
-use bloomery::models::MemoryInput;
-use bloomery::storage::migrations::migrate;
-use bloomery::storage::repositories::{memories, settings};
+use suna::agent::session::{SessionService, StartRunRequest};
+use suna::models::MemoryInput;
+use suna::storage::migrations::migrate;
+use suna::storage::repositories::{memories, settings};
 use chrono::Utc;
 use rusqlite::Connection;
 use uuid::Uuid;

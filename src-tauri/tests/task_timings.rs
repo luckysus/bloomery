@@ -1,6 +1,6 @@
-use bloomery::storage::migrations::migrate;
-use bloomery::tasks::model::{NewTask, TaskState};
-use bloomery::tasks::repository;
+use suna::storage::migrations::migrate;
+use suna::tasks::model::{NewTask, TaskState};
+use suna::tasks::repository;
 use rusqlite::Connection;
 
 const WORKSPACE: &str = "local";
@@ -11,7 +11,7 @@ fn database() -> Connection {
     connection
 }
 
-fn mineru_task(conn: &Connection) -> bloomery::tasks::TaskRecord {
+fn mineru_task(conn: &Connection) -> suna::tasks::TaskRecord {
     repository::create(
         conn,
         NewTask {

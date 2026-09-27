@@ -502,7 +502,7 @@ pub fn verify_worker_manifest(
                 "worker artifact manifest is invalid: {error}"
             ))
         })?;
-    if manifest.schema_version != "1.0.0" || manifest.artifact != "bloomery-compute-worker" {
+    if manifest.schema_version != "1.0.0" || manifest.artifact != "suna-compute-worker" {
         return Err(WorkerSupervisorError::InvalidConfig(
             "worker artifact manifest identity is invalid".to_string(),
         ));
@@ -637,7 +637,7 @@ mod tests {
     fn write_manifest(path: &Path, executable: &Path, hash: &str) {
         let manifest = serde_json::json!({
             "schema_version": "1.0.0",
-            "artifact": "bloomery-compute-worker",
+            "artifact": "suna-compute-worker",
             "executable": executable.file_name().unwrap().to_string_lossy(),
             "sha256": hash,
         });
@@ -647,9 +647,9 @@ mod tests {
     #[test]
     fn worker_manifest_accepts_the_declared_executable_hash() {
         let root =
-            std::env::temp_dir().join(format!("bloomery-worker-manifest-{}", uuid::Uuid::new_v4()));
+            std::env::temp_dir().join(format!("suna-worker-manifest-{}", uuid::Uuid::new_v4()));
         fs::create_dir_all(&root).unwrap();
-        let executable = root.join("bloomery-compute-worker.exe");
+        let executable = root.join("suna-compute-worker.exe");
         let manifest = root.join("worker-artifact-manifest.json");
         let bytes = b"trusted worker fixture";
         fs::write(&executable, bytes).unwrap();
@@ -664,9 +664,9 @@ mod tests {
     #[test]
     fn worker_manifest_rejects_a_tampered_executable() {
         let root =
-            std::env::temp_dir().join(format!("bloomery-worker-manifest-{}", uuid::Uuid::new_v4()));
+            std::env::temp_dir().join(format!("suna-worker-manifest-{}", uuid::Uuid::new_v4()));
         fs::create_dir_all(&root).unwrap();
-        let executable = root.join("bloomery-compute-worker.exe");
+        let executable = root.join("suna-compute-worker.exe");
         let manifest = root.join("worker-artifact-manifest.json");
         let original = b"trusted worker fixture";
         fs::write(&executable, original).unwrap();

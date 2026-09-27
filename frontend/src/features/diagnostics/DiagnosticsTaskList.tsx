@@ -32,14 +32,14 @@ export default function DiagnosticsTaskList({ tasks, busyTask, onRetry }: Diagno
   );
 
   return (
-    <section className="bloomery-diagnostics-tasks" aria-labelledby="diagnostics-tasks-heading">
-      <div className="bloomery-diagnostics-section-heading"><div><h2 id="diagnostics-tasks-heading">{t("diagnosticsTaskErrors")}</h2></div><HardDrive size={18} aria-hidden="true" /></div>
-      {failedTasks.length === 0 ? <p className="bloomery-diagnostics-empty">{t("diagnosticsNoTaskErrors")}</p> : (
-        <div className="bloomery-diagnostics-task-list">
+    <section className="suna-diagnostics-tasks" aria-labelledby="diagnostics-tasks-heading">
+      <div className="suna-diagnostics-section-heading"><div><h2 id="diagnostics-tasks-heading">{t("diagnosticsTaskErrors")}</h2></div><HardDrive size={18} aria-hidden="true" /></div>
+      {failedTasks.length === 0 ? <p className="suna-diagnostics-empty">{t("diagnosticsNoTaskErrors")}</p> : (
+        <div className="suna-diagnostics-task-list">
           {failedTasks.map((task) => (
-            <div className="bloomery-diagnostics-task" key={task.id}>
+            <div className="suna-diagnostics-task" key={task.id}>
               <div><strong>{taskLabel(task.kind, t)}</strong><span>{task.error_code ?? t(taskStateKeys[task.state])}</span></div>
-              <div className="bloomery-diagnostics-task-meta"><span>{t(taskStateKeys[task.state])}</span><button type="button" className="bloomery-action-secondary" onClick={() => onRetry(task)} disabled={!task.can_retry || busyTask === task.id}><RotateCcw size={15} aria-hidden="true" />{busyTask === task.id ? t("loading") : t("diagnosticsRetryTask")}</button></div>
+              <div className="suna-diagnostics-task-meta"><span>{t(taskStateKeys[task.state])}</span><button type="button" className="suna-action-secondary" onClick={() => onRetry(task)} disabled={!task.can_retry || busyTask === task.id}><RotateCcw size={15} aria-hidden="true" />{busyTask === task.id ? t("loading") : t("diagnosticsRetryTask")}</button></div>
             </div>
           ))}
         </div>

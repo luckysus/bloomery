@@ -67,10 +67,10 @@ function Assert-Installer {
 function Find-Application {
     param([Parameter(Mandatory = $true)][string]$InstallRoot)
 
-    $application = Get-ChildItem -LiteralPath $InstallRoot -Filter "Bloomery.exe" -File -Recurse |
+    $application = Get-ChildItem -LiteralPath $InstallRoot -Filter "Suna.exe" -File -Recurse |
         Select-Object -First 1
     if ($null -eq $application) {
-        throw "Installed Bloomery.exe was not found under $InstallRoot"
+        throw "Installed Suna.exe was not found under $InstallRoot"
     }
     $application
 }
@@ -124,7 +124,7 @@ function Stop-Application {
     if (-not $Process.HasExited) {
         Stop-Process -Id $Process.Id -Force
         if (-not $Process.WaitForExit(10000)) {
-            throw "Bloomery process did not exit after the lifecycle stop request"
+            throw "Suna process did not exit after the lifecycle stop request"
         }
     }
 }
@@ -143,9 +143,9 @@ function Install-And-Launch {
     }
     $application = Find-Application -InstallRoot $InstallRoot
 
-    $env:BLOOMERY_DATA_DIR = $DataRoot
+    $env:SUNA_DATA_DIR = $DataRoot
     $applicationProcess = Start-Process -FilePath $application.FullName -WorkingDirectory $InstallRoot -PassThru
-    $databasePath = Join-Path $DataRoot "bloomery.sqlite3"
+    $databasePath = Join-Path $DataRoot "suna.sqlite3"
     if (-not (Wait-For-ApplicationReady -Process $applicationProcess -DatabasePath $databasePath -Phase $Phase)) {
         Stop-Application -Process $applicationProcess
         $exitCode = if ($applicationProcess.HasExited) { $applicationProcess.ExitCode } else { "unknown" }
@@ -170,7 +170,7 @@ function Assert-DataPreserved {
         [Parameter(Mandatory = $true)][string]$Phase
     )
 
-    $databasePath = Join-Path $DataRoot "bloomery.sqlite3"
+    $databasePath = Join-Path $DataRoot "suna.sqlite3"
     $sentinelPath = Join-Path $DataRoot "retention-sentinel.txt"
     if (-not (Test-Path -LiteralPath $databasePath -PathType Leaf)) {
         throw "$Phase removed the application database"
@@ -206,12 +206,12 @@ if ($RunUpgradeDowngrade -and $oldInstaller.ProductVersion -eq $newInstaller.Pro
     throw "Upgrade/downgrade matrix requires distinct product versions"
 }
 $lifecycleRoot = Join-Path $repoRoot "artifacts\lifecycle-runs"
-$tempRoot = Join-Path $lifecycleRoot ("bloomery-lifecycle-matrix-" + [guid]::NewGuid().ToString("N"))
+$tempRoot = Join-Path $lifecycleRoot ("suna-lifecycle-matrix-" + [guid]::NewGuid().ToString("N"))
 $unicodeInstallDirectoryName = -join ([char[]](0x5B89, 0x88C5, 0x8DEF, 0x5F84))
 $unicodeDataDirectoryName = -join ([char[]](0x7528, 0x6237, 0x6570, 0x636E))
 $installRoot = Join-Path $tempRoot $unicodeInstallDirectoryName
 $dataRoot = Join-Path $tempRoot $unicodeDataDirectoryName
-$oldBloomeryDataDir = $env:BLOOMERY_DATA_DIR
+$oldSunaDataDir = $env:SUNA_DATA_DIR
 $results = [System.Collections.Generic.List[object]]::new()
 
 try {
@@ -266,10 +266,10 @@ try {
     }
 }
 finally {
-    if ($null -eq $oldBloomeryDataDir) {
-        Remove-Item Env:\BLOOMERY_DATA_DIR -ErrorAction SilentlyContinue
+    if ($null -eq $oldSunaDataDir) {
+        Remove-Item Env:\SUNA_DATA_DIR -ErrorAction SilentlyContinue
     } else {
-        $env:BLOOMERY_DATA_DIR = $oldBloomeryDataDir
+        $env:SUNA_DATA_DIR = $oldSunaDataDir
     }
     if (Test-Path -LiteralPath $tempRoot) {
         Remove-Item -LiteralPath $tempRoot -Recurse -Force

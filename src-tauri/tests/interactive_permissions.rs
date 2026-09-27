@@ -1,7 +1,7 @@
-use bloomery::agent::desktop::permission_key_for;
-use bloomery::agent::desktop::LocalAgentState;
-use bloomery::agent::protocol::{PermissionDecision, PermissionRisk};
-use bloomery::agent::runtime::{CancellationToken, PermissionRequest, PermissionResolver};
+use suna::agent::desktop::permission_key_for;
+use suna::agent::desktop::LocalAgentState;
+use suna::agent::protocol::{PermissionDecision, PermissionRisk};
+use suna::agent::runtime::{CancellationToken, PermissionRequest, PermissionResolver};
 use serde_json::json;
 use std::sync::{
     atomic::{AtomicBool, Ordering},

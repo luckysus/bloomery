@@ -227,21 +227,21 @@ export default function DatasetTrainingControls({ dataset }: Props) {
   };
 
   return (
-    <section className="bloomery-dataset-training" data-testid={`training-controls-${dataset.id}`} aria-labelledby={`training-heading-${dataset.id}`}>
-      <div className="bloomery-dataset-training-heading">
+    <section className="suna-dataset-training" data-testid={`training-controls-${dataset.id}`} aria-labelledby={`training-heading-${dataset.id}`}>
+      <div className="suna-dataset-training-heading">
         <div>
           <h3 id={`training-heading-${dataset.id}`}>{t("analysisTrainingTitle")}</h3>
         </div>
         <BrainCircuit size={18} aria-hidden="true" />
       </div>
-      <label className="bloomery-training-target">
+      <label className="suna-training-target">
         <span>{t("analysisTrainingTarget")}</span>
         <select data-testid={`training-target-${dataset.id}`} value={targetColumn === null ? "" : String(targetColumn)} onChange={(event) => changeTarget(event.target.value)} disabled={activeTask || trainingBlocked}>
           <option value="">{t("analysisTrainingChooseTarget")}</option>
           {numericColumns.map((column) => <option key={column.ordinal} value={column.ordinal}>{columnLabel(column.ordinal)}</option>)}
         </select>
       </label>
-      <label className="bloomery-training-target">
+      <label className="suna-training-target">
         <span>{t("analysisTrainingAlgorithm")}</span>
         <select
           data-testid={`training-algorithm-${dataset.id}`}
@@ -254,7 +254,7 @@ export default function DatasetTrainingControls({ dataset }: Props) {
           ))}
         </select>
       </label>
-      <fieldset className="bloomery-training-features">
+      <fieldset className="suna-training-features">
         <legend>{t("analysisTrainingFeatures")}</legend>
         <div>
           {numericColumns.filter((column) => column.ordinal !== targetColumn).map((column) => (
@@ -272,23 +272,23 @@ export default function DatasetTrainingControls({ dataset }: Props) {
           {numericColumns.length <= 1 && <span>{t("analysisTrainingNoFeatures")}</span>}
         </div>
       </fieldset>
-      {trainingBlocked && <p className="bloomery-analysis-error" data-testid={`training-truncated-${dataset.id}`}><TriangleAlert size={15} aria-hidden="true" />{t("analysisTrainingTruncated")}</p>}
-      <button className="bloomery-dataset-training-button" type="button" onClick={() => void train()} disabled={busy || activeTask || trainingBlocked}>
-        {busy ? <LoaderCircle className="bloomery-spin" size={16} aria-hidden="true" /> : <Play size={16} aria-hidden="true" />}
+      {trainingBlocked && <p className="suna-analysis-error" data-testid={`training-truncated-${dataset.id}`}><TriangleAlert size={15} aria-hidden="true" />{t("analysisTrainingTruncated")}</p>}
+      <button className="suna-dataset-training-button" type="button" onClick={() => void train()} disabled={busy || activeTask || trainingBlocked}>
+        {busy ? <LoaderCircle className="suna-spin" size={16} aria-hidden="true" /> : <Play size={16} aria-hidden="true" />}
         <span>{busy ? t("analysisTrainingStarting") : t("analysisTrainingStart")}</span>
       </button>
-      {error && <p className="bloomery-analysis-error" role="alert"><TriangleAlert size={15} aria-hidden="true" />{error}</p>}
-      {task && <output className="bloomery-training-task" data-testid={`training-task-${dataset.id}`}>
+      {error && <p className="suna-analysis-error" role="alert"><TriangleAlert size={15} aria-hidden="true" />{error}</p>}
+      {task && <output className="suna-training-task" data-testid={`training-task-${dataset.id}`}>
         <span>{task.id} - {t(taskStateKeys[task.state])} - {task.progress}%</span>
         {task.can_cancel && <button type="button" data-testid={`training-cancel-${dataset.id}`} onClick={() => void cancel()} disabled={actionBusy} aria-label={t("analysisTrainingCancel")} title={t("analysisTrainingCancel")}><Square size={14} aria-hidden="true" /><span>{actionBusy ? t("analysisTrainingCancelling") : t("analysisTrainingCancel")}</span></button>}
         {task.can_retry && <button type="button" data-testid={`training-retry-${dataset.id}`} onClick={() => void retry()} disabled={actionBusy} aria-label={t("analysisTrainingRetry")} title={t("analysisTrainingRetry")}><RotateCcw size={14} aria-hidden="true" /><span>{actionBusy ? t("analysisTrainingRetrying") : t("analysisTrainingRetry")}</span></button>}
       </output>}
-      {result && <section className="bloomery-training-result" data-testid={`training-result-${dataset.id}`} aria-labelledby={`training-result-heading-${dataset.id}`}>
-        <div className="bloomery-training-result-heading">
+      {result && <section className="suna-training-result" data-testid={`training-result-${dataset.id}`} aria-labelledby={`training-result-heading-${dataset.id}`}>
+        <div className="suna-training-result-heading">
           <div><h4 id={`training-result-heading-${dataset.id}`}>{t("analysisTrainingResult")}</h4></div>
           <Check size={16} aria-hidden="true" />
         </div>
-        <dl className="bloomery-training-result-details">
+        <dl className="suna-training-result-details">
           <div><dt>{t("analysisTrainingModel")}</dt><dd>{result.artifact.model_id}</dd></div>
           <div><dt>{t("analysisTrainingModelType")}</dt><dd>{result.artifact.model_type}</dd></div>
           <div><dt>{t("analysisTrainingFeatures")}</dt><dd>{result.artifact.feature_names.join(", ") || "-"}</dd></div>

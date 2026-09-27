@@ -316,7 +316,7 @@ mod tests {
 
     #[test]
     fn bundled_package_path_prefers_resource_and_reports_missing_resources() {
-        let root = std::env::temp_dir().join(format!("bloomery-bundled-domain-{}", Uuid::new_v4()));
+        let root = std::env::temp_dir().join(format!("suna-bundled-domain-{}", Uuid::new_v4()));
         let resource_dir = root.join("resource");
         let fallback = root.join("fallback");
         fs::create_dir_all(&fallback).expect("create fallback");
@@ -342,7 +342,7 @@ mod tests {
     #[test]
     fn bundled_package_path_supports_nested_windows_resource_layout() {
         let root =
-            std::env::temp_dir().join(format!("bloomery-bundled-domain-nested-{}", Uuid::new_v4()));
+            std::env::temp_dir().join(format!("suna-bundled-domain-nested-{}", Uuid::new_v4()));
         let resource_dir = root.join("resource");
         let nested = resource_dir
             .join("resources")
@@ -367,12 +367,12 @@ mod tests {
     #[test]
     fn bundled_package_candidates_normalize_tauri_device_resource_paths() {
         let candidates = bundled_steel_package_candidates(std::path::Path::new(
-            r"\\?\F:\steel-agent\bloomery\target\debug",
+            r"\\?\F:\steel-agent\suna\target\debug",
         ));
 
         assert_eq!(
             candidates[0],
-            PathBuf::from(r"F:\steel-agent\bloomery\target\debug\domain-packs\steel")
+            PathBuf::from(r"F:\steel-agent\suna\target\debug\domain-packs\steel")
         );
         assert!(
             !candidates[0].to_string_lossy().starts_with(r"\\?\"),

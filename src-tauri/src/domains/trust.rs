@@ -5,18 +5,18 @@ use ed25519_dalek::VerifyingKey;
 ///
 /// Key ids are versioned by year so that rotation appends a new trusted key
 /// instead of replacing the existing one: retiring a key means adding the new
-/// `bloomery-official-<year>` entry below while keeping older ids trusted for
+/// `suna-official-<year>` entry below while keeping older ids trusted for
 /// packages that were signed with them.
-const OFFICIAL_KEY_ID_2026: &str = "bloomery-official-2026";
+const OFFICIAL_KEY_ID_2026: &str = "suna-official-2026";
 
-/// Build the trust store seeded with the official Bloomery signing keys.
+/// Build the trust store seeded with the official Suna signing keys.
 ///
 /// Unsigned community packages remain installable as `ThirdPartyUnsigned`;
 /// only packages signed by one of the trusted official keys are promoted to
 /// `OfficialSigned`. Development builds without a provisioned public key
 /// intentionally trust no official package.
 pub fn official_trust_store() -> DomainTrustStore {
-    trust_store_from_hex(option_env!("BLOOMERY_OFFICIAL_PUBLIC_KEY_2026"))
+    trust_store_from_hex(option_env!("SUNA_OFFICIAL_PUBLIC_KEY_2026"))
 }
 
 fn trust_store_from_hex(value: Option<&str>) -> DomainTrustStore {

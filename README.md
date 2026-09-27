@@ -1,16 +1,16 @@
 <div align="center">
 
-![Bloomery](docs/assets/bloomery-banner.png)
+![Suna](docs/assets/suna-banner.png)
 
-<h1>Bloomery</h1>
+<h1>Suna</h1>
 
 **Windows 优先、本地优先的钢铁与材料工程智能体工作台。**
 
 简体中文 · [English](README.en.md)
 
-[GitHub](https://github.com/luckysus/bloomery) · [Gitee](https://gitee.com/neusu/bloomery)
+[GitHub](https://github.com/luckysus/suna) · [Gitee](https://gitee.com/neusu/suna)
 
-[![质量检查](https://github.com/luckysus/bloomery/actions/workflows/quality.yml/badge.svg)](https://github.com/luckysus/bloomery/actions/workflows/quality.yml)
+[![质量检查](https://github.com/luckysus/suna/actions/workflows/quality.yml/badge.svg)](https://github.com/luckysus/suna/actions/workflows/quality.yml)
 ![许可证](https://img.shields.io/badge/license-Apache--2.0-blue)
 ![平台](https://img.shields.io/badge/platform-Windows%2010-0078D4)
 ![桌面框架](https://img.shields.io/badge/Tauri-2-FFC131)
@@ -21,17 +21,17 @@
 
 > **项目状态**
 >
-> Bloomery 正处于公开发布前的工程开发阶段。`main` 分支提供可运行的开发构建，但不是已发布的稳定版安装包。
+> Suna 正处于公开发布前的工程开发阶段。`main` 分支提供可运行的开发构建，但不是已发布的稳定版安装包。
 
 ## 为材料工程而生
 
-Bloomery 是面向钢铁、材料和工业研发场景的桌面智能体工作台。它将本地对话、文档解析、检索与引用、生产数据分析和受控工具执行整合到同一个工作区。
+Suna 是面向钢铁、材料和工业研发场景的桌面智能体工作台。它将本地对话、文档解析、检索与引用、生产数据分析和受控工具执行整合到同一个工作区。
 
 它不是通用聊天壳：你可以使用自己的模型和服务，把会话、知识库、索引、任务与记忆保留在自己的电脑上，并让每个结论尽可能回到原始文档、页码、表格或数据来源。
 
 ## 核心能力
 
-- **本地工作区**：打开客户端即进入工作台；模型与检索服务可在设置页按需配置，不要求注册 Bloomery 账号。
+- **本地工作区**：打开客户端即进入工作台；模型与检索服务可在设置页按需配置，不要求注册 Suna 账号。
 - **用户自选模型**：支持 OpenAI 兼容接口与 Ollama；Embedding、重排和文档解析服务由用户自行配置。
 - **本地知识库**：导入 PDF、Markdown、TXT、HTML、DOCX、CSV 与 XLSX，构建本地检索与证据引用。
 - **上下文与记忆**：围绕会话、任务、摘要、草稿和长期记忆组织 Agent 的工作上下文。
@@ -54,8 +54,8 @@ SiliconFlow 的免费版和 Pro 版由用户自行选择。API Key 通过设置�
 开发环境需要 Windows 10、Node.js 20/22/24、Rust stable、Visual Studio Build Tools（`Desktop development with C++`）、WebView2 Runtime、Git 与 Tauri 2 的 Windows 前置依赖。
 
 ```powershell
-git clone https://github.com/luckysus/bloomery.git
-Set-Location bloomery/frontend
+git clone https://github.com/luckysus/suna.git
+Set-Location suna/frontend
 npm install
 npm run build
 
@@ -73,7 +73,7 @@ cargo install tauri-cli --version "^2"
 
 ## 本地数据、隐私与网络
 
-Bloomery 将 `bloomery.sqlite3` 存放在操作系统应用数据目录，而不是仓库目录。会话、消息、摘要、记忆、设置、知识库元数据和任务状态默认保留在本机。
+Suna 将 `suna.sqlite3` 存放在操作系统应用数据目录，而不是仓库目录。会话、消息、摘要、记忆、设置、知识库元数据和任务状态默认保留在本机。
 
 “本地优先”不等于自动离线：当你启用云端 LLM、SiliconFlow、MinerU 或 MCP 时，相应请求会发送到你配置或启用的服务。当前版本不包含应用内自动更新；应用升级由用户手动安装新的 Windows 10 构建包。
 
@@ -94,4 +94,4 @@ Bloomery 将 `bloomery.sqlite3` 存放在操作系统应用数据目录，而不
 
 ## 许可证
 
-Bloomery 使用 Apache License 2.0。完整条款见 [LICENSE](LICENSE)，相关声明见 [NOTICE](NOTICE)。
+Suna 使用 Apache License 2.0。完整条款见 [LICENSE](LICENSE)，相关声明见 [NOTICE](NOTICE)。

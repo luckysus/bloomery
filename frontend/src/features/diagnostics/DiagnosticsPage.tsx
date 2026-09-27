@@ -178,7 +178,7 @@ export default function DiagnosticsPage() {
     try {
       const selected = await desktop.saveFileDialog({
         title: t("diagnosticsExport"),
-        defaultPath: "bloomery-diagnostics.json",
+        defaultPath: "suna-diagnostics.json",
         filters: [{ name: t("diagnosticsExportFile"), extensions: ["json"] }],
       });
       if (typeof selected !== "string" || !selected.trim()) return;
@@ -198,8 +198,8 @@ export default function DiagnosticsPage() {
     try {
       const selected = await desktop.saveFileDialog({
         title: t("diagnosticsBackupExport"),
-        defaultPath: "bloomery.bloomery-backup",
-        filters: [{ name: t("diagnosticsBackupFile"), extensions: ["bloomery-backup"] }],
+        defaultPath: "suna.suna-backup",
+        filters: [{ name: t("diagnosticsBackupFile"), extensions: ["suna-backup"] }],
       });
       if (typeof selected !== "string" || !selected.trim()) return;
       await desktop.createBackup(selected);
@@ -220,7 +220,7 @@ export default function DiagnosticsPage() {
         directory: false,
         multiple: false,
         title: t("diagnosticsBackupRestore"),
-        filters: [{ name: t("diagnosticsBackupFile"), extensions: ["bloomery-backup", "zip"] }],
+        filters: [{ name: t("diagnosticsBackupFile"), extensions: ["suna-backup", "zip"] }],
       });
       if (typeof selected !== "string" || !selected.trim()) return;
       const preview = await desktop.previewBackup(selected);
@@ -243,7 +243,7 @@ export default function DiagnosticsPage() {
   const storage = snapshot.storage;
 
   return (
-    <section className="bloomery-diagnostics bloomery-page-surface" aria-labelledby="diagnostics-heading" aria-busy={loading}>
+    <section className="suna-diagnostics suna-page-surface" aria-labelledby="diagnostics-heading" aria-busy={loading}>
       <DiagnosticsHeader
         loading={loading}
         busy={busyBackup}
@@ -253,11 +253,11 @@ export default function DiagnosticsPage() {
         onRestoreBackup={() => void restoreBackup()}
       />
 
-      {error && <div className="bloomery-diagnostics-alert" role="alert"><AlertCircle size={17} aria-hidden="true" /><span>{error}</span></div>}
-      {notice && <div className="bloomery-diagnostics-notice" role="status"><Check size={17} aria-hidden="true" /><span>{notice}</span></div>}
+      {error && <div className="suna-diagnostics-alert" role="alert"><AlertCircle size={17} aria-hidden="true" /><span>{error}</span></div>}
+      {notice && <div className="suna-diagnostics-notice" role="status"><Check size={17} aria-hidden="true" /><span>{notice}</span></div>}
 
       {loading && !storage ? (
-        <div className="bloomery-diagnostics-loading"><LoaderCircle size={18} className="bloomery-spin" />{t("loading")}</div>
+        <div className="suna-diagnostics-loading"><LoaderCircle size={18} className="suna-spin" />{t("loading")}</div>
       ) : (
         <>
           <DiagnosticsHealthGrid
@@ -275,7 +275,7 @@ export default function DiagnosticsPage() {
             onRetry={(task) => void retryTask(task)}
           />
 
-          <aside className="bloomery-diagnostics-privacy"><Check size={17} aria-hidden="true" /><div><strong>{t("diagnosticsPrivacyTitle")}</strong><span>{t("diagnosticsPrivacyCopy")}</span></div></aside>
+          <aside className="suna-diagnostics-privacy"><Check size={17} aria-hidden="true" /><div><strong>{t("diagnosticsPrivacyTitle")}</strong><span>{t("diagnosticsPrivacyCopy")}</span></div></aside>
         </>
       )}
     </section>

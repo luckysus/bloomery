@@ -6,10 +6,10 @@ from pathlib import Path
 
 import pytest
 
-from bloomery_worker.protocol import encode_frame, read_frame
+from suna_worker.protocol import encode_frame, read_frame
 
 DIST_ROOT = Path(__file__).resolve().parents[1] / "dist"
-EXECUTABLE = DIST_ROOT / "bloomery-compute-worker.exe"
+EXECUTABLE = DIST_ROOT / "suna-compute-worker.exe"
 MANIFEST = DIST_ROOT / "worker-artifact-manifest.json"
 
 
@@ -61,7 +61,7 @@ def test_packaged_worker_runs_hello_and_shutdown_without_system_python() -> None
 def test_artifact_manifest_records_versions_hash_and_unsigned_marker() -> None:
     manifest = json.loads(MANIFEST.read_text(encoding="utf-8-sig"))
     assert manifest["schema_version"] == "1.0.0"
-    assert manifest["artifact"] == "bloomery-compute-worker"
+    assert manifest["artifact"] == "suna-compute-worker"
     assert len(manifest["sha256"]) == 64
     assert manifest["signature"] == "unsigned-explicit"
     assert manifest["private_urls"] == []
@@ -69,5 +69,5 @@ def test_artifact_manifest_records_versions_hash_and_unsigned_marker() -> None:
     names = [component["name"] for component in manifest["packages"]]
     assert "onnxruntime" in names
     assert "scikit-learn" in names
-    checksum = (DIST_ROOT / "bloomery-compute-worker.sha256").read_text(encoding="utf-8-sig")
+    checksum = (DIST_ROOT / "suna-compute-worker.sha256").read_text(encoding="utf-8-sig")
     assert checksum.strip().startswith(manifest["sha256"])

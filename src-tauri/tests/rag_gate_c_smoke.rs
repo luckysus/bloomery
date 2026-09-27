@@ -1,11 +1,11 @@
-use bloomery::rag::citation::{persist_evidence_pack, resolve_citation, RetrievalConfigSnapshot};
-use bloomery::rag::index::lifecycle::{build_hnsw, open_hnsw};
-use bloomery::rag::index::rebuild::{index_root, load_index_snapshot, IndexRebuildRequest};
-use bloomery::rag::ingest::SourceFormat;
-use bloomery::rag::model::KnowledgeBaseId;
-use bloomery::rag::parse::{parse_document, DocumentBlock, ParseLimits};
-use bloomery::rag::retrieve::{retrieve, HybridSearchRequest, RetrievedChunk};
-use bloomery::storage::migrations::migrate;
+use suna::rag::citation::{persist_evidence_pack, resolve_citation, RetrievalConfigSnapshot};
+use suna::rag::index::lifecycle::{build_hnsw, open_hnsw};
+use suna::rag::index::rebuild::{index_root, load_index_snapshot, IndexRebuildRequest};
+use suna::rag::ingest::SourceFormat;
+use suna::rag::model::KnowledgeBaseId;
+use suna::rag::parse::{parse_document, DocumentBlock, ParseLimits};
+use suna::rag::retrieve::{retrieve, HybridSearchRequest, RetrievedChunk};
+use suna::storage::migrations::migrate;
 use rusqlite::{params, Connection};
 use sha2::{Digest, Sha256};
 use std::fs;
@@ -20,7 +20,7 @@ const MODEL_ID: &str = "BAAI/bge-m3";
 
 #[test]
 fn pdf_citation_and_hnsw_survive_restart() {
-    let root = std::env::temp_dir().join(format!("bloomery-gate-c-{}", uuid::Uuid::new_v4()));
+    let root = std::env::temp_dir().join(format!("suna-gate-c-{}", uuid::Uuid::new_v4()));
     fs::create_dir_all(&root).unwrap();
     let pdf = root.join("standard.pdf");
     fs::write(
@@ -39,7 +39,7 @@ endstream endobj
         block => panic!("unexpected PDF block: {block:?}"),
     };
 
-    let database = root.join("bloomery.sqlite3");
+    let database = root.join("suna.sqlite3");
     let mut connection = Connection::open(&database).unwrap();
     migrate(&mut connection).unwrap();
     seed_pdf_chunk(&connection, &text, &location);
@@ -86,7 +86,7 @@ endstream endobj
 
 fn search(
     connection: &Connection,
-    index: &dyn bloomery::rag::index::vector::VectorIndex,
+    index: &dyn suna::rag::index::vector::VectorIndex,
 ) -> Vec<RetrievedChunk> {
     let hits = retrieve(
         connection,
@@ -125,7 +125,7 @@ fn config() -> RetrievalConfigSnapshot {
 fn seed_pdf_chunk(
     connection: &Connection,
     text: &str,
-    location: &bloomery::rag::model::SourceLocation,
+    location: &suna::rag::model::SourceLocation,
 ) {
     connection
         .execute(

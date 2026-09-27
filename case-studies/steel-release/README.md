@@ -1,4 +1,4 @@
-# Bloomery Steel Release Case Study
+# Suna Steel Release Case Study
 
 This directory contains a small, repository-authored steel dataset used to
 exercise the public release case study.
@@ -9,7 +9,7 @@ All rows and values were authored for deterministic software testing.
 
 The package is released under Apache-2.0. It contains no copied standards text,
 restricted publication content, personal data, or credentials. Standard
-identifiers and general terminology are tracked separately in the Bloomery
+identifiers and general terminology are tracked separately in the Suna
 steel domain package source ledger.
 
 `provenance.json` records the license, synthetic-data declaration, restricted

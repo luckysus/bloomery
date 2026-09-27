@@ -26,6 +26,7 @@ import {
   X,
 } from "lucide-react";
 import { useLocale } from "../../i18n/locale";
+import type { SectionId } from "../../app/navigation";
 import type { Conversation, Message } from "../../bridge/desktop";
 import type { PermissionDecision } from "../../bridge/generated/protocol";
 import AIAnswerRenderer from "../../components/answer/AnswerRenderer";
@@ -105,10 +106,10 @@ function NativePermissionPanel({
   ];
 
   return (
-    <div className="bloomery-chat-permission-list" role="alert">
+    <div className="suna-chat-permission-list" role="alert">
       {pending.map((permission) => (
-        <div className="bloomery-chat-permission" key={permission.permissionId}>
-          <div className="bloomery-chat-permission-heading">
+        <div className="suna-chat-permission" key={permission.permissionId}>
+          <div className="suna-chat-permission-heading">
             <ShieldAlert size={16} aria-hidden="true" />
             <div>
               <strong>{t("permissionRequired")}</strong>
@@ -116,11 +117,11 @@ function NativePermissionPanel({
             </div>
           </div>
           <p>{permission.reason}</p>
-          <div className="bloomery-chat-permission-actions">
+          <div className="suna-chat-permission-actions">
             {actions.map(({ decision, label }) => (
               <button
                 type="button"
-                className={decision === "deny" ? "bloomery-action-secondary" : "bloomery-action-primary"}
+                className={decision === "deny" ? "suna-action-secondary" : "suna-action-primary"}
                 key={decision}
                 onClick={() => onResolve(permission.permissionId, decision)}
               >
@@ -157,27 +158,27 @@ function NativeRunStatus({
   if (settled && !hasPendingPermission && run.toolCalls.length === 0 && !canRetry && !canResume) return null;
 
   return (
-    <div className="bloomery-chat-inline-status" aria-live="polite">
-      <div className="bloomery-chat-inline-status-line">
-        <span className={`bloomery-chat-inline-status-state ${stateTone(run.state)}`}>
+    <div className="suna-chat-inline-status" aria-live="polite">
+      <div className="suna-chat-inline-status-line">
+        <span className={`suna-chat-inline-status-state ${stateTone(run.state)}`}>
           <Wrench size={13} aria-hidden="true" />
           {stateLabel(run.state, t)}
         </span>
         {run.toolCalls.length > 0 && <span>{t("agentToolCount", { count: run.toolCalls.length })}</span>}
         {run.taskProgress && <span>{run.taskProgress.kind} · {run.taskProgress.progress}%</span>}
         {canResume && (
-          <button type="button" className="bloomery-action-secondary" onClick={onResume}>
+          <button type="button" className="suna-action-secondary" onClick={onResume}>
             <Play size={13} aria-hidden="true" />{t("resumeAgentRun")}
           </button>
         )}
         {canRetry && (
-          <button type="button" className="bloomery-action-secondary" onClick={onRetry}>
+          <button type="button" className="suna-action-secondary" onClick={onRetry}>
             <RotateCcw size={13} aria-hidden="true" />{t("retryAgentRun")}
           </button>
         )}
       </div>
       {run.toolCalls.length > 0 && (
-        <div className="bloomery-chat-tool-trace" aria-label="Agent tools">
+        <div className="suna-chat-tool-trace" aria-label="Agent tools">
           {run.toolCalls.map((tool) => <span key={tool.toolCallId}>{tool.name} · {tool.progress}%</span>)}
         </div>
       )}
@@ -205,9 +206,9 @@ function NativeMessage({
   const evidence = responseEvidence(message);
   if (!isAssistant(message)) {
     return (
-      <div className="bloomery-chat-user-turn" data-agent-user-turn={index}>
-        <div className="bloomery-chat-user-bubble">{message.content}</div>
-        <div className="bloomery-chat-message-actions">
+      <div className="suna-chat-user-turn" data-agent-user-turn={index}>
+        <div className="suna-chat-user-bubble">{message.content}</div>
+        <div className="suna-chat-message-actions">
           <button type="button" aria-label="复制消息" title="复制消息" onClick={() => void copyText(message.content)}>
             <Copy size={15} aria-hidden="true" />
           </button>
@@ -221,13 +222,13 @@ function NativeMessage({
 
   const confirmations = response?.pending_confirmations ?? [];
   return (
-    <article className="bloomery-chat-assistant-turn" aria-label="Bloomery">
-      <div className="bloomery-chat-answer ai-markdown-body">
+    <article className="suna-chat-assistant-turn" aria-label="Suna">
+      <div className="suna-chat-answer ai-markdown-body">
         <AIAnswerRenderer answer={message.content} literatureResults={[]} />
       </div>
       {response && (response.context_status.memory_count > 0 || response.context_status.skill_count > 0 || response.context_status.tool_count > 0) && (
-        <div className="bloomery-chat-inline-status" aria-label={response.context_status ? "本轮上下文" : undefined}>
-          <div className="bloomery-chat-inline-status-line">
+        <div className="suna-chat-inline-status" aria-label={response.context_status ? "本轮上下文" : undefined}>
+          <div className="suna-chat-inline-status-line">
             {response.context_status.memory_count > 0 && <span>{response.context_status.memory_count} 条记忆</span>}
             {response.context_status.skill_count > 0 && <span>{response.context_status.skill_count} 个技能</span>}
             {response.context_status.tool_count > 0 && <span>{response.context_status.tool_count} 个工具</span>}
@@ -236,17 +237,17 @@ function NativeMessage({
       )}
       {evidence && <CitationPanel auditId={evidence.auditId} evidence={evidence.evidence} />}
       {response?.follow_up_questions.length ? (
-        <div className="bloomery-chat-inline-status" aria-label="需要补充的信息">
+        <div className="suna-chat-inline-status" aria-label="需要补充的信息">
           <strong>需要补充的信息</strong>
-          <div className="bloomery-chat-permission-actions">
+          <div className="suna-chat-permission-actions">
             {response.follow_up_questions.map((question) => (
-              <button type="button" className="bloomery-action-secondary" key={question} onClick={() => onFollowUp(question)}>{question}</button>
+              <button type="button" className="suna-action-secondary" key={question} onClick={() => onFollowUp(question)}>{question}</button>
             ))}
           </div>
         </div>
       ) : null}
       {response?.recommendations.length ? (
-        <div className="bloomery-chat-inline-status" aria-label="推荐方案">
+        <div className="suna-chat-inline-status" aria-label="推荐方案">
           <strong>推荐方案</strong>
           <div className="grid gap-3 xl:grid-cols-2">
             {response.recommendations.map((item, index) => <WebRecommendationCard key={`${item.title}-${index}`} item={item} />)}
@@ -254,7 +255,7 @@ function NativeMessage({
         </div>
       ) : null}
       {confirmations.length > 0 && (
-        <div className="bloomery-chat-inline-status">
+        <div className="suna-chat-inline-status">
           <WebConfirmDialog
             confirmations={confirmations}
             onConfirm={(item: WebPendingConfirmation, approved) => onResolvePermission(item.action_id, approved ? "allow_once" : "deny")}
@@ -262,7 +263,7 @@ function NativeMessage({
         </div>
       )}
       {!loading && <WebFeedback messageId={message.id} />}
-      <div className="bloomery-chat-message-actions">
+      <div className="suna-chat-message-actions">
         <button type="button" aria-label="复制回答" title="复制回答" onClick={() => void copyText(message.content)}>
           <Copy size={15} aria-hidden="true" />
         </button>
@@ -278,7 +279,7 @@ function conversationTitle(conversation: Conversation) {
 export default function DesktopChatWorkspace({
   onOpenSection: _onOpenSection,
   ...controller
-}: ChatControllerProps & { onOpenSection?: (section: "workbench" | "chat" | "knowledge" | "databases" | "analysis" | "extensions" | "settings" | "diagnostics") => void }) {
+}: ChatControllerProps & { onOpenSection?: (section: SectionId) => void }) {
   const { t } = useLocale();
   const [search, setSearch] = useState("");
   const [renamingId, setRenamingId] = useState<string | null>(null);
@@ -347,15 +348,15 @@ export default function DesktopChatWorkspace({
   };
 
   return (
-    <section className="bloomery-chat" aria-label="本地智能体对话">
-      <aside className="bloomery-chat-sidebar" aria-label={t("conversationList")}>
-        <div className="bloomery-chat-sidebar-actions">
-          <button type="button" className="bloomery-chat-sidebar-action is-primary" onClick={() => void controller.onNewConversation()}>
+    <section className="suna-chat" aria-label="本地智能体对话">
+      <aside className="suna-chat-sidebar" aria-label={t("conversationList")}>
+        <div className="suna-chat-sidebar-actions">
+          <button type="button" className="suna-chat-sidebar-action is-primary" onClick={() => void controller.onNewConversation()}>
             <MessageSquarePlus size={17} aria-hidden="true" />
             <span>{t("newConversation")}</span>
           </button>
         </div>
-        <label className="bloomery-chat-search">
+        <label className="suna-chat-search">
           <Search size={15} aria-hidden="true" />
           <input
             type="search"
@@ -366,17 +367,17 @@ export default function DesktopChatWorkspace({
           />
           {search && <button type="button" aria-label="清除搜索" title="清除搜索" onClick={() => setSearch("")}><X size={14} /></button>}
         </label>
-        <p className="bloomery-chat-recent-heading">{t("chatRecent")}</p>
-        <div className="bloomery-chat-session-list">
+        <p className="suna-chat-recent-heading">{t("chatRecent")}</p>
+        <div className="suna-chat-session-list">
           {controller.loading ? (
-            <div className="bloomery-chat-list-state"><LoaderCircle size={16} className="bloomery-spin" />{t("loading")}</div>
+            <div className="suna-chat-list-state"><LoaderCircle size={16} className="suna-spin" />{t("loading")}</div>
           ) : conversations.length === 0 ? (
-            <div className="bloomery-chat-list-state">{search ? t("noMatchingConversations") : t("noLocalSessions")}</div>
+            <div className="suna-chat-list-state">{search ? t("noMatchingConversations") : t("noLocalSessions")}</div>
           ) : conversations.map((conversation) => (
-            <div className={`bloomery-chat-session-wrap ${conversation.id === controller.selectedId ? "is-active" : ""}`} key={conversation.id}>
+            <div className={`suna-chat-session-wrap ${conversation.id === controller.selectedId ? "is-active" : ""}`} key={conversation.id}>
               {renamingId === conversation.id ? (
                 <input
-                  className="bloomery-chat-session-rename"
+                  className="suna-chat-session-rename"
                   value={renamingTitle}
                   autoFocus
                   onChange={(event) => setRenamingTitle(event.target.value)}
@@ -390,21 +391,21 @@ export default function DesktopChatWorkspace({
               ) : (
                 <button
                   type="button"
-                  className={`bloomery-chat-session ${conversation.id === controller.selectedId ? "is-active" : ""}`}
+                  className={`suna-chat-session ${conversation.id === controller.selectedId ? "is-active" : ""}`}
                   onClick={() => controller.onSelectConversation(conversation.id)}
                 >
                   <span>{conversationTitle(conversation)}</span>
                 </button>
               )}
               {renamingId !== conversation.id && (
-                <div className={`bloomery-chat-session-actions ${menuId === conversation.id ? "is-visible" : ""}`}>
-                  <button type="button" className="bloomery-chat-session-action" aria-label="更多操作" title="更多操作" onClick={() => setMenuId(menuId === conversation.id ? null : conversation.id)}>
+                <div className={`suna-chat-session-actions ${menuId === conversation.id ? "is-visible" : ""}`}>
+                  <button type="button" className="suna-chat-session-action" aria-label="更多操作" title="更多操作" onClick={() => setMenuId(menuId === conversation.id ? null : conversation.id)}>
                     <MoreHorizontal size={15} aria-hidden="true" />
                   </button>
                 </div>
               )}
               {menuId === conversation.id && (
-                <div className="bloomery-chat-session-menu" role="menu">
+                <div className="suna-chat-session-menu" role="menu">
                   <button type="button" role="menuitem" onClick={() => void controller.onToggleConversationPinned(conversation)}>
                     {conversation.pinned ? <PinOff size={14} /> : <Pin size={14} />}{conversation.pinned ? "取消置顶" : "置顶聊天"}
                   </button>
@@ -416,39 +417,39 @@ export default function DesktopChatWorkspace({
             </div>
           ))}
         </div>
-        <p className="bloomery-sidebar-footer">{t("chatSidebarFooter")}</p>
+        <p className="suna-sidebar-footer">{t("chatSidebarFooter")}</p>
       </aside>
 
-      <main className="bloomery-chat-main">
-        <header className="bloomery-chat-header" style={{ justifyContent: "space-between" }}>
+      <main className="suna-chat-main">
+        <header className="suna-chat-header" style={{ justifyContent: "space-between" }}>
           <div>
-            <p className="bloomery-eyebrow">{t("steelRuntime")}</p>
+            <p className="suna-eyebrow">{t("steelRuntime")}</p>
             <h2>{controller.selectedConversation?.title ?? t("chatTitle")}</h2>
           </div>
-          <div className="bloomery-chat-header-actions">
-            <span className="bloomery-chat-runtime"><span className="bloomery-state-dot" />{t("localAgent")}</span>
+          <div className="suna-chat-header-actions">
+            <span className="suna-chat-runtime"><span className="suna-state-dot" />{t("localAgent")}</span>
             {controller.selectedConversation && (
               <>
-                <button type="button" className="bloomery-icon-button" aria-label={t("chatExportMarkdown")} title={t("chatExportMarkdown")} onClick={() => controller.onExportConversation("markdown")}><Download size={16} /></button>
-                <button type="button" className="bloomery-icon-button" aria-label={t("chatExportJson")} title={t("chatExportJson")} onClick={() => controller.onExportConversation("json")}><FileJson size={16} /></button>
+                <button type="button" className="suna-icon-button" aria-label={t("chatExportMarkdown")} title={t("chatExportMarkdown")} onClick={() => controller.onExportConversation("markdown")}><Download size={16} /></button>
+                <button type="button" className="suna-icon-button" aria-label={t("chatExportJson")} title={t("chatExportJson")} onClick={() => controller.onExportConversation("json")}><FileJson size={16} /></button>
               </>
             )}
           </div>
         </header>
 
         {(controller.error || controller.notice) && (
-          <div className="bloomery-chat-main-alerts">
-            {controller.error && <div className="bloomery-knowledge-alert" role="alert">{controller.error}</div>}
-            {controller.notice && <div className="bloomery-knowledge-notice" role="status">{controller.notice}</div>}
+          <div className="suna-chat-main-alerts">
+            {controller.error && <div className="suna-knowledge-alert" role="alert">{controller.error}</div>}
+            {controller.notice && <div className="suna-knowledge-notice" role="status">{controller.notice}</div>}
           </div>
         )}
 
-        <div ref={messagesRef} className="bloomery-chat-messages" aria-live="polite">
+        <div ref={messagesRef} className="suna-chat-messages" aria-live="polite">
           {controller.loadingMessages ? (
-            <div className="bloomery-chat-empty"><LoaderCircle size={20} className="bloomery-spin" /><span>{t("loading")}</span></div>
+            <div className="suna-chat-empty"><LoaderCircle size={20} className="suna-spin" /><span>{t("loading")}</span></div>
           ) : controller.messages.length === 0 && controller.pendingQuestion === null ? (
-            <div className="bloomery-chat-empty bloomery-chat-empty-large">
-              <span className="bloomery-chat-empty-icon"><Sparkles size={22} /></span>
+            <div className="suna-chat-empty suna-chat-empty-large">
+              <span className="suna-chat-empty-icon"><Sparkles size={22} /></span>
               <strong>{t("startSpecificQuestion")}</strong>
               <span>{t("exampleQuestion")}</span>
             </div>
@@ -473,11 +474,11 @@ export default function DesktopChatWorkspace({
               ))}
               {controller.pendingQuestion && (
                 <>
-                  <div className="bloomery-chat-user-turn" data-agent-user-turn="pending">
-                    <div className="bloomery-chat-user-bubble">{controller.pendingQuestion}</div>
+                  <div className="suna-chat-user-turn" data-agent-user-turn="pending">
+                    <div className="suna-chat-user-bubble">{controller.pendingQuestion}</div>
                   </div>
-                  <article className="bloomery-chat-assistant-turn is-streaming" aria-label="Bloomery">
-                    <div className="bloomery-chat-answer ai-markdown-body">
+                  <article className="suna-chat-assistant-turn is-streaming" aria-label="Suna">
+                    <div className="suna-chat-answer ai-markdown-body">
                       <AIAnswerRenderer answer={controller.agentRun?.assistantText || t("contextPreparing")} literatureResults={[]} />
                       {controller.agentRun?.assistantText && <span className="ai-typing-cursor" aria-hidden="true" />}
                     </div>
@@ -499,11 +500,11 @@ export default function DesktopChatWorkspace({
           />
         </div>
 
-        <form className="bloomery-chat-composer" data-testid="desktop-agent-composer" onSubmit={submit}>
+        <form className="suna-chat-composer" data-testid="desktop-agent-composer" onSubmit={submit}>
           {controller.attachments.length > 0 && (
             <div className="mb-2 flex flex-wrap gap-2" aria-label="已添加图片">
               {controller.attachments.map((attachment, index) => (
-                <div className="group/attachment relative h-16 w-16 overflow-hidden rounded-lg border border-[var(--bloomery-line)] bg-[var(--bloomery-bg-soft)]" key={`${attachment.name}-${index}`}>
+                <div className="group/attachment relative h-16 w-16 overflow-hidden rounded-lg border border-[var(--suna-line)] bg-[var(--suna-bg-soft)]" key={`${attachment.name}-${index}`}>
                   <img src={`data:${attachment.mime};base64,${attachment.data}`} alt={attachment.name} className="h-full w-full object-cover" />
                   <button type="button" className="absolute right-0.5 top-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-black/55 text-white" aria-label={`移除图片 ${attachment.name}`} title={`移除图片 ${attachment.name}`} onClick={() => controller.onAttachmentsChange(controller.attachments.filter((_, itemIndex) => itemIndex !== index))}><X size={12} /></button>
                 </div>
@@ -527,18 +528,18 @@ export default function DesktopChatWorkspace({
             rows={3}
             disabled={false}
           />
-          <div className="bloomery-chat-composer-footer">
-            <div className="bloomery-chat-composer-tools">
-              <button type="button" className={`bloomery-chat-composer-tool ${controller.smartSearchEnabled ? "is-active" : ""}`} aria-label="智能搜索" aria-pressed={controller.smartSearchEnabled} title="使用本地知识库检索" onClick={controller.onToggleSmartSearch} disabled={controller.pendingQuestion !== null}><Globe size={15} /><span>智能搜索</span></button>
-              <button type="button" className="bloomery-chat-composer-tool" aria-label="添加图片" title="添加图片" onClick={() => fileInputRef.current?.click()} disabled={controller.pendingQuestion !== null}><MessageSquarePlus size={15} /><span>图片</span></button>
+          <div className="suna-chat-composer-footer">
+            <div className="suna-chat-composer-tools">
+              <button type="button" className={`suna-chat-composer-tool ${controller.smartSearchEnabled ? "is-active" : ""}`} aria-label="智能搜索" aria-pressed={controller.smartSearchEnabled} title="使用本地知识库检索" onClick={controller.onToggleSmartSearch} disabled={controller.pendingQuestion !== null}><Globe size={15} /><span>智能搜索</span></button>
+              <button type="button" className="suna-chat-composer-tool" aria-label="添加图片" title="添加图片" onClick={() => fileInputRef.current?.click()} disabled={controller.pendingQuestion !== null}><MessageSquarePlus size={15} /><span>图片</span></button>
               <input ref={fileInputRef} type="file" accept="image/*" multiple hidden onChange={onFileInputChange} />
             </div>
-            <div className="bloomery-chat-composer-right">
+            <div className="suna-chat-composer-right">
               {controller.pendingQuestion !== null && (
                 <>
                   <button
                     type="button"
-                    className="bloomery-chat-composer-tool"
+                    className="suna-chat-composer-tool"
                     aria-label="追加消息"
                     title="在本轮结束后追加消息"
                     disabled={!controller.draft.trim()}
@@ -548,7 +549,7 @@ export default function DesktopChatWorkspace({
                   </button>
                   <button
                     type="button"
-                    className="bloomery-chat-composer-tool"
+                    className="suna-chat-composer-tool"
                     aria-label="转向当前运行"
                     title="转向当前运行"
                     disabled={!controller.draft.trim()}
@@ -558,10 +559,10 @@ export default function DesktopChatWorkspace({
                   </button>
                 </>
               )}
-              <div className="bloomery-chat-model-picker">
+              <div className="suna-chat-model-picker">
                 {modelMenuOpen && (
-                  <div className="bloomery-chat-model-menu" role="menu">
-                    {controller.chatProfiles.length === 0 ? <span className="bloomery-chat-model-empty">请先在设置中配置聊天模型</span> : controller.chatProfiles.map((profile) => (
+                  <div className="suna-chat-model-menu" role="menu">
+                    {controller.chatProfiles.length === 0 ? <span className="suna-chat-model-empty">请先在设置中配置聊天模型</span> : controller.chatProfiles.map((profile) => (
                       <button type="button" role="menuitem" className={profile.id === controller.activeChatProfileId ? "is-active" : ""} key={profile.id} onClick={() => { setModelMenuOpen(false); controller.onSelectChatProfile(profile.id); }}>
                         <span>{profile.model_id || profile.display_name}</span>
                         {profile.id === controller.activeChatProfileId && <Check size={14} />}
@@ -569,11 +570,11 @@ export default function DesktopChatWorkspace({
                     ))}
                   </div>
                 )}
-                <button type="button" className="bloomery-chat-model-button" aria-label="切换当前对话模型" title="切换当前对话模型" aria-expanded={modelMenuOpen} onClick={() => setModelMenuOpen((open) => !open)} disabled={controller.pendingQuestion !== null}>
+                <button type="button" className="suna-chat-model-button" aria-label="切换当前对话模型" title="切换当前对话模型" aria-expanded={modelMenuOpen} onClick={() => setModelMenuOpen((open) => !open)} disabled={controller.pendingQuestion !== null}>
                   <span>{selectedModel}</span><ChevronDown size={14} className={modelMenuOpen ? "is-open" : undefined} />
                 </button>
               </div>
-              <button type={controller.pendingQuestion ? "button" : "submit"} className={`bloomery-chat-send-button ${controller.pendingQuestion ? "is-stop" : ""}`} aria-label={controller.pendingQuestion ? t("stopGenerating") : t("send")} title={controller.pendingQuestion ? t("stopGenerating") : t("send")} disabled={!controller.pendingQuestion && !controller.draft.trim() && controller.attachments.length === 0} onClick={controller.pendingQuestion ? controller.onCancel : undefined}>
+              <button type={controller.pendingQuestion ? "button" : "submit"} className={`suna-chat-send-button ${controller.pendingQuestion ? "is-stop" : ""}`} aria-label={controller.pendingQuestion ? t("stopGenerating") : t("send")} title={controller.pendingQuestion ? t("stopGenerating") : t("send")} disabled={!controller.pendingQuestion && !controller.draft.trim() && controller.attachments.length === 0} onClick={controller.pendingQuestion ? controller.onCancel : undefined}>
                 {controller.pendingQuestion ? <Square size={15} fill="currentColor" /> : <ArrowUp size={20} strokeWidth={2.6} />}
               </button>
             </div>

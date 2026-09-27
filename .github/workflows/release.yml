@@ -1,4 +1,4 @@
-name: Bloomery release candidate
+name: Suna release candidate
 
 on:
   workflow_dispatch:
@@ -72,8 +72,8 @@ jobs:
       - name: Upload candidate artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: bloomery-release-candidate-${{ github.run_id }}
-          path: artifacts/Bloomery-*/
+          name: suna-release-candidate-${{ github.run_id }}
+          path: artifacts/Suna-*/
           if-no-files-found: error
           retention-days: 14
 
@@ -85,7 +85,7 @@ jobs:
     needs: windows-release-candidate
     runs-on: windows-latest
     timeout-minutes: 60
-    environment: bloomery-release
+    environment: suna-release
     permissions:
       contents: read
     steps:
@@ -157,14 +157,14 @@ jobs:
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-          BLOOMERY_OFFICIAL_PRIVATE_KEY_2026: ${{ secrets.BLOOMERY_OFFICIAL_PRIVATE_KEY_2026 }}
-          BLOOMERY_AUTHENTICODE_PFX_BASE64: ${{ secrets.BLOOMERY_AUTHENTICODE_PFX_BASE64 }}
-          BLOOMERY_AUTHENTICODE_PFX_PASSWORD: ${{ secrets.BLOOMERY_AUTHENTICODE_PFX_PASSWORD }}
-          BLOOMERY_AUTHENTICODE_TIMESTAMP_URL: ${{ vars.BLOOMERY_AUTHENTICODE_TIMESTAMP_URL }}
-          BLOOMERY_OFFICIAL_PUBLIC_KEY_2026: ${{ vars.BLOOMERY_OFFICIAL_PUBLIC_KEY_2026 }}
-          BLOOMERY_UPDATER_PUBLIC_KEY: ${{ vars.BLOOMERY_UPDATER_PUBLIC_KEY }}
-          BLOOMERY_UPDATER_ENDPOINT: https://github.com/luckysus/bloomery/releases/latest/download/latest.json
-          BLOOMERY_RELEASE_ASSET_BASE_URL: https://github.com/luckysus/bloomery/releases/download/${{ inputs.release_tag }}
+          SUNA_OFFICIAL_PRIVATE_KEY_2026: ${{ secrets.SUNA_OFFICIAL_PRIVATE_KEY_2026 }}
+          SUNA_AUTHENTICODE_PFX_BASE64: ${{ secrets.SUNA_AUTHENTICODE_PFX_BASE64 }}
+          SUNA_AUTHENTICODE_PFX_PASSWORD: ${{ secrets.SUNA_AUTHENTICODE_PFX_PASSWORD }}
+          SUNA_AUTHENTICODE_TIMESTAMP_URL: ${{ vars.SUNA_AUTHENTICODE_TIMESTAMP_URL }}
+          SUNA_OFFICIAL_PUBLIC_KEY_2026: ${{ vars.SUNA_OFFICIAL_PUBLIC_KEY_2026 }}
+          SUNA_UPDATER_PUBLIC_KEY: ${{ vars.SUNA_UPDATER_PUBLIC_KEY }}
+          SUNA_UPDATER_ENDPOINT: https://github.com/luckysus/suna/releases/latest/download/latest.json
+          SUNA_RELEASE_ASSET_BASE_URL: https://github.com/luckysus/suna/releases/download/${{ inputs.release_tag }}
           GITHUB_REF_TYPE: tag
           GITHUB_REF_NAME: ${{ inputs.release_tag }}
           RELEASE_TAG: ${{ inputs.release_tag }}
@@ -173,8 +173,8 @@ jobs:
       - name: Upload signed candidate artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: bloomery-signed-candidate-${{ github.run_id }}
-          path: artifacts/Bloomery-*/
+          name: suna-signed-candidate-${{ github.run_id }}
+          path: artifacts/Suna-*/
           if-no-files-found: error
           retention-days: 14
 
@@ -186,7 +186,7 @@ jobs:
     needs: signed-windows-release
     runs-on: windows-latest
     timeout-minutes: 15
-    environment: bloomery-release
+    environment: suna-release
     permissions:
       contents: write
     steps:
@@ -222,7 +222,7 @@ jobs:
       - name: Download verified signed artifacts
         uses: actions/download-artifact@v5
         with:
-          name: bloomery-signed-candidate-${{ github.run_id }}
+          name: suna-signed-candidate-${{ github.run_id }}
           path: artifacts
 
       - name: Validate release artifact set
@@ -318,5 +318,5 @@ jobs:
           $assets = @(Get-ChildItem -LiteralPath artifacts -File -Recurse | ForEach-Object { $_.FullName })
           gh release create $env:RELEASE_TAG @assets `
             --verify-tag `
-            --title "Bloomery $env:RELEASE_TAG" `
+            --title "Suna $env:RELEASE_TAG" `
             --generate-notes

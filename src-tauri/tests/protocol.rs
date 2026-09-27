@@ -1,12 +1,12 @@
-use bloomery::tasks::mailbox::{ProtocolMailboxMessage, ProtocolMessageKind};
-use bloomery::tasks::protocol::{ProtocolKind, ProtocolStatus, ProtocolStore};
+use suna::tasks::mailbox::{ProtocolMailboxMessage, ProtocolMessageKind};
+use suna::tasks::protocol::{ProtocolKind, ProtocolStatus, ProtocolStore};
 use chrono::{TimeZone, Utc};
 use std::fs;
 use uuid::Uuid;
 
 #[test]
 fn protocol_state_is_persistent_and_response_is_idempotent() {
-    let root = std::env::temp_dir().join(format!("bloomery-protocol-{}", Uuid::new_v4()));
+    let root = std::env::temp_dir().join(format!("suna-protocol-{}", Uuid::new_v4()));
     let now = Utc.with_ymd_and_hms(2026, 9, 21, 0, 0, 0).unwrap();
     let store = ProtocolStore::new(&root).unwrap();
     let request = store

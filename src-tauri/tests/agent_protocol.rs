@@ -1,4 +1,4 @@
-use bloomery::agent::protocol::{
+use suna::agent::protocol::{
     AgentError, AgentErrorCategory, AgentEventData, AgentEventEnvelope, AgentMessageRole,
     AgentRunState, ErrorRaised, EvidenceAttached, MessageCompleted, MessageDelta,
     PermissionDecision, PermissionRequested, PermissionResolved, PermissionRisk,

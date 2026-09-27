@@ -1,6 +1,6 @@
-use bloomery::storage::migrations::migrate;
-use bloomery::tasks::model::NewTask;
-use bloomery::tasks::sources::{create, AgentTaskSource};
+use suna::storage::migrations::migrate;
+use suna::tasks::model::NewTask;
+use suna::tasks::sources::{create, AgentTaskSource};
 use rusqlite::{params, Connection};
 use uuid::Uuid;
 

@@ -1,10 +1,10 @@
-use bloomery::rag::index::fts::{search, FtsSearchRequest};
-use bloomery::rag::model::{
+use suna::rag::index::fts::{search, FtsSearchRequest};
+use suna::rag::model::{
     ChunkId, EmbeddingIdentity, EmbeddingVectorBatch, KnowledgeBaseId, NewChunk,
     NewDocumentVersion, NewSourceDocument, SourceDocumentId, SourceLocation,
 };
-use bloomery::storage::migrations::migrate;
-use bloomery::storage::repositories::knowledge;
+use suna::storage::migrations::migrate;
+use suna::storage::repositories::knowledge;
 use rusqlite::Connection;
 
 const WORKSPACE: &str = "workspace-a";
@@ -297,7 +297,7 @@ impl Fixture {
         &self,
         query: &str,
         knowledge_base_ids: &[KnowledgeBaseId],
-    ) -> Vec<bloomery::rag::index::fts::FtsHit> {
+    ) -> Vec<suna::rag::index::fts::FtsHit> {
         search(
             &self.connection,
             &FtsSearchRequest {

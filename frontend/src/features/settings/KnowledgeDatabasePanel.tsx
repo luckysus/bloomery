@@ -13,7 +13,7 @@ const emptyHealth: KnowledgeDatabaseHealth = {
 const defaultConfig: KnowledgeDatabaseConfig = {
   host: "127.0.0.1",
   port: 5432,
-  database: "bloomery",
+  database: "suna",
   username: "postgres",
 };
 
@@ -74,7 +74,7 @@ export default function KnowledgeDatabasePanel() {
   };
 
   return (
-    <section className="bloomery-settings-databases" aria-busy={busy}>
+    <section className="suna-settings-databases" aria-busy={busy}>
       <div className="flex items-start justify-between gap-4">
         <div>
           <h2 className="flex items-center gap-2"><Database size={18} aria-hidden="true" /> PostgreSQL 知识库</h2>

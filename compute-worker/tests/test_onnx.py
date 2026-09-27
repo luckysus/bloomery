@@ -7,9 +7,9 @@ import pytest
 
 onnxruntime = pytest.importorskip("onnxruntime")
 
-from bloomery_worker.onnx_inference import OnnxInferenceError, predict_onnx
-from bloomery_worker.protocol import encode_frame, read_frame
-from bloomery_worker.worker import serve
+from suna_worker.onnx_inference import OnnxInferenceError, predict_onnx
+from suna_worker.protocol import encode_frame, read_frame
+from suna_worker.worker import serve
 
 
 def _model_path() -> Path:
@@ -92,7 +92,7 @@ def test_onnx_inference_rejects_a_model_hash_mismatch() -> None:
 
 
 def test_model_bytes_can_be_used_after_the_source_path_disappears(tmp_path: Path) -> None:
-    from bloomery_worker import onnx_inference
+    from suna_worker import onnx_inference
 
     path = tmp_path / "model.onnx"
     path.write_bytes(b"model-bytes")
@@ -240,7 +240,7 @@ def test_onnx_inference_rejects_confidence_declaration_without_ranges() -> None:
 
 
 def test_onnx_inference_chunks_large_batches_and_keeps_row_order(tmp_path: Path) -> None:
-    from bloomery_worker import onnx_inference
+    from suna_worker import onnx_inference
 
     path = _write_single_node_model(tmp_path, "Sqrt", 13)
     payload = _payload(path)

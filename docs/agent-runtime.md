@@ -1,6 +1,6 @@
-# Bloomery Agent Runtime
+# Suna Agent Runtime
 
-Bloomery 的桌面智能体由 Rust Runtime 拥有运行事实。React 只消费 `agent-event` 事件并通过 sequence replay 重建视图；`frontend/web-source` 不参与启动或运行。
+Suna 的桌面智能体由 Rust Runtime 拥有运行事实。React 只消费 `agent-event` 事件并通过 sequence replay 重建视图；`frontend/web-source` 不参与启动或运行。
 
 ## 运行边界
 
@@ -43,11 +43,11 @@ token 才用于系统提示、工具 Schema、当前请求和历史消息。发�
 在仓库根目录运行 `start-desktop.bat`。脚本启动 Tauri 桌面壳，入口是本地桌面智能体工作区。开发验证可以分别运行：
 
 ```powershell
-Set-Location F:\bloomery\frontend
+Set-Location F:\suna\frontend
 npm test -- --run
 npm run build
 
-Set-Location F:\bloomery\src-tauri
+Set-Location F:\suna\src-tauri
 cargo check
 cargo test
 ```

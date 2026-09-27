@@ -1,16 +1,16 @@
-use bloomery::app::compute_commands::logic::{
+use suna::app::compute_commands::logic::{
     optimization_task_status_on_connection, submit_optimization_on_connection,
     OptimizeSteelProcessRequest,
 };
-use bloomery::storage::migrations::migrate;
-use bloomery::tasks::model::NewTask;
-use bloomery::tasks::repository;
+use suna::storage::migrations::migrate;
+use suna::tasks::model::NewTask;
+use suna::tasks::repository;
 use rusqlite::Connection;
 use serde_json::json;
 
 fn migrated_database() -> (std::path::PathBuf, Connection) {
     let path = std::env::temp_dir().join(format!(
-        "bloomery-optimization-gateway-{}.sqlite3",
+        "suna-optimization-gateway-{}.sqlite3",
         uuid::Uuid::new_v4()
     ));
     let mut connection = Connection::open(&path).expect("open optimization database");

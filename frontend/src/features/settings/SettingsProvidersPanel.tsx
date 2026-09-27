@@ -29,17 +29,17 @@ export default function SettingsProvidersPanel({
   const { t } = useLocale();
   return (
     <>
-      <section className="bloomery-settings-plan" aria-labelledby="settings-plan-heading">
+      <section className="suna-settings-plan" aria-labelledby="settings-plan-heading">
         <div><h2 id="settings-plan-heading">{t("settingsPlanTitle")}</h2></div>
-        <fieldset className="bloomery-settings-plan-options">
+        <fieldset className="suna-settings-plan-options">
           <legend>{t("settingsPlanLabel")}</legend>
           <label><input type="radio" name="siliconflow-plan" checked={plan === "free"} onChange={() => onPlanChange("free")} aria-label={t("settingsPlanFree")} />{t("freePlan")}</label>
           <label><input type="radio" name="siliconflow-plan" checked={plan === "pro"} onChange={() => onPlanChange("pro")} aria-label={t("settingsPlanPro")} />{t("proPlan")}</label>
         </fieldset>
       </section>
 
-      {loading ? <div className="bloomery-settings-loading"><LoaderCircle size={18} className="bloomery-spin" />{t("loading")}</div> : (
-        <div className="bloomery-settings-grid">
+      {loading ? <div className="suna-settings-loading"><LoaderCircle size={18} className="suna-spin" />{t("loading")}</div> : (
+        <div className="suna-settings-grid">
           {editors.map((editor) => (
             <SettingsProviderCard
               key={editor.slot}
@@ -55,7 +55,7 @@ export default function SettingsProvidersPanel({
         </div>
       )}
 
-      <aside className="bloomery-settings-note"><CircleHelp size={17} aria-hidden="true" /><span>{t("settingsProviderNote")}</span></aside>
+      <aside className="suna-settings-note"><CircleHelp size={17} aria-hidden="true" /><span>{t("settingsProviderNote")}</span></aside>
     </>
   );
 }

@@ -1,6 +1,6 @@
-use bloomery::diagnostics::redaction::Redactor;
-use bloomery::providers::http::{ProviderError, ProviderErrorCode};
-use bloomery::storage::secrets::{SecretError, SecretRef, SecretStore, SecretValue};
+use suna::diagnostics::redaction::Redactor;
+use suna::providers::http::{ProviderError, ProviderErrorCode};
+use suna::storage::secrets::{SecretError, SecretRef, SecretStore, SecretValue};
 use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION};
 use reqwest::{StatusCode, Url};
 

@@ -206,7 +206,7 @@ fn validate_manifest(manifest: &DomainManifest, app_version: &str) -> Result<(),
     }
     if current < minimum || maximum.is_some_and(|value| current > value) {
         return Err(DomainError::Incompatible(format!(
-            "package requires Bloomery {}..{:?}",
+            "package requires Suna {}..{:?}",
             manifest.compatibility.min_app_version, manifest.compatibility.max_app_version
         )));
     }

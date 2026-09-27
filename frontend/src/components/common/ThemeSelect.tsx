@@ -17,18 +17,18 @@ export default function ThemeSelect() {
   const { preference, setPreference } = useTheme();
 
   return (
-    <section className="bloomery-theme-select" aria-labelledby="theme-heading">
-      <div className="bloomery-theme-select-heading">
+    <section className="suna-theme-select" aria-labelledby="theme-heading">
+      <div className="suna-theme-select-heading">
         <div>
           <h2 id="theme-heading">{t("themeTitle")}</h2>
         </div>
       </div>
-      <div className="bloomery-theme-options" role="group" aria-labelledby="theme-heading">
+      <div className="suna-theme-options" role="group" aria-labelledby="theme-heading">
         {options.map(({ value, labelKey, Icon }) => (
           <button
             key={value}
             type="button"
-            className={`bloomery-theme-option ${preference === value ? "is-selected" : ""}`}
+            className={`suna-theme-option ${preference === value ? "is-selected" : ""}`}
             aria-label={t(labelKey)}
             aria-pressed={preference === value}
             onClick={() => setPreference(value)}

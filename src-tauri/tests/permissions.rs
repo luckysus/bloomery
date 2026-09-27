@@ -1,8 +1,8 @@
-use bloomery::agent::protocol::{PermissionDecision, PermissionRisk};
-use bloomery::permissions::{
+use suna::agent::protocol::{PermissionDecision, PermissionRisk};
+use suna::permissions::{
     DenialReason, ParameterScope, PermissionAction, PermissionPolicy, PolicyDecision,
 };
-use bloomery::tools::{ConcurrencyPolicy, ToolDefinition, ToolId, ToolSource, ToolVersion};
+use suna::tools::{ConcurrencyPolicy, ToolDefinition, ToolId, ToolSource, ToolVersion};
 use serde_json::json;
 use std::collections::BTreeSet;
 use std::time::Duration;
@@ -32,7 +32,7 @@ fn request(
     policy: &mut PermissionPolicy,
     definition: &ToolDefinition,
     arguments: serde_json::Value,
-) -> bloomery::permissions::PermissionRequest {
+) -> suna::permissions::PermissionRequest {
     match policy.evaluate(definition, arguments) {
         PolicyDecision::RequireConfirmation(request) => request,
         other => panic!("expected confirmation request, got {other:?}"),

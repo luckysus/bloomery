@@ -954,7 +954,7 @@
       "type": "object"
     }
   },
-  "$id": "https://bloomery.dev/protocol/v1/event.schema.json",
+  "$id": "https://suna.dev/protocol/v1/event.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "allOf": [
     {
@@ -964,8 +964,8 @@
       "$ref": "#/$defs/agent_event_data"
     }
   ],
-  "description": "Versioned events emitted by the local-first Bloomery agent runtime.",
-  "title": "Bloomery Agent Event Envelope",
+  "description": "Versioned events emitted by the local-first Suna agent runtime.",
+  "title": "Suna Agent Event Envelope",
   "type": "object",
   "unevaluatedProperties": false
 }

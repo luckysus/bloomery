@@ -455,45 +455,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "bloomery"
-version = "1.0.0"
-dependencies = [
- "base64 0.22.1",
- "chrono",
- "chrono-tz",
- "cron",
- "dirs 5.0.1",
- "ed25519-dalek",
- "flate2",
- "futures-util",
- "hnsw_rs",
- "html5ever",
- "http",
- "keyring",
- "quick-xml",
- "reqwest 0.12.28",
- "reqwest 0.13.4",
- "rmcp",
- "rusqlite",
- "rustls",
- "serde",
- "serde_json",
- "sha2",
- "sqlx",
- "tauri",
- "tauri-build",
- "tauri-plugin-dialog",
- "tauri-plugin-shell",
- "tauri-plugin-single-instance",
- "tiberius",
- "tokio",
- "tokio-util",
- "uuid",
- "windows-sys 0.59.0",
- "zip",
-]
-
-[[package]]
 name = "brotli"
 version = "8.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5011,6 +4972,45 @@ name = "subtle"
 version = "2.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "13c2bddecc57b384dee18652358fb23172facb8a2c51ccc10d74c157bdea3292"
+
+[[package]]
+name = "suna"
+version = "1.0.0"
+dependencies = [
+ "base64 0.22.1",
+ "chrono",
+ "chrono-tz",
+ "cron",
+ "dirs 5.0.1",
+ "ed25519-dalek",
+ "flate2",
+ "futures-util",
+ "hnsw_rs",
+ "html5ever",
+ "http",
+ "keyring",
+ "quick-xml",
+ "reqwest 0.12.28",
+ "reqwest 0.13.4",
+ "rmcp",
+ "rusqlite",
+ "rustls",
+ "serde",
+ "serde_json",
+ "sha2",
+ "sqlx",
+ "tauri",
+ "tauri-build",
+ "tauri-plugin-dialog",
+ "tauri-plugin-shell",
+ "tauri-plugin-single-instance",
+ "tiberius",
+ "tokio",
+ "tokio-util",
+ "uuid",
+ "windows-sys 0.59.0",
+ "zip",
+]
 
 [[package]]
 name = "swift-rs"

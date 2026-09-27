@@ -1,5 +1,5 @@
-use bloomery::agent::runtime::{CancellationToken, ToolExecutor};
-use bloomery::steel::{
+use suna::agent::runtime::{CancellationToken, ToolExecutor};
+use suna::steel::{
     calculate_carbon_equivalent, carbon_equivalent_tool, CarbonEquivalentFormula, CompositionInput,
     CompositionUnit, SteelCalculationError, SteelToolExecutor,
 };
@@ -161,7 +161,7 @@ async fn carbon_equivalent_tool_returns_an_audited_result() {
     assert_eq!(registration.spec.id, "steel.carbon_equivalent");
     assert_eq!(
         registration.spec.risk,
-        bloomery::agent::protocol::PermissionRisk::Automatic
+        suna::agent::protocol::PermissionRisk::Automatic
     );
     assert_eq!(
         registration.spec.input_schema["required"],

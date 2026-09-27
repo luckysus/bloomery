@@ -1,4 +1,4 @@
-name: Bloomery quality
+name: Suna quality
 
 on:
   pull_request:
@@ -104,7 +104,7 @@ jobs:
       - name: Upload steel case study report
         uses: actions/upload-artifact@v4
         with:
-          name: bloomery-steel-case-study-${{ github.sha }}
+          name: suna-steel-case-study-${{ github.sha }}
           path: artifacts/case-study/steel-case-study.json
           if-no-files-found: error
           retention-days: 14

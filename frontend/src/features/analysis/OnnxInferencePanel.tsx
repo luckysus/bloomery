@@ -226,21 +226,21 @@ export default function OnnxInferencePanel() {
     : [];
 
   return (
-    <section className="bloomery-onnx-panel" data-testid="onnx-inference-panel" aria-labelledby="onnx-heading">
-      <div className="bloomery-section-heading">
+    <section className="suna-onnx-panel" data-testid="onnx-inference-panel" aria-labelledby="onnx-heading">
+      <div className="suna-section-heading">
         <div>
           <h2 id="onnx-heading">{t("analysisOnnxTitle")}</h2>
         </div>
         <Boxes size={18} aria-hidden="true" />
       </div>
 
-      <div className="bloomery-onnx-model-row">
+      <div className="suna-onnx-model-row">
         <button type="button" onClick={() => void pickModel()} disabled={picking} data-testid="onnx-pick-model">
-          {picking ? <LoaderCircle size={15} className="bloomery-spin" aria-hidden="true" /> : <Boxes size={15} aria-hidden="true" />}
+          {picking ? <LoaderCircle size={15} className="suna-spin" aria-hidden="true" /> : <Boxes size={15} aria-hidden="true" />}
           <span>{picking ? t("analysisOnnxPicking") : t("analysisOnnxPickModel")}</span>
         </button>
         {modelPath && (
-          <span className="bloomery-onnx-model-path" data-testid="onnx-model-path" title={modelPath}>
+          <span className="suna-onnx-model-path" data-testid="onnx-model-path" title={modelPath}>
             {modelPath.split(/[\\/]/).pop()}
             <code data-testid="onnx-model-hash">{modelSha256 ? `${modelSha256.slice(0, 12)}…` : ""}</code>
           </span>
@@ -251,7 +251,7 @@ export default function OnnxInferencePanel() {
       <textarea
         id="onnx-manifest"
         data-testid="onnx-manifest"
-        className="bloomery-onnx-manifest"
+        className="suna-onnx-manifest"
         rows={10}
         spellCheck={false}
         value={manifestText}
@@ -262,7 +262,7 @@ export default function OnnxInferencePanel() {
       <textarea
         id="onnx-features"
         data-testid="onnx-features"
-        className="bloomery-onnx-features"
+        className="suna-onnx-features"
         rows={4}
         spellCheck={false}
         placeholder={t("analysisOnnxFeaturesPlaceholder")}
@@ -272,32 +272,32 @@ export default function OnnxInferencePanel() {
 
       <button
         type="button"
-        className="bloomery-dataset-prediction-button"
+        className="suna-dataset-prediction-button"
         data-testid="onnx-start"
         onClick={() => void predict()}
         disabled={busy || !modelPath || !modelSha256 || Boolean(task && !terminal(task.state))}
       >
-        {busy ? <LoaderCircle size={15} className="bloomery-spin" aria-hidden="true" /> : <Play size={15} aria-hidden="true" />}
+        {busy ? <LoaderCircle size={15} className="suna-spin" aria-hidden="true" /> : <Play size={15} aria-hidden="true" />}
         <span>{busy ? t("analysisOnnxStarting") : t("analysisOnnxStart")}</span>
       </button>
 
-      {error && <p className="bloomery-analysis-error" role="alert"><TriangleAlert size={15} aria-hidden="true" />{error}</p>}
-      {task && <output className="bloomery-prediction-task" data-testid="onnx-task">
+      {error && <p className="suna-analysis-error" role="alert"><TriangleAlert size={15} aria-hidden="true" />{error}</p>}
+      {task && <output className="suna-prediction-task" data-testid="onnx-task">
         <span>{task.id} - {t(taskStateKeys[task.state])} - {task.progress}%</span>
         {task.can_cancel && <button type="button" data-testid="onnx-cancel" onClick={() => void cancel()} disabled={actionBusy} aria-label={t("analysisPredictionCancel")} title={t("analysisPredictionCancel")}><Square size={14} aria-hidden="true" /><span>{actionBusy ? t("analysisPredictionCancelling") : t("analysisPredictionCancel")}</span></button>}
         {task.can_retry && <button type="button" data-testid="onnx-retry" onClick={() => void retry()} disabled={actionBusy} aria-label={t("analysisPredictionRetry")} title={t("analysisPredictionRetry")}><RotateCcw size={14} aria-hidden="true" /><span>{actionBusy ? t("analysisPredictionRetrying") : t("analysisPredictionRetry")}</span></button>}
       </output>}
 
-      {result && <section className="bloomery-prediction-result" data-testid="onnx-result" aria-labelledby="onnx-result-heading">
+      {result && <section className="suna-prediction-result" data-testid="onnx-result" aria-labelledby="onnx-result-heading">
         <h5 id="onnx-result-heading">{t("analysisOnnxResult")}</h5>
         <dl>
           <div><dt>{t("analysisTrainingModel")}</dt><dd>{result.model_id} / {result.model_version}</dd></div>
           <div><dt>{t("analysisOnnxOpset")}</dt><dd>{result.opset_version}</dd></div>
           <div><dt>{t("analysisOnnxOperators")}</dt><dd>{result.operators.join(", ")}</dd></div>
-          <div><dt>SHA-256</dt><dd className="bloomery-onnx-hash">{result.model_sha256}</dd></div>
+          <div><dt>SHA-256</dt><dd className="suna-onnx-hash">{result.model_sha256}</dd></div>
         </dl>
         <h6>{t("analysisOnnxPredictions")}</h6>
-        <ul className="bloomery-onnx-predictions" data-testid="onnx-predictions">
+        <ul className="suna-onnx-predictions" data-testid="onnx-predictions">
           {predictionRows.slice(0, MAX_PREVIEW_ROWS).map((row, index) => (
             <li key={`prediction-${index}`}>
               <span>{formatRow(row)}</span>
@@ -308,7 +308,7 @@ export default function OnnxInferencePanel() {
           ))}
         </ul>
         {result.applicability_warnings.slice(0, MAX_PREVIEW_ROWS).map((warning, index) => (
-          <p className="bloomery-analysis-warning" data-testid={`onnx-warning-${index}`} key={`${warning.row}-${warning.index}`}>
+          <p className="suna-analysis-warning" data-testid={`onnx-warning-${index}`} key={`${warning.row}-${warning.index}`}>
             <TriangleAlert size={14} aria-hidden="true" />
             {warning.feature}: {t("analysisPredictionOutsideRange")}
           </p>

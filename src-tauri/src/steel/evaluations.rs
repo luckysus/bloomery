@@ -240,7 +240,7 @@ fn evaluate_profiling_case(case: &Value) -> Result<(), String> {
         .as_str()
         .ok_or_else(|| "csv content is required".to_string())?;
     let path = std::env::temp_dir().join(format!(
-        "bloomery-eval-profile-{}.csv",
+        "suna-eval-profile-{}.csv",
         uuid::Uuid::new_v4()
     ));
     std::fs::write(&path, csv).map_err(|error| error.to_string())?;

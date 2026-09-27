@@ -3,8 +3,8 @@ from pathlib import Path
 
 import pytest
 
-from bloomery_worker.optimization import optimize_constrained
-from bloomery_worker.training import predict_linear_regression, train_linear_regression
+from suna_worker.optimization import optimize_constrained
+from suna_worker.training import predict_linear_regression, train_linear_regression
 
 SUITE_PATH = (
     Path(__file__).resolve().parents[2]

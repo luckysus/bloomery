@@ -1,8 +1,8 @@
 # Steel Data Model / 钢铁数据模型
 
-The steel package is a vocabulary and mapping layer. User data remains local to the selected Bloomery workspace and is never copied into the package.
+The steel package is a vocabulary and mapping layer. User data remains local to the selected Suna workspace and is never copied into the package.
 
-钢铁包只负责术语和映射。用户数据属于当前 Bloomery 工作区，保留在本地，不会写入领域包。
+钢铁包只负责术语和映射。用户数据属于当前 Suna 工作区，保留在本地，不会写入领域包。
 
 ## Canonical Identifiers / 规范字段
 

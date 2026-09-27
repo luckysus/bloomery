@@ -11,16 +11,16 @@
 //! 这些测试共享进程级脱敏登记表并会安装/替换 panic hook，建议串行运行：
 //!   cargo test --test secret_scan -- --test-threads=1
 
-use bloomery::diagnostics::observability::{
+use suna::diagnostics::observability::{
     format_panic, format_panic_diagnostics, global_redactor, redact_json, redact_line,
     register_secret,
 };
-use bloomery::providers::http::ProviderError;
-use bloomery::providers::profiles::{ProviderKind, ProviderProfile};
-use bloomery::storage::backup::create_backup;
-use bloomery::storage::migrations::migrate;
-use bloomery::storage::repositories::provider_profiles;
-use bloomery::storage::secrets::SecretValue;
+use suna::providers::http::ProviderError;
+use suna::providers::profiles::{ProviderKind, ProviderProfile};
+use suna::storage::backup::create_backup;
+use suna::storage::migrations::migrate;
+use suna::storage::repositories::provider_profiles;
+use suna::storage::secrets::SecretValue;
 use reqwest::StatusCode;
 use rusqlite::Connection;
 use std::fs;
@@ -30,14 +30,14 @@ use std::sync::{Mutex, OnceLock};
 use uuid::Uuid;
 
 /// 合成的已知密钥。仅存在于本测试文件（tests/ 不在离线安全门禁的源扫描范围内）。
-const SECRET: &str = "sk-bloomery-synthetic-canary-DEADBEEF01234567";
+const SECRET: &str = "sk-suna-synthetic-canary-DEADBEEF01234567";
 
 fn register() {
     register_secret(&SecretValue::new(SECRET).expect("synthetic secret must be non-empty"));
 }
 
 fn temp_root(label: &str) -> PathBuf {
-    std::env::temp_dir().join(format!("bloomery-secret-scan-{label}-{}", Uuid::new_v4()))
+    std::env::temp_dir().join(format!("suna-secret-scan-{label}-{}", Uuid::new_v4()))
 }
 
 fn scan_dir_for(root: &Path, needle: &[u8]) -> bool {
@@ -80,7 +80,7 @@ fn synthetic_secret_absent_from_sqlite_and_backup_export() {
     register();
     let root = temp_root("sqlite-backup");
     fs::create_dir_all(&root).expect("create fixture root");
-    let db_path = root.join("bloomery.sqlite3");
+    let db_path = root.join("suna.sqlite3");
     let mut conn = Connection::open(&db_path).expect("open database");
     migrate(&mut conn).expect("migrate database");
 
@@ -106,7 +106,7 @@ fn synthetic_secret_absent_from_sqlite_and_backup_export() {
 
     // 备份导出。
     let content_root = root.join("content");
-    let archive = root.join("bloomery.bloomery-backup");
+    let archive = root.join("suna.suna-backup");
     create_backup(&conn, &db_path, &content_root, &archive).expect("create backup");
     drop(conn);
 
@@ -219,7 +219,7 @@ fn synthetic_secret_absent_from_panic_backtrace_branch() {
     register();
     // 显式启用 backtrace 分支：即便额外打印栈帧回溯，输出也必须全部经过脱敏，
     // 绝不能包含合成密钥；栈帧回溯本身不含原始 panic 消息文本。
-    std::env::set_var("BLOOMERY_PANIC_BACKTRACE", "1");
+    std::env::set_var("SUNA_PANIC_BACKTRACE", "1");
 
     let previous = std::panic::take_hook();
     std::panic::set_hook(Box::new(|info| {
@@ -234,7 +234,7 @@ fn synthetic_secret_absent_from_panic_backtrace_branch() {
         panic!("provider exploded while using {SECRET}");
     });
     std::panic::set_hook(previous);
-    std::env::remove_var("BLOOMERY_PANIC_BACKTRACE");
+    std::env::remove_var("SUNA_PANIC_BACKTRACE");
 
     assert!(result.is_err(), "the closure must have panicked");
     let messages = panic_capture()

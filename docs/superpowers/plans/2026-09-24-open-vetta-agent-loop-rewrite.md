@@ -1,18 +1,18 @@
 # Open Vetta 风格 Agent Loop 重写实施计划
 
-> 本计划针对 Bloomery 的桌面智能体 Runtime。它以 Open Vetta 源码和运行时设计为参照，使用 Bloomery 当前的 Rust、Tauri 和 React 技术栈重新实现，不保留旧 Agent API 兼容层，也不把 Web 页面当作桌面智能体入口。
+> 本计划针对 Suna 的桌面智能体 Runtime。它以 Open Vetta 源码和运行时设计为参照，使用 Suna 当前的 Rust、Tauri 和 React 技术栈重新实现，不保留旧 Agent API 兼容层，也不把 Web 页面当作桌面智能体入口。
 
 ## 目标
 
-- 在 Bloomery 中建立由 Rust 拥有的正式 Agent Runtime。
+- 在 Suna 中建立由 Rust 拥有的正式 Agent Runtime。
 - 复刻 Open Vetta 的核心运行语义：Turn、模型调用、工具轮次、Steering、Follow-up、Checkpoint、恢复、事件流和子 Agent。
-- 保留 Bloomery 已有的 Provider、Agent 证据结构、权限系统、Tauri 桌面壳和本地数据边界。
+- 保留 Suna 已有的 Provider、Agent 证据结构、权限系统、Tauri 桌面壳和本地数据边界。
 - 让前端只消费统一的 Agent 事件投影，不直接维护第二套运行状态。
 
 ## 参照原则
 
 - Open Vetta 的 `contextWindow`、`maxTokens`、`transformContext`、context checkpoint、message queue 和 runtime ownership 是设计参照。
-- Open Vetta 的 TypeScript 实现不直接复制到 Bloomery；领域逻辑和运行时核心使用 Rust 重写。
+- Open Vetta 的 TypeScript 实现不直接复制到 Suna；领域逻辑和运行时核心使用 Rust 重写。
 - RAG 是 Agent 的一个工具和证据来源，不替代 Agent Loop。
 - 知识库 PostgreSQL 计划与本计划并行，二者通过工具、证据和来源接口连接。
 - 每小时统一提交并同时推送 GitHub、Gitee，不按单个功能完成即时推送。

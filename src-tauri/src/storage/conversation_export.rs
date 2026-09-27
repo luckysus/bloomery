@@ -40,12 +40,12 @@ pub struct ConversationExportSummary {
 
 pub fn render_markdown(snapshot: &SessionSnapshot) -> String {
     let title = if snapshot.conversation.title.trim().is_empty() {
-        "Bloomery conversation"
+        "Suna conversation"
     } else {
         snapshot.conversation.title.trim()
     };
     let mut output = format!(
-        "# {title}\n\n> Bloomery local conversation export\n> Conversation ID: {}\n> Updated: {}\n\n",
+        "# {title}\n\n> Suna local conversation export\n> Conversation ID: {}\n> Updated: {}\n\n",
         snapshot.conversation.id, snapshot.conversation.updated_at
     );
     if let Some(summary) = snapshot
@@ -61,7 +61,7 @@ pub fn render_markdown(snapshot: &SessionSnapshot) -> String {
         output.push_str("### ");
         output.push_str(match message.role.as_str() {
             "user" => "User",
-            "agent" | "assistant" => "Bloomery",
+            "agent" | "assistant" => "Suna",
             "system" => "System",
             role if !role.trim().is_empty() => role,
             _ => "Message",
@@ -183,13 +183,13 @@ mod tests {
         assert!(markdown.find("\u{5206}\u{6790}\u{8fd9}\u{6279}\u{94a2}\u{6c34}\u{7684}\u{78b3}\u{5f53}\u{91cf}").unwrap()
             < markdown.find("\u{8bf7}\u{63d0}\u{4f9b} C\u{3001}Mn \u{548c} Cr").unwrap());
         assert!(markdown.contains("### User"));
-        assert!(markdown.contains("### Bloomery"));
+        assert!(markdown.contains("### Suna"));
     }
 
     #[test]
     fn json_export_writes_snapshot_without_partial_target() {
         let root =
-            std::env::temp_dir().join(format!("bloomery-conversation-export-{}", Uuid::new_v4()));
+            std::env::temp_dir().join(format!("suna-conversation-export-{}", Uuid::new_v4()));
         fs::create_dir_all(&root).expect("create export root");
         let output = root.join("conversation.json");
 

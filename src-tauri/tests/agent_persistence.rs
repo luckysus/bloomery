@@ -1,10 +1,10 @@
-use bloomery::agent::protocol::{
+use suna::agent::protocol::{
     AgentEventData, AgentMessageRole, AgentRunState, MessageDelta, RunCompleted, RunOutcome,
     UsageUpdated,
 };
-use bloomery::storage::database;
-use bloomery::storage::migrations::migrate;
-use bloomery::storage::repositories::{conversations, events, runs};
+use suna::storage::database;
+use suna::storage::migrations::migrate;
+use suna::storage::repositories::{conversations, events, runs};
 use chrono::{DateTime, Utc};
 use rusqlite::{params, Connection};
 use std::path::Path;
@@ -364,7 +364,7 @@ fn schema_rejects_cross_workspace_runs_and_mismatched_event_conversations() {
 #[test]
 fn concurrent_connections_allocate_distinct_monotonic_sequences() {
     let path =
-        std::env::temp_dir().join(format!("bloomery-agent-events-{}.sqlite3", Uuid::new_v4()));
+        std::env::temp_dir().join(format!("suna-agent-events-{}.sqlite3", Uuid::new_v4()));
     let (mut first, _) = database::open(&path).unwrap();
     seed_conversation(&first);
     runs::create(&mut first, new_run(RUN_ID, CREATED_EVENT_ID, CREATED_AT)).unwrap();

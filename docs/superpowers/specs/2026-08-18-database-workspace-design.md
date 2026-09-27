@@ -5,7 +5,7 @@
 
 ## 背景与目标
 
-Bloomery 已有 SQL Server 连接管理(`database_connections` 表、keyring 密码、tiberius 连接层、设置页面板),但只能测试连通和列表名。本设计把它升级为完整的数据工作区:用户在一级导航的「数据库」分区里浏览库表、执行受控只读查询、把结果送入数据分析的训练/优化流程;连接的增删改留在设置页,设置页同时引入内部标签导航解决拥挤问题。
+Suna 已有 SQL Server 连接管理(`database_connections` 表、keyring 密码、tiberius 连接层、设置页面板),但只能测试连通和列表名。本设计把它升级为完整的数据工作区:用户在一级导航的「数据库」分区里浏览库表、执行受控只读查询、把结果送入数据分析的训练/优化流程;连接的增删改留在设置页,设置页同时引入内部标签导航解决拥挤问题。
 
 **已确认的关键决策:**
 
@@ -41,7 +41,7 @@ DatabasePage
 
 - `query.rs` -- 查询安全包装器:
   - 校验:trim 后去除尾部分号,必须为单条语句,首关键字(不区分大小写)必须是 `SELECT` 或 `WITH`;否则拒绝并返回明确错误。
-  - 包装:外层强制 `SELECT TOP (n) * FROM ( <用户SQL> ) AS [_bloomery_q]`,使 INSERT/UPDATE/DELETE/DDL/多语句在结构上不可能执行。
+  - 包装:外层强制 `SELECT TOP (n) * FROM ( <用户SQL> ) AS [_suna_q]`,使 INSERT/UPDATE/DELETE/DDL/多语句在结构上不可能执行。
   - 行数上限:默认 500,UI 可选,硬上限 5000。
   - 超时:沿用连接记录的 `timeout_ms`(既有 clamp 1s-60s)。
 - `catalog.rs` -- 目录查询:
@@ -79,7 +79,7 @@ DatabasePage
 ### 一级导航
 
 - `navigation.ts`:`SectionId` 增加 `"databases"`,插入 `primaryNavigationSections` 知识库之后;图标 `Database`;新增 i18n key(zh/en)。
-- `BloomeryApp.tsx`:渲染 `DatabasePage`(使用通用壳,与知识库/分析一致)。
+- `SunaApp.tsx`:渲染 `DatabasePage`(使用通用壳,与知识库/分析一致)。
 
 ### `features/databases/DatabasePage.tsx`(新)
 
@@ -117,4 +117,4 @@ DatabasePage
 ## 涉及文件清单(预估)
 
 - Rust:`src/database/{mod,query,catalog}.rs`、`src/tasks/`(注册 handler)、`src/app/database_commands/`、`src/storage/migrations/0024_*.sql` + `migrations.rs`、`src/storage/repositories/database_connections.rs`、新增 `repositories/database_query_results.rs`、`src/app/commands.rs`、`tests/`(新增 query guard / results 仓储测试)
-- 前端:`src/app/{navigation,BloomeryApp}.tsx`、`src/features/databases/`(新)、`src/features/settings/{SettingsPage,DatabaseConnectionsPanel}.tsx`、`src/bridge/desktop.ts`、`src/i18n/locale.tsx`、`src/design/polish.css`
+- 前端:`src/app/{navigation,SunaApp}.tsx`、`src/features/databases/`(新)、`src/features/settings/{SettingsPage,DatabaseConnectionsPanel}.tsx`、`src/bridge/desktop.ts`、`src/i18n/locale.tsx`、`src/design/polish.css`

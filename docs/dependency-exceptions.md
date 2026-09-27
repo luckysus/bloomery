@@ -1,7 +1,7 @@
-# Bloomery 依赖治理与例外登记
+# Suna 依赖治理与例外登记
 
-> 对应发布质量计划 `docs/superpowers/plans/2026-07-29-bloomery-release-quality.md` 的 **Task 4 · Step 1（基线扫描）** 与 **Step 2（解决依赖并登记例外）**。
-> 本文档记录 Bloomery 桌面端（`src-tauri` Rust crate 与 `frontend` npm 包）经 `cargo deny` / `cargo audit` / `npm audit` 扫描后的处置结论与所有已接受例外。
+> 对应发布质量计划 `docs/superpowers/plans/2026-07-29-suna-release-quality.md` 的 **Task 4 · Step 1（基线扫描）** 与 **Step 2（解决依赖并登记例外）**。
+> 本文档记录 Suna 桌面端（`src-tauri` Rust crate 与 `frontend` npm 包）经 `cargo deny` / `cargo audit` / `npm audit` 扫描后的处置结论与所有已接受例外。
 >
 > - 责任人（owner）：**luckysus**
 > - 下次复审日期（review date）：**2026-11-08**
@@ -49,7 +49,7 @@
 
 ### 3.1 gtk-rs GTK3 绑定（经 tauri → wry/tao/muda 引入，Linux GUI 栈）
 
-GTK3 绑定整体已归档、不再维护。Bloomery 为 Windows-first 桌面端，Linux GUI 栈仅在跨平台构建时参与，Windows 目标不加载这些库。
+GTK3 绑定整体已归档、不再维护。Suna 为 Windows-first 桌面端，Linux GUI 栈仅在跨平台构建时参与，Windows 目标不加载这些库。
 
 | Advisory | crate | 版本 |
 | --- | --- | --- |
@@ -115,7 +115,7 @@ rust-unic 整体不再维护，作为 URL pattern 解析的间接依赖被引入
 
 | 许可证 | 代表 crate | 接受理由 |
 | --- | --- | --- |
-| MPL-2.0 | cssparser、selectors | 文件级 copyleft：仅要求对被修改的 MPL 源文件回馈，不传染到整体作品。Bloomery 不修改这些文件，仅链接使用，与 Apache-2.0 发布产物兼容。 |
+| MPL-2.0 | cssparser、selectors | 文件级 copyleft：仅要求对被修改的 MPL 源文件回馈，不传染到整体作品。Suna 不修改这些文件，仅链接使用，与 Apache-2.0 发布产物兼容。 |
 | CDLA-Permissive-2.0 | webpki-roots | 宽松型社区数据许可证（根证书数据），需显式 allow，否则被判为 unknown。无 copyleft 传染。 |
 | Unicode-3.0 | icu_*（icu_normalizer、icu_properties 等） | Unicode 数据文件许可证，宽松，允许自由再分发。 |
 | Apache-2.0 WITH LLVM-exception | target-lexicon | 在 Apache-2.0 基础上附加 LLVM 例外，进一步放宽静态链接限制，兼容。 |
@@ -133,7 +133,7 @@ rust-unic 整体不再维护，作为 URL pattern 解析的间接依赖被引入
 
 以下为 Task 4 Step 3/4 及相关收尾项，**不在本任务范围**，供后续任务承接：
 
-- **Step 3 — 原创代码许可证迁移**：Bloomery 原创代码 MIT → Apache-2.0（需先核实唯一著作权归属，保留第三方 MIT/Apache 通知）。（注：`Cargo.toml` 与 `domain-packs/steel/manifest.json` 已标注 Apache-2.0，`LICENSE`/`NOTICE` 有改动，完整迁移与核验由该步骤统一处理。）
+- **Step 3 — 原创代码许可证迁移**：Suna 原创代码 MIT → Apache-2.0（需先核实唯一著作权归属，保留第三方 MIT/Apache 通知）。（注：`Cargo.toml` 与 `domain-packs/steel/manifest.json` 已标注 Apache-2.0，`LICENSE`/`NOTICE` 有改动，完整迁移与核验由该步骤统一处理。）
 - **Step 4 — SBOM 与通知生成**：`scripts/generate-sbom.ps1` 使用 `cargo-cyclonedx` 与 npm 11 的 `npm sbom` 从锁定清单生成 Rust CycloneDX、前端 CycloneDX、前端 SPDX，以及 `THIRD_PARTY_NOTICES.txt`。
 - **发布产物包含校验**：`scripts/build-release.ps1` 在复制 Windows 安装包后调用生成入口，因此 release manifest 会记录这些文件；Task 7 仍需在真实安装包和干净机器上做最终内容验证。
 - **CI 门禁集成**：将 `cargo deny check`、`cargo audit`、`npm audit` 接入阻断式 CI（对应计划 Task 9）。

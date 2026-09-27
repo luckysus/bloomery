@@ -1,10 +1,10 @@
 # Steel Evaluation / 钢铁评测
 
-Bloomery ships a versioned evaluation suite at
+Suna ships a versioned evaluation suite at
 `domain-packs/steel/evaluations/steel-evaluations-v1.json`, pinned by SHA-256
 in the package manifest alongside the `steel-qa.jsonl` provider baseline.
 
-Bloomery 提供版本化评测集 `steel-evaluations-v1.json`，与 `steel-qa.jsonl` 一起在领域包 manifest 中以 SHA-256 钉扎。
+Suna 提供版本化评测集 `steel-evaluations-v1.json`，与 `steel-qa.jsonl` 一起在领域包 manifest 中以 SHA-256 钉扎。
 
 ## Categories / 评测类别
 

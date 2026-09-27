@@ -1,6 +1,6 @@
-use bloomery::agent::protocol::PermissionRisk;
-use bloomery::agent::runtime::{CancellationToken, ToolExecutor, ToolInvocation};
-use bloomery::steel::{OptimizationGateway, SteelToolExecutor};
+use suna::agent::protocol::PermissionRisk;
+use suna::agent::runtime::{CancellationToken, ToolExecutor, ToolInvocation};
+use suna::steel::{OptimizationGateway, SteelToolExecutor};
 use serde_json::{json, Value};
 use std::sync::{Arc, Mutex};
 use uuid::Uuid;
@@ -66,7 +66,7 @@ async fn invoke(
     tool_name: &str,
     arguments: Value,
     cancelled: bool,
-) -> Result<Value, bloomery::agent::runtime::ToolExecutionError> {
+) -> Result<Value, suna::agent::runtime::ToolExecutionError> {
     executor
         .execute(
             ToolInvocation {

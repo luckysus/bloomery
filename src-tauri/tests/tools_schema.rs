@@ -1,10 +1,10 @@
-use bloomery::agent::protocol::PermissionRisk;
-use bloomery::agent::runtime::{
+use suna::agent::protocol::PermissionRisk;
+use suna::agent::runtime::{
     CancellationToken, CompositeToolExecutor, ToolExecutor, ToolFuture, ToolHandler,
     ToolInvocation, ToolRegistration,
 };
-use bloomery::agent::tool_repair::ToolSpec;
-use bloomery::steel::{OptimizationGateway, SteelToolExecutor};
+use suna::agent::tool_repair::ToolSpec;
+use suna::steel::{OptimizationGateway, SteelToolExecutor};
 use serde_json::{json, Value};
 use std::sync::Arc;
 

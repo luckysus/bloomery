@@ -54,13 +54,13 @@ export default function CitationPanel({ auditId, evidence }: CitationPanelProps)
   const sourceText = resolved?.chunk.text ?? fallback?.chunk.text ?? "";
 
   return (
-    <section className="bloomery-chat-citations" aria-label={t("citationSection")}>
-      <div className="bloomery-chat-citations-heading">
+    <section className="suna-chat-citations" aria-label={t("citationSection")}>
+      <div className="suna-chat-citations-heading">
         <span><BookOpen size={14} aria-hidden="true" />{t("citationSection")}</span>
         {selectedNumber !== null && (
           <button
             type="button"
-            className="bloomery-icon-button"
+            className="suna-icon-button"
             onClick={() => setSelectedNumber(null)}
             aria-label={t("closeCitationDetail")}
             title={t("closeCitationDetail")}
@@ -69,12 +69,12 @@ export default function CitationPanel({ auditId, evidence }: CitationPanelProps)
           </button>
         )}
       </div>
-      <div className="bloomery-chat-citation-list">
+      <div className="suna-chat-citation-list">
         {evidence.map((item) => (
           <button
             type="button"
             key={item.citation_number}
-            className={`bloomery-chat-citation ${item.citation_number === selectedNumber ? "is-active" : ""}`}
+            className={`suna-chat-citation ${item.citation_number === selectedNumber ? "is-active" : ""}`}
             onClick={() => setSelectedNumber(item.citation_number)}
             aria-label={t("citationAria", { number: item.citation_number, source: item.chunk.source_name })}
           >
@@ -84,12 +84,12 @@ export default function CitationPanel({ auditId, evidence }: CitationPanelProps)
         ))}
       </div>
       {selectedNumber !== null && (
-        <div className="bloomery-chat-citation-detail" role="region" aria-label={`${t("citationDetail")} ${selectedNumber}`}>
+        <div className="suna-chat-citation-detail" role="region" aria-label={`${t("citationDetail")} ${selectedNumber}`}>
           {loading ? (
-            <span className="bloomery-chat-citation-loading"><LoaderCircle size={14} className="bloomery-spin" />{t("resolvingCitation")}</span>
+            <span className="suna-chat-citation-loading"><LoaderCircle size={14} className="suna-spin" />{t("resolvingCitation")}</span>
           ) : (
             <>
-              <div className="bloomery-chat-citation-detail-heading">
+              <div className="suna-chat-citation-detail-heading">
                 <strong>{sourceName}</strong>
                 <span>{sourceStateLabel(resolved?.source_state ?? null, (key) => t(key))}</span>
               </div>

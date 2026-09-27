@@ -1,10 +1,10 @@
-use bloomery::tasks::mailbox::{MailboxMessage, MailboxMessageKind, MailboxStore};
+use suna::tasks::mailbox::{MailboxMessage, MailboxMessageKind, MailboxStore};
 use std::fs;
 use std::path::PathBuf;
 use uuid::Uuid;
 
 fn temp_root() -> PathBuf {
-    let root = std::env::temp_dir().join(format!("bloomery-mailbox-{}", Uuid::new_v4()));
+    let root = std::env::temp_dir().join(format!("suna-mailbox-{}", Uuid::new_v4()));
     fs::create_dir_all(&root).unwrap();
     root
 }

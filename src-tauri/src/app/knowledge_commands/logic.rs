@@ -1174,7 +1174,7 @@ mod tests {
     #[test]
     fn local_knowledge_query_falls_back_to_fts_without_embedding_provider() {
         let path = std::env::temp_dir().join(format!(
-            "bloomery-local-knowledge-fallback-{}.sqlite3",
+            "suna-local-knowledge-fallback-{}.sqlite3",
             Uuid::new_v4()
         ));
         let (mut connection, _) = crate::storage::database::open(&path).expect("open test db");

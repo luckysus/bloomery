@@ -1,6 +1,6 @@
-use bloomery::agent::protocol::PermissionRisk;
-use bloomery::agent::runtime::CancellationToken;
-use bloomery::tools::{
+use suna::agent::protocol::PermissionRisk;
+use suna::agent::runtime::CancellationToken;
+use suna::tools::{
     redact_sensitive_value, ArtifactStore, ConcurrencyPolicy, FileArtifactStore, RegistryError,
     ToolDefinition, ToolError, ToolExecutor, ToolHandler, ToolId, ToolRegistration, ToolRegistry,
     ToolSource, ToolVersion, MAX_INLINE_OUTPUT_BYTES,
@@ -48,7 +48,7 @@ where
         &self,
         arguments: serde_json::Value,
         cancellation: CancellationToken,
-    ) -> bloomery::tools::HandlerFuture {
+    ) -> suna::tools::HandlerFuture {
         Box::pin((self.0)(arguments, cancellation))
     }
 }
@@ -62,7 +62,7 @@ where
 }
 
 fn executor(registrations: Vec<ToolRegistration>) -> (ToolExecutor, PathBuf) {
-    let root = std::env::temp_dir().join(format!("bloomery-tools-{}", uuid::Uuid::new_v4()));
+    let root = std::env::temp_dir().join(format!("suna-tools-{}", uuid::Uuid::new_v4()));
     let store = Arc::new(FileArtifactStore::new(root.clone()).unwrap());
     (
         ToolExecutor::new(registrations, store as Arc<dyn ArtifactStore>).unwrap(),

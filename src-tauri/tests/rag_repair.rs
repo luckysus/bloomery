@@ -1,17 +1,17 @@
-use bloomery::rag::index::lifecycle::build_hnsw;
-use bloomery::rag::index::rebuild::{
+use suna::rag::index::lifecycle::build_hnsw;
+use suna::rag::index::rebuild::{
     index_root, load_index_snapshot, queue_index_rebuild, IndexRebuildRequest,
 };
-use bloomery::rag::index::repair::{
+use suna::rag::index::repair::{
     cleanup_interrupted_builds, inspect_index_health, IndexRepairReason, IndexRepairState,
     IndexServingMode,
 };
-use bloomery::rag::model::{
+use suna::rag::model::{
     ChunkId, NewChunk, NewDocumentVersion, NewSourceDocument, SourceLocation,
 };
-use bloomery::storage::migrations::migrate;
-use bloomery::storage::repositories::knowledge;
-use bloomery::tasks::{repository as task_repository, TaskState};
+use suna::storage::migrations::migrate;
+use suna::storage::repositories::knowledge;
+use suna::tasks::{repository as task_repository, TaskState};
 use rusqlite::{params, Connection};
 use sha2::{Digest, Sha256};
 use std::path::{Path, PathBuf};
@@ -171,9 +171,9 @@ fn request(profile: &str, model: &str) -> IndexRebuildRequest {
 }
 
 fn database() -> (PathBuf, Connection) {
-    let root = std::env::temp_dir().join(format!("bloomery-repair-{}", uuid::Uuid::new_v4()));
+    let root = std::env::temp_dir().join(format!("suna-repair-{}", uuid::Uuid::new_v4()));
     std::fs::create_dir_all(&root).unwrap();
-    let mut connection = Connection::open(root.join("bloomery.sqlite3")).unwrap();
+    let mut connection = Connection::open(root.join("suna.sqlite3")).unwrap();
     migrate(&mut connection).unwrap();
     (root, connection)
 }

@@ -1,9 +1,9 @@
-use bloomery::domains::{
+use suna::domains::{
     cleanup_staging, compute_package_digest, install_package, load_package, official_trust_store,
     resolve_resource_path, sign_domain_package, DomainTrust, DomainTrustStore,
 };
-use bloomery::storage::migrations::migrate;
-use bloomery::storage::repositories::domains::{
+use suna::storage::migrations::migrate;
+use suna::storage::repositories::domains::{
     activate, active_manifest, active_manifests, impact, list, remove, upsert, DomainPackageImpact,
 };
 use ed25519_dalek::{Signer, SigningKey};
@@ -19,7 +19,7 @@ struct TempPackage(PathBuf);
 
 impl TempPackage {
     fn new() -> Self {
-        let root = std::env::temp_dir().join(format!("bloomery-domain-{}", Uuid::new_v4()));
+        let root = std::env::temp_dir().join(format!("suna-domain-{}", Uuid::new_v4()));
         fs::create_dir_all(root.join("assets")).expect("create package root");
         Self(root)
     }
@@ -48,7 +48,7 @@ fn valid_manifest() -> serde_json::Value {
         "id": "steel",
         "version": "1.0.0",
         "compatibility": {"min_app_version": "0.1.0", "max_app_version": null},
-        "author": "Bloomery contributors",
+        "author": "Suna contributors",
         "license": "Apache-2.0",
         "prompts": {"system": "Use steel terminology.", "workflow": "Cite the source."},
         "terminology": {"Q355B": "Chinese structural steel grade"},
@@ -195,9 +195,9 @@ fn installs_signed_package_with_official_trust() {
     .expect("write asset");
     package.write_manifest(valid_manifest());
     let signing_key = SigningKey::from_bytes(&[7_u8; 32]);
-    write_signature(&package, &signing_key, "bloomery-official");
+    write_signature(&package, &signing_key, "suna-official");
     let mut trust = DomainTrustStore::default();
-    trust.add_official_key("bloomery-official", signing_key.verifying_key());
+    trust.add_official_key("suna-official", signing_key.verifying_key());
     let install_root = TempPackage::new();
 
     let installed = install_package(package.path(), install_root.path(), "0.1.0", &trust)
@@ -219,7 +219,7 @@ fn signs_a_domain_package_with_a_private_seed() {
     package.write_manifest(valid_manifest());
 
     let signing_key = SigningKey::from_bytes(&[7_u8; 32]);
-    sign_domain_package(package.path(), &signing_key, "bloomery-official-2026")
+    sign_domain_package(package.path(), &signing_key, "suna-official-2026")
         .expect("sign domain package");
 
     let signature_path = package.path().join("signature.json");
@@ -227,7 +227,7 @@ fn signs_a_domain_package_with_a_private_seed() {
         serde_json::from_slice(&fs::read(&signature_path).expect("read signature"))
             .expect("decode signature");
     let digest = compute_package_digest(package.path()).expect("compute signed package digest");
-    assert_eq!(envelope["key_id"], "bloomery-official-2026");
+    assert_eq!(envelope["key_id"], "suna-official-2026");
     assert_eq!(envelope["algorithm"], "ed25519");
     assert_eq!(envelope["package_sha256"], digest);
     assert_eq!(
@@ -237,7 +237,7 @@ fn signs_a_domain_package_with_a_private_seed() {
     );
 
     let mut trust = DomainTrustStore::default();
-    trust.add_official_key("bloomery-official-2026", signing_key.verifying_key());
+    trust.add_official_key("suna-official-2026", signing_key.verifying_key());
     let installed = install_package(package.path(), TempPackage::new().path(), "0.1.0", &trust)
         .expect("signed package must install as official");
     assert_eq!(installed.trust, DomainTrust::OfficialSigned);
@@ -322,7 +322,7 @@ fn rejects_signature_with_untrusted_key_id() {
     write_signature(&package, &signing_key, "unknown-key-id");
     let mut trust = DomainTrustStore::default();
     // Register the key under a different id so the envelope key_id does not resolve.
-    trust.add_official_key("bloomery-official-2026", signing_key.verifying_key());
+    trust.add_official_key("suna-official-2026", signing_key.verifying_key());
 
     let error = install_package(package.path(), TempPackage::new().path(), "0.1.0", &trust)
         .expect_err("untrusted key id must fail");
@@ -336,11 +336,11 @@ fn rejects_signature_signed_by_wrong_key() {
     fs::write(package.path().join("assets/steel.json"), "{}").expect("write asset");
     package.write_manifest(valid_manifest());
     let signing_key = SigningKey::from_bytes(&[10_u8; 32]);
-    write_signature(&package, &signing_key, "bloomery-official-2026");
+    write_signature(&package, &signing_key, "suna-official-2026");
     let mut trust = DomainTrustStore::default();
     // Same key_id, but a different key: verification must fail.
     let other_key = SigningKey::from_bytes(&[11_u8; 32]);
-    trust.add_official_key("bloomery-official-2026", other_key.verifying_key());
+    trust.add_official_key("suna-official-2026", other_key.verifying_key());
 
     let error = install_package(package.path(), TempPackage::new().path(), "0.1.0", &trust)
         .expect_err("wrong signing key must fail");
@@ -374,7 +374,7 @@ fn official_trust_store_rejects_the_known_throwaway_signing_key() {
     // publicly documented throwaway seed. It must never be a release trust
     // root, even if a package carries the expected key id.
     let throwaway_key = SigningKey::from_bytes(&[0x42_u8; 32]);
-    write_signature(&package, &throwaway_key, "bloomery-official-2026");
+    write_signature(&package, &throwaway_key, "suna-official-2026");
 
     let error = install_package(
         package.path(),

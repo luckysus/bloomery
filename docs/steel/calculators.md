@@ -1,8 +1,8 @@
 # Steel Calculators / 钢铁计算器
 
-Bloomery currently exposes two deterministic carbon-equivalent calculations as a read-only built-in tool: IIW and Pcm. Both return the formula id, expression, normalized composition, result unit, value, and an applicability note.
+Suna currently exposes two deterministic carbon-equivalent calculations as a read-only built-in tool: IIW and Pcm. Both return the formula id, expression, normalized composition, result unit, value, and an applicability note.
 
-Bloomery 当前提供两个只读确定性内置工具：IIW 和 Pcm 碳当量计算。结果包含公式 ID、表达式、归一化成分、结果单位、数值和适用性说明。
+Suna 当前提供两个只读确定性内置工具：IIW 和 Pcm 碳当量计算。结果包含公式 ID、表达式、归一化成分、结果单位、数值和适用性说明。
 
 ## Supported Formulas / 支持公式
 

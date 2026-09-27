@@ -887,7 +887,7 @@ pub async fn import_postgres_document(
     .bind(document_id)
     .bind(&source.content_sha256)
     .bind(&source.mime_type)
-    .bind("bloomery")
+    .bind("suna")
     .bind("v1")
     .bind(ChunkPolicy::default().version)
     .execute(&mut *transaction)
@@ -3479,7 +3479,7 @@ mod tests {
         let config = KnowledgeDatabaseConfig {
             host: String::new(),
             port: 5432,
-            database: "bloomery".to_string(),
+            database: "suna".to_string(),
             username: "postgres".to_string(),
         };
         assert!(validate_config(&config).is_err());

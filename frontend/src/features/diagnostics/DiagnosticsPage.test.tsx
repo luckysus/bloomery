@@ -91,21 +91,21 @@ describe("DiagnosticsPage", () => {
     vi.mocked(desktop.writeDiagnosticsExport).mockResolvedValue(undefined);
     vi.mocked(desktop.createBackup).mockResolvedValue({
       format_version: 1,
-      archive_path: "C:\\Backups\\steel.bloomery-backup",
+      archive_path: "C:\\Backups\\steel.suna-backup",
       database_bytes: 1024,
       content_file_count: 2,
       content_bytes: 2048,
     });
     vi.mocked(desktop.previewBackup).mockResolvedValue({
       format_version: 1,
-      archive_path: "C:\\Backups\\steel.bloomery-backup",
+      archive_path: "C:\\Backups\\steel.suna-backup",
       database_bytes: 1024,
       content_file_count: 2,
       content_bytes: 2048,
     });
     vi.mocked(desktop.restoreBackup).mockResolvedValue({
       format_version: 1,
-      archive_path: "C:\\Backups\\steel.bloomery-backup",
+      archive_path: "C:\\Backups\\steel.suna-backup",
       database_bytes: 1024,
       content_file_count: 2,
       content_bytes: 2048,
@@ -122,7 +122,7 @@ describe("DiagnosticsPage", () => {
     expect(screen.getByText("diagnosticsIndexHealthy")).toBeInTheDocument();
     expect(screen.getByText("42")).toBeInTheDocument();
     expect(screen.getByText("provider_timeout")).toBeInTheDocument();
-    expect(container.querySelectorAll(".bloomery-eyebrow")).toHaveLength(0);
+    expect(container.querySelectorAll(".suna-eyebrow")).toHaveLength(0);
     expect(screen.queryByText("diagnosticsLede")).not.toBeInTheDocument();
     expect(screen.getByText("diagnosticsPrivacyCopy")).toBeInTheDocument();
   });
@@ -136,13 +136,13 @@ describe("DiagnosticsPage", () => {
     vi.mocked(desktop.listDomainPackages).mockResolvedValue([{
       id: "steel",
       version: "1.0.0",
-      path: "F:/Bloomery/domains/steel/1.0.0",
+      path: "F:/Suna/domains/steel/1.0.0",
       package_sha256: "sha256",
       trust: "official_signed",
       manifest: {
         id: "steel",
         version: "1.0.0",
-        author: "Bloomery",
+        author: "Suna",
         license: "Apache-2.0",
         builtin_tool_allowlist: [],
         mcp_recommendations: [],
@@ -254,47 +254,47 @@ describe("DiagnosticsPage", () => {
   });
 
   it("exports diagnostic metadata without including provider secrets", async () => {
-    vi.mocked(desktop.saveFileDialog).mockResolvedValue("C:\\Exports\\bloomery-diagnostics.json");
+    vi.mocked(desktop.saveFileDialog).mockResolvedValue("C:\\Exports\\suna-diagnostics.json");
     render(<DiagnosticsPage />);
 
     fireEvent.click(await screen.findByRole("button", { name: "diagnosticsExport" }));
 
-    await waitFor(() => expect(desktop.writeDiagnosticsExport).toHaveBeenCalledWith("C:\\Exports\\bloomery-diagnostics.json"));
+    await waitFor(() => expect(desktop.writeDiagnosticsExport).toHaveBeenCalledWith("C:\\Exports\\suna-diagnostics.json"));
     expect(desktop.exportDiagnostics).not.toHaveBeenCalled();
     expect(await screen.findByText("diagnosticsExported")).toBeInTheDocument();
   });
 
   it("creates a local backup at the path selected by the user", async () => {
-    vi.mocked(desktop.saveFileDialog).mockResolvedValue("C:\\Backups\\steel.bloomery-backup");
+    vi.mocked(desktop.saveFileDialog).mockResolvedValue("C:\\Backups\\steel.suna-backup");
     render(<DiagnosticsPage />);
 
     fireEvent.click(await screen.findByRole("button", { name: "diagnosticsBackupExport" }));
 
-    await waitFor(() => expect(desktop.createBackup).toHaveBeenCalledWith("C:\\Backups\\steel.bloomery-backup"));
+    await waitFor(() => expect(desktop.createBackup).toHaveBeenCalledWith("C:\\Backups\\steel.suna-backup"));
     expect(await screen.findByText("diagnosticsBackupCreated")).toBeInTheDocument();
   });
 
   it("restores a selected backup only after explicit confirmation", async () => {
-    vi.mocked(desktop.openFileDialog).mockResolvedValue("C:\\Backups\\steel.bloomery-backup");
+    vi.mocked(desktop.openFileDialog).mockResolvedValue("C:\\Backups\\steel.suna-backup");
     const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
     render(<DiagnosticsPage />);
 
     fireEvent.click(await screen.findByRole("button", { name: "diagnosticsBackupRestore" }));
 
-    await waitFor(() => expect(desktop.restoreBackup).toHaveBeenCalledWith("C:\\Backups\\steel.bloomery-backup"));
-    expect(desktop.previewBackup).toHaveBeenCalledWith("C:\\Backups\\steel.bloomery-backup");
+    await waitFor(() => expect(desktop.restoreBackup).toHaveBeenCalledWith("C:\\Backups\\steel.suna-backup"));
+    expect(desktop.previewBackup).toHaveBeenCalledWith("C:\\Backups\\steel.suna-backup");
     expect(confirm).toHaveBeenCalled();
     expect(await screen.findByText("diagnosticsBackupRestored")).toBeInTheDocument();
   });
 
   it("does not restore when the user rejects the validated backup preview", async () => {
-    vi.mocked(desktop.openFileDialog).mockResolvedValue("C:\\Backups\\steel.bloomery-backup");
+    vi.mocked(desktop.openFileDialog).mockResolvedValue("C:\\Backups\\steel.suna-backup");
     vi.spyOn(window, "confirm").mockReturnValue(false);
     render(<DiagnosticsPage />);
 
     fireEvent.click(await screen.findByRole("button", { name: "diagnosticsBackupRestore" }));
 
-    await waitFor(() => expect(desktop.previewBackup).toHaveBeenCalledWith("C:\\Backups\\steel.bloomery-backup"));
+    await waitFor(() => expect(desktop.previewBackup).toHaveBeenCalledWith("C:\\Backups\\steel.suna-backup"));
     expect(desktop.restoreBackup).not.toHaveBeenCalled();
   });
 });

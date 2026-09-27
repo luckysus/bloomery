@@ -44,7 +44,7 @@ mod tests {
 
     #[test]
     fn resolves_only_the_system_derived_claim_directory() {
-        let root = std::env::temp_dir().join(format!("bloomery-workspace-{}", Uuid::new_v4()));
+        let root = std::env::temp_dir().join(format!("suna-workspace-{}", Uuid::new_v4()));
         let worktree_root = root.join(".agent").join("worktrees");
         fs::create_dir_all(&worktree_root).unwrap();
         let mut connection = Connection::open_in_memory().unwrap();

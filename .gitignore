@@ -40,7 +40,7 @@ frontend/dist/
 frontend/build/
 frontend/.vite/
 frontend/.cache/
-.bloomery-temp/
+.suna-temp/
 frontend/.env
 frontend/.env.*
 !frontend/.env.example

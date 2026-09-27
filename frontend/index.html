@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Bloomery</title>
+    <title>Suna</title>
     <style>
       :root,
       body {
@@ -17,7 +17,7 @@
         margin: 0;
       }
 
-      #bloomery-boot-screen {
+      #suna-boot-screen {
         display: grid;
         min-height: 100dvh;
         place-items: center;
@@ -25,7 +25,7 @@
         color: #2b2118;
       }
 
-      .bloomery-boot-card {
+      .suna-boot-card {
         display: flex;
         align-items: center;
         gap: 14px;
@@ -36,7 +36,7 @@
         box-shadow: 0 12px 30px rgba(82, 62, 45, 0.08);
       }
 
-      .bloomery-boot-mark {
+      .suna-boot-mark {
         display: grid;
         width: 38px;
         height: 38px;
@@ -46,26 +46,26 @@
         color: #fff;
       }
 
-      .bloomery-boot-mark svg {
+      .suna-boot-mark svg {
         width: 20px;
         height: 20px;
       }
 
-      .bloomery-boot-wordmark {
+      .suna-boot-wordmark {
         font: 700 15px/1.1 system-ui, -apple-system, "Segoe UI", sans-serif;
         letter-spacing: 0.16em;
       }
 
-      .bloomery-boot-dot {
+      .suna-boot-dot {
         width: 6px;
         height: 6px;
         margin-left: 2px;
         border-radius: 999px;
         background: #3f8b75;
-        animation: bloomery-boot-pulse 1.1s ease-in-out infinite;
+        animation: suna-boot-pulse 1.1s ease-in-out infinite;
       }
 
-      @keyframes bloomery-boot-pulse {
+      @keyframes suna-boot-pulse {
         0%,
         100% {
           opacity: 0.35;
@@ -78,7 +78,7 @@
       }
 
       @media (prefers-reduced-motion: reduce) {
-        .bloomery-boot-dot {
+        .suna-boot-dot {
           animation: none;
           opacity: 0.75;
         }
@@ -87,17 +87,17 @@
   </head>
   <body>
     <div id="root">
-      <div id="bloomery-boot-screen" role="status" aria-label="Bloomery">
-        <div class="bloomery-boot-card">
-          <div class="bloomery-boot-mark" aria-hidden="true">
+      <div id="suna-boot-screen" role="status" aria-label="Suna">
+        <div class="suna-boot-card">
+          <div class="suna-boot-mark" aria-hidden="true">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
               <path d="M4 19V5h16v14" />
               <path d="M4 19h16" />
               <path d="M8 16v-3M12 16V9M16 16v-5" />
             </svg>
           </div>
-          <span class="bloomery-boot-wordmark">BLOOMERY</span>
-          <span class="bloomery-boot-dot" aria-hidden="true"></span>
+          <span class="suna-boot-wordmark">SUNA</span>
+          <span class="suna-boot-dot" aria-hidden="true"></span>
         </div>
       </div>
     </div>

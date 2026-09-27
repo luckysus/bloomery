@@ -1,4 +1,4 @@
-use bloomery::domains::load_package;
+use suna::domains::load_package;
 use std::path::PathBuf;
 
 fn steel_package_root() -> PathBuf {

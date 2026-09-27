@@ -176,7 +176,7 @@ pub fn default_skill_roots() -> Vec<SkillRoot> {
         push_root(
             &mut roots,
             SkillScope::User,
-            home.join(".bloomery").join("skills"),
+            home.join(".suna").join("skills"),
         );
     }
     roots
@@ -542,7 +542,7 @@ fn load_skill(
                 errors,
                 SkillErrorCode::Incompatible,
                 path,
-                "skill is incompatible with this Bloomery version",
+                "skill is incompatible with this Suna version",
             );
             return None;
         }
@@ -657,7 +657,7 @@ fn parse_compatibility(value: &str) -> Result<Vec<String>, String> {
     }
     for item in &values {
         let version = item
-            .strip_prefix("bloomery")
+            .strip_prefix("suna")
             .unwrap_or(item)
             .trim_start_matches(">=")
             .trim_start_matches('=')
@@ -679,10 +679,10 @@ fn parse_tags(value: &str) -> Result<Vec<String>, String> {
 
 fn compatible(constraints: &[String], app_version: &str) -> Result<bool, String> {
     let current = parse_version(app_version)
-        .ok_or_else(|| "Bloomery version must be major.minor.patch".to_string())?;
+        .ok_or_else(|| "Suna version must be major.minor.patch".to_string())?;
     for constraint in constraints {
         let version = constraint
-            .strip_prefix("bloomery")
+            .strip_prefix("suna")
             .unwrap_or(constraint)
             .trim_start_matches(">=")
             .trim_start_matches('=')
@@ -773,7 +773,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn default_skill_roots_only_include_the_bloomery_user_directory() {
+    fn default_skill_roots_only_include_the_suna_user_directory() {
         let home = dirs::home_dir().expect("home directory");
         let roots = default_skill_roots();
 
@@ -781,7 +781,7 @@ mod tests {
             roots,
             [SkillRoot::new(
                 SkillScope::User,
-                home.join(".bloomery").join("skills"),
+                home.join(".suna").join("skills"),
             )]
         );
     }

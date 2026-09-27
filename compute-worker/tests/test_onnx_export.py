@@ -3,11 +3,11 @@ import io
 
 import pytest
 
-from bloomery_worker.onnx_export import EXPORT_OPSET, export_linear_onnx
-from bloomery_worker.onnx_inference import SUPPORTED_OPERATORS, OnnxInferenceError, predict_onnx
-from bloomery_worker.protocol import encode_frame, read_frame
-from bloomery_worker.training import predict_linear_regression, train_linear_regression
-from bloomery_worker.worker import serve
+from suna_worker.onnx_export import EXPORT_OPSET, export_linear_onnx
+from suna_worker.onnx_inference import SUPPORTED_OPERATORS, OnnxInferenceError, predict_onnx
+from suna_worker.protocol import encode_frame, read_frame
+from suna_worker.training import predict_linear_regression, train_linear_regression
+from suna_worker.worker import serve
 
 
 def trained_artifact() -> dict:

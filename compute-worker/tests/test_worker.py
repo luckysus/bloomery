@@ -1,7 +1,7 @@
 import io
 
-from bloomery_worker.protocol import encode_frame, read_frame
-from bloomery_worker.worker import serve
+from suna_worker.protocol import encode_frame, read_frame
+from suna_worker.worker import serve
 
 
 def request(request_id: str, method: str, params: dict) -> bytes:

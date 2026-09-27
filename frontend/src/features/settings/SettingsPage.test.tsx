@@ -125,7 +125,7 @@ describe("SettingsPage", () => {
     }
     fireEvent.click(screen.getByRole("tab", { name: "settingsTabGeneral" }));
     expect(screen.getByText("settingsSecretCopy")).toBeInTheDocument();
-    expect(container.querySelectorAll(".bloomery-eyebrow")).toHaveLength(0);
+    expect(container.querySelectorAll(".suna-eyebrow")).toHaveLength(0);
     expect(screen.queryByText("settingsLede")).not.toBeInTheDocument();
     expect(screen.queryByText("settingsPlanCopy")).not.toBeInTheDocument();
     expect(screen.queryByText("settingsChatDescription")).not.toBeInTheDocument();

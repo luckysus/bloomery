@@ -1,6 +1,6 @@
 #![cfg(windows)]
 
-use bloomery::permissions::path::{
+use suna::permissions::path::{
     authorize_existing_file_with_handle, authorize_existing_path, authorize_output_path,
     AuthorizedRoots, PathAuthorizationError,
 };
@@ -10,8 +10,8 @@ use std::{
 };
 
 fn fixture() -> (PathBuf, PathBuf) {
-    let root = std::env::temp_dir().join(format!("bloomery-permission-{}", uuid::Uuid::new_v4()));
-    let outside = std::env::temp_dir().join(format!("bloomery-outside-{}", uuid::Uuid::new_v4()));
+    let root = std::env::temp_dir().join(format!("suna-permission-{}", uuid::Uuid::new_v4()));
+    let outside = std::env::temp_dir().join(format!("suna-outside-{}", uuid::Uuid::new_v4()));
     std::fs::create_dir_all(root.join("nested")).unwrap();
     std::fs::create_dir_all(&outside).unwrap();
     std::fs::write(root.join("nested").join("inside.txt"), "inside").unwrap();

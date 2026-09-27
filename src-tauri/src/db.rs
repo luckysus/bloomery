@@ -51,10 +51,10 @@ pub(crate) fn configured_data_directory(
 ) -> Result<PathBuf, String> {
     let directory = override_path.unwrap_or(default);
     if directory.as_os_str().is_empty() {
-        return Err("BLOOMERY_DATA_DIR must not be empty".to_string());
+        return Err("SUNA_DATA_DIR must not be empty".to_string());
     }
     if !directory.is_absolute() {
-        return Err("BLOOMERY_DATA_DIR must be an absolute path".to_string());
+        return Err("SUNA_DATA_DIR must be an absolute path".to_string());
     }
     Ok(directory)
 }
@@ -64,7 +64,7 @@ pub(crate) fn app_data_directory(app: &tauri::AppHandle) -> Result<PathBuf, Stri
         .path()
         .app_data_dir()
         .map_err(|error| format!("resolve app data dir failed: {error}"))?;
-    let override_path = std::env::var_os("BLOOMERY_DATA_DIR").map(PathBuf::from);
+    let override_path = std::env::var_os("SUNA_DATA_DIR").map(PathBuf::from);
     let directory = configured_data_directory(default, override_path)?;
     fs::create_dir_all(&directory)
         .map_err(|error| format!("create app data dir failed: {error}"))?;
@@ -72,7 +72,7 @@ pub(crate) fn app_data_directory(app: &tauri::AppHandle) -> Result<PathBuf, Stri
 }
 
 pub(crate) fn database_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
-    Ok(app_data_directory(app)?.join("bloomery.sqlite3"))
+    Ok(app_data_directory(app)?.join("suna.sqlite3"))
 }
 
 fn content_root_for(database: &PathBuf) -> Result<PathBuf, String> {
@@ -354,7 +354,7 @@ fn compute_worker_config(app: &tauri::AppHandle) -> Option<crate::compute::worke
         .map(|directory| {
             directory
                 .join("compute-worker")
-                .join("bloomery-compute-worker.exe")
+                .join("suna-compute-worker.exe")
         })
         .filter(|path| path.is_file());
     if let Some(executable) = resource_worker {
@@ -366,10 +366,10 @@ fn compute_worker_config(app: &tauri::AppHandle) -> Option<crate::compute::worke
         );
     }
 
-    let executable = std::env::var_os("BLOOMERY_COMPUTE_WORKER_PYTHON")
+    let executable = std::env::var_os("SUNA_COMPUTE_WORKER_PYTHON")
         .map(std::path::PathBuf::from)
         .filter(|path| path.is_file())?;
-    let working_directory = std::env::var_os("BLOOMERY_COMPUTE_WORKER_DIR")
+    let working_directory = std::env::var_os("SUNA_COMPUTE_WORKER_DIR")
         .map(std::path::PathBuf::from)
         .filter(|path| path.is_dir())?;
     Some(python_worker_config(executable, working_directory))
@@ -381,7 +381,7 @@ fn python_worker_config(
 ) -> crate::compute::worker::WorkerConfig {
     let mut config =
         crate::compute::worker::WorkerConfig::new(executable).with_process_tree_isolation();
-    config.args = vec!["-m".into(), "bloomery_worker".into()];
+    config.args = vec!["-m".into(), "suna_worker".into()];
     config.working_directory = Some(working_directory);
     config
 }

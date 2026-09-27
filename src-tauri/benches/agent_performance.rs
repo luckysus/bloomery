@@ -1,6 +1,6 @@
-use bloomery::agent::protocol::{AgentEventData, AgentMessageRole, MessageDelta};
-use bloomery::storage::migrations::migrate;
-use bloomery::storage::repositories::{conversations, events, runs};
+use suna::agent::protocol::{AgentEventData, AgentMessageRole, MessageDelta};
+use suna::storage::migrations::migrate;
+use suna::storage::repositories::{conversations, events, runs};
 use chrono::{DateTime, Duration, Utc};
 use rusqlite::{params, Connection};
 use serde::Serialize;
@@ -84,7 +84,7 @@ struct BenchmarkReport {
 
 fn main() -> AnyResult<()> {
     let result = run_benchmark()?;
-    let output = std::env::var_os("BLOOMERY_BENCHMARK_OUTPUT")
+    let output = std::env::var_os("SUNA_BENCHMARK_OUTPUT")
         .map(PathBuf::from)
         .unwrap_or_else(|| PathBuf::from("target/agent-performance-benchmark.json"));
     if let Some(parent) = output.parent() {

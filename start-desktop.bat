@@ -41,14 +41,14 @@ if not exist "frontend\node_modules" (
   popd
 )
 
-echo Starting Bloomery...
+echo Starting Suna...
 pushd src-tauri
 cargo tauri dev
 set EXIT_CODE=%ERRORLEVEL%
 popd
 
 if not "%EXIT_CODE%"=="0" (
-  echo Bloomery exited with code %EXIT_CODE%.
+  echo Suna exited with code %EXIT_CODE%.
   pause
 )
 

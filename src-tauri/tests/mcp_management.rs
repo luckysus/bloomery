@@ -1,4 +1,4 @@
-use bloomery::{
+use suna::{
     mcp::{McpServerConfig, McpTransportKind},
     storage::{migrations, repositories::mcp},
 };

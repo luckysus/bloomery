@@ -16,7 +16,7 @@ export default function SettingsTabList<T extends string>({
 }) {
   const { t } = useLocale();
   return (
-    <div className="bloomery-settings-tabs" role="tablist" aria-label={t("settingsTitle")}>
+    <div className="suna-settings-tabs" role="tablist" aria-label={t("settingsTitle")}>
       {tabs.map((tab) => (
         <button
           key={tab.id}
@@ -25,7 +25,7 @@ export default function SettingsTabList<T extends string>({
           id={`settings-tab-${tab.id}`}
           aria-selected={activeTab === tab.id}
           aria-controls={`settings-panel-${tab.id}`}
-          className={`bloomery-settings-tab ${activeTab === tab.id ? "is-active" : ""}`}
+          className={`suna-settings-tab ${activeTab === tab.id ? "is-active" : ""}`}
           onClick={() => onSelect(tab.id)}
         >
           {t(tab.labelKey)}

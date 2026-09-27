@@ -53,14 +53,14 @@ if (-not $SkipTests) {
 
 Invoke-Checked "PyInstaller single-file worker" {
     & $venvPython -m PyInstaller --onefile --noconfirm `
-        --name bloomery-compute-worker `
+        --name suna-compute-worker `
         --distpath $distRoot `
         --workpath (Join-Path $workerRoot "build") `
         --specpath $workerRoot `
         (Join-Path $workerRoot "worker_entry.py")
 }
 
-$executable = Join-Path $distRoot "bloomery-compute-worker.exe"
+$executable = Join-Path $distRoot "suna-compute-worker.exe"
 if (-not (Test-Path -LiteralPath $executable -PathType Leaf)) {
     throw "Packaged worker executable is missing: $executable"
 }
@@ -72,16 +72,16 @@ if ($LASTEXITCODE -ne 0) {
 }
 $versionInfo = $versions | ConvertFrom-Json
 
-$workerVersion = & $venvPython -c "from bloomery_worker.worker import WORKER_VERSION; print(WORKER_VERSION)"
+$workerVersion = & $venvPython -c "from suna_worker.worker import WORKER_VERSION; print(WORKER_VERSION)"
 if ($LASTEXITCODE -ne 0) {
     throw "Reading worker version failed with exit code $LASTEXITCODE"
 }
 
 $manifest = [ordered]@{
     schema_version   = "1.0.0"
-    artifact         = "bloomery-compute-worker"
+    artifact         = "suna-compute-worker"
     worker_version   = "$workerVersion"
-    executable       = "bloomery-compute-worker.exe"
+    executable       = "suna-compute-worker.exe"
     sha256           = $executableHash
     python           = $versionInfo.python
     packages         = $versionInfo.packages
@@ -95,10 +95,10 @@ $manifest | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $manifestPath -En
 
 $sbom = [ordered]@{
     schema_version = "1.0.0"
-    component      = "bloomery-compute-worker"
+    component      = "suna-compute-worker"
 }
 $components = @()
-$components += @{ name = "bloomery-compute-worker"; version = "$workerVersion"; sha256 = $executableHash }
+$components += @{ name = "suna-compute-worker"; version = "$workerVersion"; sha256 = $executableHash }
 foreach ($package in $versionInfo.packages) {
     $components += @{ name = [string]$package.name; version = [string]$package.version }
 }
@@ -106,7 +106,7 @@ $sbom["components"] = $components
 $sbomPath = Join-Path $distRoot "worker-sbom.json"
 $sbom | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $sbomPath -Encoding utf8
 
-"$executableHash  bloomery-compute-worker.exe" | Set-Content -LiteralPath (Join-Path $distRoot "bloomery-compute-worker.sha256") -Encoding utf8
+"$executableHash  suna-compute-worker.exe" | Set-Content -LiteralPath (Join-Path $distRoot "suna-compute-worker.sha256") -Encoding utf8
 
 Write-Output "Worker artifact manifest written to $manifestPath"
 Write-Output "Packaged worker build passed."

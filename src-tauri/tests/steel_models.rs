@@ -1,5 +1,5 @@
-use bloomery::storage::migrations::migrate;
-use bloomery::storage::repositories::steel_models::{self as models, NewSteelModel};
+use suna::storage::migrations::migrate;
+use suna::storage::repositories::steel_models::{self as models, NewSteelModel};
 use rusqlite::Connection;
 
 const SHA_A: &str = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
@@ -8,7 +8,7 @@ const SHA_C: &str = "ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
 fn migrated_connection() -> (std::path::PathBuf, Connection) {
     let path = std::env::temp_dir().join(format!(
-        "bloomery-steel-models-{}.sqlite3",
+        "suna-steel-models-{}.sqlite3",
         uuid::Uuid::new_v4()
     ));
     let mut connection = Connection::open(&path).expect("open model database");

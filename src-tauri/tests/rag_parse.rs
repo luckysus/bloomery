@@ -1,6 +1,6 @@
-use bloomery::rag::ingest::SourceFormat;
-use bloomery::rag::model::SourceLocation;
-use bloomery::rag::parse::{parse_document, DocumentBlock, ParseLimits};
+use suna::rag::ingest::SourceFormat;
+use suna::rag::model::SourceLocation;
+use suna::rag::parse::{parse_document, DocumentBlock, ParseLimits};
 use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -11,7 +11,7 @@ struct GeneratedFixture(PathBuf);
 
 impl GeneratedFixture {
     fn file(name: &str, bytes: &[u8]) -> Self {
-        let directory = std::env::temp_dir().join(format!("bloomery-rag-parse-{}", Uuid::new_v4()));
+        let directory = std::env::temp_dir().join(format!("suna-rag-parse-{}", Uuid::new_v4()));
         fs::create_dir_all(&directory).expect("create generated fixture directory");
         let path = directory.join(name);
         fs::write(&path, bytes).expect("write generated fixture");
@@ -19,7 +19,7 @@ impl GeneratedFixture {
     }
 
     fn zip(name: &str, entries: &[(&str, &[u8])]) -> Self {
-        let directory = std::env::temp_dir().join(format!("bloomery-rag-parse-{}", Uuid::new_v4()));
+        let directory = std::env::temp_dir().join(format!("suna-rag-parse-{}", Uuid::new_v4()));
         fs::create_dir_all(&directory).expect("create generated fixture directory");
         let path = directory.join(name);
         let file = fs::File::create(&path).expect("create ZIP fixture");
@@ -35,7 +35,7 @@ impl GeneratedFixture {
     }
 
     fn symlink_zip(name: &str, entry_name: &str, target: &str) -> Self {
-        let directory = std::env::temp_dir().join(format!("bloomery-rag-parse-{}", Uuid::new_v4()));
+        let directory = std::env::temp_dir().join(format!("suna-rag-parse-{}", Uuid::new_v4()));
         fs::create_dir_all(&directory).expect("create generated fixture directory");
         let path = directory.join(name);
         let file = fs::File::create(&path).expect("create ZIP fixture");

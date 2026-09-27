@@ -1,6 +1,6 @@
-use bloomery::rag::chunk::{chunk_document, ChunkPolicy};
-use bloomery::rag::model::SourceLocation;
-use bloomery::rag::parse::{DocumentBlock, ParsedDocument};
+use suna::rag::chunk::{chunk_document, ChunkPolicy};
+use suna::rag::model::SourceLocation;
+use suna::rag::parse::{DocumentBlock, ParsedDocument};
 
 fn location(start: u64, end: u64) -> SourceLocation {
     SourceLocation::TextOffsets { start, end }

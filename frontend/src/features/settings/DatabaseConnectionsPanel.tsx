@@ -202,17 +202,17 @@ export default function DatabaseConnectionsPanel() {
   );
 
   return (
-    <section className="bloomery-settings-databases" aria-labelledby="settings-databases-heading" aria-busy={loading}>
-      <div className="bloomery-settings-permissions-heading">
+    <section className="suna-settings-databases" aria-labelledby="settings-databases-heading" aria-busy={loading}>
+      <div className="suna-settings-permissions-heading">
         <div><h2 id="settings-databases-heading">{t("settingsDatabaseTitle")}</h2></div>
         <Database size={21} aria-hidden="true" />
       </div>
-      {error && <div className="bloomery-settings-alert" role="alert"><CircleAlert size={17} aria-hidden="true" /><span>{error}</span></div>}
-      {notice && <div className="bloomery-settings-notice" role="status"><Check size={17} aria-hidden="true" /><span>{notice}</span></div>}
+      {error && <div className="suna-settings-alert" role="alert"><CircleAlert size={17} aria-hidden="true" /><span>{error}</span></div>}
+      {notice && <div className="suna-settings-notice" role="status"><Check size={17} aria-hidden="true" /><span>{notice}</span></div>}
 
-      <form className="bloomery-mcp-form" onSubmit={(event) => void save(event)}>
-        <div className="bloomery-mcp-form-heading"><strong>{draft.id ? t("settingsDatabaseEdit") : t("settingsDatabaseAdd")}</strong><span>{t("settingsDatabaseSecretNote")}</span></div>
-        <div className="bloomery-mcp-fields">
+      <form className="suna-mcp-form" onSubmit={(event) => void save(event)}>
+        <div className="suna-mcp-form-heading"><strong>{draft.id ? t("settingsDatabaseEdit") : t("settingsDatabaseAdd")}</strong><span>{t("settingsDatabaseSecretNote")}</span></div>
+        <div className="suna-mcp-fields">
           <label><span>{t("settingsDatabaseDisplayName")}</span><input value={draft.display_name} onChange={(event) => setDraft({ ...draft, display_name: event.target.value })} required /></label>
           <label><span>{t("settingsDatabaseHost")}</span><input value={draft.host} onChange={(event) => setDraft({ ...draft, host: event.target.value })} required /></label>
           <label><span>{t("settingsDatabasePort")}</span><input type="number" min="1" max="65535" value={draft.port} onChange={(event) => setDraft({ ...draft, port: event.target.value })} required /></label>
@@ -220,34 +220,34 @@ export default function DatabaseConnectionsPanel() {
           <label><span>{t("settingsDatabasePassword")}</span><input type="password" value={draft.password} onChange={(event) => setDraft({ ...draft, password: event.target.value })} placeholder={draft.id ? t("settingsDatabasePasswordPlaceholder") : undefined} autoComplete="new-password" /></label>
           <label><span>{t("settingsDatabaseTimeout")}</span><input type="number" min="1000" max="60000" step="500" aria-label={t("settingsDatabaseTimeout")} value={draft.timeout_ms} onChange={(event) => setDraft({ ...draft, timeout_ms: event.target.value })} required /></label>
         </div>
-        {duplicate && <p className="bloomery-settings-alert" role="status">{t("settingsDatabaseDuplicate")}</p>}
-        <div className="bloomery-mcp-form-actions"><button type="submit" className="bloomery-secondary-button" disabled={busy === "save"}><Save size={15} aria-hidden="true" />{busy === "save" ? t("settingsDatabaseSaving") : t("settingsDatabaseSave")}</button>{draft.id && <button type="button" className="bloomery-icon-button" onClick={() => setDraft(emptyDraft())} aria-label={t("settingsDatabaseCancelEdit")} title={t("settingsDatabaseCancelEdit")}><CircleX size={17} aria-hidden="true" /></button>}</div>
+        {duplicate && <p className="suna-settings-alert" role="status">{t("settingsDatabaseDuplicate")}</p>}
+        <div className="suna-mcp-form-actions"><button type="submit" className="suna-secondary-button" disabled={busy === "save"}><Save size={15} aria-hidden="true" />{busy === "save" ? t("settingsDatabaseSaving") : t("settingsDatabaseSave")}</button>{draft.id && <button type="button" className="suna-icon-button" onClick={() => setDraft(emptyDraft())} aria-label={t("settingsDatabaseCancelEdit")} title={t("settingsDatabaseCancelEdit")}><CircleX size={17} aria-hidden="true" /></button>}</div>
       </form>
 
-      {connections.length === 0 ? <div className="bloomery-extensions-empty"><Database size={18} aria-hidden="true" /><span>{t("settingsDatabaseEmpty")}</span></div> : <div className="bloomery-mcp-list">
+      {connections.length === 0 ? <div className="suna-extensions-empty"><Database size={18} aria-hidden="true" /><span>{t("settingsDatabaseEmpty")}</span></div> : <div className="suna-mcp-list">
         {connections.map((connection) => {
           const result = testResults[connection.id];
           const connectionTables = tables[connection.id] ?? [];
-          return <article className="bloomery-mcp-item" key={connection.id}>
-            <div className="bloomery-mcp-item-main">
-              <div className="bloomery-extension-item-heading"><span className="bloomery-extension-icon"><Database size={17} aria-hidden="true" /></span><div><h3>{connection.display_name}</h3><p>{connection.host}:{connection.port} · {connection.username}</p></div></div>
+          return <article className="suna-mcp-item" key={connection.id}>
+            <div className="suna-mcp-item-main">
+              <div className="suna-extension-item-heading"><span className="suna-extension-icon"><Database size={17} aria-hidden="true" /></span><div><h3>{connection.display_name}</h3><p>{connection.host}:{connection.port} · {connection.username}</p></div></div>
               {connection.last_checked_at && (
-                <p className={connection.last_error ? "bloomery-mcp-error" : "bloomery-mcp-health is-healthy"}>
+                <p className={connection.last_error ? "suna-mcp-error" : "suna-mcp-health is-healthy"}>
                   {connection.last_error
                     ? `${t("settingsDatabaseLastChecked")}: ${connection.last_error}`
                     : `${connection.last_version ?? ""} · ${t("settingsDatabaseLatency", { ms: connection.last_latency_ms ?? 0 })}`}
                 </p>
               )}
-              {result?.version && <p className="bloomery-mcp-health is-healthy"><CircleCheck size={14} aria-hidden="true" />{result.version.split("\n")[0]}</p>}
-              {result?.error && <p className="bloomery-mcp-error">{result.error}</p>}
-              {connectionTables.length > 0 && <details className="bloomery-mcp-tools"><summary>{t("settingsDatabaseTables")} ({connectionTables.length})</summary>{connectionTables.map((name) => <div key={name}><code>{name}</code></div>)}</details>}
+              {result?.version && <p className="suna-mcp-health is-healthy"><CircleCheck size={14} aria-hidden="true" />{result.version.split("\n")[0]}</p>}
+              {result?.error && <p className="suna-mcp-error">{result.error}</p>}
+              {connectionTables.length > 0 && <details className="suna-mcp-tools"><summary>{t("settingsDatabaseTables")} ({connectionTables.length})</summary>{connectionTables.map((name) => <div key={name}><code>{name}</code></div>)}</details>}
             </div>
-            <div className="bloomery-mcp-actions">
-              <button type="button" role="switch" aria-checked={connection.enabled} className="bloomery-icon-button" onClick={() => void saveExisting(connection, !connection.enabled)} disabled={busy !== null} aria-label={t("settingsDatabaseEnabled")} title={t("settingsDatabaseEnabled")}>{connection.enabled ? <ToggleRight size={16} aria-hidden="true" /> : <ToggleLeft size={16} aria-hidden="true" />}</button>
-              <button type="button" className="bloomery-icon-button" onClick={() => void test(connection)} disabled={busy !== null} aria-label={t("settingsDatabaseTest")} title={t("settingsDatabaseTest")}><PlugZap size={16} aria-hidden="true" /></button>
-              <button type="button" className="bloomery-icon-button" onClick={() => void listTables(connection)} disabled={busy !== null} aria-label={t("settingsDatabaseTables")} title={t("settingsDatabaseTables")}><Table2 size={16} aria-hidden="true" /></button>
-              <button type="button" className="bloomery-icon-button" onClick={() => edit(connection)} disabled={busy !== null} aria-label={t("settingsDatabaseEdit")} title={t("settingsDatabaseEdit")}><Pencil size={16} aria-hidden="true" /></button>
-              <button type="button" className="bloomery-icon-button" onClick={() => void remove(connection)} disabled={busy !== null} aria-label={t("settingsDatabaseDelete")} title={t("settingsDatabaseDelete")}><Trash2 size={16} aria-hidden="true" /></button>
+            <div className="suna-mcp-actions">
+              <button type="button" role="switch" aria-checked={connection.enabled} className="suna-icon-button" onClick={() => void saveExisting(connection, !connection.enabled)} disabled={busy !== null} aria-label={t("settingsDatabaseEnabled")} title={t("settingsDatabaseEnabled")}>{connection.enabled ? <ToggleRight size={16} aria-hidden="true" /> : <ToggleLeft size={16} aria-hidden="true" />}</button>
+              <button type="button" className="suna-icon-button" onClick={() => void test(connection)} disabled={busy !== null} aria-label={t("settingsDatabaseTest")} title={t("settingsDatabaseTest")}><PlugZap size={16} aria-hidden="true" /></button>
+              <button type="button" className="suna-icon-button" onClick={() => void listTables(connection)} disabled={busy !== null} aria-label={t("settingsDatabaseTables")} title={t("settingsDatabaseTables")}><Table2 size={16} aria-hidden="true" /></button>
+              <button type="button" className="suna-icon-button" onClick={() => edit(connection)} disabled={busy !== null} aria-label={t("settingsDatabaseEdit")} title={t("settingsDatabaseEdit")}><Pencil size={16} aria-hidden="true" /></button>
+              <button type="button" className="suna-icon-button" onClick={() => void remove(connection)} disabled={busy !== null} aria-label={t("settingsDatabaseDelete")} title={t("settingsDatabaseDelete")}><Trash2 size={16} aria-hidden="true" /></button>
             </div>
           </article>;
         })}

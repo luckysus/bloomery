@@ -2,7 +2,7 @@ import io
 
 import pytest
 
-from bloomery_worker.protocol import (
+from suna_worker.protocol import (
     PROTOCOL_VERSION,
     FrameError,
     encode_frame,

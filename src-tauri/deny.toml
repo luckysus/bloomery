@@ -1,4 +1,4 @@
-# cargo-deny 配置 —— Bloomery 发布质量依赖治理（Task 4）
+# cargo-deny 配置 —— Suna 发布质量依赖治理（Task 4）
 # 适配 cargo-deny 0.20.x（配置 schema version = 2）。
 # 项目自身许可证为 Apache-2.0；下方 allow-list 依据实际 `cargo deny list` 扫描结果确定。
 

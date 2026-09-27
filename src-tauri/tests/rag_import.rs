@@ -1,10 +1,10 @@
-use bloomery::providers::profiles::{ProviderKind, ProviderProfile};
-use bloomery::rag::ingest::{queue_document_import, DocumentImportRequest, KnowledgeBaseTarget};
-use bloomery::rag::tasks::{MinerUTaskPayload, MINERU_TASK_KIND};
-use bloomery::storage::migrations::migrate;
-use bloomery::storage::repositories::{knowledge, provider_profiles};
-use bloomery::storage::secrets::{SecretError, SecretRef, SecretStore, SecretValue};
-use bloomery::tasks::{repository as task_repository, TaskState};
+use suna::providers::profiles::{ProviderKind, ProviderProfile};
+use suna::rag::ingest::{queue_document_import, DocumentImportRequest, KnowledgeBaseTarget};
+use suna::rag::tasks::{MinerUTaskPayload, MINERU_TASK_KIND};
+use suna::storage::migrations::migrate;
+use suna::storage::repositories::{knowledge, provider_profiles};
+use suna::storage::secrets::{SecretError, SecretRef, SecretStore, SecretValue};
+use suna::tasks::{repository as task_repository, TaskState};
 use rusqlite::Connection;
 use std::collections::HashMap;
 use std::fs;
@@ -343,7 +343,7 @@ struct Fixture {
 
 impl Fixture {
     fn new() -> Self {
-        let root = std::env::temp_dir().join(format!("bloomery-import-{}", Uuid::new_v4()));
+        let root = std::env::temp_dir().join(format!("suna-import-{}", Uuid::new_v4()));
         let content_root = root.join("content");
         fs::create_dir_all(&content_root).unwrap();
         let source = root.join("steel-standard.pdf");
@@ -388,11 +388,11 @@ impl Fixture {
         }
     }
 
-    fn queue(&mut self) -> bloomery::rag::ingest::DocumentImportResponse {
+    fn queue(&mut self) -> suna::rag::ingest::DocumentImportResponse {
         self.try_queue().unwrap()
     }
 
-    fn try_queue(&mut self) -> Result<bloomery::rag::ingest::DocumentImportResponse, String> {
+    fn try_queue(&mut self) -> Result<suna::rag::ingest::DocumentImportResponse, String> {
         let request = self.request();
         self.try_queue_request(request)
     }
@@ -400,14 +400,14 @@ impl Fixture {
     fn queue_request(
         &mut self,
         request: DocumentImportRequest,
-    ) -> bloomery::rag::ingest::DocumentImportResponse {
+    ) -> suna::rag::ingest::DocumentImportResponse {
         self.try_queue_request(request).unwrap()
     }
 
     fn try_queue_request(
         &mut self,
         request: DocumentImportRequest,
-    ) -> Result<bloomery::rag::ingest::DocumentImportResponse, String> {
+    ) -> Result<suna::rag::ingest::DocumentImportResponse, String> {
         queue_document_import(
             &mut self.connection,
             WORKSPACE,
@@ -419,8 +419,8 @@ impl Fixture {
 
     fn queue_into(
         &mut self,
-        knowledge_base_id: bloomery::rag::model::KnowledgeBaseId,
-    ) -> bloomery::rag::ingest::DocumentImportResponse {
+        knowledge_base_id: suna::rag::model::KnowledgeBaseId,
+    ) -> suna::rag::ingest::DocumentImportResponse {
         let mut request = self.request();
         request.knowledge_base = KnowledgeBaseTarget::Existing {
             id: knowledge_base_id,

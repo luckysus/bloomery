@@ -2,15 +2,15 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** 将 Web 端完整钢铁智能体对话页面的结构、导航和入口迁移到 Bloomery，先保留所有页面功能，不提前删除任何 Web 元素。
+**Goal:** 将 Web 端完整钢铁智能体对话页面的结构、导航和入口迁移到 Suna，先保留所有页面功能，不提前删除任何 Web 元素。
 
-**Architecture:** Bloomery 不运行时依赖 `Web/frontend`。新增一个独立的 Web 风格桌面对话壳，复用 Web 的布局层级、交互顺序和视觉规则；消息、会话、模型、RAG、权限和流式状态继续通过 Bloomery 现有 `useChatController` 与 Rust bridge 提供。Web 页面中的云端动作先由 Bloomery 的本地模块入口承接，后续用户指定删除项后再收缩，并将剩余入口逐项接入 Rust。
+**Architecture:** Suna 不运行时依赖 `Web/frontend`。新增一个独立的 Web 风格桌面对话壳，复用 Web 的布局层级、交互顺序和视觉规则；消息、会话、模型、RAG、权限和流式状态继续通过 Suna 现有 `useChatController` 与 Rust bridge 提供。Web 页面中的云端动作先由 Suna 的本地模块入口承接，后续用户指定删除项后再收缩，并将剩余入口逐项接入 Rust。
 
-**Tech Stack:** React 18、TypeScript、Vite、Vitest、Testing Library、Lucide React、Bloomery Tauri bridge。
+**Tech Stack:** React 18、TypeScript、Vite、Vitest、Testing Library、Lucide React、Suna Tauri bridge。
 
 ## Global Constraints
 
-- Bloomery 是 `F:/steel-agent/bloomery` 的独立嵌套 Git 仓库，只修改该仓库范围内的文件。
+- Suna 是 `F:/steel-agent/suna` 的独立嵌套 Git 仓库，只修改该仓库范围内的文件。
 - 使用 PowerShell；默认 UTF-8；不依赖 Web 登录、Web API 或私有云服务。
 - 先完整保留 Web 页面入口：模式切换、知识库、模型训练、工艺优化、个人中心、最近会话、搜索、消息区和输入区。
 - 不在本阶段删除 Web 功能；用户体验后单独给出删除清单。
@@ -52,7 +52,7 @@ expect(screen.getByRole("textbox", { name: "输入消息" })).toBeInTheDocument(
 Run:
 
 ```powershell
-Set-Location F:/steel-agent/bloomery/frontend
+Set-Location F:/steel-agent/suna/frontend
 npm test -- WebChatWorkspace.test.tsx
 ```
 
@@ -79,8 +79,8 @@ Expected: FAIL because `ChatPage` currently only renders the本地会话双栏�
 在 `WebChatWorkspace.tsx` 中实现以下结构：
 
 ```tsx
-<section className="bloomery-web-chat" aria-label="钢铁智能体">
-  <aside className="bloomery-web-chat-sidebar">
+<section className="suna-web-chat" aria-label="钢铁智能体">
+  <aside className="suna-web-chat-sidebar">
     <button aria-label="钢铁智能体">...</button>
     <button aria-label="多模态智能检索">...</button>
     <button aria-label="新聊天">...</button>
@@ -88,8 +88,8 @@ Expected: FAIL because `ChatPage` currently only renders the本地会话双栏�
     <RecentConversationList ... />
     <button aria-label="个人中心">...</button>
   </aside>
-  <main className="bloomery-web-chat-main">
-    <header className="bloomery-web-chat-top-actions">
+  <main className="suna-web-chat-main">
+    <header className="suna-web-chat-top-actions">
       <button aria-label="知识库">...</button>
       <button aria-label="模型训练">...</button>
       <button aria-label="工艺优化">...</button>
@@ -99,7 +99,7 @@ Expected: FAIL because `ChatPage` currently only renders the本地会话双栏�
 </section>
 ```
 
-模式切换先保持页面可见；点击“多模态智能检索”进入 Bloomery 的知识库模块。顶部“知识库”进入知识库模块，“模型训练”和“工艺优化”进入数据分析模块；“个人中心”进入设置模块。没有回调时入口仍可渲染，避免单独测试崩溃。
+模式切换先保持页面可见；点击“多模态智能检索”进入 Suna 的知识库模块。顶部“知识库”进入知识库模块，“模型训练”和“工艺优化”进入数据分析模块；“个人中心”进入设置模块。没有回调时入口仍可渲染，避免单独测试崩溃。
 
 - [ ] **Step 2: 保持现有对话功能不变**
 
@@ -107,11 +107,11 @@ Expected: FAIL because `ChatPage` currently only renders the本地会话双栏�
 
 - [ ] **Step 3: Add minimal Web layout styles**
 
-在 `frontend/src/design/polish.css` 增加 `.bloomery-web-chat*` 样式，复用已有 token：
+在 `frontend/src/design/polish.css` 增加 `.suna-web-chat*` 样式，复用已有 token：
 
 ```css
-.bloomery-web-chat {
-  background: var(--bloomery-bg);
+.suna-web-chat {
+  background: var(--suna-bg);
   display: grid;
   grid-template-columns: 296px minmax(0, 1fr);
   height: 100dvh;
@@ -126,27 +126,27 @@ Expected: FAIL because `ChatPage` currently only renders the本地会话双栏�
 Run:
 
 ```powershell
-Set-Location F:/steel-agent/bloomery/frontend
+Set-Location F:/steel-agent/suna/frontend
 npm test -- WebChatWorkspace.test.tsx ChatPage.test.tsx
 ```
 
 Expected: 新增完整页面契约与现有对话测试全部 PASS。
 
-### Task 3: 让 Bloomery 在对话入口使用完整页面
+### Task 3: 让 Suna 在对话入口使用完整页面
 
 **Files:**
-- Modify: `frontend/src/app/BloomeryApp.tsx`
-- Modify: `frontend/src/app/BloomeryApp.test.tsx`
-- Modify: `frontend/src/app/BloomeryLayout.test.tsx`
+- Modify: `frontend/src/app/SunaApp.tsx`
+- Modify: `frontend/src/app/SunaApp.test.tsx`
+- Modify: `frontend/src/app/SunaLayout.test.tsx`
 
 **Interfaces:**
-- 非对话模块继续使用 Bloomery 原有顶部栏和通用模块导航。
-- 进入“对话”后切换为完整 Web 对话壳，避免出现重复的 Bloomery 外层导航。
-- `onOpenSection` 负责从 Web 页面顶部入口返回 Bloomery 的本地知识库、数据分析或设置模块。
+- 非对话模块继续使用 Suna 原有顶部栏和通用模块导航。
+- 进入“对话”后切换为完整 Web 对话壳，避免出现重复的 Suna 外层导航。
+- `onOpenSection` 负责从 Web 页面顶部入口返回 Suna 的本地知识库、数据分析或设置模块。
 
 - [ ] **Step 1: Add the shell transition assertion**
 
-在 `BloomeryApp.test.tsx` 中点击“对话”，断言：
+在 `SunaApp.test.tsx` 中点击“对话”，断言：
 
 ```tsx
 fireEvent.click(screen.getByRole("button", { name: "对话" }));
@@ -160,18 +160,18 @@ expect(screen.queryByRole("navigation", { name: "主导航" })).not.toBeInTheDoc
 Run:
 
 ```powershell
-Set-Location F:/steel-agent/bloomery/frontend
-npm test -- BloomeryApp.test.tsx
+Set-Location F:/steel-agent/suna/frontend
+npm test -- SunaApp.test.tsx
 ```
 
-Expected: FAIL because the current chat route remains inside the generic Bloomery topbar/sidebar.
+Expected: FAIL because the current chat route remains inside the generic Suna topbar/sidebar.
 
 - [ ] **Step 3: Implement the conditional full-screen chat route**
 
-在 `BloomeryAppShell` 中保留初始化和 provider context；当 `activeSection === "chat"` 时直接返回：
+在 `SunaAppShell` 中保留初始化和 provider context；当 `activeSection === "chat"` 时直接返回：
 
 ```tsx
-<div className="bloomery-app bloomery-app-chat">
+<div className="suna-app suna-app-chat">
   <ChatPage onOpenSection={setActiveSection} />
 </div>
 ```
@@ -183,7 +183,7 @@ Expected: FAIL because the current chat route remains inside the generic Bloomer
 Run:
 
 ```powershell
-Set-Location F:/steel-agent/bloomery/frontend
+Set-Location F:/steel-agent/suna/frontend
 npm test
 npm run build
 ```
@@ -194,7 +194,7 @@ Expected: Vitest 全部通过，TypeScript 与 Vite 构建退出码为 0。
 
 **Files:**
 - Modify: `frontend/src/design/polish.css`
-- Modify: `frontend/src/app/BloomeryLayout.test.tsx`
+- Modify: `frontend/src/app/SunaLayout.test.tsx`
 - Modify: `frontend/src/features/chat/WebChatWorkspace.test.tsx`
 
 **Interfaces:**
@@ -210,11 +210,11 @@ Expected: Vitest 全部通过，TypeScript 与 Vite 构建退出码为 0。
 Run:
 
 ```powershell
-Set-Location F:/steel-agent/bloomery/frontend
-npm test -- WebChatWorkspace.test.tsx BloomeryLayout.test.tsx
+Set-Location F:/steel-agent/suna/frontend
+npm test -- WebChatWorkspace.test.tsx SunaLayout.test.tsx
 npm test
 npm run build
-Set-Location F:/steel-agent/bloomery/src-tauri
+Set-Location F:/steel-agent/suna/src-tauri
 cargo check
 cargo test
 ```
@@ -226,9 +226,9 @@ Expected: 所有前端测试、前端构建、Rust 检查和 Rust 测试均退�
 运行：
 
 ```powershell
-Set-Location F:/steel-agent/bloomery
+Set-Location F:/steel-agent/suna
 git diff --stat
-git diff -- frontend/src/features/chat/WebChatWorkspace.tsx frontend/src/features/chat/ChatPage.tsx frontend/src/app/BloomeryApp.tsx frontend/src/design/polish.css
+git diff -- frontend/src/features/chat/WebChatWorkspace.tsx frontend/src/features/chat/ChatPage.tsx frontend/src/app/SunaApp.tsx frontend/src/design/polish.css
 ```
 
 检查只包含完整 Web 对话壳所需文件，不删除 Web 端任何内容，不把 `target/`、`dist/`、日志或运行时数据库加入暂存区。

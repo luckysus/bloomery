@@ -1,20 +1,20 @@
-use bloomery::providers::capabilities::{RerankDocument, RerankResult};
-use bloomery::providers::http::{ProviderError, ProviderErrorCode};
-use bloomery::rag::index::vector::{
+use suna::providers::capabilities::{RerankDocument, RerankResult};
+use suna::providers::http::{ProviderError, ProviderErrorCode};
+use suna::rag::index::vector::{
     CandidateFilter, IndexError, IndexWatermark, VectorHit, VectorIndex,
 };
-use bloomery::rag::model::{
+use suna::rag::model::{
     ChunkId, DocumentVersionId, KnowledgeBaseId, SourceDocumentId, SourceLocation,
 };
-use bloomery::rag::rerank::{
+use suna::rag::rerank::{
     rerank_candidates, RerankDegradationReason, RerankProviderState, RerankRemote,
     RerankRemoteFuture,
 };
-use bloomery::rag::retrieve::filter::active_versions;
-use bloomery::rag::retrieve::rrf::{reciprocal_rank_fusion, FusedChunk, RankedChunk};
-use bloomery::rag::retrieve::{retrieve, HybridSearchRequest, RetrievedChunk};
-use bloomery::storage::migrations::migrate;
-use bloomery::storage::repositories::knowledge;
+use suna::rag::retrieve::filter::active_versions;
+use suna::rag::retrieve::rrf::{reciprocal_rank_fusion, FusedChunk, RankedChunk};
+use suna::rag::retrieve::{retrieve, HybridSearchRequest, RetrievedChunk};
+use suna::storage::migrations::migrate;
+use suna::storage::repositories::knowledge;
 use rusqlite::{params, Connection};
 use std::str::FromStr;
 use std::sync::Mutex;

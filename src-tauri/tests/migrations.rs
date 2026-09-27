@@ -1,5 +1,5 @@
-use bloomery::storage::database;
-use bloomery::storage::migrations::{latest_version, migrate};
+use suna::storage::database;
+use suna::storage::migrations::{latest_version, migrate};
 use rusqlite::{params, Connection, OptionalExtension};
 
 const LEGACY_SCHEMA: &str = include_str!("../src/storage/migrations/0001_initial.sql");
@@ -543,7 +543,7 @@ fn version_nineteen_database_requires_v20_for_sklearn_model_kind() {
 #[test]
 fn file_database_uses_wal_and_ordered_migrations() {
     let path = std::env::temp_dir().join(format!(
-        "bloomery-migration-{}.sqlite3",
+        "suna-migration-{}.sqlite3",
         uuid::Uuid::new_v4()
     ));
     let (conn, report) = database::open(&path).expect("open migrated file database");
@@ -574,7 +574,7 @@ fn mcp_transport_accepts_legacy_sse(conn: &Connection) -> bool {
     .is_ok()
 }
 #[test]
-fn rejects_database_from_newer_bloomery() {
+fn rejects_database_from_newer_suna() {
     let mut conn = Connection::open_in_memory().expect("open memory database");
     conn.pragma_update(None, "user_version", 999_u32)
         .expect("set future version");

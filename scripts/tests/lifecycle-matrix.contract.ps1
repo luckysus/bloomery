@@ -10,7 +10,7 @@ $content = Get-Content -LiteralPath $scriptPath -Raw
 foreach ($requiredText in @(
     "[switch]`$RunInstallerSmoke",
     "[switch]`$RunUpgradeDowngrade",
-    "BLOOMERY_DATA_DIR",
+    "SUNA_DATA_DIR",
     "upgrade",
     "downgrade",
     "results.Add((Install-And-Launch",

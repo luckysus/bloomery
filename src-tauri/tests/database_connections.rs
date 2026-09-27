@@ -1,5 +1,5 @@
-use bloomery::storage::migrations::migrate;
-use bloomery::storage::repositories::database_connections::{self, DatabaseConnectionRecord};
+use suna::storage::migrations::migrate;
+use suna::storage::repositories::database_connections::{self, DatabaseConnectionRecord};
 use chrono::Utc;
 use rusqlite::Connection;
 use uuid::Uuid;

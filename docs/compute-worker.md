@@ -1,6 +1,6 @@
 # Compute Worker Protocol
 
-Bloomery's optional local compute worker runs as a child process and communicates
+Suna's optional local compute worker runs as a child process and communicates
 over framed JSON-RPC on stdin/stdout. It does not listen on a port and receives
 no provider credentials.
 

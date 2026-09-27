@@ -75,11 +75,11 @@ function PermissionActions({
   ];
 
   return (
-    <div className="bloomery-chat-permission-actions">
+    <div className="suna-chat-permission-actions">
       {actions.map(({ decision, label, danger }) => (
         <button
           type="button"
-          className={danger ? "bloomery-action-secondary is-danger" : "bloomery-action-secondary"}
+          className={danger ? "suna-action-secondary is-danger" : "suna-action-secondary"}
           aria-label={`Agent Workspace permission ${decision}`}
           key={decision}
           onClick={() => onResolve(permission.permissionId, decision)}
@@ -94,9 +94,9 @@ function PermissionActions({
 
 function ToolRow({ tool }: { tool: AgentToolView }) {
   return (
-    <div className="bloomery-chat-inspector-tool">
-      <span className={`bloomery-chat-inspector-tool-icon ${toolTone(tool)}`}>
-        {tool.status === "running" ? <LoaderCircle size={14} className="bloomery-spin" aria-hidden="true" /> : <Wrench size={14} aria-hidden="true" />}
+    <div className="suna-chat-inspector-tool">
+      <span className={`suna-chat-inspector-tool-icon ${toolTone(tool)}`}>
+        {tool.status === "running" ? <LoaderCircle size={14} className="suna-spin" aria-hidden="true" /> : <Wrench size={14} aria-hidden="true" />}
       </span>
       <div>
         <strong title={tool.name}>工具 · {tool.name}</strong>
@@ -119,9 +119,9 @@ export default function AgentRunInspector({
 
   if (!run) {
     return (
-      <aside className="bloomery-chat-inspector" aria-label="Agent Workspace">
-        <div className="bloomery-chat-inspector-empty">
-          <span className="bloomery-chat-inspector-empty-icon"><Sparkles size={18} aria-hidden="true" /></span>
+      <aside className="suna-chat-inspector" aria-label="Agent Workspace">
+        <div className="suna-chat-inspector-empty">
+          <span className="suna-chat-inspector-empty-icon"><Sparkles size={18} aria-hidden="true" /></span>
           <strong>Agent Workspace</strong>
           <p>创建任务后，这里会显示运行状态、工具调用、权限和来源。</p>
         </div>
@@ -136,56 +136,56 @@ export default function AgentRunInspector({
   const canResume = recovery?.action.kind === "resume_from_checkpoint";
 
   return (
-    <aside className="bloomery-chat-inspector" aria-label="Agent Workspace">
-      <header className="bloomery-chat-inspector-header">
+    <aside className="suna-chat-inspector" aria-label="Agent Workspace">
+      <header className="suna-chat-inspector-header">
         <div>
-          <p className="bloomery-eyebrow">AGENT WORKSPACE</p>
+          <p className="suna-eyebrow">AGENT WORKSPACE</p>
           <h3>运行检查器</h3>
         </div>
-        <span className={`bloomery-chat-inspector-state ${stateTone(run.state)}`}>
+        <span className={`suna-chat-inspector-state ${stateTone(run.state)}`}>
           <CircleDashed size={12} aria-hidden="true" />{stateLabel(run.state, t)}
         </span>
       </header>
 
-      <div className="bloomery-chat-inspector-metrics">
+      <div className="suna-chat-inspector-metrics">
         <div><span>事件序号</span><strong>{run.sequence}</strong></div>
         <div><span>工具调用</span><strong>{run.toolCalls.length}</strong></div>
         <div><span>Token</span><strong>{formatTokens(run.usage?.total_tokens)}</strong></div>
         <div><span>引用</span><strong>{run.citationNumbers.length}</strong></div>
       </div>
 
-      <section className="bloomery-chat-inspector-section" aria-labelledby="agent-progress-heading">
-        <div className="bloomery-chat-inspector-section-heading">
+      <section className="suna-chat-inspector-section" aria-labelledby="agent-progress-heading">
+        <div className="suna-chat-inspector-section-heading">
           <h4 id="agent-progress-heading"><Clock3 size={13} aria-hidden="true" />当前进度</h4>
           <span>{run.taskProgress?.kind ?? stateLabel(run.state, t)}</span>
         </div>
-        <div className="bloomery-chat-inspector-progress" aria-label={`任务进度 ${progress}%`}>
+        <div className="suna-chat-inspector-progress" aria-label={`任务进度 ${progress}%`}>
           <span style={{ width: `${Math.max(0, Math.min(100, progress))}%` }} />
         </div>
       </section>
 
       {run.toolCalls.length > 0 && (
-        <section className="bloomery-chat-inspector-section" aria-labelledby="agent-tools-heading">
-          <div className="bloomery-chat-inspector-section-heading">
+        <section className="suna-chat-inspector-section" aria-labelledby="agent-tools-heading">
+          <div className="suna-chat-inspector-section-heading">
             <h4 id="agent-tools-heading"><Wrench size={13} aria-hidden="true" />工具调用</h4>
             <span>{run.toolCalls.length}</span>
           </div>
-          <div className="bloomery-chat-inspector-tool-list">
+          <div className="suna-chat-inspector-tool-list">
             {run.toolCalls.map((tool) => <ToolRow key={tool.toolCallId} tool={tool} />)}
           </div>
         </section>
       )}
 
       {pendingPermissions.length > 0 && (
-        <section className="bloomery-chat-inspector-section bloomery-chat-inspector-permissions" aria-labelledby="agent-permissions-heading">
-          <div className="bloomery-chat-inspector-section-heading">
+        <section className="suna-chat-inspector-section suna-chat-inspector-permissions" aria-labelledby="agent-permissions-heading">
+          <div className="suna-chat-inspector-section-heading">
             <h4 id="agent-permissions-heading"><ShieldAlert size={13} aria-hidden="true" />需要授权</h4>
             <span>{pendingPermissions.length}</span>
           </div>
-          <div className="bloomery-chat-permission-list">
+          <div className="suna-chat-permission-list">
             {pendingPermissions.map((permission) => (
-              <div className="bloomery-chat-permission" key={permission.permissionId}>
-                <div className="bloomery-chat-permission-heading">
+              <div className="suna-chat-permission" key={permission.permissionId}>
+                <div className="suna-chat-permission-heading">
                   <ShieldAlert size={14} aria-hidden="true" />
                   <div><strong>授权 · {permission.summary}</strong><span>{permission.risk}</span></div>
                 </div>
@@ -198,37 +198,37 @@ export default function AgentRunInspector({
       )}
 
       {(run.checkpoint || run.recovery || recovery) && (
-        <section className="bloomery-chat-inspector-section" aria-labelledby="agent-recovery-heading">
-          <div className="bloomery-chat-inspector-section-heading">
+        <section className="suna-chat-inspector-section" aria-labelledby="agent-recovery-heading">
+          <div className="suna-chat-inspector-section-heading">
             <h4 id="agent-recovery-heading"><History size={13} aria-hidden="true" />恢复</h4>
             <span>{run.recovery?.action ?? recovery?.action.kind ?? "checkpoint"}</span>
           </div>
           {run.checkpoint && <small>checkpoint · 第 {run.checkpoint.modelCallIndex} 次模型调用 · 工具轮次 {run.checkpoint.toolRound}</small>}
           {run.recovery && <small>{run.recovery.phase === "started" ? "正在恢复" : "恢复已完成"} · 尝试 {run.recovery.recoveryAttempt}</small>}
           {(canResume || canRetry) && (
-            <div className="bloomery-chat-permission-actions">
-              {canResume && <button type="button" className="bloomery-action-secondary" aria-label="Agent Workspace resume" onClick={onResume}>恢复运行</button>}
-              {canRetry && <button type="button" className="bloomery-action-secondary" aria-label="Agent Workspace retry" onClick={onRetry}>重试</button>}
+            <div className="suna-chat-permission-actions">
+              {canResume && <button type="button" className="suna-action-secondary" aria-label="Agent Workspace resume" onClick={onResume}>恢复运行</button>}
+              {canRetry && <button type="button" className="suna-action-secondary" aria-label="Agent Workspace retry" onClick={onRetry}>重试</button>}
             </div>
           )}
         </section>
       )}
 
       {run.citationNumbers.length > 0 && (
-        <section className="bloomery-chat-inspector-section" aria-labelledby="agent-sources-heading">
-          <div className="bloomery-chat-inspector-section-heading">
+        <section className="suna-chat-inspector-section" aria-labelledby="agent-sources-heading">
+          <div className="suna-chat-inspector-section-heading">
             <h4 id="agent-sources-heading"><FileText size={13} aria-hidden="true" />来源</h4>
             <span>{run.citationNumbers.length}</span>
           </div>
-          <div className="bloomery-chat-inspector-citations">
+          <div className="suna-chat-inspector-citations">
             {run.citationNumbers.map((number) => <span key={number}>[{number}]</span>)}
           </div>
         </section>
       )}
 
       {run.error && (
-        <section className="bloomery-chat-inspector-section" aria-labelledby="agent-error-heading">
-          <div className="bloomery-chat-inspector-section-heading">
+        <section className="suna-chat-inspector-section" aria-labelledby="agent-error-heading">
+          <div className="suna-chat-inspector-section-heading">
             <h4 id="agent-error-heading"><AlertTriangle size={13} aria-hidden="true" />错误</h4>
             <span>{run.error.category}</span>
           </div>

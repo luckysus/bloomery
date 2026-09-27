@@ -162,14 +162,14 @@ export default function DatasetPredictionControls({ datasetId, trainingResult }:
   };
 
   return (
-    <section className="bloomery-dataset-prediction" data-testid="prediction-controls" aria-labelledby="prediction-heading">
-      <div className="bloomery-dataset-prediction-heading">
+    <section className="suna-dataset-prediction" data-testid="prediction-controls" aria-labelledby="prediction-heading">
+      <div className="suna-dataset-prediction-heading">
         <div>
           <h4 id="prediction-heading">{t("analysisPredictionTitle")}</h4>
         </div>
         <Gauge size={16} aria-hidden="true" />
       </div>
-      <div className="bloomery-prediction-inputs">
+      <div className="suna-prediction-inputs">
         {trainingResult.artifact.feature_names.map((name, index) => {
           const range = trainingResult.artifact.applicability_range[index];
           return (
@@ -187,24 +187,24 @@ export default function DatasetPredictionControls({ datasetId, trainingResult }:
           );
         })}
       </div>
-      <button type="button" className="bloomery-dataset-prediction-button" onClick={() => void predict()} disabled={busy || Boolean(task && !terminal(task.state))}>
-        {busy ? <LoaderCircle size={15} className="bloomery-spin" aria-hidden="true" /> : <Play size={15} aria-hidden="true" />}
+      <button type="button" className="suna-dataset-prediction-button" onClick={() => void predict()} disabled={busy || Boolean(task && !terminal(task.state))}>
+        {busy ? <LoaderCircle size={15} className="suna-spin" aria-hidden="true" /> : <Play size={15} aria-hidden="true" />}
         <span>{busy ? t("analysisPredictionStarting") : t("analysisPredictionStart")}</span>
       </button>
-      {error && <p className="bloomery-analysis-error" role="alert"><TriangleAlert size={15} aria-hidden="true" />{error}</p>}
-      {task && <output className="bloomery-prediction-task" data-testid="prediction-task">
+      {error && <p className="suna-analysis-error" role="alert"><TriangleAlert size={15} aria-hidden="true" />{error}</p>}
+      {task && <output className="suna-prediction-task" data-testid="prediction-task">
         <span>{task.id} - {t(taskStateKeys[task.state])} - {task.progress}%</span>
         {task.can_cancel && <button type="button" data-testid="prediction-cancel" onClick={() => void cancel()} disabled={actionBusy} aria-label={t("analysisPredictionCancel")} title={t("analysisPredictionCancel")}><Square size={14} aria-hidden="true" /><span>{actionBusy ? t("analysisPredictionCancelling") : t("analysisPredictionCancel")}</span></button>}
         {task.can_retry && <button type="button" data-testid="prediction-retry" onClick={() => void retry()} disabled={actionBusy} aria-label={t("analysisPredictionRetry")} title={t("analysisPredictionRetry")}><RotateCcw size={14} aria-hidden="true" /><span>{actionBusy ? t("analysisPredictionRetrying") : t("analysisPredictionRetry")}</span></button>}
       </output>}
-      {result && <section className="bloomery-prediction-result" data-testid="prediction-result" aria-labelledby="prediction-result-heading">
+      {result && <section className="suna-prediction-result" data-testid="prediction-result" aria-labelledby="prediction-result-heading">
         <h5 id="prediction-result-heading">{t("analysisPredictionResult")}</h5>
         <dl>
           <div><dt>{t("analysisTrainingModel")}</dt><dd>{result.model_id}</dd></div>
           <div><dt>{t("analysisPredictionOutput")}</dt><dd>{result.predictions.map(displayValue).join(", ")}</dd></div>
           <div><dt>{t("analysisPredictionInputs")}</dt><dd>{result.input_values.map(displayValue).join(", ")}</dd></div>
         </dl>
-        {result.applicability_warnings.map((warning, index) => <p className="bloomery-analysis-warning" data-testid={`prediction-warning-${index}`} key={`${warning.feature}-${warning.index}`}><TriangleAlert size={14} aria-hidden="true" />{warning.feature}: {t("analysisPredictionOutsideRange")}</p>)}
+        {result.applicability_warnings.map((warning, index) => <p className="suna-analysis-warning" data-testid={`prediction-warning-${index}`} key={`${warning.feature}-${warning.index}`}><TriangleAlert size={14} aria-hidden="true" />{warning.feature}: {t("analysisPredictionOutsideRange")}</p>)}
       </section>}
     </section>
   );

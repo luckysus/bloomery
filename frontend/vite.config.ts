@@ -6,7 +6,7 @@ export default defineConfig({
   base: "./",
   plugins: [react(), tailwindcss()],
   server: {
-    // Keep Bloomery separate from the legacy web app that may still occupy 5173.
+    // Keep Suna separate from the legacy web app that may still occupy 5173.
     port: 1420,
     host: "127.0.0.1",
     proxy: {

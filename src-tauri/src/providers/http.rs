@@ -7,7 +7,7 @@ use serde_json::{Map, Value};
 use std::time::Duration;
 use std::{fmt, sync::Once};
 
-const USER_AGENT: &str = concat!("Bloomery/", env!("CARGO_PKG_VERSION"), " (desktop)");
+const USER_AGENT: &str = concat!("Suna/", env!("CARGO_PKG_VERSION"), " (desktop)");
 static RUSTLS_PROVIDER_INIT: Once = Once::new();
 
 #[derive(Debug, Clone)]

@@ -23,7 +23,7 @@ if ($StartupTimeoutMilliseconds -le 0 -or $IdleSettleMilliseconds -lt 0) {
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $tauriRoot = Join-Path $repoRoot "src-tauri"
-$binaryPath = Join-Path $tauriRoot "target\release\bloomery.exe"
+$binaryPath = Join-Path $tauriRoot "target\release\suna.exe"
 if ([string]::IsNullOrWhiteSpace($OutputPath)) {
     $OutputPath = Join-Path $tauriRoot "target\startup-performance-benchmark.json"
 } elseif (-not [System.IO.Path]::IsPathRooted($OutputPath)) {
@@ -34,7 +34,7 @@ New-Item -ItemType Directory -Force -Path (Split-Path -Parent $OutputPath) | Out
 
 Push-Location $tauriRoot
 try {
-    & cargo build --release --offline --bin bloomery
+    & cargo build --release --offline --bin suna
     if ($LASTEXITCODE -ne 0) {
         throw "Release binary build failed with exit code $LASTEXITCODE"
     }
@@ -82,7 +82,7 @@ function Get-WorkingSetMegabytes {
 
     $Process.Refresh()
     if ($Process.HasExited) {
-        throw "Bloomery exited before idle memory sampling"
+        throw "Suna exited before idle memory sampling"
     }
     return [double]$Process.WorkingSet64 / 1MB
 }
@@ -91,11 +91,11 @@ $previousAppData = $env:APPDATA
 $previousLocalAppData = $env:LOCALAPPDATA
 $previousTemp = $env:TEMP
 $previousTmp = $env:TMP
-$temporaryRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("bloomery-startup-" + [Guid]::NewGuid().ToString("N"))
+$temporaryRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("suna-startup-" + [Guid]::NewGuid().ToString("N"))
 
 try {
-    if (@(Get-Process -Name "bloomery" -ErrorAction SilentlyContinue).Count -gt 0) {
-        throw "Bloomery is already running; close it before the startup benchmark"
+    if (@(Get-Process -Name "suna" -ErrorAction SilentlyContinue).Count -gt 0) {
+        throw "Suna is already running; close it before the startup benchmark"
     }
 
     for ($round = 0; $round -lt $Rounds; $round++) {
@@ -114,7 +114,7 @@ try {
             while ($started.ElapsedMilliseconds -lt $StartupTimeoutMilliseconds) {
                 $process.Refresh()
                 if ($process.HasExited) {
-                    throw "Bloomery exited during startup with code $($process.ExitCode)"
+                    throw "Suna exited during startup with code $($process.ExitCode)"
                 }
                 if ($process.MainWindowHandle -ne [IntPtr]::Zero) {
                     $ready = $true
@@ -123,7 +123,7 @@ try {
                 Start-Sleep -Milliseconds 50
             }
             if (-not $ready) {
-                throw "Bloomery did not expose a main window within $StartupTimeoutMilliseconds ms"
+                throw "Suna did not expose a main window within $StartupTimeoutMilliseconds ms"
             }
             $startupSamples.Add([double]$started.Elapsed.TotalMilliseconds)
 

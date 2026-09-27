@@ -1,6 +1,6 @@
-use bloomery::models::MemoryInput;
-use bloomery::storage::migrations::migrate;
-use bloomery::storage::repositories::{conversations, memories, settings};
+use suna::models::MemoryInput;
+use suna::storage::migrations::migrate;
+use suna::storage::repositories::{conversations, memories, settings};
 use rusqlite::Connection;
 
 const WORKSPACE: &str = "local";

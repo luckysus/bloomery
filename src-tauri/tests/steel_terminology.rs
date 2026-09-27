@@ -1,4 +1,4 @@
-use bloomery::domains::load_package;
+use suna::domains::load_package;
 use serde_json::Value;
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;

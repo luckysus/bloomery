@@ -167,52 +167,52 @@ export default function DatasetPanel() {
   };
 
   return (
-    <section className="bloomery-analysis-dataset" aria-labelledby="dataset-preview-heading">
-      <div className="bloomery-section-heading">
+    <section className="suna-analysis-dataset" aria-labelledby="dataset-preview-heading">
+      <div className="suna-section-heading">
         <div>
           <h2 id="dataset-preview-heading">{t("analysisDatasetTitle")}</h2>
         </div>
-        <button type="button" className="bloomery-icon-button" onClick={() => void chooseDataset()} disabled={datasetBusy} aria-label={t("analysisChooseDataset")} title={t("analysisChooseDataset")}>
-          {datasetBusy ? <LoaderCircle size={17} className="bloomery-spin" aria-hidden="true" /> : <FolderOpen size={17} aria-hidden="true" />}
+        <button type="button" className="suna-icon-button" onClick={() => void chooseDataset()} disabled={datasetBusy} aria-label={t("analysisChooseDataset")} title={t("analysisChooseDataset")}>
+          {datasetBusy ? <LoaderCircle size={17} className="suna-spin" aria-hidden="true" /> : <FolderOpen size={17} aria-hidden="true" />}
         </button>
       </div>
-      {datasetError && <p className="bloomery-analysis-error" role="alert"><TriangleAlert size={16} aria-hidden="true" />{datasetError}</p>}
-      {datasetSaveError && <p className="bloomery-analysis-error" role="alert"><TriangleAlert size={16} aria-hidden="true" />{datasetSaveError}</p>}
-      {datasetAnalysisError && <p className="bloomery-analysis-error" role="alert"><TriangleAlert size={16} aria-hidden="true" />{datasetAnalysisError}</p>}
-      {datasetActivateError && <p className="bloomery-analysis-error" role="alert"><TriangleAlert size={16} aria-hidden="true" />{datasetActivateError}</p>}
+      {datasetError && <p className="suna-analysis-error" role="alert"><TriangleAlert size={16} aria-hidden="true" />{datasetError}</p>}
+      {datasetSaveError && <p className="suna-analysis-error" role="alert"><TriangleAlert size={16} aria-hidden="true" />{datasetSaveError}</p>}
+      {datasetAnalysisError && <p className="suna-analysis-error" role="alert"><TriangleAlert size={16} aria-hidden="true" />{datasetAnalysisError}</p>}
+      {datasetActivateError && <p className="suna-analysis-error" role="alert"><TriangleAlert size={16} aria-hidden="true" />{datasetActivateError}</p>}
       {dataset && (
-        <div className="bloomery-dataset-preview" aria-live="polite">
-          <div className="bloomery-dataset-summary">
+        <div className="suna-dataset-preview" aria-live="polite">
+          <div className="suna-dataset-summary">
             <div><span>{t("analysisDatasetFile")}</span><strong>{dataset.sourceName}</strong></div>
             <div><span>{t("analysisDatasetRows")}</span><strong>{dataset.rowCount}</strong></div>
             <div><span>{t("analysisDatasetColumns")}</span><strong>{dataset.columnCount}</strong></div>
             <div><span>{t("analysisDatasetSheet")}</span><strong>{dataset.selectedSheet}</strong></div>
           </div>
-          <div className="bloomery-dataset-table-wrap">
-            <table className="bloomery-dataset-table">
+          <div className="suna-dataset-table-wrap">
+            <table className="suna-dataset-table">
               <thead><tr><th>{t("analysisDatasetColumn")}</th><th>{t("analysisDatasetType")}</th><th>{t("analysisDatasetMissing")}</th><th>{t("analysisDatasetInvalid")}</th><th>{t("analysisDatasetRange")}</th><th>{t("analysisDatasetCanonical")}</th><th>{t("analysisDatasetUnit")}</th></tr></thead>
-              <tbody>{dataset.columns.map((column, ordinal) => <tr key={column.name}><td><strong>{column.name}</strong>{column.duplicate && <span className="bloomery-dataset-warning">{t("analysisDatasetDuplicate")}</span>}</td><td>{column.inferredType}</td><td>{column.missingCount}</td><td>{column.invalidCount}</td><td>{columnRange(column)}</td><td><input data-testid={`dataset-mapping-${ordinal}-canonical`} value={datasetMappings[ordinal]?.canonicalField ?? ""} onChange={(event) => updateMapping(ordinal, "canonicalField", event.target.value)} aria-label={`${column.name} ${t("analysisDatasetCanonical")}`} /></td><td><input data-testid={`dataset-mapping-${ordinal}-unit`} value={datasetMappings[ordinal]?.unit ?? ""} onChange={(event) => updateMapping(ordinal, "unit", event.target.value)} aria-label={`${column.name} ${t("analysisDatasetUnit")}`} /></td></tr>)}</tbody>
+              <tbody>{dataset.columns.map((column, ordinal) => <tr key={column.name}><td><strong>{column.name}</strong>{column.duplicate && <span className="suna-dataset-warning">{t("analysisDatasetDuplicate")}</span>}</td><td>{column.inferredType}</td><td>{column.missingCount}</td><td>{column.invalidCount}</td><td>{columnRange(column)}</td><td><input data-testid={`dataset-mapping-${ordinal}-canonical`} value={datasetMappings[ordinal]?.canonicalField ?? ""} onChange={(event) => updateMapping(ordinal, "canonicalField", event.target.value)} aria-label={`${column.name} ${t("analysisDatasetCanonical")}`} /></td><td><input data-testid={`dataset-mapping-${ordinal}-unit`} value={datasetMappings[ordinal]?.unit ?? ""} onChange={(event) => updateMapping(ordinal, "unit", event.target.value)} aria-label={`${column.name} ${t("analysisDatasetUnit")}`} /></td></tr>)}</tbody>
             </table>
           </div>
-          {dataset.warnings.length > 0 && <p className="bloomery-dataset-warning"><TriangleAlert size={15} aria-hidden="true" />{dataset.warnings.join("; ")}</p>}
-          {dataset.sampleRows.length > 0 && <details className="bloomery-dataset-sample"><summary><Table2 size={15} aria-hidden="true" />{t("analysisDatasetSample")}</summary><pre>{dataset.sampleRows.map((row) => row.join(" | ")).join("\n")}</pre></details>}
-          <div className="bloomery-dataset-actions">
-            <button type="button" className="bloomery-action-primary" data-testid="save-dataset" onClick={() => void saveDataset()} disabled={datasetSaveBusy || datasetSaved}>
-              {datasetSaveBusy ? <LoaderCircle size={16} className="bloomery-spin" aria-hidden="true" /> : <Save size={16} aria-hidden="true" />}
+          {dataset.warnings.length > 0 && <p className="suna-dataset-warning"><TriangleAlert size={15} aria-hidden="true" />{dataset.warnings.join("; ")}</p>}
+          {dataset.sampleRows.length > 0 && <details className="suna-dataset-sample"><summary><Table2 size={15} aria-hidden="true" />{t("analysisDatasetSample")}</summary><pre>{dataset.sampleRows.map((row) => row.join(" | ")).join("\n")}</pre></details>}
+          <div className="suna-dataset-actions">
+            <button type="button" className="suna-action-primary" data-testid="save-dataset" onClick={() => void saveDataset()} disabled={datasetSaveBusy || datasetSaved}>
+              {datasetSaveBusy ? <LoaderCircle size={16} className="suna-spin" aria-hidden="true" /> : <Save size={16} aria-hidden="true" />}
               <span>{datasetSaveBusy ? t("analysisDatasetSaving") : datasetSaved ? t("analysisDatasetSaved") : t("analysisDatasetSave")}</span>
             </button>
           </div>
         </div>
       )}
-      {!dataset && !datasetBusy && !datasetError && <div className="bloomery-result-empty"><Table2 size={22} aria-hidden="true" /><span>{t("analysisChooseDataset")}</span></div>}
-      <div className="bloomery-dataset-catalog" aria-label={t("analysisDatasetCatalog")}>
-        <div className="bloomery-dataset-catalog-heading"><strong>{t("analysisDatasetCatalog")}</strong><span>{catalogLoading ? t("loading") : t("items", { count: savedDatasets.length })}</span></div>
-        {!catalogLoading && savedDatasets.length === 0 ? <p className="bloomery-dataset-catalog-empty">{t("analysisDatasetCatalogEmpty")}</p> : (
-          <div className="bloomery-dataset-catalog-list">
+      {!dataset && !datasetBusy && !datasetError && <div className="suna-result-empty"><Table2 size={22} aria-hidden="true" /><span>{t("analysisChooseDataset")}</span></div>}
+      <div className="suna-dataset-catalog" aria-label={t("analysisDatasetCatalog")}>
+        <div className="suna-dataset-catalog-heading"><strong>{t("analysisDatasetCatalog")}</strong><span>{catalogLoading ? t("loading") : t("items", { count: savedDatasets.length })}</span></div>
+        {!catalogLoading && savedDatasets.length === 0 ? <p className="suna-dataset-catalog-empty">{t("analysisDatasetCatalogEmpty")}</p> : (
+          <div className="suna-dataset-catalog-list">
             {savedDatasets.map((item) => (
-              <div className="bloomery-dataset-catalog-row" key={item.id}>
+              <div className="suna-dataset-catalog-row" key={item.id}>
                 <div><strong>{item.sourceName}</strong><span>{item.selectedSheet} · {item.rowCount} {t("analysisDatasetRows").toLowerCase()}</span></div>
-                <span className={`bloomery-dataset-status ${item.mappingState === "ready" ? "is-ready" : "is-draft"}`} data-testid={`dataset-status-${item.id}`}>
+                <span className={`suna-dataset-status ${item.mappingState === "ready" ? "is-ready" : "is-draft"}`} data-testid={`dataset-status-${item.id}`}>
                   {item.mappingState === "ready" ? <CircleCheck size={14} aria-hidden="true" /> : null}
                   {item.mappingState === "ready" ? t("analysisDatasetStatusReady") : t("analysisDatasetStatusDraft")}
                 </span>
@@ -224,12 +224,12 @@ export default function DatasetPanel() {
                   onCorrelationColumnToggle={(ordinal) => toggleCorrelationColumn(item.id, ordinal)}
                 />
                 {item.mappingState === "ready" && <DatasetTrainingControls dataset={item} />}
-                {item.mappingState === "draft" && <button type="button" className="bloomery-dataset-activate" data-testid={`activate-dataset-${item.id}`} onClick={() => void activateDataset(item.id)} disabled={datasetActivateBusyId !== null} title={t("analysisDatasetActivate")}>
-                  {datasetActivateBusyId === item.id ? <LoaderCircle size={15} className="bloomery-spin" aria-hidden="true" /> : <Power size={15} aria-hidden="true" />}
+                {item.mappingState === "draft" && <button type="button" className="suna-dataset-activate" data-testid={`activate-dataset-${item.id}`} onClick={() => void activateDataset(item.id)} disabled={datasetActivateBusyId !== null} title={t("analysisDatasetActivate")}>
+                  {datasetActivateBusyId === item.id ? <LoaderCircle size={15} className="suna-spin" aria-hidden="true" /> : <Power size={15} aria-hidden="true" />}
                   <span>{datasetActivateBusyId === item.id ? t("analysisDatasetActivating") : t("analysisDatasetActivate")}</span>
                 </button>}
-                <button type="button" className="bloomery-dataset-analyze" data-testid={`analyze-dataset-${item.id}`} onClick={() => void runDatasetAnalysis(item.id)} disabled={datasetAnalysisBusyId !== null} title={t("analysisDatasetAnalyze")}>
-                  {datasetAnalysisBusyId === item.id ? <LoaderCircle size={15} className="bloomery-spin" aria-hidden="true" /> : <BarChart3 size={15} aria-hidden="true" />}
+                <button type="button" className="suna-dataset-analyze" data-testid={`analyze-dataset-${item.id}`} onClick={() => void runDatasetAnalysis(item.id)} disabled={datasetAnalysisBusyId !== null} title={t("analysisDatasetAnalyze")}>
+                  {datasetAnalysisBusyId === item.id ? <LoaderCircle size={15} className="suna-spin" aria-hidden="true" /> : <BarChart3 size={15} aria-hidden="true" />}
                   <span>{datasetAnalysisBusyId === item.id ? t("analysisDatasetAnalyzing") : t("analysisDatasetAnalyze")}</span>
                 </button>
               </div>

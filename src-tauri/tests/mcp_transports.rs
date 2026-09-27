@@ -1,4 +1,4 @@
-use bloomery::mcp::{
+use suna::mcp::{
     McpClientConfig, McpError, McpHttpConfig, McpLegacySseConfig, McpSseConfig, McpStdioConfig,
     McpStdioEnv, McpSupervisor, McpTransportConfig, StdioTransport,
 };
@@ -53,10 +53,10 @@ async fn stdio_stderr_is_bounded_but_fully_drained() {
 #[cfg(windows)]
 #[tokio::test]
 async fn stdio_environment_contains_only_explicit_values() {
-    let script = "[Console]::Error.Write(\"allowed=$env:BLOOMERY_ALLOWED;inherited=$env:BLOOMERY_NOT_ALLOWED\")";
+    let script = "[Console]::Error.Write(\"allowed=$env:SUNA_ALLOWED;inherited=$env:SUNA_NOT_ALLOWED\")";
     let mut config = powershell_config(script);
     config.inherited_env = vec!["SystemRoot".to_string(), "windir".to_string()];
-    config.env = McpStdioEnv::from([("BLOOMERY_ALLOWED".to_string(), "yes".to_string())]);
+    config.env = McpStdioEnv::from([("SUNA_ALLOWED".to_string(), "yes".to_string())]);
     let mut spawned = StdioTransport::spawn(config).expect("PowerShell fixture should start");
 
     spawned.stderr.wait().await;
@@ -136,7 +136,7 @@ async fn http_transport_injects_auth_and_custom_headers() {
     let (url, state, server) = spawn_http_fixture(FixtureMode::Json).await;
     let config = McpHttpConfig::new(url)
         .with_bearer_token("secret-token")
-        .with_header("x-bloomery-test", "fixture")
+        .with_header("x-suna-test", "fixture")
         .with_sse(McpSseConfig::new(Some(1), Duration::from_millis(10)));
     let mut supervisor =
         McpSupervisor::connect(McpTransportConfig::Http(config), fixture_client_config())
@@ -272,7 +272,7 @@ async fn handle_http_fixture(mut stream: TcpStream, state: Arc<FixtureState>) ->
     if request.headers.get("authorization").map(String::as_str) == Some("Bearer secret-token") {
         state.auth_seen.store(true, Ordering::SeqCst);
     }
-    if request.headers.get("x-bloomery-test").map(String::as_str) == Some("fixture") {
+    if request.headers.get("x-suna-test").map(String::as_str) == Some("fixture") {
         state.custom_header_seen.store(true, Ordering::SeqCst);
     }
 

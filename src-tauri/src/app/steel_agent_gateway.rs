@@ -416,7 +416,7 @@ impl DesktopSteelAgentGateway {
             "mode": "local_agent_synthesis_context",
             "query": query,
             "evidence_count": evidence_count,
-            "message": "已整理当前证据；Bloomery 桌面端由本地 AgentLoop 继续生成最终回答，不在工具内部递归调用 LLM。",
+            "message": "已整理当前证据；Suna 桌面端由本地 AgentLoop 继续生成最终回答，不在工具内部递归调用 LLM。",
         }))
     }
 
@@ -1256,7 +1256,7 @@ fn local_compute_setup_required(action: &str) -> Value {
         "requires_user_action": true,
         "action": action,
         "message": format!(
-            "{action} 已切换为 Bloomery 本地计算流程。请先在生产数据页面导入数据集、完成字段映射和本地训练，再从训练结果发起该操作；桌面端不会调用 Web 云端模型。"
+            "{action} 已切换为 Suna 本地计算流程。请先在生产数据页面导入数据集、完成字段映射和本地训练，再从训练结果发起该操作；桌面端不会调用 Web 云端模型。"
         ),
     })
 }
@@ -1298,7 +1298,7 @@ mod tests {
     #[test]
     fn process_literature_with_file_requires_embedding_configuration() {
         let path = std::env::temp_dir().join(format!(
-            "bloomery-steel-agent-gateway-{}.sqlite3",
+            "suna-steel-agent-gateway-{}.sqlite3",
             uuid::Uuid::new_v4()
         ));
         let (_connection, _) = crate::storage::database::open(&path).expect("open migrated db");
@@ -1323,7 +1323,7 @@ mod tests {
     #[test]
     fn search_literature_returns_web_compatible_result_aliases() {
         let path = std::env::temp_dir().join(format!(
-            "bloomery-steel-agent-gateway-{}.sqlite3",
+            "suna-steel-agent-gateway-{}.sqlite3",
             uuid::Uuid::new_v4()
         ));
         let (_connection, _) = crate::storage::database::open(&path).expect("open migrated db");
@@ -1344,7 +1344,7 @@ mod tests {
     #[test]
     fn standard_queries_return_web_compatible_records_alias() {
         let path = std::env::temp_dir().join(format!(
-            "bloomery-steel-agent-gateway-{}.sqlite3",
+            "suna-steel-agent-gateway-{}.sqlite3",
             uuid::Uuid::new_v4()
         ));
         let (_connection, _) = crate::storage::database::open(&path).expect("open migrated db");
@@ -1367,7 +1367,7 @@ mod tests {
     #[test]
     fn read_literature_section_returns_web_style_content_chunk() {
         let path = std::env::temp_dir().join(format!(
-            "bloomery-steel-agent-gateway-{}.sqlite3",
+            "suna-steel-agent-gateway-{}.sqlite3",
             uuid::Uuid::new_v4()
         ));
         let (mut connection, _) = crate::storage::database::open(&path).expect("open migrated db");
@@ -1513,7 +1513,7 @@ mod tests {
     #[test]
     fn web_compute_shapes_return_local_setup_prompt_instead_of_schema_errors() {
         let gateway = DesktopSteelAgentGateway::new(
-            std::env::temp_dir().join("bloomery-unused-agent-gateway.sqlite3"),
+            std::env::temp_dir().join("suna-unused-agent-gateway.sqlite3"),
             "local",
         );
 
@@ -1539,7 +1539,7 @@ mod tests {
     #[test]
     fn query_production_data_searches_preview_rows() {
         let path = std::env::temp_dir().join(format!(
-            "bloomery-steel-agent-gateway-{}.sqlite3",
+            "suna-steel-agent-gateway-{}.sqlite3",
             uuid::Uuid::new_v4()
         ));
         let (mut connection, _) = crate::storage::database::open(&path).expect("open migrated db");
@@ -1599,11 +1599,11 @@ mod tests {
     #[test]
     fn query_production_data_searches_source_rows_beyond_preview() {
         let database = std::env::temp_dir().join(format!(
-            "bloomery-steel-agent-gateway-{}.sqlite3",
+            "suna-steel-agent-gateway-{}.sqlite3",
             uuid::Uuid::new_v4()
         ));
         let source =
-            std::env::temp_dir().join(format!("bloomery-source-{}.csv", uuid::Uuid::new_v4()));
+            std::env::temp_dir().join(format!("suna-source-{}.csv", uuid::Uuid::new_v4()));
         let mut csv = String::from("heat_id,grade\n");
         for index in 1..=25 {
             let grade = if index == 25 { "Q690D" } else { "Q355B" };
@@ -1654,7 +1654,7 @@ mod tests {
     #[test]
     fn match_coil_uses_mapped_preview_performance_columns() {
         let path = std::env::temp_dir().join(format!(
-            "bloomery-steel-agent-gateway-{}.sqlite3",
+            "suna-steel-agent-gateway-{}.sqlite3",
             uuid::Uuid::new_v4()
         ));
         let (mut connection, _) = crate::storage::database::open(&path).expect("open migrated db");
@@ -1725,11 +1725,11 @@ mod tests {
     #[test]
     fn match_coil_searches_source_rows_beyond_preview() {
         let database = std::env::temp_dir().join(format!(
-            "bloomery-steel-agent-gateway-{}.sqlite3",
+            "suna-steel-agent-gateway-{}.sqlite3",
             uuid::Uuid::new_v4()
         ));
         let source =
-            std::env::temp_dir().join(format!("bloomery-coils-{}.csv", uuid::Uuid::new_v4()));
+            std::env::temp_dir().join(format!("suna-coils-{}.csv", uuid::Uuid::new_v4()));
         let mut csv = String::from("coil_id,yield_strength\n");
         for index in 1..=25 {
             let strength = if index == 25 { 690 } else { 355 };
@@ -1781,11 +1781,11 @@ mod tests {
     #[test]
     fn query_production_data_accepts_web_style_text_and_range_filters() {
         let database = std::env::temp_dir().join(format!(
-            "bloomery-steel-agent-gateway-{}.sqlite3",
+            "suna-steel-agent-gateway-{}.sqlite3",
             uuid::Uuid::new_v4()
         ));
         let source =
-            std::env::temp_dir().join(format!("bloomery-filter-{}.csv", uuid::Uuid::new_v4()));
+            std::env::temp_dir().join(format!("suna-filter-{}.csv", uuid::Uuid::new_v4()));
         std::fs::write(
             &source,
             "heat_id,grade,yield_strength\nH-01,Q355B,350\nH-02,Q355B,420\nH-03,Q235B,420\n",

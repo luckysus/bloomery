@@ -1,10 +1,10 @@
-use bloomery::providers::profiles::{ProviderKind, ProviderProfile};
-use bloomery::providers::siliconflow::DEFAULT_EMBEDDING_MODEL;
-use bloomery::rag::index::EmbeddingRemoteFactory;
-use bloomery::rag::tasks::{MinerURemoteFactory, RuntimeProviderFactory};
-use bloomery::storage::migrations::migrate;
-use bloomery::storage::repositories::provider_profiles;
-use bloomery::storage::secrets::{SecretError, SecretRef, SecretStore, SecretValue};
+use suna::providers::profiles::{ProviderKind, ProviderProfile};
+use suna::providers::siliconflow::DEFAULT_EMBEDDING_MODEL;
+use suna::rag::index::EmbeddingRemoteFactory;
+use suna::rag::tasks::{MinerURemoteFactory, RuntimeProviderFactory};
+use suna::storage::migrations::migrate;
+use suna::storage::repositories::provider_profiles;
+use suna::storage::secrets::{SecretError, SecretRef, SecretStore, SecretValue};
 use rusqlite::Connection;
 use std::collections::HashMap;
 use std::fs;
@@ -207,9 +207,9 @@ struct FactoryFixture {
 impl FactoryFixture {
     fn new() -> Self {
         let root =
-            std::env::temp_dir().join(format!("bloomery-provider-factory-{}", Uuid::new_v4()));
+            std::env::temp_dir().join(format!("suna-provider-factory-{}", Uuid::new_v4()));
         fs::create_dir_all(&root).unwrap();
-        let database = root.join("bloomery.sqlite3");
+        let database = root.join("suna.sqlite3");
         let mut connection = Connection::open(&database).unwrap();
         migrate(&mut connection).unwrap();
         Self {

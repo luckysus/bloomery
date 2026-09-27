@@ -1,5 +1,5 @@
-use bloomery::agent::protocol::PermissionRisk;
-use bloomery::{
+use suna::agent::protocol::PermissionRisk;
+use suna::{
     agent::runtime::{
         CancellationToken, CompositeToolExecutor, ToolExecutor, ToolFuture, ToolInvocation,
     },
@@ -159,7 +159,7 @@ async fn composite_executor_keeps_builtin_and_mcp_tools_available() {
         }),
     }])
     .expect("valid MCP binding");
-    let steel = bloomery::steel::SteelToolExecutor::new(true);
+    let steel = suna::steel::SteelToolExecutor::new(true);
     let combined = CompositeToolExecutor::try_new(vec![&steel, &mcp])
         .expect("built-in and MCP tools have distinct ids");
 

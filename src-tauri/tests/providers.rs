@@ -1,24 +1,24 @@
-use bloomery::providers::capabilities::{
+use suna::providers::capabilities::{
     ChatEvent, ChatProvider, ChatRequest, DocumentParseRequest, DocumentParserProvider,
     DocumentTaskState, EmbeddingProvider, ParsedDocumentArtifact, RemoteTaskId, RerankProvider,
 };
-use bloomery::providers::http::{ProviderError, ProviderErrorCode};
-use bloomery::providers::mineru::MinerUProvider;
-use bloomery::providers::ollama::{
+use suna::providers::http::{ProviderError, ProviderErrorCode};
+use suna::providers::mineru::MinerUProvider;
+use suna::providers::ollama::{
     default_ollama_base_url, normalize_ollama_chat_url, OllamaProvider,
 };
-use bloomery::providers::openai::{
+use suna::providers::openai::{
     default_openai_base_url, normalize_openai_chat_url, OpenAiProvider,
 };
-use bloomery::providers::profiles::{
+use suna::providers::profiles::{
     resolve_chat_profile, ProviderCapability, ProviderKind, ProviderProfile,
 };
-use bloomery::providers::siliconflow::{
+use suna::providers::siliconflow::{
     SiliconFlowPlan, SiliconFlowProvider, DEFAULT_EMBEDDING_MODEL, DEFAULT_RERANK_MODEL,
 };
-use bloomery::storage::migrations::migrate;
-use bloomery::storage::repositories::provider_profiles;
-use bloomery::storage::secrets::SecretValue;
+use suna::storage::migrations::migrate;
+use suna::storage::repositories::provider_profiles;
+use suna::storage::secrets::SecretValue;
 use rusqlite::Connection;
 use sha2::{Digest, Sha256};
 use std::io::{Read, Write};
@@ -1344,7 +1344,7 @@ fn siliconflow_sends_default_embedding_and_rerank_models() {
     tauri::async_runtime::block_on(provider.embed(vec!["embedding".to_string()])).unwrap();
     tauri::async_runtime::block_on(provider.rerank(
         "query".to_string(),
-        vec![bloomery::providers::capabilities::RerankDocument {
+        vec![suna::providers::capabilities::RerankDocument {
             id: "doc".to_string(),
             text: "document".to_string(),
         }],
@@ -1441,11 +1441,11 @@ fn siliconflow_rerank_normalizes_candidate_ids_and_scores() {
     .unwrap();
 
     let documents = vec![
-        bloomery::providers::capabilities::RerankDocument {
+        suna::providers::capabilities::RerankDocument {
             id: "doc-a".to_string(),
             text: "first".to_string(),
         },
-        bloomery::providers::capabilities::RerankDocument {
+        suna::providers::capabilities::RerankDocument {
             id: "doc-b".to_string(),
             text: "second".to_string(),
         },
@@ -1587,7 +1587,7 @@ fn siliconflow_rejects_values_that_overflow_f32() {
     .unwrap();
     let error = tauri::async_runtime::block_on(provider.rerank(
         "query".to_string(),
-        vec![bloomery::providers::capabilities::RerankDocument {
+        vec![suna::providers::capabilities::RerankDocument {
             id: "doc".to_string(),
             text: "text".to_string(),
         }],
@@ -1629,7 +1629,7 @@ fn siliconflow_rejects_nonzero_values_that_underflow_f32() {
 
     let error = tauri::async_runtime::block_on(provider.rerank(
         "query".to_string(),
-        vec![bloomery::providers::capabilities::RerankDocument {
+        vec![suna::providers::capabilities::RerankDocument {
             id: "doc".to_string(),
             text: "text".to_string(),
         }],
@@ -1855,11 +1855,11 @@ fn siliconflow_rejects_duplicate_or_missing_rerank_indexes() {
     )
     .unwrap();
     let documents = vec![
-        bloomery::providers::capabilities::RerankDocument {
+        suna::providers::capabilities::RerankDocument {
             id: "first".to_string(),
             text: "first".to_string(),
         },
-        bloomery::providers::capabilities::RerankDocument {
+        suna::providers::capabilities::RerankDocument {
             id: "second".to_string(),
             text: "second".to_string(),
         },
@@ -1943,10 +1943,10 @@ fn deepseek_chat_rejects_image_content_before_network_request() {
     )
     .unwrap();
     let request = ChatRequest {
-        messages: vec![bloomery::providers::capabilities::ChatMessage::with_images(
+        messages: vec![suna::providers::capabilities::ChatMessage::with_images(
             "user",
             "describe this image",
-            vec![bloomery::providers::capabilities::ChatImage {
+            vec![suna::providers::capabilities::ChatImage {
                 data: "ZmFrZQ==".to_string(),
                 mime: "image/png".to_string(),
             }],
@@ -1982,8 +1982,8 @@ fn deepseek_chat_serializes_thinking_history_and_maps_reasoning_usage() {
         Some(SecretValue::new("sk-test").unwrap()),
     )
     .unwrap();
-    let mut assistant = bloomery::providers::capabilities::ChatMessage::assistant_tool_calls(vec![
-        bloomery::providers::capabilities::ChatToolCall {
+    let mut assistant = suna::providers::capabilities::ChatMessage::assistant_tool_calls(vec![
+        suna::providers::capabilities::ChatToolCall {
             id: "prior-call".to_string(),
             name: "search".to_string(),
             arguments: r#"{"q":"Q235"}"#.to_string(),
@@ -1992,7 +1992,7 @@ fn deepseek_chat_serializes_thinking_history_and_maps_reasoning_usage() {
     assistant.reasoning_content = Some("previous reasoning".to_string());
     let request = ChatRequest {
         messages: vec![
-            bloomery::providers::capabilities::ChatMessage::new("system", "Answer accurately."),
+            suna::providers::capabilities::ChatMessage::new("system", "Answer accurately."),
             assistant,
         ],
         temperature: 0.2,

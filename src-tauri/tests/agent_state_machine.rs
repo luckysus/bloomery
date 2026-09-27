@@ -1,5 +1,5 @@
-use bloomery::agent::protocol::AgentRunState;
-use bloomery::agent::runtime::state_machine::{RunGuards, RunStateMachine};
+use suna::agent::protocol::AgentRunState;
+use suna::agent::runtime::state_machine::{RunGuards, RunStateMachine};
 
 const NONTERMINAL_STATES: [AgentRunState; 7] = [
     AgentRunState::Created,

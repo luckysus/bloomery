@@ -465,7 +465,7 @@ mod tests {
 
     #[test]
     fn bounded_directory_copy_rejects_oversized_file_before_copying() {
-        let root = std::env::temp_dir().join(format!("bloomery-copy-{}", Uuid::new_v4()));
+        let root = std::env::temp_dir().join(format!("suna-copy-{}", Uuid::new_v4()));
         let source = root.join("source");
         let destination = root.join("destination");
         fs::create_dir_all(&source).expect("create source");
@@ -485,7 +485,7 @@ mod tests {
 
     #[test]
     fn archive_extraction_reads_the_authorized_file_after_path_replacement() {
-        let root = std::env::temp_dir().join(format!("bloomery-archive-{}", Uuid::new_v4()));
+        let root = std::env::temp_dir().join(format!("suna-archive-{}", Uuid::new_v4()));
         let archive_path = root.join("package.zip");
         let moved_path = root.join("authorized.zip");
         let destination = root.join("destination");
@@ -507,7 +507,7 @@ mod tests {
 
     #[test]
     fn directory_copy_reads_the_authorized_file_after_path_replacement() {
-        let root = std::env::temp_dir().join(format!("bloomery-copy-{}", Uuid::new_v4()));
+        let root = std::env::temp_dir().join(format!("suna-copy-{}", Uuid::new_v4()));
         let source_path = root.join("source.txt");
         let moved_path = root.join("authorized.txt");
         let destination = root.join("destination.txt");

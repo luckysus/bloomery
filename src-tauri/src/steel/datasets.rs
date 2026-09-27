@@ -230,7 +230,7 @@ mod tests {
     #[test]
     fn previews_csv_columns_quality_and_sample_rows() {
         let path =
-            std::env::temp_dir().join(format!("bloomery-dataset-{}.csv", uuid::Uuid::new_v4()));
+            std::env::temp_dir().join(format!("suna-dataset-{}.csv", uuid::Uuid::new_v4()));
         fs::write(
             &path,
             "heat_id,yield_strength,grade\nH-01,355,Q355B\nH-02,,Q355B\nH-03,invalid,Q235B\n",

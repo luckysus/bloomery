@@ -23,8 +23,8 @@ foreach ($requiredText in @(
     "tauri.conf.json",
     "identifier",
     "applicationDataDirectory",
-    "bloomery.sqlite3",
-    "BLOOMERY_DATA_DIR",
+    "suna.sqlite3",
+    "SUNA_DATA_DIR",
     "function Wait-For-ApplicationReady",
     "Process.HasExited",
     "did not stay alive",
@@ -49,8 +49,8 @@ if ($content -match 'if \(-not \$AllowUnsigned\)\s*\{\s*throw "-RunInstallerSmok
 }
 
 $config = Get-Content -LiteralPath $configPath -Raw | ConvertFrom-Json
-if ([string]$config.mainBinaryName -ne "bloomery") {
-    throw "Tauri must bundle bloomery as the main binary"
+if ([string]$config.mainBinaryName -ne "suna") {
+    throw "Tauri must bundle suna as the main binary"
 }
 
 Write-Output "Lifecycle contract passed."

@@ -1,4 +1,4 @@
-use bloomery::{
+use suna::{
     agent::runtime::CancellationToken,
     mcp::{McpClient, McpClientConfig, McpError, McpServerIdentity},
     tools::{ToolSource, ToolVersion},
@@ -55,7 +55,7 @@ async fn discovers_tools_resources_and_prompts() {
 }
 
 #[tokio::test]
-async fn converts_mcp_tool_schema_to_bloomery_definition() {
+async fn converts_mcp_tool_schema_to_suna_definition() {
     let (client, server_task) = connected(CallBehavior::Success).await;
 
     let definitions = client.tool_definitions().await.unwrap();
@@ -64,7 +64,7 @@ async fn converts_mcp_tool_schema_to_bloomery_definition() {
     assert_eq!(definitions[0].input_schema["type"], "object");
     assert_eq!(
         definitions[0].risk,
-        bloomery::agent::protocol::PermissionRisk::ConfirmationRequired
+        suna::agent::protocol::PermissionRisk::ConfirmationRequired
     );
     assert!(definitions[0].read_only);
     assert!(matches!(

@@ -237,17 +237,17 @@ export default function OptimizationPanel({ datasetId, trainingResult }: Props) 
   );
 
   return (
-    <section className="bloomery-optimization-panel" data-testid={`optimization-panel-${datasetId}`} aria-labelledby={`optimization-heading-${datasetId}`}>
-      <div className="bloomery-section-heading">
+    <section className="suna-optimization-panel" data-testid={`optimization-panel-${datasetId}`} aria-labelledby={`optimization-heading-${datasetId}`}>
+      <div className="suna-section-heading">
         <div>
           <h4 id={`optimization-heading-${datasetId}`}>{t("analysisOptimizationTitle")}</h4>
         </div>
         <Route size={18} aria-hidden="true" />
       </div>
 
-      <fieldset className="bloomery-optimization-direction">
+      <fieldset className="suna-optimization-direction">
         <legend>{t("analysisOptimizationDirection")}</legend>
-        <div className="bloomery-segmented-control" role="group" aria-label={t("analysisOptimizationDirection")}>
+        <div className="suna-segmented-control" role="group" aria-label={t("analysisOptimizationDirection")}>
           {(["minimize", "maximize"] as const).map((value) => (
             <button
               key={value}
@@ -263,7 +263,7 @@ export default function OptimizationPanel({ datasetId, trainingResult }: Props) 
         </div>
       </fieldset>
 
-      <fieldset className="bloomery-training-features">
+      <fieldset className="suna-training-features">
         <legend>{t("analysisOptimizationObjectives")}</legend>
         <div>
           {featureNames.map((name, index) => (
@@ -281,7 +281,7 @@ export default function OptimizationPanel({ datasetId, trainingResult }: Props) 
         </div>
       </fieldset>
 
-      <div className="bloomery-optimization-bounds">
+      <div className="suna-optimization-bounds">
         <p>{t("analysisOptimizationBounds")}</p>
         {featureNames.map((name, index) => (
           <label key={name}>
@@ -310,7 +310,7 @@ export default function OptimizationPanel({ datasetId, trainingResult }: Props) 
         ))}
       </div>
 
-      <div className="bloomery-optimization-bounds">
+      <div className="suna-optimization-bounds">
         <p>{t("analysisOptimizationFixed")}</p>
         {featureNames.map((name, index) => (
           <label key={name}>
@@ -329,7 +329,7 @@ export default function OptimizationPanel({ datasetId, trainingResult }: Props) 
         ))}
       </div>
 
-      <label className="bloomery-optimization-constraint-toggle">
+      <label className="suna-optimization-constraint-toggle">
         <input
           type="checkbox"
           data-testid={`optimization-constraint-toggle-${datasetId}`}
@@ -340,7 +340,7 @@ export default function OptimizationPanel({ datasetId, trainingResult }: Props) 
         <span>{t("analysisOptimizationConstraintEnable")}</span>
       </label>
       {constraintEnabled && (
-        <div className="bloomery-optimization-constraint">
+        <div className="suna-optimization-constraint">
           <label>
             <span>{t("analysisOptimizationConstraintKind")}</span>
             <select
@@ -395,7 +395,7 @@ export default function OptimizationPanel({ datasetId, trainingResult }: Props) 
         </div>
       )}
 
-      <div className="bloomery-optimization-run-settings">
+      <div className="suna-optimization-run-settings">
         <label>
           <span>{t("analysisOptimizationTrials")}</span>
           <input
@@ -424,30 +424,30 @@ export default function OptimizationPanel({ datasetId, trainingResult }: Props) 
 
       <button
         type="button"
-        className="bloomery-dataset-prediction-button"
+        className="suna-dataset-prediction-button"
         data-testid={`optimization-start-${datasetId}`}
         onClick={() => void start()}
         disabled={busy || activeTask}
       >
-        {busy ? <LoaderCircle size={15} className="bloomery-spin" aria-hidden="true" /> : <Play size={15} aria-hidden="true" />}
+        {busy ? <LoaderCircle size={15} className="suna-spin" aria-hidden="true" /> : <Play size={15} aria-hidden="true" />}
         <span>{busy ? t("analysisOptimizationStarting") : t("analysisOptimizationStart")}</span>
       </button>
 
-      {error && <p className="bloomery-analysis-error" role="alert"><TriangleAlert size={15} aria-hidden="true" />{error}</p>}
-      {task && <output className="bloomery-prediction-task" data-testid={`optimization-task-${datasetId}`}>
+      {error && <p className="suna-analysis-error" role="alert"><TriangleAlert size={15} aria-hidden="true" />{error}</p>}
+      {task && <output className="suna-prediction-task" data-testid={`optimization-task-${datasetId}`}>
         <span>{task.id} - {t(taskStateKeys[task.state])} - {task.progress}%</span>
         {task.can_cancel && <button type="button" data-testid={`optimization-cancel-${datasetId}`} onClick={() => void cancel()} disabled={actionBusy} aria-label={t("analysisPredictionCancel")} title={t("analysisPredictionCancel")}><Square size={14} aria-hidden="true" /><span>{actionBusy ? t("analysisPredictionCancelling") : t("analysisPredictionCancel")}</span></button>}
         {task.can_retry && <button type="button" data-testid={`optimization-retry-${datasetId}`} onClick={() => void retry()} disabled={actionBusy} aria-label={t("analysisPredictionRetry")} title={t("analysisPredictionRetry")}><RotateCcw size={14} aria-hidden="true" /><span>{actionBusy ? t("analysisPredictionRetrying") : t("analysisPredictionRetry")}</span></button>}
       </output>}
 
-      {result && <section className="bloomery-prediction-result" data-testid={`optimization-result-${datasetId}`} aria-labelledby={`optimization-result-heading-${datasetId}`}>
+      {result && <section className="suna-prediction-result" data-testid={`optimization-result-${datasetId}`} aria-labelledby={`optimization-result-heading-${datasetId}`}>
         <h5 id={`optimization-result-heading-${datasetId}`}>{t("analysisOptimizationResult")}</h5>
         <dl>
           <div><dt>{t("analysisOptimizationMethod")}</dt><dd>{result.method}</dd></div>
           <div><dt>{t("analysisOptimizationTrialsCompleted")}</dt><dd>{result.trials_completed}</dd></div>
           <div><dt>{t("analysisOptimizationSeed")}</dt><dd>{result.deterministic_seed}</dd></div>
         </dl>
-        <ul className="bloomery-optimization-recommendations" data-testid={`optimization-recommendations-${datasetId}`}>
+        <ul className="suna-optimization-recommendations" data-testid={`optimization-recommendations-${datasetId}`}>
           {recommendations.map((recommendation, index) => (
             <li key={`recommendation-${index}`}>
               <span data-testid={`optimization-recommendation-values-${datasetId}-${index}`}>

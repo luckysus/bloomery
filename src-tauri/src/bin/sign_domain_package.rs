@@ -1,12 +1,12 @@
-use bloomery::domains::{load_package, sign_domain_package};
+use suna::domains::{load_package, sign_domain_package};
 use ed25519_dalek::SigningKey;
 use std::env;
 use std::path::PathBuf;
 use std::process::ExitCode;
 
-const KEY_ID: &str = "bloomery-official-2026";
-const PRIVATE_KEY_ENV: &str = "BLOOMERY_OFFICIAL_PRIVATE_KEY_2026";
-const PUBLIC_KEY_ENV: &str = "BLOOMERY_OFFICIAL_PUBLIC_KEY_2026";
+const KEY_ID: &str = "suna-official-2026";
+const PRIVATE_KEY_ENV: &str = "SUNA_OFFICIAL_PRIVATE_KEY_2026";
+const PUBLIC_KEY_ENV: &str = "SUNA_OFFICIAL_PUBLIC_KEY_2026";
 
 fn main() -> ExitCode {
     match run() {

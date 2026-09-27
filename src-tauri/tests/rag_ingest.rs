@@ -1,4 +1,4 @@
-use bloomery::rag::ingest::{ingest_file, IngestLimits};
+use suna::rag::ingest::{ingest_file, IngestLimits};
 use std::fs;
 use std::path::{Path, PathBuf};
 use uuid::Uuid;
@@ -7,7 +7,7 @@ struct TestDirectory(PathBuf);
 
 impl TestDirectory {
     fn new() -> Self {
-        let path = std::env::temp_dir().join(format!("bloomery-rag-ingest-{}", Uuid::new_v4()));
+        let path = std::env::temp_dir().join(format!("suna-rag-ingest-{}", Uuid::new_v4()));
         fs::create_dir_all(&path).expect("create test directory");
         Self(path)
     }

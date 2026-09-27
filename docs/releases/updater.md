@@ -1,10 +1,10 @@
 # Signed Updates / 签名更新
 
-Bloomery checks for updates only when the user presses the update button in
+Suna checks for updates only when the user presses the update button in
 Settings. The Tauri updater verifies the release signature before download and
 installation. The application never executes an unsigned update.
 
-Bloomery 只会在用户进入设置并主动点击检查按钮时检查更新。Tauri updater
+Suna 只会在用户进入设置并主动点击检查按钮时检查更新。Tauri updater
 会在下载和安装前验证发行签名，未签名更新不会被执行。
 
 ## Release configuration
@@ -16,11 +16,11 @@ provide all of these values through the protected release environment:
 ```powershell
 $env:TAURI_SIGNING_PRIVATE_KEY = "<private key supplied by the signing system>"
 $env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD = "<optional password>"
-$env:BLOOMERY_OFFICIAL_PRIVATE_KEY_2026 = "<64 hexadecimal characters for the 32-byte Ed25519 seed>"
-$env:BLOOMERY_OFFICIAL_PUBLIC_KEY_2026 = "<matching 64-hex public key>"
-$env:BLOOMERY_UPDATER_PUBLIC_KEY = "<matching public key>"
-$env:BLOOMERY_UPDATER_ENDPOINT = "https://github.com/luckysus/bloomery/releases/latest/download/latest.json"
-$env:BLOOMERY_RELEASE_ASSET_BASE_URL = "https://github.com/luckysus/bloomery/releases/download/<tag>"
+$env:SUNA_OFFICIAL_PRIVATE_KEY_2026 = "<64 hexadecimal characters for the 32-byte Ed25519 seed>"
+$env:SUNA_OFFICIAL_PUBLIC_KEY_2026 = "<matching 64-hex public key>"
+$env:SUNA_UPDATER_PUBLIC_KEY = "<matching public key>"
+$env:SUNA_UPDATER_ENDPOINT = "https://github.com/luckysus/suna/releases/latest/download/latest.json"
+$env:SUNA_RELEASE_ASSET_BASE_URL = "https://github.com/luckysus/suna/releases/download/<tag>"
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-release.ps1 -Signed -Bundles nsis
 ```
 
@@ -37,9 +37,9 @@ The public key and its rotation policy must be published with the release
 documentation. Keep the private key in the approved signing system, not in a
 developer profile, repository secret dump, or build artifact.
 
-`BLOOMERY_OFFICIAL_PRIVATE_KEY_2026` is consumed only by the temporary Rust
+`SUNA_OFFICIAL_PRIVATE_KEY_2026` is consumed only by the temporary Rust
 release signer. It creates the official steel package `signature.json`, checks
-that the derived public key matches `BLOOMERY_OFFICIAL_PUBLIC_KEY_2026`, and is
+that the derived public key matches `SUNA_OFFICIAL_PUBLIC_KEY_2026`, and is
 never written to the package, installer, logs, or repository.
 
 ## Update metadata

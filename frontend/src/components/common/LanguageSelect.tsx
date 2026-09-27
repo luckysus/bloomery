@@ -5,7 +5,7 @@ export default function LanguageSelect() {
   const { preference, setPreference, t } = useLocale();
 
   return (
-    <label className="bloomery-language-control">
+    <label className="suna-language-control">
       <Languages size={15} aria-hidden="true" />
       <span className="sr-only">{t("languageLabel")}</span>
       <select

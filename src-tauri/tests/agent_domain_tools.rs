@@ -1,9 +1,9 @@
-use bloomery::agent::protocol::PermissionRisk;
-use bloomery::agent::runtime::{
+use suna::agent::protocol::PermissionRisk;
+use suna::agent::runtime::{
     CancellationToken, DomainToolExecutor, ToolExecutionError, ToolExecutor, ToolFuture,
     ToolHandler, ToolInvocation, ToolRegistration,
 };
-use bloomery::agent::tool_repair::ToolSpec;
+use suna::agent::tool_repair::ToolSpec;
 use serde_json::{json, Value};
 use std::sync::Arc;
 use uuid::Uuid;
@@ -58,12 +58,12 @@ fn tool(id: &str, name: &str) -> ToolRegistration {
     )
 }
 
-fn steel_manifest() -> bloomery::domains::DomainManifest {
+fn steel_manifest() -> suna::domains::DomainManifest {
     serde_json::from_value(json!({
         "id": "steel",
         "version": "1.0.0",
         "compatibility": {"min_app_version": "0.1.0", "max_app_version": null},
-        "author": "Bloomery contributors",
+        "author": "Suna contributors",
         "license": "Apache-2.0",
         "prompts": {"system": "Use steel terminology.", "workflow": "Cite sources."},
         "retrieval": {"required_tags": [], "citation_required": true, "max_evidence_items": 12},
@@ -72,12 +72,12 @@ fn steel_manifest() -> bloomery::domains::DomainManifest {
     .expect("valid domain manifest")
 }
 
-fn materials_manifest() -> bloomery::domains::DomainManifest {
+fn materials_manifest() -> suna::domains::DomainManifest {
     serde_json::from_value(json!({
         "id": "materials",
         "version": "1.0.0",
         "compatibility": {"min_app_version": "0.1.0", "max_app_version": null},
-        "author": "Bloomery contributors",
+        "author": "Suna contributors",
         "license": "Apache-2.0",
         "prompts": {"system": "Use materials terminology.", "workflow": "Cite materials sources."},
         "retrieval": {"required_tags": [], "citation_required": true, "max_evidence_items": 12},

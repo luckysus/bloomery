@@ -1,6 +1,6 @@
 # Windows 发布验收矩阵
 
-这份矩阵用于记录 Bloomery 当前 Windows 10 发布目标的真实安装生命周期证据。它不把源码测试或单次 smoke 当作完整兼容性证明。Windows 11 暂不属于当前发布阻断范围，待具备真实 Windows 11 环境后再执行同一套矩阵。
+这份矩阵用于记录 Suna 当前 Windows 10 发布目标的真实安装生命周期证据。它不把源码测试或单次 smoke 当作完整兼容性证明。Windows 11 暂不属于当前发布阻断范围，待具备真实 Windows 11 环境后再执行同一套矩阵。
 
 ## 覆盖范围
 
@@ -8,7 +8,7 @@
 | --- | --- | --- |
 | 全新安装、启动、卸载、数据保留 | `scripts/lifecycle-matrix.ps1 -RunInstallerSmoke` | 当前 `1.0.0` 未签名工程包已通过 |
 | Unicode 安装路径 | `scripts/lifecycle-matrix.ps1` | 已通过；目录名由 Unicode code point 构造，兼容 Windows PowerShell 5.1 |
-| 非默认数据目录 | `scripts/lifecycle-matrix.ps1` | 已通过 `BLOOMERY_DATA_DIR` 注入临时目录 |
+| 非默认数据目录 | `scripts/lifecycle-matrix.ps1` | 已通过 `SUNA_DATA_DIR` 注入临时目录 |
 | 旧版 → 新版升级 | `scripts/lifecycle-matrix.ps1 -RunUpgradeDowngrade` | `0.1.0` → `1.0.0` 已通过 |
 | 新版 → 旧版降级保护 | `scripts/lifecycle-matrix.ps1 -RunUpgradeDowngrade` | `1.0.0` → `0.1.0` 数据保护已通过 |
 | Windows 10 | 本机 Windows 10 | 当前工程包完整矩阵已通过；正式签名包仍需重复验证 |
@@ -20,8 +20,8 @@
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\lifecycle-matrix.ps1 `
-  -OldInstallerPath F:\release\Bloomery_old_setup.exe `
-  -NewInstallerPath F:\release\Bloomery_new_setup.exe `
+  -OldInstallerPath F:\release\Suna_old_setup.exe `
+  -NewInstallerPath F:\release\Suna_new_setup.exe `
   -RunInstallerSmoke `
   -RunUpgradeDowngrade `
   -AllowUnsigned `
@@ -34,7 +34,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\lifecycle-matrix.p
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release-check.ps1 `
   -Package `
   -UpgradeDowngrade `
-  -OldInstallerPath F:\release\Bloomery_old_setup.exe `
+  -OldInstallerPath F:\release\Suna_old_setup.exe `
   -AllowDirty `
   -Offline
 ```

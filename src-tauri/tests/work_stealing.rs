@@ -1,7 +1,7 @@
-use bloomery::storage::migrations::migrate;
-use bloomery::tasks::model::{NewTask, TaskState};
-use bloomery::tasks::repository;
-use bloomery::tasks::work_stealing::{claim_next, complete};
+use suna::storage::migrations::migrate;
+use suna::tasks::model::{NewTask, TaskState};
+use suna::tasks::repository;
+use suna::tasks::work_stealing::{claim_next, complete};
 use chrono::{Duration, TimeZone, Utc};
 use rusqlite::Connection;
 

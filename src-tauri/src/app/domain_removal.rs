@@ -99,8 +99,8 @@ mod tests {
     #[test]
     fn failed_database_delete_restores_the_staged_domain_package() {
         let source =
-            std::env::temp_dir().join(format!("bloomery-domain-source-{}", Uuid::new_v4()));
-        let root = std::env::temp_dir().join(format!("bloomery-domain-root-{}", Uuid::new_v4()));
+            std::env::temp_dir().join(format!("suna-domain-source-{}", Uuid::new_v4()));
+        let root = std::env::temp_dir().join(format!("suna-domain-root-{}", Uuid::new_v4()));
         fs::create_dir_all(source.join("assets")).expect("create source");
         fs::write(source.join("assets/steel.json"), "{}").expect("write asset");
         fs::write(
@@ -109,7 +109,7 @@ mod tests {
                 "id": "steel",
                 "version": "1.0.0",
                 "compatibility": {"min_app_version": "0.1.0", "max_app_version": null},
-                "author": "Bloomery",
+                "author": "Suna",
                 "license": "Apache-2.0",
                 "prompts": {"system": "steel", "workflow": "cite"},
                 "retrieval": {"required_tags": [], "citation_required": true, "max_evidence_items": 12},

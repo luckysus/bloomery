@@ -859,7 +859,7 @@ mod tests {
     #[test]
     fn claim_to_spawn_holds_the_shutdown_gate() {
         let path =
-            std::env::temp_dir().join(format!("bloomery-claim-gate-{}.sqlite3", Uuid::new_v4()));
+            std::env::temp_dir().join(format!("suna-claim-gate-{}.sqlite3", Uuid::new_v4()));
         let mut connection = Connection::open(&path).expect("open test database");
         migrate(&mut connection).expect("migrate test database");
         repository::create(
@@ -942,7 +942,7 @@ mod tests {
     #[test]
     fn scheduler_connections_enable_wal_for_concurrent_task_progress() {
         let path =
-            std::env::temp_dir().join(format!("bloomery-scheduler-wal-{}.sqlite3", Uuid::new_v4()));
+            std::env::temp_dir().join(format!("suna-scheduler-wal-{}.sqlite3", Uuid::new_v4()));
         let mut connection = Connection::open(&path).expect("open test database");
         migrate(&mut connection).expect("migrate test database");
         drop(connection);
@@ -972,7 +972,7 @@ mod tests {
     #[test]
     fn spawn_failure_keeps_claim_tracked_and_fails_without_panicking() {
         let path =
-            std::env::temp_dir().join(format!("bloomery-spawn-failure-{}.sqlite3", Uuid::new_v4()));
+            std::env::temp_dir().join(format!("suna-spawn-failure-{}.sqlite3", Uuid::new_v4()));
         let mut connection = Connection::open(&path).expect("open test database");
         migrate(&mut connection).expect("migrate test database");
         let created = repository::create(
@@ -1031,7 +1031,7 @@ mod tests {
     #[test]
     fn invalid_handler_error_codes_are_normalized_before_persistence() {
         let path = std::env::temp_dir().join(format!(
-            "bloomery-invalid-handler-code-{}.sqlite3",
+            "suna-invalid-handler-code-{}.sqlite3",
             Uuid::new_v4()
         ));
         let mut connection = Connection::open(&path).expect("open test database");
@@ -1086,7 +1086,7 @@ mod tests {
     #[test]
     fn state_does_not_replace_a_stopped_non_durable_handle() {
         let path = std::env::temp_dir().join(format!(
-            "bloomery-non-durable-handle-{}.sqlite3",
+            "suna-non-durable-handle-{}.sqlite3",
             Uuid::new_v4()
         ));
         let mut connection = Connection::open(&path).expect("open test database");

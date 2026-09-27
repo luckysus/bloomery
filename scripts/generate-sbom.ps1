@@ -89,7 +89,7 @@ function Write-PythonWorkerSbom {
         if (-not [string]::IsNullOrWhiteSpace($script:currentPackage.Source)) {
             $component.properties = @(
                 [ordered]@{
-                    name  = "bloomery.uv.source"
+                    name  = "suna.uv.source"
                     value = $script:currentPackage.Source
                 }
             )
@@ -136,9 +136,9 @@ function Write-PythonWorkerSbom {
     }
     $metadataComponent = [ordered]@{
         type    = "application"
-        name    = "bloomery-compute-worker"
+        name    = "suna-compute-worker"
         version = $workerProjectVersion
-        purl    = "pkg:pypi/bloomery-compute-worker@$workerProjectVersion"
+        purl    = "pkg:pypi/suna-compute-worker@$workerProjectVersion"
     }
     $bom = [ordered]@{
         '$schema'    = "http://cyclonedx.org/schema/bom-1.5.schema.json"
@@ -148,7 +148,7 @@ function Write-PythonWorkerSbom {
         metadata     = [ordered]@{
             tools     = @(
                 [ordered]@{
-                    vendor = "Bloomery"
+                    vendor = "Suna"
                     name   = "generate-sbom.ps1"
                 }
             )
@@ -180,14 +180,14 @@ foreach ($requiredPath in @(
 
 New-Item -ItemType Directory -Path $outputPath -Force | Out-Null
 
-$rustTempName = ".bloomery-rust-sbom-" + [Guid]::NewGuid().ToString("N")
+$rustTempName = ".suna-rust-sbom-" + [Guid]::NewGuid().ToString("N")
 $rustTempPath = Join-Path $rustRoot ($rustTempName + ".json")
-$rustOutputPath = Join-Path $outputPath "bloomery-rust-sbom.cdx.json"
-$frontendCyclonePath = Join-Path $outputPath "bloomery-frontend-sbom.cdx.json"
-$frontendSpdxPath = Join-Path $outputPath "bloomery-frontend-sbom.spdx.json"
-$pythonWorkerCyclonePath = Join-Path $outputPath "bloomery-python-worker-sbom.cdx.json"
+$rustOutputPath = Join-Path $outputPath "suna-rust-sbom.cdx.json"
+$frontendCyclonePath = Join-Path $outputPath "suna-frontend-sbom.cdx.json"
+$frontendSpdxPath = Join-Path $outputPath "suna-frontend-sbom.spdx.json"
+$pythonWorkerCyclonePath = Join-Path $outputPath "suna-python-worker-sbom.cdx.json"
 $noticesPath = Join-Path $outputPath "THIRD_PARTY_NOTICES.txt"
-$npmErrorPath = Join-Path $env:TEMP ("bloomery-npm-sbom-" + [Guid]::NewGuid().ToString("N") + ".log")
+$npmErrorPath = Join-Path $env:TEMP ("suna-npm-sbom-" + [Guid]::NewGuid().ToString("N") + ".log")
 
 try {
     $cargoArguments = @(
