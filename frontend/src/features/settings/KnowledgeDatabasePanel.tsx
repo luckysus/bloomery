@@ -4,6 +4,7 @@ import { desktop, type KnowledgeDatabaseConfig, type KnowledgeDatabaseHealth } f
 
 const emptyHealth: KnowledgeDatabaseHealth = {
   configured: false,
+  config: null,
   connected: false,
   vector_extension: false,
   migration_version: null,
@@ -17,6 +18,15 @@ const defaultConfig: KnowledgeDatabaseConfig = {
   username: "postgres",
 };
 
+function applyHealth(
+  next: KnowledgeDatabaseHealth,
+  setHealth: (value: KnowledgeDatabaseHealth) => void,
+  setConfig: (value: KnowledgeDatabaseConfig) => void,
+) {
+  setHealth(next);
+  if (next.config) setConfig(next.config);
+}
+
 export default function KnowledgeDatabasePanel() {
   const [config, setConfig] = useState(defaultConfig);
   const [password, setPassword] = useState("");
@@ -27,7 +37,9 @@ export default function KnowledgeDatabasePanel() {
   const refresh = () => {
     const getHealth = desktop.getKnowledgeDatabaseHealth;
     if (typeof getHealth !== "function") return;
-    void getHealth().then(setHealth).catch((cause) => setError(String(cause)));
+    void getHealth()
+      .then((next) => applyHealth(next, setHealth, setConfig))
+      .catch((cause) => setError(String(cause)));
   };
 
   useEffect(refresh, []);
@@ -40,7 +52,7 @@ export default function KnowledgeDatabasePanel() {
     setBusy(true);
     setError(null);
     try {
-      setHealth(await desktop.testKnowledgeDatabase(config, password));
+      applyHealth(await desktop.testKnowledgeDatabase(config, password), setHealth, setConfig);
     } catch (cause) {
       setError(String(cause));
     } finally {
@@ -52,7 +64,7 @@ export default function KnowledgeDatabasePanel() {
     setBusy(true);
     setError(null);
     try {
-      setHealth(await desktop.configureKnowledgeDatabase(config, password));
+      applyHealth(await desktop.configureKnowledgeDatabase(config, password), setHealth, setConfig);
       setPassword("");
     } catch (cause) {
       setError(String(cause));
@@ -65,7 +77,7 @@ export default function KnowledgeDatabasePanel() {
     setBusy(true);
     setError(null);
     try {
-      setHealth(await desktop.initializeKnowledgeDatabase());
+      applyHealth(await desktop.initializeKnowledgeDatabase(), setHealth, setConfig);
     } catch (cause) {
       setError(String(cause));
     } finally {

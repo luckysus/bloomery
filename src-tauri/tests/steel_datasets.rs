@@ -1,9 +1,9 @@
-use suna::steel::{preview_dataset, read_dataset_table, DatasetPreviewRequest};
-use suna::storage::{migrations::migrate, repositories::steel};
 use rusqlite::Connection;
 use std::fs;
 use std::io::{BufWriter, Write};
 use std::path::{Path, PathBuf};
+use suna::steel::{preview_dataset, read_dataset_table, DatasetPreviewRequest};
+use suna::storage::{migrations::migrate, repositories::steel};
 use zip::write::SimpleFileOptions;
 
 struct GeneratedXlsx(PathBuf);
@@ -46,8 +46,7 @@ fn database() -> Connection {
 
 #[test]
 fn bounds_csv_rows_in_memory_without_losing_the_source_row_count() {
-    let path =
-        std::env::temp_dir().join(format!("suna-steel-large-{}.csv", uuid::Uuid::new_v4()));
+    let path = std::env::temp_dir().join(format!("suna-steel-large-{}.csv", uuid::Uuid::new_v4()));
     let file = fs::File::create(&path).expect("create large CSV fixture");
     let mut writer = BufWriter::new(file);
     writeln!(writer, "heat_id,yield_strength").expect("write header");
@@ -73,8 +72,7 @@ fn bounds_csv_rows_in_memory_without_losing_the_source_row_count() {
 
 #[test]
 fn bounds_xlsx_rows_in_memory_without_losing_the_source_row_count() {
-    let directory =
-        std::env::temp_dir().join(format!("suna-steel-xlsx-{}", uuid::Uuid::new_v4()));
+    let directory = std::env::temp_dir().join(format!("suna-steel-xlsx-{}", uuid::Uuid::new_v4()));
     fs::create_dir_all(&directory).expect("create large XLSX fixture directory");
     let path = directory.join("large.xlsx");
     let file = fs::File::create(&path).expect("create large XLSX fixture");
@@ -212,8 +210,7 @@ fn xlsx_dataset_parser_skips_empty_sheets_when_no_sheet_is_requested() {
 
 #[test]
 fn xlsx_dataset_parser_does_not_decode_values_after_the_preview_limit() {
-    let directory =
-        std::env::temp_dir().join(format!("suna-steel-xlsx-{}", uuid::Uuid::new_v4()));
+    let directory = std::env::temp_dir().join(format!("suna-steel-xlsx-{}", uuid::Uuid::new_v4()));
     fs::create_dir_all(&directory).expect("create capped XLSX fixture directory");
     let path = directory.join("capped.xlsx");
     let file = fs::File::create(&path).expect("create capped XLSX fixture");
@@ -275,10 +272,8 @@ fn xlsx_dataset_parser_does_not_decode_values_after_the_preview_limit() {
 
 #[test]
 fn csv_dataset_parser_preserves_unicode_and_escaped_quotes() {
-    let path = std::env::temp_dir().join(format!(
-        "suna-steel-unicode-{}.csv",
-        uuid::Uuid::new_v4()
-    ));
+    let path =
+        std::env::temp_dir().join(format!("suna-steel-unicode-{}.csv", uuid::Uuid::new_v4()));
     fs::write(
         &path,
         "\u{feff}heat_id,notes\nH-01,\"Q355B热轧, \"\"稳定\"\"\"\n",
@@ -299,10 +294,7 @@ fn csv_dataset_parser_preserves_unicode_and_escaped_quotes() {
 
 #[test]
 fn csv_dataset_parser_rejects_unknown_sheet_and_warns_on_ragged_rows() {
-    let path = std::env::temp_dir().join(format!(
-        "suna-steel-ragged-{}.csv",
-        uuid::Uuid::new_v4()
-    ));
+    let path = std::env::temp_dir().join(format!("suna-steel-ragged-{}.csv", uuid::Uuid::new_v4()));
     fs::write(&path, "heat_id,yield_strength\nH-01,355,extra\n").expect("write fixture");
 
     let unknown_sheet = read_dataset_table(&DatasetPreviewRequest {

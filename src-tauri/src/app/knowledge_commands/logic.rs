@@ -1,6 +1,6 @@
 // Local knowledge command domain logic.
 use crate::db::{current_workspace_id, database_path, with_conn, with_conn_mut, DbState};
-use crate::knowledge_db::KnowledgeDatabaseState;
+use crate::knowledge_db::{KnowledgeDatabaseState, PostgresKnowledgeSearchFilters};
 use crate::providers::capabilities::{EmbeddingProvider, RerankProvider};
 use crate::providers::http::{ProviderError, ProviderErrorCode};
 use crate::providers::profiles::{ProviderCapability, ProviderKind, ProviderProfileRecord};
@@ -9,8 +9,8 @@ use crate::providers::{
     ConfiguredRerankProvider, SiliconFlowPlan,
 };
 use crate::rag::citation::{
-    persist_evidence_pack, resolve_citation, EvidenceItem, EvidencePack, ResolvedCitation,
-    RetrievalConfigSnapshot,
+    persist_evidence_pack, resolve_citation, EmbeddingDegradationReason, EvidenceItem,
+    EvidencePack, ResolvedCitation, RetrievalConfigSnapshot,
 };
 use crate::rag::index::fts::{search as search_fts, FtsHit, FtsSearchRequest};
 use crate::rag::index::lifecycle::open_with_flat_fallback;
@@ -88,6 +88,8 @@ pub struct LocalKnowledgeQueryRequest {
     pub rrf_k: u32,
     #[serde(default = "default_rerank_limit")]
     pub rerank_limit: usize,
+    #[serde(default)]
+    pub filters: Option<PostgresKnowledgeSearchFilters>,
 }
 
 impl LocalKnowledgeQueryRequest {
@@ -450,13 +452,14 @@ pub(crate) async fn query_local_knowledge(
     query_postgres_knowledge(&app, &secrets, &postgres, request).await
 }
 
-async fn query_postgres_knowledge(
+pub(crate) async fn query_postgres_knowledge(
     app: &tauri::AppHandle,
     secrets: &tauri::State<'_, SecretState>,
     state: &KnowledgeDatabaseState,
     mut request: LocalKnowledgeQueryRequest,
 ) -> Result<EvidencePack, String> {
     request.validate()?;
+    let started_at = std::time::Instant::now();
     let pool = crate::knowledge_db::pool_for_query(state)?;
     if request.dense_limit > 0 {
         let database = database_path(app)?;
@@ -475,67 +478,102 @@ async fn query_postgres_knowledge(
             settings::get(&connection, current_workspace_id(), "onboarding.retrieval")?.as_deref(),
         );
         drop(connection);
-        if let Some(record) = embedding_record {
-            if let Ok(provider) =
-                prepare_embedding_provider(&record, secrets.store(), retrieval_plan)
-            {
-                if let Ok(response) = provider.embed(vec![request.query.clone()]).await {
-                    if let Some(vector) = response.vectors.into_iter().next() {
-                        if !vector.is_empty() && vector.iter().all(|value| value.is_finite()) {
-                            let mut hits = Vec::new();
-                            for knowledge_base_id in &request.knowledge_base_ids {
-                                let id = Uuid::parse_str(&knowledge_base_id.to_string())
-                                    .map_err(|e| e.to_string())?;
-                                hits.extend(
-                                    crate::knowledge_db::search_postgres_hybrid_pool(
-                                        &pool,
-                                        id,
-                                        &request.query,
-                                        &vector,
-                                        request.candidate_limit,
-                                        request.rrf_k,
-                                    )
-                                    .await?,
-                                );
-                            }
-                            hits.sort_by(|left, right| right.rank.total_cmp(&left.rank));
-                            hits.truncate(request.candidate_limit);
-                            let chunks = postgres_hits_to_chunks(hits)?;
-                            let reranker =
-                                prepare_reranker(rerank_record, secrets.store(), retrieval_plan);
-                            let reranked = rerank_candidates(
-                                &request.query,
-                                chunks,
-                                reranker.state(),
-                                request.rerank_limit,
-                                &|| false,
-                            )
-                            .await;
-                            return persist_postgres_evidence_pack(
-                                &pool,
-                                &request.query,
-                                RetrievalConfigSnapshot {
-                                    knowledge_base_ids: request.knowledge_base_ids,
-                                    lexical_limit: request.lexical_limit,
-                                    dense_limit: request.dense_limit,
-                                    candidate_limit: request.candidate_limit,
-                                    rrf_k: request.rrf_k,
-                                    embedding_provider_profile_id: record.profile.id.to_string(),
-                                    embedding_model_id: response.model_id,
-                                    rerank_provider_profile_id: reranker.profile_id,
-                                    rerank_model_id: reranker.model_id,
-                                    rerank_degradation: reranked.degradation,
-                                },
-                                reranked.chunks,
-                            )
-                            .await;
-                        }
-                    }
-                }
+        let Some(record) = embedding_record else {
+            return query_postgres_knowledge_with_pool_degradation(
+                pool,
+                request,
+                Some(EmbeddingDegradationReason::MissingCredential),
+            )
+            .await;
+        };
+        let provider = match prepare_embedding_provider(&record, secrets.store(), retrieval_plan) {
+            Ok(provider) => provider,
+            Err(error) => {
+                return query_postgres_knowledge_with_pool_degradation(
+                    pool,
+                    request,
+                    Some(embedding_configuration_degradation(&error)),
+                )
+                .await;
             }
+        };
+        let response = match provider.embed(vec![request.query.clone()]).await {
+            Ok(response) => response,
+            Err(error) => {
+                return query_postgres_knowledge_with_pool_degradation(
+                    pool,
+                    request,
+                    Some(embedding_provider_degradation(&error)),
+                )
+                .await;
+            }
+        };
+        let Some(vector) = response.vectors.into_iter().next() else {
+            return query_postgres_knowledge_with_pool_degradation(
+                pool,
+                request,
+                Some(EmbeddingDegradationReason::MalformedResponse),
+            )
+            .await;
+        };
+        if vector.is_empty() || vector.iter().any(|value| !value.is_finite()) {
+            return query_postgres_knowledge_with_pool_degradation(
+                pool,
+                request,
+                Some(EmbeddingDegradationReason::MalformedResponse),
+            )
+            .await;
         }
+        let mut hits = Vec::new();
+        for knowledge_base_id in &request.knowledge_base_ids {
+            let id = Uuid::parse_str(&knowledge_base_id.to_string()).map_err(|e| e.to_string())?;
+            hits.extend(
+                crate::knowledge_db::search_postgres_hybrid_pool(
+                    &pool,
+                    id,
+                    &request.query,
+                    &vector,
+                    request.candidate_limit,
+                    request.rrf_k,
+                    request.filters.as_ref(),
+                )
+                .await?,
+            );
+        }
+        hits.sort_by(|left, right| right.rank.total_cmp(&left.rank));
+        hits.truncate(request.candidate_limit);
+        let chunks = postgres_hits_to_chunks(hits)?;
+        let reranker = prepare_reranker(rerank_record, secrets.store(), retrieval_plan);
+        let reranked = rerank_candidates(
+            &request.query,
+            chunks,
+            reranker.state(),
+            request.rerank_limit,
+            &|| false,
+        )
+        .await;
+        return persist_postgres_evidence_pack(
+            &pool,
+            &request.query,
+            RetrievalConfigSnapshot {
+                knowledge_base_ids: request.knowledge_base_ids,
+                lexical_limit: request.lexical_limit,
+                dense_limit: request.dense_limit,
+                candidate_limit: request.candidate_limit,
+                rrf_k: request.rrf_k,
+                embedding_provider_profile_id: record.profile.id.to_string(),
+                embedding_model_id: response.model_id,
+                embedding_degradation: None,
+                rerank_provider_profile_id: reranker.profile_id,
+                rerank_model_id: reranker.model_id,
+                rerank_degradation: reranked.degradation,
+            },
+            reranked.chunks,
+            i64::try_from(started_at.elapsed().as_millis()).unwrap_or(i64::MAX),
+        )
+        .await;
     }
-    query_postgres_knowledge_with_pool(pool, request).await
+    query_postgres_knowledge_with_pool_degradation(pool, request, None).await
 }
 
 fn postgres_hits_to_chunks(
@@ -569,9 +607,23 @@ fn postgres_hits_to_chunks(
 
 pub(crate) async fn query_postgres_knowledge_with_pool(
     pool: sqlx::PgPool,
+    request: LocalKnowledgeQueryRequest,
+) -> Result<EvidencePack, String> {
+    query_postgres_knowledge_with_pool_degradation(
+        pool,
+        request,
+        Some(EmbeddingDegradationReason::UnsupportedCapability),
+    )
+    .await
+}
+
+async fn query_postgres_knowledge_with_pool_degradation(
+    pool: sqlx::PgPool,
     mut request: LocalKnowledgeQueryRequest,
+    embedding_degradation: Option<EmbeddingDegradationReason>,
 ) -> Result<EvidencePack, String> {
     request.validate()?;
+    let started_at = std::time::Instant::now();
     let ids = request
         .knowledge_base_ids
         .iter()
@@ -581,6 +633,32 @@ pub(crate) async fn query_postgres_knowledge_with_pool(
         .candidate_limit
         .min(request.lexical_limit.max(1))
         .min(100);
+    let filters = request.filters.clone().unwrap_or_default();
+    let document_type = filters
+        .document_type
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+    let material = filters
+        .material
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+    let process = filters
+        .process
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+    let property = filters
+        .property
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+    let tag = filters
+        .tag
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
     let rows = sqlx::query(
         "SELECT c.id, c.version_id, d.id AS document_id, d.knowledge_base_id,
                 d.display_name, c.text, c.source_location,
@@ -588,13 +666,26 @@ pub(crate) async fn query_postgres_knowledge_with_pool(
          FROM document_chunks c
          JOIN document_versions v ON v.id = c.version_id AND v.activated_at IS NOT NULL
          JOIN source_documents d ON d.id = v.document_id
+         JOIN knowledge_bases kb ON kb.id = d.knowledge_base_id AND kb.deleted_at IS NULL
          WHERE d.knowledge_base_id = ANY($2::uuid[]) AND d.deleted_at IS NULL
            AND c.search_vector @@ plainto_tsquery('simple', $1)
+           AND ($3::text IS NULL OR d.source_kind = $3)
+           AND ($4::text IS NULL OR lower(coalesce(d.metadata ->> 'material', '')) LIKE lower('%' || $4 || '%'))
+           AND ($5::text IS NULL OR lower(coalesce(d.metadata ->> 'process', '')) LIKE lower('%' || $5 || '%'))
+           AND ($6::text IS NULL OR lower(coalesce(d.metadata ->> 'property', '')) LIKE lower('%' || $6 || '%'))
+           AND ($7::int IS NULL OR d.metadata ->> 'year' = $7::text)
+           AND ($8::text IS NULL OR (d.metadata -> 'tags') ? $8 OR lower(coalesce(d.metadata ->> 'tags', '')) LIKE lower('%' || $8 || '%'))
          ORDER BY rank DESC, c.ordinal
-         LIMIT $3",
+         LIMIT $9",
     )
     .bind(request.query.trim())
     .bind(&ids)
+    .bind(document_type)
+    .bind(material)
+    .bind(process)
+    .bind(property)
+    .bind(filters.year)
+    .bind(tag)
     .bind(i64::try_from(limit).map_err(|_| "检索数量无效")?)
     .fetch_all(&pool)
     .await
@@ -654,11 +745,13 @@ pub(crate) async fn query_postgres_knowledge_with_pool(
             rrf_k: request.rrf_k,
             embedding_provider_profile_id: "postgresql".to_string(),
             embedding_model_id: "tsvector".to_string(),
+            embedding_degradation,
             rerank_provider_profile_id: None,
             rerank_model_id: None,
             rerank_degradation: None,
         },
         chunks,
+        i64::try_from(started_at.elapsed().as_millis()).unwrap_or(i64::MAX),
     )
     .await
 }
@@ -668,6 +761,7 @@ async fn persist_postgres_evidence_pack(
     query: &str,
     configuration: RetrievalConfigSnapshot,
     chunks: Vec<RetrievedChunk>,
+    duration_ms: i64,
 ) -> Result<EvidencePack, String> {
     if chunks.len() > 500 {
         return Err("检索证据超过允许上限".to_string());
@@ -693,8 +787,8 @@ async fn persist_postgres_evidence_pack(
         created_at,
     };
     sqlx::query(
-        "INSERT INTO retrieval_audits (id, knowledge_base_id, query, configuration, evidence)
-         VALUES ($1, $2, $3, $4, $5)",
+        "INSERT INTO retrieval_audits (id, knowledge_base_id, query, configuration, evidence, duration_ms)
+         VALUES ($1, $2, $3, $4, $5, $6)",
     )
     .bind(pack.id)
     .bind(
@@ -706,6 +800,7 @@ async fn persist_postgres_evidence_pack(
     .bind(&pack.query)
     .bind(serde_json::to_value(&pack.configuration).map_err(|error| error.to_string())?)
     .bind(serde_json::to_value(&pack.evidence).map_err(|error| error.to_string())?)
+    .bind(duration_ms)
     .execute(pool)
     .await
     .map_err(|error| format!("写入 PostgreSQL 检索审计失败: {error}"))?;
@@ -758,7 +853,8 @@ pub(crate) async fn query_local_knowledge_from_path(
             request,
             "local_fts",
             "keyword",
-            Some(RerankDegradationReason::UnsupportedCapability),
+            Some(EmbeddingDegradationReason::UnsupportedCapability),
+            None,
         );
     };
     if request.dense_limit == 0 {
@@ -773,6 +869,7 @@ pub(crate) async fn query_local_knowledge_from_path(
                 .model_id
                 .as_deref()
                 .unwrap_or("keyword"),
+            None,
             None,
         );
     }
@@ -791,7 +888,8 @@ pub(crate) async fn query_local_knowledge_from_path(
                         .model_id
                         .as_deref()
                         .unwrap_or("keyword"),
-                    Some(configuration_degradation(&error)),
+                    Some(embedding_configuration_degradation(&error)),
+                    None,
                 );
             }
         };
@@ -810,7 +908,8 @@ pub(crate) async fn query_local_knowledge_from_path(
                     .model_id
                     .as_deref()
                     .unwrap_or("keyword"),
-                Some(provider_degradation(&error)),
+                Some(embedding_provider_degradation(&error)),
+                None,
             );
         }
     };
@@ -818,7 +917,16 @@ pub(crate) async fn query_local_knowledge_from_path(
         || embedding.vectors[0].is_empty()
         || embedding.vectors[0].iter().any(|value| !value.is_finite())
     {
-        return Err("embedding provider returned an invalid query vector".to_string());
+        let connection = open_query_connection(&path)?;
+        return query_local_knowledge_fts_fallback(
+            &connection,
+            workspace_id,
+            request,
+            &embedding_record.profile.id.to_string(),
+            &embedding.model_id,
+            Some(EmbeddingDegradationReason::MalformedResponse),
+            None,
+        );
     }
     let query_vector = embedding.vectors.into_iter().next().expect("one vector");
     let dimension = u32::try_from(query_vector.len())
@@ -841,7 +949,8 @@ pub(crate) async fn query_local_knowledge_from_path(
                 request,
                 &embedding_record.profile.id.to_string(),
                 &embedding.model_id,
-                Some(configuration_degradation(&error)),
+                Some(embedding_configuration_degradation(&error)),
+                None,
             );
         }
     };
@@ -858,7 +967,8 @@ pub(crate) async fn query_local_knowledge_from_path(
                 request,
                 &embedding_record.profile.id.to_string(),
                 &embedding.model_id,
-                Some(configuration_degradation(&error.to_string())),
+                Some(embedding_configuration_degradation(&error.to_string())),
+                None,
             );
         }
     };
@@ -885,7 +995,8 @@ pub(crate) async fn query_local_knowledge_from_path(
                 request,
                 &embedding_record.profile.id.to_string(),
                 &embedding.model_id,
-                Some(configuration_degradation(&error.to_string())),
+                Some(embedding_configuration_degradation(&error.to_string())),
+                None,
             );
         }
     };
@@ -913,6 +1024,7 @@ pub(crate) async fn query_local_knowledge_from_path(
             rrf_k: request.rrf_k,
             embedding_provider_profile_id: embedding_record.profile.id.to_string(),
             embedding_model_id: embedding.model_id,
+            embedding_degradation: None,
             rerank_provider_profile_id: reranker.profile_id,
             rerank_model_id: reranker.model_id,
             rerank_degradation: reranked.degradation,
@@ -928,7 +1040,8 @@ fn query_local_knowledge_fts_fallback(
     request: LocalKnowledgeQueryRequest,
     embedding_provider_profile_id: &str,
     embedding_model_id: &str,
-    degradation: Option<RerankDegradationReason>,
+    embedding_degradation: Option<EmbeddingDegradationReason>,
+    rerank_degradation: Option<RerankDegradationReason>,
 ) -> Result<EvidencePack, String> {
     let limit = request.lexical_limit.min(request.candidate_limit);
     let hits = if limit == 0 {
@@ -962,9 +1075,10 @@ fn query_local_knowledge_fts_fallback(
             rrf_k: request.rrf_k,
             embedding_provider_profile_id: embedding_provider_profile_id.to_string(),
             embedding_model_id: embedding_model_id.to_string(),
+            embedding_degradation,
             rerank_provider_profile_id: None,
             rerank_model_id: None,
-            rerank_degradation: degradation,
+            rerank_degradation,
         },
         chunks,
     )
@@ -1005,25 +1119,27 @@ fn fts_hit_to_retrieved_chunk(
     })
 }
 
-fn configuration_degradation(message: &str) -> RerankDegradationReason {
+fn embedding_configuration_degradation(message: &str) -> EmbeddingDegradationReason {
     let lower = message.to_ascii_lowercase();
     if lower.contains("credential") || lower.contains("secret") {
-        RerankDegradationReason::MissingCredential
+        EmbeddingDegradationReason::MissingCredential
     } else {
-        RerankDegradationReason::InvalidConfiguration
+        EmbeddingDegradationReason::InvalidConfiguration
     }
 }
 
-fn provider_degradation(error: &ProviderError) -> RerankDegradationReason {
+fn embedding_provider_degradation(error: &ProviderError) -> EmbeddingDegradationReason {
     match error.code() {
-        ProviderErrorCode::Network => RerankDegradationReason::Network,
-        ProviderErrorCode::Authentication => RerankDegradationReason::Authentication,
-        ProviderErrorCode::Quota => RerankDegradationReason::Quota,
-        ProviderErrorCode::Timeout => RerankDegradationReason::Timeout,
-        ProviderErrorCode::ProviderResponse => RerankDegradationReason::ProviderResponse,
-        ProviderErrorCode::ContextLimit => RerankDegradationReason::ProviderResponse,
-        ProviderErrorCode::Cancelled => RerankDegradationReason::Cancelled,
-        ProviderErrorCode::UnsupportedCapability => RerankDegradationReason::UnsupportedCapability,
+        ProviderErrorCode::Network => EmbeddingDegradationReason::Network,
+        ProviderErrorCode::Authentication => EmbeddingDegradationReason::Authentication,
+        ProviderErrorCode::Quota => EmbeddingDegradationReason::Quota,
+        ProviderErrorCode::Timeout => EmbeddingDegradationReason::Timeout,
+        ProviderErrorCode::ProviderResponse => EmbeddingDegradationReason::ProviderResponse,
+        ProviderErrorCode::ContextLimit => EmbeddingDegradationReason::ProviderResponse,
+        ProviderErrorCode::Cancelled => EmbeddingDegradationReason::Cancelled,
+        ProviderErrorCode::UnsupportedCapability => {
+            EmbeddingDegradationReason::UnsupportedCapability
+        }
     }
 }
 
@@ -1266,15 +1382,17 @@ mod tests {
                 candidate_limit: 5,
                 rrf_k: 60,
                 rerank_limit: 5,
+                filters: None,
             },
         ))
         .expect("query should fall back to FTS");
 
         assert_eq!(pack.evidence.len(), 1);
         assert_eq!(pack.configuration.dense_limit, 0);
+        assert_eq!(pack.configuration.rerank_degradation, None);
         assert_eq!(
-            pack.configuration.rerank_degradation,
-            Some(RerankDegradationReason::UnsupportedCapability)
+            pack.configuration.embedding_degradation,
+            Some(EmbeddingDegradationReason::UnsupportedCapability)
         );
         assert!(pack.evidence[0].chunk.text.contains("Q355B"));
 

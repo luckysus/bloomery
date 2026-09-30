@@ -1,9 +1,9 @@
-use suna::permissions::{ParameterScope, PermissionAction, PermissionRule, RuleEffect};
-use suna::storage::{migrations::migrate, repositories::permissions};
-use suna::tools::{ToolId, ToolSource, ToolVersion};
 use rusqlite::Connection;
 use serde_json::json;
 use std::collections::BTreeMap;
+use suna::permissions::{ParameterScope, PermissionAction, PermissionRule, RuleEffect};
+use suna::storage::{migrations::migrate, repositories::permissions};
+use suna::tools::{ToolId, ToolSource, ToolVersion};
 use uuid::Uuid;
 
 fn rule(id: Uuid) -> PermissionRule {

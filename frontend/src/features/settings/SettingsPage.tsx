@@ -1,24 +1,21 @@
 import { useEffect, useState, type FormEvent } from "react";
 import {
-  AlertCircle,
-  Activity,
-  Check,
-  KeyRound,
+  Bot,
+  CircleHelp,
+  Database,
+  HardDrive,
+  Keyboard,
+  Palette,
+  Server,
   Settings2,
+  Sparkles,
+  UserRound,
 } from "lucide-react";
 import { desktop, type PermissionRuleRecord, type ProviderCapability, type ProviderProfileInput } from "../../bridge/desktop";
 import { useLocale } from "../../i18n/locale";
-import LanguageSelect from "../../components/common/LanguageSelect";
-import PermissionRulesPanel from "./PermissionRulesPanel";
-import DatabaseConnectionsPanel from "./DatabaseConnectionsPanel";
-import KnowledgeDatabasePanel from "./KnowledgeDatabasePanel";
-import SettingsSkillsPanel from "./SettingsSkillsPanel";
-import McpServersPanel from "../extensions/McpServersPanel";
-import { SUNA_VERSION } from "../../version";
-import SettingsPreferencesPanel from "./SettingsPreferencesPanel";
-import SettingsAgentPanel from "./SettingsAgentPanel";
-import SettingsProvidersPanel from "./SettingsProvidersPanel";
 import SettingsTabList, { type SettingsTabOption } from "./SettingsTabList";
+import SettingsPagePanel from "./SettingsPagePanel";
+import SettingsPageChrome from "./SettingsPageChrome";
 import {
   defaultRetrievalIds,
   defaults,
@@ -33,29 +30,25 @@ import {
   type RetrievalPlan,
   type SettingsEditor,
 } from "./settingsModel";
-interface SettingsPageProps {
-  onOpenDiagnostics?: () => void;
-}
-type SettingsTab =
-  | "account" | "providers" | "general" | "appearance" | "knowledge"
-  | "agent" | "mcp" | "skill" | "databases" | "shortcuts" | "about";
+import "./settings-v2.css";
+interface SettingsPageProps { onOpenDiagnostics?: () => void; initialTab?: SettingsTab; }
+type SettingsTab = "account" | "providers" | "general" | "appearance" | "knowledge" | "agent" | "mcp" | "skill" | "databases" | "shortcuts" | "about";
 const settingsTabs: SettingsTabOption<SettingsTab>[] = [
-  { id: "account", labelKey: "settingsCategoryAccount" },
-  { id: "providers", labelKey: "settingsTabProviders" },
-  { id: "general", labelKey: "settingsTabGeneral" },
-  { id: "appearance", labelKey: "settingsCategoryAppearance" },
-  { id: "knowledge", labelKey: "settingsCategoryKnowledge" },
-  { id: "agent", labelKey: "settingsCategoryAgent" },
-  { id: "mcp", labelKey: "settingsCategoryMcp" },
-  { id: "skill", labelKey: "settingsCategorySkill" },
-  { id: "databases", labelKey: "settingsTabDatabases" },
-  { id: "shortcuts", labelKey: "settingsCategoryShortcuts" },
-  { id: "about", labelKey: "settingsCategoryAbout" },
+  { id: "account", labelKey: "settingsCategoryAccount", icon: UserRound, description: "本地身份" },
+  { id: "providers", labelKey: "settingsTabProviders", icon: Sparkles, description: "Provider 与默认模型" },
+  { id: "general", labelKey: "settingsTabGeneral", icon: Settings2, description: "启动与确认" },
+  { id: "appearance", labelKey: "settingsCategoryAppearance", icon: Palette, description: "主题与密度" },
+  { id: "knowledge", labelKey: "settingsCategoryKnowledge", icon: Database, description: "PostgreSQL 与 RAG" },
+  { id: "agent", labelKey: "settingsCategoryAgent", icon: Bot, description: "预算与权限" },
+  { id: "mcp", labelKey: "settingsCategoryMcp", icon: Server, description: "外部工具服务" },
+  { id: "skill", labelKey: "settingsCategorySkill", icon: CircleHelp, description: "专业能力" },
+  { id: "databases", labelKey: "settingsTabDatabases", icon: HardDrive, description: "外部数据连接" },
+  { id: "shortcuts", labelKey: "settingsCategoryShortcuts", icon: Keyboard, description: "键盘操作" },
+  { id: "about", labelKey: "settingsCategoryAbout", icon: CircleHelp, description: "版本与诊断" },
 ];
-
-export default function SettingsPage({ onOpenDiagnostics }: SettingsPageProps) {
+export default function SettingsPage({ onOpenDiagnostics, initialTab }: SettingsPageProps) {
   const { t } = useLocale();
-  const [activeTab, setActiveTab] = useState<SettingsTab>("providers");
+  const [activeTab, setActiveTab] = useState<SettingsTab>(initialTab ?? "providers");
   const [editors, setEditors] = useState<SettingsEditor[]>([]);
   const [plan, setPlan] = useState<RetrievalPlan>("free");
   const [retrievalIds, setRetrievalIds] = useState<RetrievalIds>(defaultRetrievalIds);
@@ -109,12 +102,10 @@ export default function SettingsPage({ onOpenDiagnostics }: SettingsPageProps) {
       setLoading(false);
     }
   };
-
   const saveAccount = async () => {
     await desktop.setSetting("profile.account", JSON.stringify({ version: 1, display_name: accountName.trim() || "Suna" }));
     setNotice(t("settingsSaved"));
   };
-
   const saveShortcut = async (value: string) => {
     setShortcutSend(value);
     await desktop.setSetting("ui.shortcuts", JSON.stringify({ version: 1, send: value }));
@@ -151,6 +142,9 @@ export default function SettingsPage({ onOpenDiagnostics }: SettingsPageProps) {
   useEffect(() => {
     void load();
   }, []);
+  useEffect(() => {
+    if (initialTab) setActiveTab(initialTab);
+  }, [initialTab]);
   const persistRetrieval = async (nextPlan: RetrievalPlan, ids: RetrievalIds) => {
     await desktop.setSetting("onboarding.retrieval", JSON.stringify({
       version: 1,
@@ -238,7 +232,6 @@ export default function SettingsPage({ onOpenDiagnostics }: SettingsPageProps) {
       setBusySlot(null);
     }
   };
-
   const testEditor = async (editor: SettingsEditor) => {
     if (!editor.id) {
       setError(t("settingsSaveBeforeTest"));
@@ -260,7 +253,6 @@ export default function SettingsPage({ onOpenDiagnostics }: SettingsPageProps) {
       setTestingSlot(null);
     }
   };
-
   const deleteEditor = async (editor: SettingsEditor) => {
     if (!editor.id || !window.confirm(t("settingsDeleteConfirm", { name: editor.displayName }))) return;
     setBusySlot(editor.slot);
@@ -279,7 +271,6 @@ export default function SettingsPage({ onOpenDiagnostics }: SettingsPageProps) {
       setBusySlot(null);
     }
   };
-
   const revokePermission = async (rule: PermissionRuleRecord) => {
     setPermissionBusyId(rule.id);
     setError(null);
@@ -294,78 +285,13 @@ export default function SettingsPage({ onOpenDiagnostics }: SettingsPageProps) {
       setPermissionBusyId(null);
     }
   };
-
   return (
-    <section className="suna-settings suna-page-surface" aria-labelledby="settings-heading">
-      <header className="suna-settings-header">
-        <div>
-          <h1 id="settings-heading">{t("settingsTitle")}</h1>
-        </div>
-        <div className="suna-settings-header-actions">
-          <LanguageSelect />
-          {onOpenDiagnostics && (
-            <button
-              type="button"
-              className="suna-action-secondary suna-settings-diagnostics-button"
-              onClick={onOpenDiagnostics}
-            >
-              <Activity size={16} aria-hidden="true" />
-              {t("settingsDiagnostics")}
-            </button>
-          )}
-          <button type="button" className="suna-icon-button" onClick={() => void load()} disabled={loading} aria-label={t("settingsRefresh")} title={t("settingsRefresh")}>
-            <Settings2 size={18} aria-hidden="true" />
-          </button>
-        </div>
-      </header>
-
-      {error && <div className="suna-settings-alert" role="alert"><AlertCircle size={17} aria-hidden="true" /><span>{error}</span></div>}
-      {notice && <div className="suna-settings-notice" role="status"><Check size={17} aria-hidden="true" /><span>{notice}</span></div>}
-      <div className="suna-settings-toolbar">
-        <input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder={t("settingsSearchPlaceholder")} aria-label={t("settingsSearch")} />
-        <button type="button" className="suna-action-secondary" onClick={exportSettings}>{t("settingsExport")}</button>
-        <label className="suna-action-secondary">{t("settingsImport")}<input key={fileInputKey} type="file" accept="application/json" hidden onChange={(event) => { const file = event.target.files?.[0]; if (file) void importSettings(file); }} /></label>
-        <button type="button" className="suna-action-secondary" onClick={() => void resetPreferences()}>{t("settingsReset")}</button>
-      </div>
-
+    <section className="suna-settings suna-settings-v2 suna-page-surface" aria-labelledby="settings-heading">
+      <SettingsPageChrome t={t} loading={loading} error={error} notice={notice} query={query} setQuery={setQuery} load={() => void load()} exportSettings={exportSettings} importSettings={(file) => void importSettings(file)} fileInputKey={fileInputKey} resetPreferences={() => void resetPreferences()} onOpenDiagnostics={onOpenDiagnostics} />
       <div className="suna-settings-layout">
         <SettingsTabList tabs={visibleTabs} activeTab={activeTab} onSelect={setActiveTab} />
-
         <div role="tabpanel" id={`settings-panel-${activeTab}`} aria-labelledby={`settings-tab-${activeTab}`}>
-        {activeTab === "account" && (
-          <section className="suna-settings-category">
-            <h2>{t("settingsCategoryAccount")}</h2>
-            <p>{t("settingsAccountCopy")}</p>
-            <div className="suna-account-summary"><span className="suna-account-avatar">B</span><div><strong>{accountName}</strong><span>{t("localAccount")}</span></div></div>
-            <label className="suna-settings-field">{t("settingsAccountName")}<input value={accountName} onChange={(event) => setAccountName(event.target.value)} /></label>
-            <button type="button" className="suna-action-primary" onClick={() => void saveAccount()}>{t("settingsSave")}</button>
-          </section>
-        )}
-        {activeTab === "general" && (
-          <><SettingsPreferencesPanel mode="general" /><div className="suna-settings-safety"><KeyRound size={18} aria-hidden="true" /><div><strong>{t("settingsSecretTitle")}</strong><span>{t("settingsSecretCopy")}</span></div></div></>
-        )}
-        {activeTab === "appearance" && <SettingsPreferencesPanel mode="appearance" />}
-        {activeTab === "knowledge" && <section className="suna-settings-category"><h2>{t("settingsCategoryKnowledge")}</h2><p>{t("settingsKnowledgeCopy")}</p><KnowledgeDatabasePanel /><SettingsProvidersPanel plan={plan} loading={loading} editors={editors.filter((editor) => editor.slot !== "chat")} busySlot={busySlot} testingSlot={testingSlot} onChange={updateEditor} onSubmit={saveEditor} onTest={(editor) => void testEditor(editor)} onDelete={(editor) => void deleteEditor(editor)} onPlanChange={(nextPlan) => void changePlan(nextPlan)} /></section>}
-        {activeTab === "agent" && <><SettingsAgentPanel /><PermissionRulesPanel rules={permissionRules} busyId={permissionBusyId} onRevoke={(rule) => void revokePermission(rule)} /></>}
-        {activeTab === "mcp" && <McpServersPanel />}
-        {activeTab === "skill" && <SettingsSkillsPanel />}
-        {activeTab === "databases" && <DatabaseConnectionsPanel />}
-        {activeTab === "providers" && (
-          <SettingsProvidersPanel
-            plan={plan}
-            loading={loading}
-            editors={editors}
-            busySlot={busySlot}
-            testingSlot={testingSlot}
-            onChange={updateEditor}
-            onSubmit={saveEditor}
-            onTest={(editor) => void testEditor(editor)}
-            onDelete={(editor) => void deleteEditor(editor)}
-            onPlanChange={(nextPlan) => void changePlan(nextPlan)}
-          />
-        )}
-        {activeTab === "shortcuts" && <section className="suna-settings-category"><h2>{t("settingsCategoryShortcuts")}</h2><p>{t("settingsShortcutsCopy")}</p><label className="suna-settings-field">{t("settingsShortcutSend")}<select value={shortcutSend} onChange={(event) => void saveShortcut(event.target.value)}><option>Ctrl+Enter</option><option>Enter</option></select></label></section>}
-        {activeTab === "about" && <section className="suna-settings-category"><h2>{t("settingsCategoryAbout")}</h2><p>{t("settingsAboutCopy")}</p><dl className="suna-settings-about"><div><dt>{t("settingsVersion")}</dt><dd>{SUNA_VERSION}</dd></div><div><dt>{t("settingsRuntime")}</dt><dd>Tauri Desktop</dd></div></dl></section>}
+          <SettingsPagePanel activeTab={activeTab} accountName={accountName} setAccountName={setAccountName} saveAccount={() => void saveAccount()} shortcutSend={shortcutSend} saveShortcut={(value) => void saveShortcut(value)} plan={plan} loading={loading} editors={editors} busySlot={busySlot} testingSlot={testingSlot} updateEditor={updateEditor} saveEditor={saveEditor} testEditor={(editor) => void testEditor(editor)} deleteEditor={(editor) => void deleteEditor(editor)} changePlan={(nextPlan) => void changePlan(nextPlan)} permissionRules={permissionRules} permissionBusyId={permissionBusyId} revokePermission={(rule) => void revokePermission(rule)} t={t} onOpenDiagnostics={onOpenDiagnostics} />
         </div>
       </div>
     </section>

@@ -1,7 +1,7 @@
-use suna::tasks::mailbox::{ProtocolMailboxMessage, ProtocolMessageKind};
-use suna::tasks::protocol::{ProtocolKind, ProtocolStatus, ProtocolStore};
 use chrono::{TimeZone, Utc};
 use std::fs;
+use suna::tasks::mailbox::{ProtocolMailboxMessage, ProtocolMessageKind};
+use suna::tasks::protocol::{ProtocolKind, ProtocolStatus, ProtocolStore};
 use uuid::Uuid;
 
 #[test]

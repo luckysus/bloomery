@@ -112,10 +112,8 @@ mod tests {
 
     #[test]
     fn reads_csv_from_the_authorized_handle_not_the_path() {
-        let path = std::env::temp_dir().join(format!(
-            "suna-dataset-handle-{}.csv",
-            uuid::Uuid::new_v4()
-        ));
+        let path =
+            std::env::temp_dir().join(format!("suna-dataset-handle-{}.csv", uuid::Uuid::new_v4()));
         let mut file = File::create(&path).expect("create fixture");
         file.write_all(b"heat_id,value\nH-01,355\n")
             .expect("write fixture");

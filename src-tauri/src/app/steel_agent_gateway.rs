@@ -3,9 +3,11 @@ use crate::app::compute_commands::logic::{
     self, OptimizeSteelProcessRequest, PredictSteelModelRequest, TrainSteelDatasetRequest,
 };
 use crate::app::knowledge_commands::logic::{
-    query_local_knowledge_from_path, query_postgres_knowledge_with_pool, LocalKnowledgeQueryRequest,
+    query_local_knowledge_from_path, query_postgres_knowledge, query_postgres_knowledge_with_pool,
+    LocalKnowledgeQueryRequest,
 };
 use crate::app::task_commands::tasks::background_task_response;
+use crate::knowledge_db::PostgresKnowledgeSearchFilters;
 use crate::models::MemoryInput;
 use crate::providers::profiles::ProviderCapability;
 use crate::rag::citation::EvidenceItem;
@@ -19,10 +21,14 @@ use crate::storage::repositories::{
     knowledge, memories, provider_profiles, settings, steel as steel_repository, steel_models,
 };
 use crate::storage::secrets::KeyringSecretStore;
+use crate::storage::secrets::SecretState;
 use rusqlite::Connection;
 use serde_json::{json, Map, Value};
+use sqlx::Row;
 use std::path::PathBuf;
 use std::str::FromStr;
+use tauri::Manager;
+use uuid::Uuid;
 
 #[derive(Clone)]
 pub struct DesktopSteelAgentGateway {
@@ -52,6 +58,16 @@ impl DesktopSteelAgentGateway {
         let (connection, _) = crate::storage::database::open(&self.database)
             .map_err(|error| format!("open steel agent database failed: {error}"))?;
         Ok(connection)
+    }
+
+    /// Knowledge data has one authoritative backend in the desktop product.
+    /// Unit tests use the SQLite fixture because they deliberately do not boot
+    /// a PostgreSQL server; production callers must initialize PostgreSQL first.
+    fn ensure_knowledge_backend(&self) -> Result<(), String> {
+        if self.postgres_pool.is_some() || cfg!(test) {
+            return Ok(());
+        }
+        Err("PostgreSQL 知识库尚未初始化，无法执行知识检索".to_string())
     }
 
     fn get_model_status(&self, arguments: Value) -> Result<Value, String> {
@@ -85,17 +101,21 @@ impl DesktopSteelAgentGateway {
     }
 
     async fn search_literature(&self, arguments: Value) -> Result<Value, String> {
+        self.ensure_knowledge_backend()?;
         let query = text_arg(&arguments, "query");
         if query.is_empty() {
             return Err("query is required".to_string());
         }
         let limit = limit_arg(&arguments, 12);
-        let connection = self.open()?;
-        let base_ids = self.knowledge_base_ids(&connection, &arguments)?;
-        drop(connection);
+        let base_ids = if self.postgres_pool.is_some() {
+            self.postgres_knowledge_base_ids(&arguments).await?
+        } else {
+            let connection = self.open()?;
+            self.knowledge_base_ids(&connection, &arguments)?
+        };
         if !base_ids.is_empty() {
             match self
-                .search_literature_hybrid(query.clone(), base_ids.clone(), limit)
+                .search_literature_hybrid(query.clone(), base_ids.clone(), limit, None)
                 .await
             {
                 Ok(result) => return Ok(result),
@@ -129,34 +149,125 @@ impl DesktopSteelAgentGateway {
         }))
     }
 
+    async fn knowledge_search(&self, arguments: Value) -> Result<Value, String> {
+        self.ensure_knowledge_backend()?;
+        let query = text_arg(&arguments, "query");
+        if query.is_empty() {
+            return Err("query is required".to_string());
+        }
+        let top_k = limit_arg(&arguments, 12);
+        let filters = arguments
+            .get("filters")
+            .cloned()
+            .map(serde_json::from_value::<PostgresKnowledgeSearchFilters>)
+            .transpose()
+            .map_err(|error| format!("filters is invalid: {error}"))?;
+        let knowledge_base_ids = if self.postgres_pool.is_some() {
+            self.postgres_knowledge_base_ids(&arguments).await?
+        } else {
+            let connection = self.open()?;
+            self.knowledge_base_ids(&connection, &arguments)?
+        };
+        if knowledge_base_ids.is_empty() {
+            return Ok(json!({
+                "success": true,
+                "query": query,
+                "knowledge_base_ids": [],
+                "results": [],
+                "sources": [],
+                "scores": [],
+                "top_k": top_k,
+                "mode": "empty",
+            }));
+        }
+        let result = self
+            .search_literature_hybrid(query.clone(), knowledge_base_ids.clone(), top_k, filters)
+            .await?;
+        let results = result
+            .get("results")
+            .and_then(Value::as_array)
+            .cloned()
+            .unwrap_or_default();
+        let sources = results
+            .iter()
+            .map(|item| {
+                json!({
+                    "citation_number": item.get("citation_number"),
+                    "knowledge_base_id": item.get("knowledge_base_id"),
+                    "document_id": item.get("document_id"),
+                    "version_id": item.get("version_id"),
+                    "chunk_id": item.get("chunk_id"),
+                    "source_name": item.get("source_name"),
+                    "source_location": item.get("source_location"),
+                })
+            })
+            .collect::<Vec<_>>();
+        let scores = results
+            .iter()
+            .map(|item| item.get("score").cloned().unwrap_or(Value::Null))
+            .collect::<Vec<_>>();
+        Ok(json!({
+            "success": true,
+            "query": query,
+            "knowledge_base_ids": knowledge_base_ids,
+            "results": results,
+            "sources": sources,
+            "scores": scores,
+            "top_k": top_k,
+            "mode": result.get("mode").cloned().unwrap_or_else(|| json!("local_fts")),
+            "embedding_degradation": result
+                .get("embedding_degradation")
+                .cloned()
+                .unwrap_or(Value::Null),
+            "rerank_degradation": result
+                .get("rerank_degradation")
+                .cloned()
+                .unwrap_or(Value::Null),
+        }))
+    }
+
     async fn search_literature_hybrid(
         &self,
         query: String,
         knowledge_base_ids: Vec<KnowledgeBaseId>,
         limit: usize,
+        filters: Option<PostgresKnowledgeSearchFilters>,
     ) -> Result<Value, String> {
         if let Some(pool) = &self.postgres_pool {
-            let pack = query_postgres_knowledge_with_pool(
-                pool.clone(),
-                LocalKnowledgeQueryRequest {
-                    query,
-                    knowledge_base_ids,
-                    lexical_limit: (limit * 3).min(50),
-                    dense_limit: 0,
-                    candidate_limit: limit,
-                    rrf_k: 60,
-                    rerank_limit: 0,
-                },
-            )
-            .await?;
+            let request = LocalKnowledgeQueryRequest {
+                query,
+                knowledge_base_ids,
+                lexical_limit: (limit * 3).min(50),
+                dense_limit: (limit * 3).min(50),
+                candidate_limit: limit,
+                rrf_k: 60,
+                rerank_limit: limit,
+                filters,
+            };
+            let pack = if let Some(app) = &self.app {
+                let secrets = app.state::<SecretState>();
+                let knowledge = app.state::<crate::knowledge_db::KnowledgeDatabaseState>();
+                query_postgres_knowledge(app, &secrets, knowledge.inner(), request).await?
+            } else {
+                query_postgres_knowledge_with_pool(pool.clone(), request).await?
+            };
             let results = pack
                 .evidence
                 .into_iter()
                 .map(compact_evidence_item)
                 .collect::<Vec<_>>();
+            let mode = if pack.configuration.dense_limit > 0
+                && pack.configuration.embedding_model_id != "tsvector"
+            {
+                "postgresql_hybrid"
+            } else {
+                "postgresql_fts"
+            };
             return Ok(json!({
                 "success": true,
-                "mode": "postgresql_fts",
+                "mode": mode,
+                "embedding_degradation": pack.configuration.embedding_degradation,
+                "rerank_degradation": pack.configuration.rerank_degradation,
                 "evidence_pack_id": pack.id,
                 "created_at": pack.created_at,
                 "results": results,
@@ -164,6 +275,9 @@ impl DesktopSteelAgentGateway {
                 "image_results": [],
                 "experimental_images": [],
             }));
+        }
+        if !cfg!(test) {
+            return Err("PostgreSQL 知识库尚未初始化，无法执行知识检索".to_string());
         }
         let pack = query_local_knowledge_from_path(
             self.database.clone(),
@@ -177,6 +291,7 @@ impl DesktopSteelAgentGateway {
                 candidate_limit: limit,
                 rrf_k: 60,
                 rerank_limit: limit,
+                filters,
             },
         )
         .await?;
@@ -189,6 +304,8 @@ impl DesktopSteelAgentGateway {
         Ok(json!({
             "success": true,
             "mode": "local_hybrid",
+            "embedding_degradation": pack.configuration.embedding_degradation,
+            "rerank_degradation": pack.configuration.rerank_degradation,
             "evidence_pack_id": pack.id,
             "created_at": pack.created_at,
             "results": results,
@@ -198,7 +315,8 @@ impl DesktopSteelAgentGateway {
         }))
     }
 
-    fn read_literature_section(&self, arguments: Value) -> Result<Value, String> {
+    async fn read_literature_section(&self, arguments: Value) -> Result<Value, String> {
+        self.ensure_knowledge_backend()?;
         let query = text_arg(&arguments, "query");
         if query.is_empty() {
             return Err("query is required".to_string());
@@ -220,10 +338,36 @@ impl DesktopSteelAgentGateway {
             expanded.push(' ');
             expanded.push_str(&number.to_string());
         }
-        let connection = self.open()?;
-        let base_ids = self.knowledge_base_ids(&connection, &arguments)?;
-        let results =
-            self.search_fts(&connection, &expanded, base_ids, limit_arg(&arguments, 8))?;
+        let results = if self.postgres_pool.is_some() {
+            let base_ids = self.postgres_knowledge_base_ids(&arguments).await?;
+            let limit = limit_arg(&arguments, 8);
+            let request = LocalKnowledgeQueryRequest {
+                query: expanded.clone(),
+                knowledge_base_ids: base_ids,
+                lexical_limit: (limit * 3).min(50),
+                dense_limit: 0,
+                candidate_limit: limit,
+                rrf_k: 60,
+                rerank_limit: limit,
+                filters: None,
+            };
+            let pack = query_postgres_knowledge_with_pool(
+                self.postgres_pool
+                    .as_ref()
+                    .expect("checked PostgreSQL pool")
+                    .clone(),
+                request,
+            )
+            .await?;
+            pack.evidence
+                .into_iter()
+                .map(compact_evidence_item)
+                .collect::<Vec<_>>()
+        } else {
+            let connection = self.open()?;
+            let base_ids = self.knowledge_base_ids(&connection, &arguments)?;
+            self.search_fts(&connection, &expanded, base_ids, limit_arg(&arguments, 8))?
+        };
         if results.is_empty() {
             return Ok(json!({
                 "success": false,
@@ -252,7 +396,8 @@ impl DesktopSteelAgentGateway {
         }))
     }
 
-    fn query_standard(&self, arguments: Value, standard: &str) -> Result<Value, String> {
+    async fn query_standard(&self, arguments: Value, standard: &str) -> Result<Value, String> {
+        self.ensure_knowledge_backend()?;
         let query = text_arg(&arguments, "query");
         if query.is_empty() {
             return Err("query is required".to_string());
@@ -262,10 +407,35 @@ impl DesktopSteelAgentGateway {
             "process" => format!("{query} 工艺 参数 标准 process"),
             _ => query,
         };
-        let connection = self.open()?;
-        let base_ids = self.knowledge_base_ids(&connection, &arguments)?;
-        let results =
-            self.search_fts(&connection, &expanded, base_ids, limit_arg(&arguments, 10))?;
+        let results = if self.postgres_pool.is_some() {
+            let base_ids = self.postgres_knowledge_base_ids(&arguments).await?;
+            let limit = limit_arg(&arguments, 10);
+            let pack = query_postgres_knowledge_with_pool(
+                self.postgres_pool
+                    .as_ref()
+                    .expect("checked PostgreSQL pool")
+                    .clone(),
+                LocalKnowledgeQueryRequest {
+                    query: expanded,
+                    knowledge_base_ids: base_ids,
+                    lexical_limit: (limit * 3).min(50),
+                    dense_limit: 0,
+                    candidate_limit: limit,
+                    rrf_k: 60,
+                    rerank_limit: limit,
+                    filters: None,
+                },
+            )
+            .await?;
+            pack.evidence
+                .into_iter()
+                .map(compact_evidence_item)
+                .collect::<Vec<_>>()
+        } else {
+            let connection = self.open()?;
+            let base_ids = self.knowledge_base_ids(&connection, &arguments)?;
+            self.search_fts(&connection, &expanded, base_ids, limit_arg(&arguments, 10))?
+        };
         let records = results.clone();
         Ok(json!({
             "success": true,
@@ -420,7 +590,74 @@ impl DesktopSteelAgentGateway {
         }))
     }
 
-    fn process_literature(&self, arguments: Value) -> Result<Value, String> {
+    async fn process_literature(&self, arguments: Value) -> Result<Value, String> {
+        if self.postgres_pool.is_some() {
+            let file_path = text_arg(&arguments, "file_path");
+            if file_path.is_empty() {
+                return Ok(json!({
+                    "success": false,
+                    "requires_user_action": true,
+                    "message": "Agent 已识别文献处理意图。请在知识库页面选择本地 PDF/Markdown/Office 文件后导入。",
+                }));
+            }
+            let pool = self
+                .postgres_pool
+                .as_ref()
+                .ok_or_else(|| "PostgreSQL 知识库尚未初始化".to_string())?;
+            let knowledge_base_id = match arguments
+                .get("knowledge_base_id")
+                .and_then(Value::as_str)
+                .filter(|value| !value.trim().is_empty())
+            {
+                Some(value) => Uuid::parse_str(value.trim())
+                    .map_err(|error| format!("knowledge_base_id 无效: {error}"))?,
+                None => sqlx::query_scalar::<_, Uuid>(
+                    "SELECT id FROM knowledge_bases
+                     WHERE visibility = 'private' AND deleted_at IS NULL
+                     ORDER BY updated_at DESC, id LIMIT 1",
+                )
+                .fetch_optional(pool)
+                .await
+                .map_err(|error| format!("读取默认 PostgreSQL 知识库失败: {error}"))?
+                .ok_or_else(|| "请先在知识中心创建一个知识库".to_string())?,
+            };
+            let embedding_profile_id = arguments
+                .get("embedding_profile_id")
+                .and_then(Value::as_str)
+                .filter(|value| !value.trim().is_empty())
+                .map(|value| {
+                    Uuid::parse_str(value.trim())
+                        .map_err(|error| format!("embedding_profile_id 无效: {error}"))
+                })
+                .transpose()?;
+            let app = self
+                .app
+                .as_ref()
+                .ok_or_else(|| "Suna 应用上下文不可用".to_string())?;
+            let state = app.state::<crate::knowledge_db::KnowledgeDatabaseState>();
+            let response = crate::knowledge_db::import_postgres_document_for_api(
+                app,
+                state.inner(),
+                crate::knowledge_db::PostgresDocumentImportRequest {
+                    knowledge_base_id,
+                    source_path: PathBuf::from(file_path),
+                    embedding_profile_id,
+                },
+            )
+            .await?;
+            return Ok(json!({
+                "success": true,
+                "mode": "postgres_import",
+                "task_id": response.task_id,
+                "knowledge_base_id": response.knowledge_base_id,
+                "state": response.state,
+                "progress": response.progress,
+            }));
+        }
+        self.process_literature_sqlite(arguments)
+    }
+
+    fn process_literature_sqlite(&self, arguments: Value) -> Result<Value, String> {
         let file_path = text_arg(&arguments, "file_path");
         if file_path.is_empty() {
             return Ok(json!({
@@ -516,6 +753,44 @@ impl DesktopSteelAgentGateway {
         }
         knowledge::list_knowledge_bases(connection, &self.workspace_id)
             .map(|bases| bases.into_iter().map(|base| base.id).collect())
+    }
+
+    async fn postgres_knowledge_base_ids(
+        &self,
+        arguments: &Value,
+    ) -> Result<Vec<KnowledgeBaseId>, String> {
+        if let Some(values) = arguments
+            .get("knowledge_base_ids")
+            .and_then(Value::as_array)
+        {
+            let ids = values
+                .iter()
+                .filter_map(Value::as_str)
+                .map(KnowledgeBaseId::from_str)
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(|error| error.to_string())?;
+            if !ids.is_empty() {
+                return Ok(ids);
+            }
+        }
+        let pool = self
+            .postgres_pool
+            .as_ref()
+            .ok_or_else(|| "PostgreSQL 知识库尚未初始化".to_string())?;
+        let rows = sqlx::query(
+            "SELECT id FROM knowledge_bases WHERE deleted_at IS NULL ORDER BY created_at, id",
+        )
+        .fetch_all(pool)
+        .await
+        .map_err(|error| format!("读取 PostgreSQL 知识库列表失败: {error}"))?;
+        rows.into_iter()
+            .map(|row| {
+                let id: uuid::Uuid = row
+                    .try_get("id")
+                    .map_err(|error| format!("读取 PostgreSQL 知识库 ID 失败: {error}"))?;
+                KnowledgeBaseId::from_str(&id.to_string()).map_err(|error| error.to_string())
+            })
+            .collect()
     }
 
     fn search_fts(
@@ -762,18 +1037,21 @@ impl SteelAgentGateway for DesktopSteelAgentGateway {
                 return Err("tool execution was cancelled".to_string());
             }
             match tool_name {
+                "knowledge_search" => gateway.knowledge_search(arguments).await,
                 "search_literature" => gateway.search_literature(arguments).await,
-                "read_literature_section" => gateway.read_literature_section(arguments),
+                "read_literature_section" => gateway.read_literature_section(arguments).await,
                 "query_production_data" => gateway.query_production_data(arguments),
-                "query_composition_standard" => gateway.query_standard(arguments, "composition"),
-                "query_process_standard" => gateway.query_standard(arguments, "process"),
+                "query_composition_standard" => {
+                    gateway.query_standard(arguments, "composition").await
+                }
+                "query_process_standard" => gateway.query_standard(arguments, "process").await,
                 "ask_llm_with_context" => gateway.ask_llm_with_context(arguments),
                 "get_model_status" => gateway.get_model_status(arguments),
                 "predict_performance" => gateway.predict_performance(arguments),
                 "optimize_process" => gateway.optimize_process(arguments),
                 "match_coil" => gateway.match_coil(arguments),
                 "start_training" => gateway.start_training(arguments),
-                "process_literature" => gateway.process_literature(arguments),
+                "process_literature" => gateway.process_literature(arguments).await,
                 "export_data" => gateway.export_data(arguments),
                 "remember_memory" => gateway.remember_memory(arguments),
                 "read_memory" => gateway.read_memory(arguments),
@@ -1342,6 +1620,58 @@ mod tests {
     }
 
     #[test]
+    fn knowledge_search_returns_bounded_sources_and_scores() {
+        let path = std::env::temp_dir().join(format!(
+            "suna-steel-agent-knowledge-search-{}.sqlite3",
+            uuid::Uuid::new_v4()
+        ));
+        let (_connection, _) = crate::storage::database::open(&path).expect("open migrated db");
+        let gateway = DesktopSteelAgentGateway::new(path.clone(), "local");
+
+        let result = execute(
+            &gateway,
+            "knowledge_search",
+            json!({"query": "Q355B", "top_k": 3}),
+        )
+        .expect("knowledge search");
+
+        assert_eq!(result["success"], json!(true));
+        assert_eq!(result["query"], json!("Q355B"));
+        assert_eq!(result["top_k"], json!(3));
+        assert!(result["results"]
+            .as_array()
+            .is_some_and(|items| items.len() <= 3));
+        assert!(result["sources"]
+            .as_array()
+            .is_some_and(|items| items.len() <= 3));
+        assert!(result["scores"]
+            .as_array()
+            .is_some_and(|items| items.len() <= 3));
+
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn knowledge_search_rejects_invalid_filters_before_database_access() {
+        let path = std::env::temp_dir().join(format!(
+            "suna-steel-agent-knowledge-filter-{}.sqlite3",
+            uuid::Uuid::new_v4()
+        ));
+        let (_connection, _) = crate::storage::database::open(&path).expect("open migrated db");
+        let gateway = DesktopSteelAgentGateway::new(path.clone(), "local");
+
+        let error = execute(
+            &gateway,
+            "knowledge_search",
+            json!({"query": "Q355B", "filters": {"year": "not-a-year"}}),
+        )
+        .expect_err("invalid filters must be rejected");
+
+        assert!(error.contains("filters is invalid"));
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
     fn standard_queries_return_web_compatible_records_alias() {
         let path = std::env::temp_dir().join(format!(
             "suna-steel-agent-gateway-{}.sqlite3",
@@ -1602,8 +1932,7 @@ mod tests {
             "suna-steel-agent-gateway-{}.sqlite3",
             uuid::Uuid::new_v4()
         ));
-        let source =
-            std::env::temp_dir().join(format!("suna-source-{}.csv", uuid::Uuid::new_v4()));
+        let source = std::env::temp_dir().join(format!("suna-source-{}.csv", uuid::Uuid::new_v4()));
         let mut csv = String::from("heat_id,grade\n");
         for index in 1..=25 {
             let grade = if index == 25 { "Q690D" } else { "Q355B" };
@@ -1728,8 +2057,7 @@ mod tests {
             "suna-steel-agent-gateway-{}.sqlite3",
             uuid::Uuid::new_v4()
         ));
-        let source =
-            std::env::temp_dir().join(format!("suna-coils-{}.csv", uuid::Uuid::new_v4()));
+        let source = std::env::temp_dir().join(format!("suna-coils-{}.csv", uuid::Uuid::new_v4()));
         let mut csv = String::from("coil_id,yield_strength\n");
         for index in 1..=25 {
             let strength = if index == 25 { 690 } else { 355 };
@@ -1784,8 +2112,7 @@ mod tests {
             "suna-steel-agent-gateway-{}.sqlite3",
             uuid::Uuid::new_v4()
         ));
-        let source =
-            std::env::temp_dir().join(format!("suna-filter-{}.csv", uuid::Uuid::new_v4()));
+        let source = std::env::temp_dir().join(format!("suna-filter-{}.csv", uuid::Uuid::new_v4()));
         std::fs::write(
             &source,
             "heat_id,grade,yield_strength\nH-01,Q355B,350\nH-02,Q355B,420\nH-03,Q235B,420\n",

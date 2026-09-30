@@ -95,6 +95,24 @@ fn query_schema(required: bool) -> Value {
 pub(crate) fn agent_gateway_tools(gateway: Arc<dyn SteelAgentGateway>) -> Vec<ToolRegistration> {
     vec![
         gateway_tool(
+            "steel.knowledge_search",
+            "knowledge_search",
+            json!({
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string"},
+                    "knowledge_base_ids": {"type": "array", "items": {"type": "string"}},
+                    "top_k": {"type": "integer", "minimum": 1, "maximum": 50},
+                    "filters": {"type": "object"}
+                },
+                "required": ["query"],
+                "additionalProperties": false
+            }),
+            PermissionRisk::Automatic,
+            true,
+            gateway.clone(),
+        ),
+        gateway_tool(
             "steel.search_literature",
             "search_literature",
             json!({

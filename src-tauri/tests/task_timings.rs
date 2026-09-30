@@ -1,7 +1,7 @@
+use rusqlite::Connection;
 use suna::storage::migrations::migrate;
 use suna::tasks::model::{NewTask, TaskState};
 use suna::tasks::repository;
-use rusqlite::Connection;
 
 const WORKSPACE: &str = "local";
 

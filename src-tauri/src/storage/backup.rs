@@ -256,8 +256,7 @@ fn restore_backup_internal(
 
     let staging_database =
         database_parent.join(format!(".suna-restore-{}.sqlite3", Uuid::new_v4()));
-    let staging_content =
-        content_parent.join(format!(".suna-content-restore-{}", Uuid::new_v4()));
+    let staging_content = content_parent.join(format!(".suna-content-restore-{}", Uuid::new_v4()));
     let result = extract_backup(
         &mut archive,
         &manifest,

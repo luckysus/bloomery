@@ -1,4 +1,3 @@
-use suna::steel::{preview_dataset, DatasetPreviewRequest};
 use serde::Serialize;
 use sha2::{Digest, Sha256};
 use std::error::Error;
@@ -6,6 +5,7 @@ use std::fs::{self, File};
 use std::io::{BufWriter, Write};
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
+use suna::steel::{preview_dataset, DatasetPreviewRequest};
 
 const ROW_COUNT: usize = 100_000;
 const COLUMN_COUNT: usize = 12;
@@ -68,8 +68,7 @@ struct BenchmarkReport {
 }
 
 fn main() -> AnyResult<()> {
-    let root =
-        std::env::temp_dir().join(format!("suna-dataset-import-{}", uuid::Uuid::new_v4()));
+    let root = std::env::temp_dir().join(format!("suna-dataset-import-{}", uuid::Uuid::new_v4()));
     fs::create_dir_all(&root)?;
     let result = run_benchmark(&root);
     cleanup(&root);

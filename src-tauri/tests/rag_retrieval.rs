@@ -1,3 +1,6 @@
+use rusqlite::{params, Connection};
+use std::str::FromStr;
+use std::sync::Mutex;
 use suna::providers::capabilities::{RerankDocument, RerankResult};
 use suna::providers::http::{ProviderError, ProviderErrorCode};
 use suna::rag::index::vector::{
@@ -15,9 +18,6 @@ use suna::rag::retrieve::rrf::{reciprocal_rank_fusion, FusedChunk, RankedChunk};
 use suna::rag::retrieve::{retrieve, HybridSearchRequest, RetrievedChunk};
 use suna::storage::migrations::migrate;
 use suna::storage::repositories::knowledge;
-use rusqlite::{params, Connection};
-use std::str::FromStr;
-use std::sync::Mutex;
 
 const WORKSPACE: &str = "workspace-a";
 const PROFILE: &str = "11111111-1111-4111-8111-111111111111";

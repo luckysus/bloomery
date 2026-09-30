@@ -1,3 +1,6 @@
+use chrono::{DateTime, Utc};
+use rusqlite::{params, Connection};
+use std::sync::{Arc, Mutex};
 use suna::agent::protocol::{
     AgentEventData, AgentEventEnvelope, AgentMessageRole, AgentRunState, MessageDelta,
     RunCompleted, RunOutcome, RunStateChanged,
@@ -9,9 +12,6 @@ use suna::agent::runtime::{
 use suna::providers::capabilities::{ChatImage, ChatMessage};
 use suna::storage::migrations::migrate;
 use suna::storage::repositories::{checkpoints, child_turns, events, runs, turn_snapshots};
-use chrono::{DateTime, Utc};
-use rusqlite::{params, Connection};
-use std::sync::{Arc, Mutex};
 use uuid::Uuid;
 
 const WORKSPACE: &str = "local";

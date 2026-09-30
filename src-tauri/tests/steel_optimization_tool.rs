@@ -1,8 +1,8 @@
+use serde_json::{json, Value};
+use std::sync::{Arc, Mutex};
 use suna::agent::protocol::PermissionRisk;
 use suna::agent::runtime::{CancellationToken, ToolExecutor, ToolInvocation};
 use suna::steel::{OptimizationGateway, SteelToolExecutor};
-use serde_json::{json, Value};
-use std::sync::{Arc, Mutex};
 use uuid::Uuid;
 
 #[derive(Default)]

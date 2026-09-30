@@ -1,9 +1,9 @@
+use chrono::{Duration, TimeZone, Utc};
+use rusqlite::Connection;
 use suna::storage::migrations::migrate;
 use suna::tasks::model::{NewTask, TaskState};
 use suna::tasks::repository;
 use suna::tasks::work_stealing::{claim_next, complete};
-use chrono::{Duration, TimeZone, Utc};
-use rusqlite::Connection;
 
 #[test]
 fn claim_uses_owner_token_and_lease() {

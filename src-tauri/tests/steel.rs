@@ -1,9 +1,9 @@
+use std::collections::BTreeMap;
 use suna::agent::runtime::{CancellationToken, ToolExecutor};
 use suna::steel::{
     calculate_carbon_equivalent, carbon_equivalent_tool, CarbonEquivalentFormula, CompositionInput,
     CompositionUnit, SteelCalculationError, SteelToolExecutor,
 };
-use std::collections::BTreeMap;
 
 fn composition(values: &[(&str, f64)], unit: CompositionUnit) -> CompositionInput {
     CompositionInput {

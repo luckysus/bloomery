@@ -19,20 +19,24 @@ pub enum SourceFormat {
     Text,
     Html,
     Docx,
+    Xls,
     Csv,
     Xlsx,
+    Json,
 }
 
 impl SourceFormat {
-    fn from_extension(extension: &str) -> Option<Self> {
+    pub fn from_extension(extension: &str) -> Option<Self> {
         match extension {
             "pdf" => Some(Self::Pdf),
             "md" | "markdown" => Some(Self::Markdown),
             "txt" => Some(Self::Text),
             "html" | "htm" => Some(Self::Html),
             "docx" => Some(Self::Docx),
+            "xls" => Some(Self::Xls),
             "csv" => Some(Self::Csv),
             "xlsx" => Some(Self::Xlsx),
+            "json" => Some(Self::Json),
             _ => None,
         }
     }
@@ -47,7 +51,9 @@ impl SourceFormat {
             "application/vnd.openxmlformats-officedocument.wordprocessingml.document" => {
                 Some(Self::Docx)
             }
+            "application/vnd.ms-excel" => Some(Self::Xls),
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" => Some(Self::Xlsx),
+            "application/json" => Some(Self::Json),
             _ => None,
         }
     }
@@ -59,8 +65,10 @@ impl SourceFormat {
             Self::Text => "text/plain",
             Self::Html => "text/html",
             Self::Docx => "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            Self::Xls => "application/vnd.ms-excel",
             Self::Csv => "text/csv",
             Self::Xlsx => "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            Self::Json => "application/json",
         }
     }
 
@@ -71,8 +79,10 @@ impl SourceFormat {
             Self::Text => "text",
             Self::Html => "html",
             Self::Docx => "docx",
+            Self::Xls => "xls",
             Self::Csv => "csv",
             Self::Xlsx => "xlsx",
+            Self::Json => "json",
         }
     }
 }

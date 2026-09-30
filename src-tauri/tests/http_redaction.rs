@@ -1,8 +1,8 @@
+use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION};
+use reqwest::{StatusCode, Url};
 use suna::diagnostics::redaction::Redactor;
 use suna::providers::http::{ProviderError, ProviderErrorCode};
 use suna::storage::secrets::{SecretError, SecretRef, SecretStore, SecretValue};
-use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION};
-use reqwest::{StatusCode, Url};
 
 struct SingleSecretStore(SecretValue);
 

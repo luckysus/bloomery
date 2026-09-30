@@ -1,3 +1,4 @@
+use rusqlite::Connection;
 use suna::rag::index::fts::{search, FtsSearchRequest};
 use suna::rag::model::{
     ChunkId, EmbeddingIdentity, EmbeddingVectorBatch, KnowledgeBaseId, NewChunk,
@@ -5,7 +6,6 @@ use suna::rag::model::{
 };
 use suna::storage::migrations::migrate;
 use suna::storage::repositories::knowledge;
-use rusqlite::Connection;
 
 const WORKSPACE: &str = "workspace-a";
 const PROFILE: &str = "11111111-1111-4111-8111-111111111111";

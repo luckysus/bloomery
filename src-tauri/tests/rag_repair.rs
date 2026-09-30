@@ -1,3 +1,6 @@
+use rusqlite::{params, Connection};
+use sha2::{Digest, Sha256};
+use std::path::{Path, PathBuf};
 use suna::rag::index::lifecycle::build_hnsw;
 use suna::rag::index::rebuild::{
     index_root, load_index_snapshot, queue_index_rebuild, IndexRebuildRequest,
@@ -6,15 +9,10 @@ use suna::rag::index::repair::{
     cleanup_interrupted_builds, inspect_index_health, IndexRepairReason, IndexRepairState,
     IndexServingMode,
 };
-use suna::rag::model::{
-    ChunkId, NewChunk, NewDocumentVersion, NewSourceDocument, SourceLocation,
-};
+use suna::rag::model::{ChunkId, NewChunk, NewDocumentVersion, NewSourceDocument, SourceLocation};
 use suna::storage::migrations::migrate;
 use suna::storage::repositories::knowledge;
 use suna::tasks::{repository as task_repository, TaskState};
-use rusqlite::{params, Connection};
-use sha2::{Digest, Sha256};
-use std::path::{Path, PathBuf};
 
 const WORKSPACE: &str = "workspace-a";
 const OTHER_WORKSPACE: &str = "workspace-b";

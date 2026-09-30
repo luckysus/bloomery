@@ -1,9 +1,9 @@
+use rusqlite::Connection;
+use std::{path::PathBuf, time::Duration};
 use suna::{
     mcp::{McpServerConfig, McpTransportKind},
     storage::{migrations, repositories::mcp},
 };
-use rusqlite::Connection;
-use std::{path::PathBuf, time::Duration};
 use uuid::Uuid;
 
 fn config() -> McpServerConfig {

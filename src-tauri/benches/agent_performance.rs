@@ -1,6 +1,3 @@
-use suna::agent::protocol::{AgentEventData, AgentMessageRole, MessageDelta};
-use suna::storage::migrations::migrate;
-use suna::storage::repositories::{conversations, events, runs};
 use chrono::{DateTime, Duration, Utc};
 use rusqlite::{params, Connection};
 use serde::Serialize;
@@ -9,6 +6,9 @@ use std::error::Error;
 use std::fs;
 use std::path::PathBuf;
 use std::time::{Duration as StdDuration, Instant};
+use suna::agent::protocol::{AgentEventData, AgentMessageRole, MessageDelta};
+use suna::storage::migrations::migrate;
+use suna::storage::repositories::{conversations, events, runs};
 use uuid::Uuid;
 
 const WORKSPACE: &str = "benchmark-agent";

@@ -1,5 +1,3 @@
-use suna::compute::protocol::{encode_frame, WorkerRequest};
-use suna::compute::worker::{read_response, WorkerClient, WorkerConfig};
 use serde_json::json;
 use std::fs;
 use std::io::Cursor;
@@ -8,6 +6,8 @@ use std::process::Command;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
+use suna::compute::protocol::{encode_frame, WorkerRequest};
+use suna::compute::worker::{read_response, WorkerClient, WorkerConfig};
 
 #[test]
 fn supervisor_rejects_a_missing_worker_before_spawning() {

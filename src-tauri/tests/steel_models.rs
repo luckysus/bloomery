@@ -1,6 +1,6 @@
+use rusqlite::Connection;
 use suna::storage::migrations::migrate;
 use suna::storage::repositories::steel_models::{self as models, NewSteelModel};
-use rusqlite::Connection;
 
 const SHA_A: &str = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 const SHA_B: &str = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";

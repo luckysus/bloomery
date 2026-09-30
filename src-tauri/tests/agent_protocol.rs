@@ -1,3 +1,5 @@
+use chrono::{DateTime, Utc};
+use serde_json::{json, Value};
 use suna::agent::protocol::{
     AgentError, AgentErrorCategory, AgentEventData, AgentEventEnvelope, AgentMessageRole,
     AgentRunState, ErrorRaised, EvidenceAttached, MessageCompleted, MessageDelta,
@@ -6,8 +8,6 @@ use suna::agent::protocol::{
     TaskProgress, TaskProgressState, ToolCompleted, ToolOutcome, ToolProgress, ToolRequested,
     ToolStarted, UsageUpdated, PROTOCOL_VERSION,
 };
-use chrono::{DateTime, Utc};
-use serde_json::{json, Value};
 use uuid::Uuid;
 
 const EVENT_ID: &str = "11111111-1111-4111-8111-111111111111";

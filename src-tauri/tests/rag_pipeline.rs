@@ -1,3 +1,8 @@
+use rusqlite::Connection;
+use sha2::{Digest, Sha256};
+use std::fs;
+use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use suna::providers::capabilities::EmbeddingResponse;
 use suna::rag::index::{EmbeddingRemote, EmbeddingRemoteFactory, EmbeddingRemoteFuture};
 use suna::rag::model::{
@@ -11,11 +16,6 @@ use suna::rag::tasks::{
 use suna::storage::migrations::migrate;
 use suna::storage::repositories::knowledge;
 use suna::tasks::{repository as task_repository, NewTask, TaskState};
-use rusqlite::Connection;
-use sha2::{Digest, Sha256};
-use std::fs;
-use std::path::{Path, PathBuf};
-use std::sync::Arc;
 use uuid::Uuid;
 
 const WORKSPACE: &str = "workspace-a";

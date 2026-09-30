@@ -74,6 +74,9 @@ pub fn read_dataset_table(request: &DatasetPreviewRequest) -> Result<DatasetTabl
     match format {
         SourceFormat::Csv => csv::read_dataset_table(file, path, request.sheet.as_deref()),
         SourceFormat::Xlsx => xlsx::read_dataset_table(file, path, request.sheet.as_deref()),
+        SourceFormat::Xls => Err(
+            "legacy XLS is supported by knowledge indexing but not dataset analysis".to_string(),
+        ),
         _ => Err(format!("unsupported dataset format: {}", format.as_str())),
     }
 }
@@ -229,8 +232,7 @@ mod tests {
 
     #[test]
     fn previews_csv_columns_quality_and_sample_rows() {
-        let path =
-            std::env::temp_dir().join(format!("suna-dataset-{}.csv", uuid::Uuid::new_v4()));
+        let path = std::env::temp_dir().join(format!("suna-dataset-{}.csv", uuid::Uuid::new_v4()));
         fs::write(
             &path,
             "heat_id,yield_strength,grade\nH-01,355,Q355B\nH-02,,Q355B\nH-03,invalid,Q235B\n",

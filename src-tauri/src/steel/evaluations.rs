@@ -239,10 +239,7 @@ fn evaluate_profiling_case(case: &Value) -> Result<(), String> {
     let csv = case["csv"]
         .as_str()
         .ok_or_else(|| "csv content is required".to_string())?;
-    let path = std::env::temp_dir().join(format!(
-        "suna-eval-profile-{}.csv",
-        uuid::Uuid::new_v4()
-    ));
+    let path = std::env::temp_dir().join(format!("suna-eval-profile-{}.csv", uuid::Uuid::new_v4()));
     std::fs::write(&path, csv).map_err(|error| error.to_string())?;
     let table = super::read_dataset_table(&super::DatasetPreviewRequest {
         source_path: path.to_string_lossy().into_owned(),

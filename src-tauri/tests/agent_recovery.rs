@@ -1,3 +1,6 @@
+use chrono::{DateTime, Utc};
+use rusqlite::{params, Connection};
+use std::collections::HashSet;
 use suna::agent::protocol::{
     AgentEventData, AgentMessageRole, AgentRunState, MessageDelta, PermissionRequested,
     PermissionRisk, RunCompleted, RunOutcome, RunStateChanged, ToolRequested,
@@ -6,9 +9,6 @@ use suna::agent::runtime::{AgentRecoveryService, RecoveryAction};
 use suna::agent::session::{SessionService, StartRunOutcome, StartRunRequest};
 use suna::storage::migrations::migrate;
 use suna::storage::repositories::{events, runs};
-use chrono::{DateTime, Utc};
-use rusqlite::{params, Connection};
-use std::collections::HashSet;
 use uuid::Uuid;
 
 const WORKSPACE: &str = "local";

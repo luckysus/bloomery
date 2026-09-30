@@ -1,8 +1,8 @@
+use rusqlite::Connection;
 use suna::storage::migrations::migrate;
 use suna::storage::repositories::database_query_results::{
     self, QueryResultRecord, QueryResultSummary,
 };
-use rusqlite::Connection;
 use uuid::Uuid;
 
 const WORKSPACE: &str = "local";

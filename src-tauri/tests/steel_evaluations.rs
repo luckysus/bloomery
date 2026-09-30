@@ -1,6 +1,6 @@
-use suna::steel::{parse_suite, run_rust_categories};
 use serde_json::json;
 use std::path::PathBuf;
+use suna::steel::{parse_suite, run_rust_categories};
 
 fn steel_package_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../domain-packs/steel")

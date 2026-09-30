@@ -1,9 +1,9 @@
+use serde_json::json;
+use std::io::{Cursor, Write};
 use suna::compute::protocol::{
     encode_frame, parse_request, read_frame, write_frame, FrameError, WorkerRequest,
     PROTOCOL_VERSION,
 };
-use serde_json::json;
-use std::io::{Cursor, Write};
 
 #[test]
 fn content_length_frames_round_trip_unicode_and_embedded_newlines() {

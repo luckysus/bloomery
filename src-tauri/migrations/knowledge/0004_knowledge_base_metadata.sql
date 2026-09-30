@@ -1,0 +1,6 @@
+ALTER TABLE knowledge_bases ADD COLUMN IF NOT EXISTS description TEXT NOT NULL DEFAULT '';
+ALTER TABLE knowledge_bases ADD COLUMN IF NOT EXISTS library_type TEXT NOT NULL DEFAULT 'research';
+ALTER TABLE knowledge_bases ADD COLUMN IF NOT EXISTS tags TEXT[] NOT NULL DEFAULT '{}';
+ALTER TABLE knowledge_bases ADD COLUMN IF NOT EXISTS visibility TEXT NOT NULL DEFAULT 'private';
+ALTER TABLE knowledge_bases ADD COLUMN IF NOT EXISTS embedding_model TEXT NOT NULL DEFAULT '';
+ALTER TABLE knowledge_bases ADD COLUMN IF NOT EXISTS chunk_strategy TEXT NOT NULL DEFAULT 'semantic';

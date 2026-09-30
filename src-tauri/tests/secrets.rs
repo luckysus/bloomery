@@ -1,8 +1,8 @@
+use std::collections::HashMap;
+use std::sync::Mutex;
 use suna::storage::secrets::{
     KeyringSecretStore, SecretError, SecretRef, SecretStatus, SecretStore, SecretValue,
 };
-use std::collections::HashMap;
-use std::sync::Mutex;
 use uuid::Uuid;
 
 #[derive(Default)]

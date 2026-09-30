@@ -1,3 +1,5 @@
+use chrono::Utc;
+use rusqlite::Connection;
 use suna::agent::context::{
     extract_memory_candidate, normalize_memory_key, MemoryCandidate, MemoryCandidateError,
     MemoryStatus, AUTO_MEMORY_WRITE_SETTING,
@@ -6,8 +8,6 @@ use suna::agent::session::{SessionService, StartRunRequest};
 use suna::models::MemoryInput;
 use suna::storage::migrations::migrate;
 use suna::storage::repositories::{memories, settings};
-use chrono::Utc;
-use rusqlite::Connection;
 use uuid::Uuid;
 
 const WORKSPACE: &str = "local";

@@ -183,6 +183,7 @@ mod tests {
             .collect::<Vec<_>>();
 
         for expected in [
+            "knowledge_search",
             "search_literature",
             "read_literature_section",
             "query_production_data",

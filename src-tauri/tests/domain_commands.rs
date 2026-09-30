@@ -6,6 +6,11 @@
 //! the repository functions the commands delegate to must return stable structures, and
 //! `commands.rs` must keep every domain command registered in the single handler module.
 
+use rusqlite::Connection;
+use serde_json::{json, Value};
+use std::collections::BTreeSet;
+use std::fs;
+use std::path::{Path, PathBuf};
 use suna::app::domain_commands::DomainInstallResult;
 use suna::domains::{
     install_package, load_package, resolve_resource_path, DomainTrust, DomainTrustStore,
@@ -15,11 +20,6 @@ use suna::storage::migrations::migrate;
 use suna::storage::repositories::domains::{
     activate, impact, list, remove, upsert, DomainPackageRecord,
 };
-use rusqlite::Connection;
-use serde_json::{json, Value};
-use std::collections::BTreeSet;
-use std::fs;
-use std::path::{Path, PathBuf};
 use uuid::Uuid;
 
 struct TempPackage(PathBuf);

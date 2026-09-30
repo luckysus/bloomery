@@ -1,4 +1,3 @@
-use suna::mcp::{McpClientConfig, McpLegacySseConfig, McpSupervisor, McpTransportConfig};
 use serde_json::{json, Value};
 use std::{
     collections::HashMap,
@@ -9,6 +8,7 @@ use std::{
     },
     time::Duration,
 };
+use suna::mcp::{McpClientConfig, McpLegacySseConfig, McpSupervisor, McpTransportConfig};
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::{TcpListener, TcpStream},

@@ -22,10 +22,16 @@ pub(super) fn detect(
     let is_zip = [b"PK\x03\x04", b"PK\x05\x06", b"PK\x07\x08"]
         .iter()
         .any(|signature| prefix.starts_with(*signature));
+    let is_ole_compound = prefix.starts_with(&[0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1]);
     let signature_matches = match format {
         SourceFormat::Pdf => is_pdf,
         SourceFormat::Docx | SourceFormat::Xlsx => is_zip,
-        SourceFormat::Markdown | SourceFormat::Text | SourceFormat::Html | SourceFormat::Csv => {
+        SourceFormat::Xls => is_ole_compound,
+        SourceFormat::Markdown
+        | SourceFormat::Text
+        | SourceFormat::Html
+        | SourceFormat::Csv
+        | SourceFormat::Json => {
             !is_pdf
                 && !is_zip
                 && !prefix.contains(&0)

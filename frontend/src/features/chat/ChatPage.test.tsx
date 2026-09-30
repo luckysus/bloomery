@@ -135,6 +135,23 @@ describe("ChatPage", () => {
     });
   });
 
+  it("persists knowledge context before selecting and loading a new conversation", async () => {
+    const created = { ...conversation, id: "knowledge-chat" };
+    const drafts = new Map<string, string>();
+    vi.mocked(desktop.createConversation).mockResolvedValue(created);
+    vi.mocked(desktop.saveConversationDraft).mockImplementation(async (id, content) => { drafts.set(id, content); });
+    vi.mocked(desktop.getConversationDraft).mockImplementation(async (id) => drafts.get(id) || "");
+    render(<ChatPage renderLocalView={(controller) => <>
+      <button onClick={() => controller.onNewConversation("来源：材料.pdf\n文档内容")}>加入知识对话</button>
+      <output>{controller.draft}</output>
+    </>} />);
+    await waitFor(() => expect(desktop.getConversationDraft).toHaveBeenCalledWith(conversation.id));
+    fireEvent.click(screen.getByText("加入知识对话"));
+    await waitFor(() => expect(desktop.getConversationDraft).toHaveBeenCalledWith(created.id));
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("来源：材料.pdf 文档内容"));
+    expect(desktop.saveConversationDraft).toHaveBeenCalledWith(created.id, "来源：材料.pdf\n文档内容");
+  });
+
   it("loads a local conversation and its message history", async () => {
     vi.mocked(desktop.listMessages).mockResolvedValue([userMessage]);
     render(<ChatPage />);

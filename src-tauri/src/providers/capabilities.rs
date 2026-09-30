@@ -228,6 +228,28 @@ pub trait EmbeddingProvider: Send + Sync {
         &self,
         inputs: Vec<String>,
     ) -> impl Future<Output = Result<EmbeddingResponse, ProviderError>> + Send;
+
+    fn model_name(&self) -> &str {
+        &self.capabilities().model_id
+    }
+
+    fn dimension(&self) -> Option<usize> {
+        None
+    }
+
+    fn embed_text(
+        &self,
+        input: String,
+    ) -> impl Future<Output = Result<EmbeddingResponse, ProviderError>> + Send {
+        self.embed(vec![input])
+    }
+
+    fn embed_documents(
+        &self,
+        inputs: Vec<String>,
+    ) -> impl Future<Output = Result<EmbeddingResponse, ProviderError>> + Send {
+        self.embed(inputs)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

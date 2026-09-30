@@ -73,7 +73,7 @@ export interface ChatControllerProps {
   attachments: LocalAgentAttachment[];
   error: string | null;
   notice: string | null;
-  onNewConversation: () => void;
+  onNewConversation: (initialDraft?: string) => void;
   onSelectConversation: (id: string) => void;
   onDraftChange: (value: string) => void;
   onAttachmentsChange: (value: LocalAgentAttachment[]) => void;
@@ -269,15 +269,16 @@ export function useChatController(): ChatControllerProps {
     return () => window.clearTimeout(timer);
   }, [draft, loadingMessages, pendingQuestion, selectedId]);
 
-  const createConversation = async () => {
+  const createConversation = async (initialDraft = "") => {
     setError(null);
     setNotice(null);
     try {
       const created = await desktop.createConversation(t("newConversation"));
+      if (initialDraft) await desktop.saveConversationDraft(created.id, initialDraft);
       setConversations((current) => [created, ...current]);
       setSelectedId(created.id);
       setMessages([]);
-      setDraft("");
+      setDraft(initialDraft);
       setAttachments([]);
       setAgentRun(null);
     } catch (cause) {
@@ -522,7 +523,7 @@ export function useChatController(): ChatControllerProps {
     attachments,
     error,
     notice,
-    onNewConversation: () => void createConversation(),
+    onNewConversation: (initialDraft) => void createConversation(initialDraft),
     onSelectConversation: setSelectedId,
     onDraftChange: setDraft,
     onAttachmentsChange: setAttachments,

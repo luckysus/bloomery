@@ -1,6 +1,6 @@
+use rusqlite::{params, Connection, OptionalExtension};
 use suna::storage::database;
 use suna::storage::migrations::{latest_version, migrate};
-use rusqlite::{params, Connection, OptionalExtension};
 
 const LEGACY_SCHEMA: &str = include_str!("../src/storage/migrations/0001_initial.sql");
 
@@ -542,10 +542,8 @@ fn version_nineteen_database_requires_v20_for_sklearn_model_kind() {
 
 #[test]
 fn file_database_uses_wal_and_ordered_migrations() {
-    let path = std::env::temp_dir().join(format!(
-        "suna-migration-{}.sqlite3",
-        uuid::Uuid::new_v4()
-    ));
+    let path =
+        std::env::temp_dir().join(format!("suna-migration-{}.sqlite3", uuid::Uuid::new_v4()));
     let (conn, report) = database::open(&path).expect("open migrated file database");
     let journal_mode: String = conn
         .pragma_query_value(None, "journal_mode", |row| row.get(0))

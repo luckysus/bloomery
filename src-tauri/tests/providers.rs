@@ -1,24 +1,3 @@
-use suna::providers::capabilities::{
-    ChatEvent, ChatProvider, ChatRequest, DocumentParseRequest, DocumentParserProvider,
-    DocumentTaskState, EmbeddingProvider, ParsedDocumentArtifact, RemoteTaskId, RerankProvider,
-};
-use suna::providers::http::{ProviderError, ProviderErrorCode};
-use suna::providers::mineru::MinerUProvider;
-use suna::providers::ollama::{
-    default_ollama_base_url, normalize_ollama_chat_url, OllamaProvider,
-};
-use suna::providers::openai::{
-    default_openai_base_url, normalize_openai_chat_url, OpenAiProvider,
-};
-use suna::providers::profiles::{
-    resolve_chat_profile, ProviderCapability, ProviderKind, ProviderProfile,
-};
-use suna::providers::siliconflow::{
-    SiliconFlowPlan, SiliconFlowProvider, DEFAULT_EMBEDDING_MODEL, DEFAULT_RERANK_MODEL,
-};
-use suna::storage::migrations::migrate;
-use suna::storage::repositories::provider_profiles;
-use suna::storage::secrets::SecretValue;
 use rusqlite::Connection;
 use sha2::{Digest, Sha256};
 use std::io::{Read, Write};
@@ -28,6 +7,23 @@ use std::sync::mpsc;
 use std::sync::{Arc, Mutex};
 use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
+use suna::providers::capabilities::{
+    ChatEvent, ChatProvider, ChatRequest, DocumentParseRequest, DocumentParserProvider,
+    DocumentTaskState, EmbeddingProvider, ParsedDocumentArtifact, RemoteTaskId, RerankProvider,
+};
+use suna::providers::http::{ProviderError, ProviderErrorCode};
+use suna::providers::mineru::MinerUProvider;
+use suna::providers::ollama::{default_ollama_base_url, normalize_ollama_chat_url, OllamaProvider};
+use suna::providers::openai::{default_openai_base_url, normalize_openai_chat_url, OpenAiProvider};
+use suna::providers::profiles::{
+    resolve_chat_profile, ProviderCapability, ProviderKind, ProviderProfile,
+};
+use suna::providers::siliconflow::{
+    SiliconFlowPlan, SiliconFlowProvider, DEFAULT_EMBEDDING_MODEL, DEFAULT_RERANK_MODEL,
+};
+use suna::storage::migrations::migrate;
+use suna::storage::repositories::provider_profiles;
+use suna::storage::secrets::SecretValue;
 use uuid::Uuid;
 use zip::write::SimpleFileOptions;
 

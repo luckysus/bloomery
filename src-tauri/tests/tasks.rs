@@ -4,6 +4,8 @@ use std::sync::{Arc, Condvar, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
 
+use chrono::{DateTime, TimeZone, Utc};
+use rusqlite::Connection;
 use suna::storage::migrations::migrate;
 use suna::tasks::model::{NewTask, TaskState};
 use suna::tasks::repository;
@@ -11,8 +13,6 @@ use suna::tasks::scheduler::{
     Clock, EventSink, HandlerContext, HandlerError, HandlerFuture, HandlerOutcome, Scheduler,
     SchedulerConfig, SchedulerEvent, SchedulerState, TaskHandler,
 };
-use chrono::{DateTime, TimeZone, Utc};
-use rusqlite::Connection;
 use uuid::Uuid;
 
 const NOW: &str = "2026-07-31T00:00:00Z";
@@ -951,8 +951,7 @@ struct TestDatabase {
 
 impl TestDatabase {
     fn new() -> Self {
-        let path =
-            std::env::temp_dir().join(format!("suna-scheduler-{}.sqlite3", Uuid::new_v4()));
+        let path = std::env::temp_dir().join(format!("suna-scheduler-{}.sqlite3", Uuid::new_v4()));
         let mut connection = Connection::open(&path).expect("open scheduler database");
         migrate(&mut connection).expect("migrate scheduler database");
         drop(connection);
@@ -1022,10 +1021,7 @@ impl FakeHandler {
     fn new(
         kind: &'static str,
         resumable: bool,
-        run: impl Fn(suna::tasks::TaskRecord, HandlerContext) -> HandlerFuture
-            + Send
-            + Sync
-            + 'static,
+        run: impl Fn(suna::tasks::TaskRecord, HandlerContext) -> HandlerFuture + Send + Sync + 'static,
     ) -> Self {
         Self {
             kind,

@@ -1,11 +1,12 @@
 import { expect, test } from "@playwright/test";
 
-test("desktop shell exposes the local workbench", async ({ page }) => {
+test("desktop shell exposes the Suna research workspace", async ({ page }) => {
   await page.goto("/");
 
-  await expect(page.getByRole("main", { name: "工作台" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "工作台" })).toBeVisible();
-  await expect(page.getByRole("navigation", { name: "主导航" })).toBeVisible();
+  await expect(page.locator(".suna-new-sidebar")).toBeVisible();
+  await expect(page.locator(".suna-new-main")).toBeVisible();
+  await expect(page.getByText("Suna", { exact: true }).first()).toBeVisible();
+  await expect(page.getByRole("button", { name: "对话中心" })).toBeVisible();
 });
 
 test("desktop shell keeps stable geometry at supported window sizes", async ({ page }, testInfo) => {
@@ -16,7 +17,7 @@ test("desktop shell keeps stable geometry at supported window sizes", async ({ p
   ]) {
     await page.setViewportSize({ width, height });
     await page.goto("/");
-    await expect(page.getByRole("main", { name: "工作台" })).toBeVisible();
+    await expect(page.locator(".suna-new-main")).toBeVisible();
 
     const geometry = await page.evaluate(() => ({
       clientWidth: document.documentElement.clientWidth,
@@ -32,13 +33,12 @@ test("desktop shell keeps stable geometry at supported window sizes", async ({ p
   }
 });
 
-test("navigation remains keyboard reachable and collapsible", async ({ page }) => {
+test("navigation remains keyboard reachable and exposes the knowledge center", async ({ page }) => {
   await page.goto("/");
 
-  const toggle = page.getByRole("button", { name: "折叠侧栏" });
-  await toggle.focus();
-  await expect(toggle).toBeFocused();
-  await toggle.click();
-  await expect(page.getByRole("button", { name: "展开侧栏" })).toBeFocused();
-  await expect(page.getByRole("button", { name: "知识库" })).toHaveAttribute("title", "知识库");
+  const knowledge = page.getByRole("button", { name: "知识中心", exact: true });
+  await knowledge.focus();
+  await expect(knowledge).toBeFocused();
+  await knowledge.click();
+  await expect(page.getByRole("heading", { name: "知识中心" })).toBeVisible();
 });

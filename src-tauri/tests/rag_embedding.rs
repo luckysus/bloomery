@@ -1,3 +1,8 @@
+use rusqlite::Connection;
+use sha2::{Digest, Sha256};
+use std::collections::VecDeque;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
 use suna::providers::capabilities::EmbeddingResponse;
 use suna::providers::http::{ProviderError, ProviderErrorCode};
 use suna::rag::index::{
@@ -8,11 +13,6 @@ use suna::rag::model::{
 };
 use suna::storage::migrations::migrate;
 use suna::storage::repositories::knowledge;
-use rusqlite::Connection;
-use sha2::{Digest, Sha256};
-use std::collections::VecDeque;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex};
 
 const WORKSPACE: &str = "workspace-a";
 const PROFILE: &str = "11111111-1111-4111-8111-111111111111";

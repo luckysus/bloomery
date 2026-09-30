@@ -1,3 +1,13 @@
+use chrono::Utc;
+use serde_json::{json, Value};
+use std::future::Future;
+use std::pin::Pin;
+use std::sync::Mutex;
+use std::sync::{
+    atomic::{AtomicUsize, Ordering},
+    Arc,
+};
+use std::time::Duration;
 use suna::agent::context::{ContextItem, ContextSource};
 use suna::agent::protocol::{
     AgentEventData, AgentEventEnvelope, AgentMessageRole, AgentRunState, RunCompleted, RunOutcome,
@@ -15,16 +25,6 @@ use suna::providers::capabilities::{
 };
 use suna::providers::http::{ProviderError, ProviderErrorCode};
 use suna::providers::profiles::ProviderKind;
-use chrono::Utc;
-use serde_json::{json, Value};
-use std::future::Future;
-use std::pin::Pin;
-use std::sync::Mutex;
-use std::sync::{
-    atomic::{AtomicUsize, Ordering},
-    Arc,
-};
-use std::time::Duration;
 use uuid::Uuid;
 
 struct ScriptedModel {

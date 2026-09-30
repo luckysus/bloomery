@@ -1,9 +1,9 @@
-use suna::rag::ingest::SourceFormat;
-use suna::rag::model::SourceLocation;
-use suna::rag::parse::{parse_document, DocumentBlock, ParseLimits};
 use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
+use suna::rag::ingest::SourceFormat;
+use suna::rag::model::SourceLocation;
+use suna::rag::parse::{parse_document, DocumentBlock, ParseLimits};
 use uuid::Uuid;
 use zip::write::SimpleFileOptions;
 
@@ -199,29 +199,78 @@ fn parser_rejects_files_over_its_read_limit() {
 
 #[test]
 fn local_pdf_parser_returns_page_locations_and_an_explicit_quality_warning() {
-    let pdf = GeneratedFixture::file(
-        "standard.pdf",
-        br#"%PDF-1.4
-1 0 obj << /Type /Page /Contents 2 0 R >> endobj
-2 0 obj << /Length 72 >> stream
-BT /F1 12 Tf 72 720 Td (Q355B yield strength 355 MPa) Tj ET
-endstream endobj
-%%EOF"#,
+    let content = |text: &str| {
+        let stream = format!("BT /F1 12 Tf 72 720 Td ({text}) Tj ET");
+        let mut object = format!("<< /Length {} >>\nstream\n", stream.len()).into_bytes();
+        object.extend_from_slice(stream.as_bytes());
+        object.extend_from_slice(b"\nendstream");
+        object
+    };
+    let mut pdf = b"%PDF-1.4\n".to_vec();
+    let mut offsets = vec![0usize];
+    let objects = [
+        b"<< /Type /Catalog /Pages 2 0 R >>".to_vec(),
+        b"<< /Type /Pages /Kids [3 0 R 8 0 R] /Count 2 >>".to_vec(),
+        b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 5 0 R >> >> /Contents [4 0 R 6 0 R] >>".to_vec(),
+        content("Q355B yield strength 355 MPa"),
+        b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>".to_vec(),
+        content("Q355B microstructure after heat treatment"),
+        content("Second page tensile test results"),
+        b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 5 0 R >> >> /Contents 7 0 R >>".to_vec(),
+    ];
+    for (index, object) in objects.iter().enumerate() {
+        offsets.push(pdf.len());
+        pdf.extend_from_slice(format!("{} 0 obj\n", index + 1).as_bytes());
+        pdf.extend_from_slice(object);
+        pdf.extend_from_slice(b"\nendobj\n");
+    }
+    let xref_offset = pdf.len();
+    pdf.extend_from_slice(format!("xref\n0 {}\n0000000000 65535 f \n", offsets.len()).as_bytes());
+    for offset in offsets.iter().skip(1) {
+        pdf.extend_from_slice(format!("{offset:010} 00000 n \n").as_bytes());
+    }
+    pdf.extend_from_slice(
+        format!(
+            "trailer\n<< /Size {} /Root 1 0 R >>\nstartxref\n{xref_offset}\n%%EOF",
+            offsets.len()
+        )
+        .as_bytes(),
     );
+    let pdf = GeneratedFixture::file("standard.pdf", &pdf);
 
     let parsed = parse_document(pdf.path(), SourceFormat::Pdf, ParseLimits::default())
         .expect("parse local PDF text layer");
 
-    assert!(matches!(
-        &parsed.blocks[0],
+    let page_one = parsed
+        .blocks
+        .iter()
+        .find_map(|block| match block {
+            DocumentBlock::Paragraph { text, location }
+                if matches!(
+                    location,
+                    SourceLocation::PdfPage {
+                        page: 1,
+                        bbox: None
+                    }
+                ) =>
+            {
+                Some(text)
+            }
+            _ => None,
+        })
+        .expect("first-page text");
+    assert!(page_one.contains("Q355B yield strength 355 MPa"));
+    assert!(page_one.contains("Q355B microstructure after heat treatment"));
+    assert!(parsed.blocks.iter().any(|block| matches!(
+        block,
         DocumentBlock::Paragraph { text, location }
-            if text == "Q355B yield strength 355 MPa"
-                && matches!(location, SourceLocation::PdfPage { page: 1, bbox: None })
-    ));
+            if text.contains("Second page tensile test results")
+                && matches!(location, SourceLocation::PdfPage { page: 2, bbox: None })
+    )));
     assert!(parsed
         .warnings
         .iter()
-        .any(|warning| warning.code == "pdf_text_layer_limited"));
+        .any(|warning| warning.code == "pdf_layout_limited"));
 }
 
 #[test]

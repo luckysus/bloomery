@@ -1,3 +1,7 @@
+use rusqlite::{params, Connection};
+use sha2::{Digest, Sha256};
+use std::fs;
+use std::str::FromStr;
 use suna::rag::citation::{persist_evidence_pack, resolve_citation, RetrievalConfigSnapshot};
 use suna::rag::index::lifecycle::{build_hnsw, open_hnsw};
 use suna::rag::index::rebuild::{index_root, load_index_snapshot, IndexRebuildRequest};
@@ -6,10 +10,6 @@ use suna::rag::model::KnowledgeBaseId;
 use suna::rag::parse::{parse_document, DocumentBlock, ParseLimits};
 use suna::rag::retrieve::{retrieve, HybridSearchRequest, RetrievedChunk};
 use suna::storage::migrations::migrate;
-use rusqlite::{params, Connection};
-use sha2::{Digest, Sha256};
-use std::fs;
-use std::str::FromStr;
 
 const WORKSPACE: &str = "workspace-a";
 const BASE_ID: &str = "11111111-1111-4111-8111-111111111111";
@@ -23,16 +23,7 @@ fn pdf_citation_and_hnsw_survive_restart() {
     let root = std::env::temp_dir().join(format!("suna-gate-c-{}", uuid::Uuid::new_v4()));
     fs::create_dir_all(&root).unwrap();
     let pdf = root.join("standard.pdf");
-    fs::write(
-        &pdf,
-        br#"%PDF-1.4
-1 0 obj << /Type /Page /Contents 2 0 R >> endobj
-2 0 obj << /Length 72 >> stream
-BT /F1 12 Tf 72 720 Td (Q355B yield strength 355 MPa) Tj ET
-endstream endobj
-%%EOF"#,
-    )
-    .unwrap();
+    fs::write(&pdf, minimal_pdf()).unwrap();
     let parsed = parse_document(&pdf, SourceFormat::Pdf, ParseLimits::default()).unwrap();
     let (text, location) = match parsed.blocks.into_iter().next().unwrap() {
         DocumentBlock::Paragraph { text, location } => (text, location),
@@ -84,6 +75,41 @@ endstream endobj
     fs::remove_dir_all(root).unwrap();
 }
 
+fn minimal_pdf() -> Vec<u8> {
+    let stream = b"BT /F1 12 Tf 72 720 Td (Q355B yield strength 355 MPa) Tj ET";
+    let content = format!(
+        "<< /Length {} >>\nstream\n{}\nendstream",
+        stream.len(),
+        String::from_utf8_lossy(stream)
+    );
+    let objects = [
+        "<< /Type /Catalog /Pages 2 0 R >>".to_string(),
+        "<< /Type /Pages /Kids [3 0 R] /Count 1 >>".to_string(),
+        "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>".to_string(),
+        content,
+        "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>".to_string(),
+    ];
+    let mut pdf = b"%PDF-1.4\n".to_vec();
+    let mut offsets = vec![0usize];
+    for (index, object) in objects.iter().enumerate() {
+        offsets.push(pdf.len());
+        pdf.extend_from_slice(format!("{} 0 obj\n{}\nendobj\n", index + 1, object).as_bytes());
+    }
+    let xref_offset = pdf.len();
+    pdf.extend_from_slice(format!("xref\n0 {}\n0000000000 65535 f \n", offsets.len()).as_bytes());
+    for offset in offsets.iter().skip(1) {
+        pdf.extend_from_slice(format!("{offset:010} 00000 n \n").as_bytes());
+    }
+    pdf.extend_from_slice(
+        format!(
+            "trailer\n<< /Size {} /Root 1 0 R >>\nstartxref\n{xref_offset}\n%%EOF",
+            offsets.len()
+        )
+        .as_bytes(),
+    );
+    pdf
+}
+
 fn search(
     connection: &Connection,
     index: &dyn suna::rag::index::vector::VectorIndex,
@@ -116,6 +142,7 @@ fn config() -> RetrievalConfigSnapshot {
         rrf_k: 60,
         embedding_provider_profile_id: PROFILE_ID.to_string(),
         embedding_model_id: MODEL_ID.to_string(),
+        embedding_degradation: None,
         rerank_provider_profile_id: None,
         rerank_model_id: None,
         rerank_degradation: None,

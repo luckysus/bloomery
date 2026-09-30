@@ -858,8 +858,7 @@ mod tests {
 
     #[test]
     fn claim_to_spawn_holds_the_shutdown_gate() {
-        let path =
-            std::env::temp_dir().join(format!("suna-claim-gate-{}.sqlite3", Uuid::new_v4()));
+        let path = std::env::temp_dir().join(format!("suna-claim-gate-{}.sqlite3", Uuid::new_v4()));
         let mut connection = Connection::open(&path).expect("open test database");
         migrate(&mut connection).expect("migrate test database");
         repository::create(

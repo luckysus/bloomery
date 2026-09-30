@@ -1,3 +1,5 @@
+use rusqlite::{params, Connection};
+use std::str::FromStr;
 use suna::rag::citation::{
     load_evidence_pack, persist_evidence_pack, resolve_citation, CitationSourceState,
     RetrievalConfigSnapshot,
@@ -8,8 +10,6 @@ use suna::rag::model::{
 use suna::rag::rerank::RerankDegradationReason;
 use suna::rag::retrieve::RetrievedChunk;
 use suna::storage::migrations::migrate;
-use rusqlite::{params, Connection};
-use std::str::FromStr;
 
 const WORKSPACE: &str = "workspace-a";
 const BASE_ID: &str = "11111111-1111-4111-8111-111111111111";
@@ -198,6 +198,7 @@ fn config() -> RetrievalConfigSnapshot {
         rrf_k: 60,
         embedding_provider_profile_id: "33333333-3333-4333-8333-333333333333".to_string(),
         embedding_model_id: "BAAI/bge-m3".to_string(),
+        embedding_degradation: None,
         rerank_provider_profile_id: Some("44444444-4444-4444-8444-444444444444".to_string()),
         rerank_model_id: Some("BAAI/bge-reranker-v2-m3".to_string()),
         rerank_degradation: Some(RerankDegradationReason::Quota),

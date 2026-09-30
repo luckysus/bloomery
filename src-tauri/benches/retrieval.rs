@@ -1,11 +1,3 @@
-use suna::rag::index::fts::{search as search_fts, FtsSearchRequest};
-use suna::rag::index::lifecycle::{build_hnsw, open_hnsw, HnswVectorIndex};
-use suna::rag::index::rebuild::{index_root, load_index_snapshot, IndexRebuildRequest};
-use suna::rag::index::vector::{CandidateFilter, VectorIndex};
-use suna::rag::model::{DocumentVersionId, KnowledgeBaseId};
-use suna::rag::retrieve::rrf::{reciprocal_rank_fusion, RankedChunk};
-use suna::rag::retrieve::{retrieve, HybridSearchRequest};
-use suna::storage::migrations::migrate;
 use rusqlite::{params, Connection};
 use serde::Serialize;
 use sha2::{Digest, Sha256};
@@ -15,6 +7,14 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::time::{Duration, Instant};
+use suna::rag::index::fts::{search as search_fts, FtsSearchRequest};
+use suna::rag::index::lifecycle::{build_hnsw, open_hnsw, HnswVectorIndex};
+use suna::rag::index::rebuild::{index_root, load_index_snapshot, IndexRebuildRequest};
+use suna::rag::index::vector::{CandidateFilter, VectorIndex};
+use suna::rag::model::{DocumentVersionId, KnowledgeBaseId};
+use suna::rag::retrieve::rrf::{reciprocal_rank_fusion, RankedChunk};
+use suna::rag::retrieve::{retrieve, HybridSearchRequest};
+use suna::storage::migrations::migrate;
 
 const CHUNK_COUNT: usize = 100_000;
 const DIMENSION: usize = 64;

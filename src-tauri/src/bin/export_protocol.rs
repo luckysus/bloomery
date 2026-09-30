@@ -1,7 +1,7 @@
-use suna::agent::protocol::export;
 use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
+use suna::agent::protocol::export;
 
 fn main() {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))

@@ -1,3 +1,7 @@
+use rusqlite::Connection;
+use serde_json::json;
+use std::fs;
+use std::io::Write;
 use suna::storage::backup::{create_backup, preview_backup, restore_backup};
 use suna::storage::migrations::migrate;
 use suna::{
@@ -7,10 +11,6 @@ use suna::{
         repositories::domains::upsert as upsert_domain_package,
     },
 };
-use rusqlite::Connection;
-use serde_json::json;
-use std::fs;
-use std::io::Write;
 use uuid::Uuid;
 use zip::write::SimpleFileOptions;
 
@@ -484,10 +484,7 @@ fn restore_rejects_a_valid_non_suna_database_without_touching_target() {
 
     let error = restore_backup(&archive, &target_database, &target_content)
         .expect_err("a valid non-Suna database must be rejected");
-    assert!(
-        error.contains("Suna database"),
-        "unexpected error: {error}"
-    );
+    assert!(error.contains("Suna database"), "unexpected error: {error}");
     assert_target_intact(&target_database, &target_content);
     assert_no_staging_leftovers(&root);
     fs::remove_dir_all(root).expect("remove fixture");

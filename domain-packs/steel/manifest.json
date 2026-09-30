@@ -99,12 +99,12 @@
     {
       "path": "assets/terminology.json",
       "kind": "terminology",
-      "sha256": "71cec6f153a8be8daed9b8b11d280420a7789cccfc7d46b6c2ae3dfc14d7f145"
+      "sha256": "f720d88d598b5f128ecf4d39219cd692de94c812346d72234be7215acabb947d"
     },
     {
       "path": "assets/source-ledger.json",
       "kind": "source_ledger",
-      "sha256": "c877a361b63ea41fa0e0fcf07459ec4620e7c472dc93a5dc50d22292dafd10a9"
+      "sha256": "4e731ae7285066011ab205d74ff6fb0c361ad95e3b5b1c2d06f3ebf7918f9b78"
     },
     {
       "path": "assets/retrieval-presets.json",
@@ -124,7 +124,7 @@
     {
       "path": "evaluations/steel-evaluations-v1.json",
       "kind": "evaluation_suite",
-      "sha256": "db4373f9dae11561f6a398e449961c9a2a0a684ff6ab74bf18c561de2d67158d"
+      "sha256": "07521e8a055142e5eb8cefe75f0e30f04e40ffc9df2d9ef12e681dfca94bb2d5"
     }
   ]
 }

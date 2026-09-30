@@ -1,3 +1,4 @@
+use rusqlite::Connection;
 use suna::rag::model::{
     ChunkId, IngestAttemptState, NewAsset, NewChunk, NewChunkEmbedding, NewDocumentVersion,
     NewSourceDocument, Rect, SourceLocation, VectorWatermark,
@@ -5,7 +6,6 @@ use suna::rag::model::{
 use suna::storage::migrations::migrate;
 use suna::storage::repositories::knowledge;
 use suna::tasks::{repository as task_repository, NewTask, TaskState};
-use rusqlite::Connection;
 
 const WORKSPACE: &str = "workspace-a";
 

@@ -398,6 +398,12 @@ export function isDesktopRuntime() {
 export interface KnowledgeBaseRecord {
   id: string;
   name: string;
+  description?: string;
+  library_type?: string;
+  tags?: string[];
+  visibility?: string;
+  embedding_model?: string;
+  chunk_strategy?: string;
   created_at: string;
   updated_at: string;
 }
@@ -408,6 +414,8 @@ export interface SourceDocumentRecord {
   display_name: string;
   source_kind: string;
   active_version_id: string | null;
+  file_size?: number;
+  metadata?: Record<string, unknown>;
   created_at: string;
   updated_at: string;
 }
@@ -448,6 +456,11 @@ export interface KnowledgeHealth {
   chunk_count: number;
   indexed_chunk_count: number;
   active_task_count: number;
+  processing_success_count: number;
+  processing_failure_count: number;
+  retrieval_count: number;
+  average_retrieval_duration_ms: number | null;
+  average_processing_duration_ms: number | null;
 }
 
 export interface KnowledgeDatabaseConfig {
@@ -459,6 +472,7 @@ export interface KnowledgeDatabaseConfig {
 
 export interface KnowledgeDatabaseHealth {
   configured: boolean;
+  config: KnowledgeDatabaseConfig | null;
   connected: boolean;
   vector_extension: boolean;
   migration_version: number | null;
@@ -468,6 +482,12 @@ export interface KnowledgeDatabaseHealth {
 export interface PostgresKnowledgeBase {
   id: string;
   name: string;
+  description?: string;
+  library_type?: string;
+  tags?: string[];
+  visibility?: string;
+  embedding_model?: string;
+  chunk_strategy?: string;
   created_at: string;
   updated_at: string;
 }
@@ -478,6 +498,7 @@ export interface PostgresDocumentImportRequest {
 }
 
 export interface PostgresDocumentImportResponse {
+  task_id: string;
   knowledge_base_id: string;
   document_id: string;
   version_id: string;
@@ -486,10 +507,27 @@ export interface PostgresDocumentImportResponse {
   duplicate_content: boolean;
 }
 
+export interface PostgresDocumentQueuedResponse {
+  task_id: string;
+  knowledge_base_id: string;
+  state: string;
+  progress: number;
+}
+
 export interface PostgresKnowledgeSearchRequest {
   knowledge_base_id: string;
   query: string;
   limit: number;
+  filters?: PostgresKnowledgeSearchFilters;
+}
+
+export interface PostgresKnowledgeSearchFilters {
+  document_type?: string;
+  material?: string;
+  process?: string;
+  property?: string;
+  year?: number;
+  tag?: string;
 }
 
 export interface PostgresKnowledgeSearchHit {
@@ -501,7 +539,26 @@ export interface PostgresKnowledgeSearchHit {
   text: string;
   source_location: Record<string, unknown>;
   rank: number;
+  citation_number?: number;
 }
+
+export interface LiteratureSearchHit {
+  citation_number?: number;
+  knowledge_base_id?: string;
+  document_id?: string;
+  version_id?: string;
+  chunk_id?: string;
+  source_name: string;
+  source_location?: Record<string, unknown>;
+  title_path?: string;
+  snippet?: string;
+  text?: string;
+  score?: number;
+  rrf_score?: number;
+  rerank_score?: number | null;
+}
+export interface LiteratureSearchResponse { success: boolean; mode?: string; degradation?: string; results?: LiteratureSearchHit[]; literature_results?: LiteratureSearchHit[]; }
+export interface LiteratureSectionResponse { success: boolean; document?: string; section_title?: string; content?: string; part?: number; total_parts?: number; has_more?: boolean; results?: LiteratureSearchHit[]; error?: string; }
 
 export interface PostgresCitation {
   audit_id: string;
@@ -521,6 +578,7 @@ export interface PostgresIngestionJob {
   knowledge_base_id: string;
   source_document_id: string | null;
   state: string;
+  progress?: number;
   attempts: number;
   error_message: string | null;
   next_attempt_at: string | null;
@@ -547,6 +605,17 @@ export interface PostgresDocument {
   active_version_id: string | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface PostgresKnowledgeChunk {
+  id: string;
+  document_id: string;
+  document_name: string;
+  version_id: string;
+  ordinal: number;
+  title_path: string;
+  text: string;
+  source_location: Record<string, unknown>;
 }
 
 export interface PostgresChunkEmbeddingInput {
@@ -604,6 +673,7 @@ export interface PostgresKnowledgeEdge {
   knowledge_base_id: string;
   source_page_id: string | null;
   target_page_id: string | null;
+  source_document_id: string | null;
   relation: string;
   metadata: Record<string, unknown>;
   created_at: string;
@@ -700,6 +770,7 @@ export interface EvidencePack {
     rrf_k: number;
     embedding_provider_profile_id: string;
     embedding_model_id: string;
+    embedding_degradation?: string | null;
     rerank_provider_profile_id: string | null;
     rerank_model_id: string | null;
     rerank_degradation: string | null;
@@ -725,6 +796,7 @@ export interface LocalKnowledgeQueryRequest {
   candidate_limit?: number;
   rrf_k?: number;
   rerank_limit?: number;
+  filters?: PostgresKnowledgeSearchFilters;
 }
 
 export interface IndexRebuildRequest {
@@ -807,20 +879,45 @@ export interface KnowledgeBaseMergeRequest {
 
 export interface KnowledgePreviewBlock {
   content: string;
+  ordinal?: number;
+  source_location?: Record<string, unknown> | null;
+}
+
+export interface KnowledgeStructuredPreviewBlock {
+  kind: "heading" | "paragraph" | "list" | "table" | "formula" | "image";
+  level?: number;
+  text?: string;
+  ordered?: boolean;
+  items?: string[];
+  rows?: string[][];
+  source_location?: Record<string, unknown> | null;
 }
 
 export interface KnowledgePreviewSheet {
   name: string;
   html: string;
+  truncated?: boolean;
+}
+
+export interface KnowledgePreviewPage {
+  page: number;
+  content: string;
 }
 
 export interface KnowledgeDocumentPreview {
   processed: boolean;
+  document_name?: string | null;
+  source_path?: string | null;
+  mime_type?: string | null;
+  updated_at?: string | null;
   source?: string | null;
   content?: string | null;
   blocks: KnowledgePreviewBlock[];
+  structured_blocks?: KnowledgeStructuredPreviewBlock[];
   raw_data_url?: string | null;
   raw_sheets?: KnowledgePreviewSheet[];
+  pages?: KnowledgePreviewPage[];
+  metadata?: Record<string, unknown>;
 }
 
 export interface KnowledgeDocumentRaw {
@@ -892,6 +989,9 @@ export interface SkillCatalog {
   skills: SkillSummary[];
   errors: SkillLoadError[];
 }
+
+export interface AgentProfileSummary { id: string; name: string; description: string; enabled: boolean; status: string; }
+export interface ToolCapabilitySummary { id: string; name: string; description: string; enabled: boolean; source: string; }
 
 export type DomainTrust = "official_signed" | "third_party_unsigned";
 
@@ -1109,6 +1209,11 @@ export const desktop = {
     call<void>("save_conversation_draft", { conversationId, content }),
   desktopAgentChat: (request: LocalAgentChatRequest) =>
     call<LocalAgentChatResponse>("desktop_agent_chat", { request }),
+  searchLiterature: (request: { query: string; knowledgeBaseIds?: string[]; limit?: number }) =>
+    call<LiteratureSearchResponse>("search_literature", { request: { query: request.query, knowledge_base_ids: request.knowledgeBaseIds ?? [], limit: request.limit ?? 20 } }),
+  readLiteratureSection: (request: { query: string; documentHint?: string; chapterNumber?: number; knowledgeBaseIds?: string[]; limit?: number }) =>
+    call<LiteratureSectionResponse>("read_literature_section", { request: { query: request.query, document_hint: request.documentHint ?? "", chapter_number: request.chapterNumber, knowledge_base_ids: request.knowledgeBaseIds ?? [], limit: request.limit ?? 8 } }),
+  processLiterature: (payload: Record<string, unknown>) => call<Record<string, unknown>>("process_literature", { arguments: payload }),
   resolveAgentPermission: (permissionId: string, decision: PermissionDecision) =>
     call<void>("resolve_agent_permission", { permissionId, decision }),
   listPermissionRules: () => call<PermissionRuleRecord[]>("list_permission_rules"),
@@ -1212,6 +1317,8 @@ getComputeOptimizationResult: (id: string) =>
   listSkills: () => call<SkillCatalog>("list_skills"),
   setSkillEnabled: (name: string, enabled: boolean) =>
     call<SkillCatalog>("set_skill_enabled", { name, enabled }),
+  listAgentProfiles: () => call<AgentProfileSummary[]>("list_agent_profiles"),
+  listToolCapabilities: () => call<ToolCapabilitySummary[]>("list_tool_capabilities"),
   listDomainPackages: () => call<DomainPackageRecord[]>("list_domain_packages"),
   installDomainPackage: (sourcePath: string) =>
     call<DomainInstallResult>("install_domain_package", { sourcePath }),
@@ -1248,10 +1355,12 @@ getComputeOptimizationResult: (id: string) =>
   listDatabaseQueryResults: () =>
     call<DatabaseQuerySummary[]>("list_database_query_results"),
   listKnowledgeBases: () => call<KnowledgeBaseRecord[]>("list_postgres_knowledge_bases"),
-  createKnowledgeBase: (name: string) =>
-    call<KnowledgeBaseRecord>("create_postgres_knowledge_base", { name }),
+  createKnowledgeBase: (input: { name: string; description?: string; library_type?: string; tags?: string[]; visibility?: string; embedding_model?: string; chunk_strategy?: string }) =>
+    call<KnowledgeBaseRecord>("create_postgres_knowledge_base", { input }),
   renameKnowledgeBase: (id: string, name: string) =>
     call<KnowledgeBaseRecord>("rename_postgres_knowledge_base", { id, name }),
+  updateKnowledgeBaseSettings: (id: string, input: { name: string; description?: string; library_type?: string; tags?: string[]; visibility?: string; embedding_model?: string; chunk_strategy?: string }) =>
+    call<KnowledgeBaseRecord>("update_postgres_knowledge_base_settings", { id, input }),
   previewDeleteKnowledgeBase: (id: string) =>
     call<KnowledgeBaseDeleteImpact>("preview_delete_postgres_knowledge_base", { id }),
   deleteKnowledgeBaseConfirmed: (id: string) =>
@@ -1268,8 +1377,12 @@ getComputeOptimizationResult: (id: string) =>
     call<KnowledgeBaseRecord>("merge_postgres_knowledge_bases", { request }),
   getKnowledgeDocumentPreview: (documentId: string) =>
     call<KnowledgeDocumentPreview>("get_postgres_document_preview", { documentId }),
+  updatePostgresDocumentMetadata: (documentId: string, metadata: Record<string, unknown>) =>
+    call<void>("update_postgres_document_metadata", { documentId, metadata }),
   getKnowledgeDocumentRaw: (documentId: string) =>
     call<KnowledgeDocumentRaw>("get_postgres_document_raw", { documentId }),
+  exportPostgresDocument: (documentId: string, destination: string) =>
+    call<void>("export_postgres_document", { documentId, destination }),
   listBackgroundTasks: () => call<BackgroundTask[]>("list_background_tasks"),
   cancelBackgroundTask: (id: string) =>
     call<BackgroundTask>("cancel_background_task", { id }),
@@ -1318,10 +1431,12 @@ getComputeOptimizationResult: (id: string) =>
   disconnectKnowledgeDatabase: () => call<void>("disconnect_knowledge_database"),
   listPostgresKnowledgeBases: () =>
     call<PostgresKnowledgeBase[]>("list_postgres_knowledge_bases"),
-  createPostgresKnowledgeBase: (name: string) =>
-    call<PostgresKnowledgeBase>("create_postgres_knowledge_base", { name }),
+  createPostgresKnowledgeBase: (input: { name: string; description?: string; library_type?: string; tags?: string[]; visibility?: string; embedding_model?: string; chunk_strategy?: string }) =>
+    call<PostgresKnowledgeBase>("create_postgres_knowledge_base", { input }),
   importPostgresDocument: (request: PostgresDocumentImportRequest) =>
-    call<PostgresDocumentImportResponse>("import_postgres_document", { request }),
+    call<PostgresDocumentQueuedResponse>("import_postgres_document", { request }),
+  importPostgresDirectory: (knowledgeBaseId: string, directoryPath: string) =>
+    call<PostgresDocumentQueuedResponse[]>("import_postgres_directory", { knowledgeBaseId, directoryPath }),
   searchPostgresKnowledge: (request: PostgresKnowledgeSearchRequest) =>
     call<PostgresKnowledgeSearchHit[]>("search_postgres_knowledge", { request }),
   storePostgresChunkEmbeddings: (modelId: string, embeddings: PostgresChunkEmbeddingInput[]) =>
@@ -1342,10 +1457,18 @@ getComputeOptimizationResult: (id: string) =>
     call<PostgresProcessingFailure[]>("list_postgres_processing_failures", { jobId }),
   retryPostgresIngestionJob: (jobId: string) =>
     call<PostgresIngestionJob>("retry_postgres_ingestion_job", { jobId }),
+  cancelPostgresIngestionJob: (jobId: string) =>
+    call<PostgresIngestionJob>("cancel_postgres_ingestion_job", { jobId }),
   listPostgresDocuments: (knowledgeBaseId: string) =>
     call<PostgresDocument[]>("list_postgres_documents", { knowledgeBaseId }),
+  listPostgresKnowledgeChunks: (knowledgeBaseId: string) =>
+    call<PostgresKnowledgeChunk[]>("list_postgres_knowledge_chunks", { knowledgeBaseId }),
   deletePostgresDocument: (documentId: string) =>
     call<void>("delete_postgres_document", { documentId }),
+  reparsePostgresDocument: (documentId: string) =>
+    call<PostgresDocumentQueuedResponse>("reparse_postgres_document", { documentId }),
+  movePostgresDocument: (documentId: string, targetKnowledgeBaseId: string) =>
+    call<PostgresDocument>("move_postgres_document", { documentId, targetKnowledgeBaseId }),
   listPostgresWikiPages: (knowledgeBaseId: string) =>
     call<PostgresWikiPage[]>("list_postgres_wiki_pages", { knowledgeBaseId }),
   createPostgresWikiPage: (input: PostgresWikiPageInput) =>

@@ -19,6 +19,28 @@ pub struct DocumentChunk {
     pub token_count: usize,
 }
 
+/// Contract for chunking parsed documents independently of parser selection.
+pub trait ChunkingService: Send + Sync {
+    fn chunk(
+        &self,
+        document: &ParsedDocument,
+        policy: &ChunkPolicy,
+    ) -> Result<Vec<DocumentChunk>, ChunkError>;
+}
+
+#[derive(Debug, Default, Clone, Copy)]
+pub struct DefaultChunkingService;
+
+impl ChunkingService for DefaultChunkingService {
+    fn chunk(
+        &self,
+        document: &ParsedDocument,
+        policy: &ChunkPolicy,
+    ) -> Result<Vec<DocumentChunk>, ChunkError> {
+        chunk_document_impl(document, policy)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ChunkError {
     code: &'static str,
@@ -47,6 +69,13 @@ impl fmt::Display for ChunkError {
 impl std::error::Error for ChunkError {}
 
 pub fn chunk_document(
+    document: &ParsedDocument,
+    policy: &ChunkPolicy,
+) -> Result<Vec<DocumentChunk>, ChunkError> {
+    DefaultChunkingService.chunk(document, policy)
+}
+
+fn chunk_document_impl(
     document: &ParsedDocument,
     policy: &ChunkPolicy,
 ) -> Result<Vec<DocumentChunk>, ChunkError> {
@@ -263,4 +292,33 @@ fn is_cjk(character: char) -> bool {
 
 fn digest(bytes: &[u8]) -> String {
     format!("{:x}", Sha256::digest(bytes))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{chunk_document, ChunkPolicy, ChunkingService, DefaultChunkingService};
+    use crate::rag::model::SourceLocation;
+    use crate::rag::parse::{DocumentBlock, ParsedDocument};
+
+    #[test]
+    fn default_chunking_service_matches_function_contract() {
+        let document = ParsedDocument {
+            blocks: vec![DocumentBlock::Paragraph {
+                text: "Q690 回火温度影响强度".to_string(),
+                location: SourceLocation::TextOffsets { start: 0, end: 16 },
+            }],
+            assets: Vec::new(),
+            warnings: Vec::new(),
+        };
+        let policy = ChunkPolicy::default();
+        let direct = chunk_document(&document, &policy).expect("direct chunking");
+        let service = DefaultChunkingService
+            .chunk(&document, &policy)
+            .expect("service chunking");
+        assert_eq!(direct, service);
+        assert_eq!(
+            service[0].source_location,
+            document.blocks[0].location().clone()
+        );
+    }
 }

@@ -98,8 +98,7 @@ mod tests {
 
     #[test]
     fn failed_database_delete_restores_the_staged_domain_package() {
-        let source =
-            std::env::temp_dir().join(format!("suna-domain-source-{}", Uuid::new_v4()));
+        let source = std::env::temp_dir().join(format!("suna-domain-source-{}", Uuid::new_v4()));
         let root = std::env::temp_dir().join(format!("suna-domain-root-{}", Uuid::new_v4()));
         fs::create_dir_all(source.join("assets")).expect("create source");
         fs::write(source.join("assets/steel.json"), "{}").expect("write asset");

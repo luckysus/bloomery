@@ -1,5 +1,5 @@
-use suna::domains::load_package;
 use std::path::PathBuf;
+use suna::domains::load_package;
 
 fn steel_package_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../domain-packs/steel")

@@ -6,7 +6,6 @@ use tauri::Manager;
 
 use crate::tasks::scheduler::SchedulerState;
 use crate::tasks::scheduler::TaskHandler;
-
 pub struct DbState {
     conn: Mutex<Option<Connection>>,
 }
@@ -29,6 +28,15 @@ pub(crate) fn current_workspace_id() -> &'static str {
 
 pub(crate) fn with_conn<T>(
     db: &tauri::State<'_, DbState>,
+    operation: impl FnOnce(&Connection) -> Result<T, String>,
+) -> Result<T, String> {
+    let guard = db.conn.lock().map_err(|_| "db state poisoned")?;
+    let conn = guard.as_ref().ok_or("database not initialized")?;
+    operation(conn)
+}
+
+pub(crate) fn with_conn_ref<T>(
+    db: &DbState,
     operation: impl FnOnce(&Connection) -> Result<T, String>,
 ) -> Result<T, String> {
     let guard = db.conn.lock().map_err(|_| "db state poisoned")?;
@@ -103,6 +111,7 @@ pub fn db_init(
         .recover_active(&HashSet::new(), Utc::now())
         .map_err(|error| format!("recover agent runs failed: {error}"))?;
     *db.conn.lock().map_err(|_| "db state poisoned")? = Some(connection);
+    crate::knowledge_db::auto_initialize_knowledge_database(app.clone());
     let bundled_result = crate::app::bundled_domain::ensure_bundled_steel_package(&app, &db);
     let status_result = with_conn_mut(&db, |connection| {
         let existing = crate::storage::repositories::settings::get(

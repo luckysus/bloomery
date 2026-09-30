@@ -11,6 +11,12 @@
 //! 这些测试共享进程级脱敏登记表并会安装/替换 panic hook，建议串行运行：
 //!   cargo test --test secret_scan -- --test-threads=1
 
+use reqwest::StatusCode;
+use rusqlite::Connection;
+use std::fs;
+use std::io::Read;
+use std::path::{Path, PathBuf};
+use std::sync::{Mutex, OnceLock};
 use suna::diagnostics::observability::{
     format_panic, format_panic_diagnostics, global_redactor, redact_json, redact_line,
     register_secret,
@@ -21,12 +27,6 @@ use suna::storage::backup::create_backup;
 use suna::storage::migrations::migrate;
 use suna::storage::repositories::provider_profiles;
 use suna::storage::secrets::SecretValue;
-use reqwest::StatusCode;
-use rusqlite::Connection;
-use std::fs;
-use std::io::Read;
-use std::path::{Path, PathBuf};
-use std::sync::{Mutex, OnceLock};
 use uuid::Uuid;
 
 /// 合成的已知密钥。仅存在于本测试文件（tests/ 不在离线安全门禁的源扫描范围内）。

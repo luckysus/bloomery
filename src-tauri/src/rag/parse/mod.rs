@@ -6,6 +6,7 @@ mod markdown;
 mod mineru;
 mod pdf;
 mod text;
+mod xls;
 mod xlsx;
 pub(crate) mod xml;
 
@@ -22,6 +23,40 @@ pub struct ParsedDocument {
     pub blocks: Vec<DocumentBlock>,
     pub assets: Vec<ParsedAsset>,
     pub warnings: Vec<ParseWarning>,
+}
+
+/// Contract for document parsers. Format-specific parsing stays behind this
+/// boundary so optional remote parsers can be added without changing callers.
+pub trait DocumentParser: Send + Sync {
+    fn supports(&self, extension: &str) -> bool;
+    fn parse(
+        &self,
+        bytes: &[u8],
+        format: SourceFormat,
+        limits: ParseLimits,
+    ) -> Result<ParsedDocument, ParseError>;
+}
+
+#[derive(Debug, Default, Clone, Copy)]
+pub struct BuiltinDocumentParser;
+
+impl DocumentParser for BuiltinDocumentParser {
+    fn supports(&self, extension: &str) -> bool {
+        let extension = extension
+            .trim()
+            .trim_start_matches('.')
+            .to_ascii_lowercase();
+        SourceFormat::from_extension(&extension).is_some()
+    }
+
+    fn parse(
+        &self,
+        bytes: &[u8],
+        format: SourceFormat,
+        limits: ParseLimits,
+    ) -> Result<ParsedDocument, ParseError> {
+        parse_document_bytes(bytes, format, limits)
+    }
 }
 
 impl ParsedDocument {
@@ -149,7 +184,7 @@ pub fn parse_document(
     limits: ParseLimits,
 ) -> Result<ParsedDocument, ParseError> {
     let bytes = read_bounded(path, limits.max_source_bytes)?;
-    parse_document_bytes(&bytes, format, limits)
+    BuiltinDocumentParser.parse(&bytes, format, limits)
 }
 
 pub(crate) fn parse_document_bytes(
@@ -171,8 +206,10 @@ pub(crate) fn parse_document_bytes(
         SourceFormat::Text => text::parse(decode_utf8(&bytes)?),
         SourceFormat::Html => html::parse(decode_utf8(&bytes)?),
         SourceFormat::Csv => csv::parse(decode_utf8(&bytes)?),
+        SourceFormat::Json => text::parse(decode_utf8(&bytes)?),
         SourceFormat::Pdf => pdf::parse(&bytes, limits),
         SourceFormat::Docx => docx::parse(&bytes, limits),
+        SourceFormat::Xls => xls::parse(&bytes),
         SourceFormat::Xlsx => xlsx::parse(&bytes, limits),
     }
 }
@@ -205,6 +242,34 @@ fn decode_utf8(bytes: &[u8]) -> Result<&str, ParseError> {
     let bytes = bytes.strip_prefix(&[0xef, 0xbb, 0xbf]).unwrap_or(bytes);
     std::str::from_utf8(bytes)
         .map_err(|error| ParseError::new("invalid_utf8", format!("source is not UTF-8: {error}")))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{BuiltinDocumentParser, DocumentParser, ParseLimits};
+    use crate::rag::ingest::SourceFormat;
+
+    #[test]
+    fn builtin_parser_advertises_supported_extensions() {
+        let parser = BuiltinDocumentParser;
+        assert!(parser.supports("pdf"));
+        assert!(parser.supports(".DOCX"));
+        assert!(parser.supports("markdown"));
+        assert!(!parser.supports("exe"));
+    }
+
+    #[test]
+    fn builtin_parser_parses_text_through_contract() {
+        let parser = BuiltinDocumentParser;
+        let parsed = parser
+            .parse(
+                b"Q690\nheat treatment",
+                SourceFormat::Text,
+                ParseLimits::default(),
+            )
+            .expect("text should parse");
+        assert_eq!(parsed.blocks.len(), 1);
+    }
 }
 
 pub(crate) fn offsets(start: usize, end: usize) -> SourceLocation {

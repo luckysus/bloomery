@@ -2,6 +2,7 @@ pub mod lifecycle;
 mod lifecycle_io;
 pub mod rebuild;
 pub mod repair;
+pub mod store;
 pub mod vector;
 
 use crate::providers::capabilities::EmbeddingResponse;

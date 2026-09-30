@@ -1,8 +1,8 @@
-use suna::domains::{load_package, sign_domain_package};
 use ed25519_dalek::SigningKey;
 use std::env;
 use std::path::PathBuf;
 use std::process::ExitCode;
+use suna::domains::{load_package, sign_domain_package};
 
 const KEY_ID: &str = "suna-official-2026";
 const PRIVATE_KEY_ENV: &str = "SUNA_OFFICIAL_PRIVATE_KEY_2026";

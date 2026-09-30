@@ -1,6 +1,6 @@
-use suna::tasks::mailbox::{MailboxMessage, MailboxMessageKind, MailboxStore};
 use std::fs;
 use std::path::PathBuf;
+use suna::tasks::mailbox::{MailboxMessage, MailboxMessageKind, MailboxStore};
 use uuid::Uuid;
 
 fn temp_root() -> PathBuf {

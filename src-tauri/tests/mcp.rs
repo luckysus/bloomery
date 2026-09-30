@@ -1,8 +1,3 @@
-use suna::{
-    agent::runtime::CancellationToken,
-    mcp::{McpClient, McpClientConfig, McpError, McpServerIdentity},
-    tools::{ToolSource, ToolVersion},
-};
 use rmcp::{
     model::{
         CallToolResult, ClientJsonRpcMessage, ClientRequest, ErrorData, Implementation,
@@ -15,6 +10,11 @@ use rmcp::{
 };
 use serde_json::json;
 use std::{borrow::Cow, sync::Arc, time::Duration};
+use suna::{
+    agent::runtime::CancellationToken,
+    mcp::{McpClient, McpClientConfig, McpError, McpServerIdentity},
+    tools::{ToolSource, ToolVersion},
+};
 use tokio::task::JoinHandle;
 
 #[derive(Clone, Copy)]

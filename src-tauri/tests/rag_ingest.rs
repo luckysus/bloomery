@@ -1,6 +1,6 @@
-use suna::rag::ingest::{ingest_file, IngestLimits};
 use std::fs;
 use std::path::{Path, PathBuf};
+use suna::rag::ingest::{ingest_file, IngestLimits};
 use uuid::Uuid;
 
 struct TestDirectory(PathBuf);
@@ -131,6 +131,20 @@ fn rejects_unsupported_formats() {
             .code(),
         "unsupported_format"
     );
+}
+
+#[test]
+fn recognizes_legacy_xls_container_signature() {
+    let directory = TestDirectory::new();
+    let mut bytes = vec![0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1];
+    bytes.extend_from_slice(b"test workbook container");
+    let source = directory.file("legacy.xls", &bytes);
+
+    let ingested = ingest_file(&source, &directory.path().join("store"), limits(1024))
+        .expect("recognize the OLE compound document signature");
+
+    assert_eq!(ingested.format.as_str(), "xls");
+    assert_eq!(ingested.mime_type, "application/vnd.ms-excel");
 }
 
 #[test]

@@ -1,10 +1,3 @@
-use suna::agent::protocol::PermissionRisk;
-use suna::agent::runtime::CancellationToken;
-use suna::tools::{
-    redact_sensitive_value, ArtifactStore, ConcurrencyPolicy, FileArtifactStore, RegistryError,
-    ToolDefinition, ToolError, ToolExecutor, ToolHandler, ToolId, ToolRegistration, ToolRegistry,
-    ToolSource, ToolVersion, MAX_INLINE_OUTPUT_BYTES,
-};
 use futures_util::future::join_all;
 use serde_json::json;
 use std::collections::BTreeSet;
@@ -15,6 +8,13 @@ use std::sync::{
     Arc,
 };
 use std::time::Duration;
+use suna::agent::protocol::PermissionRisk;
+use suna::agent::runtime::CancellationToken;
+use suna::tools::{
+    redact_sensitive_value, ArtifactStore, ConcurrencyPolicy, FileArtifactStore, RegistryError,
+    ToolDefinition, ToolError, ToolExecutor, ToolHandler, ToolId, ToolRegistration, ToolRegistry,
+    ToolSource, ToolVersion, MAX_INLINE_OUTPUT_BYTES,
+};
 
 fn tool(id: &str, source: ToolSource) -> ToolDefinition {
     ToolDefinition {

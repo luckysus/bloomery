@@ -1,11 +1,11 @@
-use suna::skills::{
-    discover_skills, render_enabled_skills, render_relevant_skills, summarize_skills,
-    SkillErrorCode, SkillRecord, SkillRoot, SkillScope, SkillSource,
-};
 use std::collections::BTreeSet;
 use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
+use suna::skills::{
+    discover_skills, render_enabled_skills, render_relevant_skills, summarize_skills,
+    SkillErrorCode, SkillRecord, SkillRoot, SkillScope, SkillSource,
+};
 use uuid::Uuid;
 
 struct TempRoot(PathBuf);

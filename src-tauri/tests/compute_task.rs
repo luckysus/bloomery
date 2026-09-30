@@ -1,3 +1,10 @@
+use rusqlite::Connection;
+use serde_json::json;
+use sha2::{Digest, Sha256};
+use std::path::PathBuf;
+use std::sync::{Arc, Mutex};
+use std::thread;
+use std::time::{Duration, Instant};
 use suna::compute::handler::{
     ComputeExportOnnxTaskHandler, ComputeOnnxPredictionTaskHandler, ComputeOptimizationTaskHandler,
     ComputePredictionTaskHandler, ComputeSklearnTrainingTaskHandler, ComputeTaskHandler,
@@ -11,16 +18,7 @@ use suna::compute::worker::{WorkerClient, WorkerConfig};
 use suna::storage::migrations::migrate;
 use suna::tasks::model::{NewTask, TaskState};
 use suna::tasks::repository;
-use suna::tasks::scheduler::{
-    EventSink, Scheduler, SchedulerConfig, SchedulerEvent, SystemClock,
-};
-use rusqlite::Connection;
-use serde_json::json;
-use sha2::{Digest, Sha256};
-use std::path::PathBuf;
-use std::sync::{Arc, Mutex};
-use std::thread;
-use std::time::{Duration, Instant};
+use suna::tasks::scheduler::{EventSink, Scheduler, SchedulerConfig, SchedulerEvent, SystemClock};
 
 #[derive(Default)]
 struct RecordingSink {
@@ -519,10 +517,8 @@ fn scheduler_trains_sklearn_model_and_predicts_through_trained_path() {
 
 #[test]
 fn scheduler_exports_onnx_and_imported_model_matches_source_predictions() {
-    let path = std::env::temp_dir().join(format!(
-        "suna-export-task-{}.sqlite3",
-        uuid::Uuid::new_v4()
-    ));
+    let path =
+        std::env::temp_dir().join(format!("suna-export-task-{}.sqlite3", uuid::Uuid::new_v4()));
     let mut connection = Connection::open(&path).expect("open task database");
     migrate(&mut connection).expect("migrate task database");
     let artifact = json!({
@@ -816,10 +812,8 @@ fn scheduler_runs_optimization_and_enforces_constraints() {
 
 #[test]
 fn scheduler_runs_onnx_prediction_and_persists_model_provenance() {
-    let path = std::env::temp_dir().join(format!(
-        "suna-onnx-task-{}.sqlite3",
-        uuid::Uuid::new_v4()
-    ));
+    let path =
+        std::env::temp_dir().join(format!("suna-onnx-task-{}.sqlite3", uuid::Uuid::new_v4()));
     let (model_path, model_sha256) = onnx_model_path_and_hash();
     let mut connection = Connection::open(&path).expect("open task database");
     migrate(&mut connection).expect("migrate task database");

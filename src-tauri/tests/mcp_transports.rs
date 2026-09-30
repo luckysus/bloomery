@@ -1,7 +1,3 @@
-use suna::mcp::{
-    McpClientConfig, McpError, McpHttpConfig, McpLegacySseConfig, McpSseConfig, McpStdioConfig,
-    McpStdioEnv, McpSupervisor, McpTransportConfig, StdioTransport,
-};
 use serde_json::{json, Value};
 use std::{
     collections::{BTreeMap, HashMap},
@@ -11,6 +7,10 @@ use std::{
         Arc,
     },
     time::Duration,
+};
+use suna::mcp::{
+    McpClientConfig, McpError, McpHttpConfig, McpLegacySseConfig, McpSseConfig, McpStdioConfig,
+    McpStdioEnv, McpSupervisor, McpTransportConfig, StdioTransport,
 };
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
@@ -53,7 +53,8 @@ async fn stdio_stderr_is_bounded_but_fully_drained() {
 #[cfg(windows)]
 #[tokio::test]
 async fn stdio_environment_contains_only_explicit_values() {
-    let script = "[Console]::Error.Write(\"allowed=$env:SUNA_ALLOWED;inherited=$env:SUNA_NOT_ALLOWED\")";
+    let script =
+        "[Console]::Error.Write(\"allowed=$env:SUNA_ALLOWED;inherited=$env:SUNA_NOT_ALLOWED\")";
     let mut config = powershell_config(script);
     config.inherited_env = vec!["SystemRoot".to_string(), "windir".to_string()];
     config.env = McpStdioEnv::from([("SUNA_ALLOWED".to_string(), "yes".to_string())]);

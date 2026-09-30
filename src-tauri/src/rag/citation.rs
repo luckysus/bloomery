@@ -11,6 +11,25 @@ use uuid::Uuid;
 
 const MAX_EVIDENCE_ITEMS: usize = 500;
 
+/// Why dense retrieval was unavailable for an evidence pack.
+///
+/// This intentionally mirrors the provider-facing degradation vocabulary used by
+/// reranking while keeping embedding state explicit in the persisted contract.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum EmbeddingDegradationReason {
+    MissingCredential,
+    InvalidConfiguration,
+    Network,
+    Authentication,
+    Quota,
+    Timeout,
+    Cancelled,
+    UnsupportedCapability,
+    ProviderResponse,
+    MalformedResponse,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RetrievalConfigSnapshot {
     pub knowledge_base_ids: Vec<KnowledgeBaseId>,
@@ -20,6 +39,8 @@ pub struct RetrievalConfigSnapshot {
     pub rrf_k: u32,
     pub embedding_provider_profile_id: String,
     pub embedding_model_id: String,
+    #[serde(default)]
+    pub embedding_degradation: Option<EmbeddingDegradationReason>,
     pub rerank_provider_profile_id: Option<String>,
     pub rerank_model_id: Option<String>,
     pub rerank_degradation: Option<RerankDegradationReason>,

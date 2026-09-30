@@ -1,3 +1,5 @@
+use rusqlite::Connection;
+use serde_json::json;
 use suna::app::compute_commands::logic::{
     optimization_task_status_on_connection, submit_optimization_on_connection,
     OptimizeSteelProcessRequest,
@@ -5,8 +7,6 @@ use suna::app::compute_commands::logic::{
 use suna::storage::migrations::migrate;
 use suna::tasks::model::NewTask;
 use suna::tasks::repository;
-use rusqlite::Connection;
-use serde_json::json;
 
 fn migrated_database() -> (std::path::PathBuf, Connection) {
     let path = std::env::temp_dir().join(format!(

@@ -1,3 +1,8 @@
+use rusqlite::Connection;
+use std::collections::HashMap;
+use std::fs;
+use std::path::PathBuf;
+use std::sync::{Arc, Mutex};
 use suna::providers::profiles::{ProviderKind, ProviderProfile};
 use suna::providers::siliconflow::DEFAULT_EMBEDDING_MODEL;
 use suna::rag::index::EmbeddingRemoteFactory;
@@ -5,11 +10,6 @@ use suna::rag::tasks::{MinerURemoteFactory, RuntimeProviderFactory};
 use suna::storage::migrations::migrate;
 use suna::storage::repositories::provider_profiles;
 use suna::storage::secrets::{SecretError, SecretRef, SecretStore, SecretValue};
-use rusqlite::Connection;
-use std::collections::HashMap;
-use std::fs;
-use std::path::PathBuf;
-use std::sync::{Arc, Mutex};
 use uuid::Uuid;
 
 const WORKSPACE: &str = "workspace-a";
@@ -206,8 +206,7 @@ struct FactoryFixture {
 
 impl FactoryFixture {
     fn new() -> Self {
-        let root =
-            std::env::temp_dir().join(format!("suna-provider-factory-{}", Uuid::new_v4()));
+        let root = std::env::temp_dir().join(format!("suna-provider-factory-{}", Uuid::new_v4()));
         fs::create_dir_all(&root).unwrap();
         let database = root.join("suna.sqlite3");
         let mut connection = Connection::open(&database).unwrap();

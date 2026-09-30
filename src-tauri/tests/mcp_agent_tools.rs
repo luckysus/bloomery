@@ -1,3 +1,5 @@
+use serde_json::{json, Value};
+use std::sync::{Arc, Mutex};
 use suna::agent::protocol::PermissionRisk;
 use suna::{
     agent::runtime::{
@@ -6,8 +8,6 @@ use suna::{
     mcp::{McpToolBinding, McpToolCaller, McpToolExecutor},
     tools::{ConcurrencyPolicy, ToolDefinition, ToolId, ToolSource, ToolVersion},
 };
-use serde_json::{json, Value};
-use std::sync::{Arc, Mutex};
 use uuid::Uuid;
 
 struct RecordingCaller {

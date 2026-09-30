@@ -1,3 +1,7 @@
+use rusqlite::Connection;
+use sha2::{Digest, Sha256};
+use std::sync::Arc;
+use std::time::{Duration, Instant};
 use suna::rag::index::lifecycle::open_hnsw;
 use suna::rag::index::rebuild::{
     index_root, load_index_snapshot, queue_index_rebuild, IndexRebuildHandler, IndexRebuildRequest,
@@ -11,14 +15,8 @@ use suna::rag::model::{
 use suna::storage::migrations::migrate;
 use suna::storage::repositories::knowledge;
 use suna::tasks::repository as task_repository;
-use suna::tasks::scheduler::{
-    EventSink, Scheduler, SchedulerConfig, SchedulerEvent, SystemClock,
-};
+use suna::tasks::scheduler::{EventSink, Scheduler, SchedulerConfig, SchedulerEvent, SystemClock};
 use suna::tasks::TaskState;
-use rusqlite::Connection;
-use sha2::{Digest, Sha256};
-use std::sync::Arc;
-use std::time::{Duration, Instant};
 
 const WORKSPACE: &str = "workspace-a";
 const PROFILE: &str = "11111111-1111-4111-8111-111111111111";

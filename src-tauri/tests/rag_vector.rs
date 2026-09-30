@@ -1,14 +1,12 @@
-use suna::rag::index::lifecycle::{
-    build_hnsw, open_hnsw, open_with_flat_fallback, VectorRecord,
-};
-use suna::rag::index::vector::{CandidateFilter, IndexWatermark, VectorIndex};
-use suna::rag::model::{ChunkId, DocumentVersionId};
-use suna::storage::migrations::migrate;
 use rusqlite::{params, Connection};
 use sha2::{Digest, Sha256};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
+use suna::rag::index::lifecycle::{build_hnsw, open_hnsw, open_with_flat_fallback, VectorRecord};
+use suna::rag::index::vector::{CandidateFilter, IndexWatermark, VectorIndex};
+use suna::rag::model::{ChunkId, DocumentVersionId};
+use suna::storage::migrations::migrate;
 use uuid::Uuid;
 
 const WORKSPACE: &str = "workspace-a";

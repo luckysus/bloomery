@@ -1,12 +1,12 @@
 #![cfg(windows)]
 
-use suna::permissions::path::{
-    authorize_existing_file_with_handle, authorize_existing_path, authorize_output_path,
-    AuthorizedRoots, PathAuthorizationError,
-};
 use std::{
     fs::File,
     path::{Path, PathBuf},
+};
+use suna::permissions::path::{
+    authorize_existing_file_with_handle, authorize_existing_path, authorize_output_path,
+    AuthorizedRoots, PathAuthorizationError,
 };
 
 fn fixture() -> (PathBuf, PathBuf) {

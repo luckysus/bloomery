@@ -2,6 +2,7 @@ pub(crate) mod agent_cancel_commands;
 pub(crate) mod agent_commands;
 pub(crate) mod bundled_domain;
 pub(crate) mod bundled_domain_commands;
+pub(crate) mod capability_commands;
 pub(crate) mod child_turn_commands;
 pub(crate) mod commands;
 pub mod compute_commands;
@@ -14,7 +15,9 @@ pub mod domain_commands;
 pub(crate) mod domain_removal;
 pub(crate) mod event_sink;
 pub(crate) mod identity;
+pub(crate) mod knowledge_api;
 pub(crate) mod knowledge_commands;
+pub(crate) mod literature_commands;
 pub(crate) mod mcp_agent_runtime;
 pub(crate) mod mcp_commands;
 pub(crate) mod mcp_runtime;
@@ -57,6 +60,9 @@ pub fn run() {
         .invoke_handler(commands::handler!())
         .build(tauri::generate_context!())
         .expect("failed to build Suna");
+
+    // 本地知识 API 仅绑定 loopback，供桌面端集成和本地自动化使用。
+    knowledge_api::start(app.handle().clone());
 
     app.run(|app_handle, event| match event {
         RunEvent::ExitRequested { api, .. } => {

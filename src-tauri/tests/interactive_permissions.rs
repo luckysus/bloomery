@@ -1,13 +1,13 @@
-use suna::agent::desktop::permission_key_for;
-use suna::agent::desktop::LocalAgentState;
-use suna::agent::protocol::{PermissionDecision, PermissionRisk};
-use suna::agent::runtime::{CancellationToken, PermissionRequest, PermissionResolver};
 use serde_json::json;
 use std::sync::{
     atomic::{AtomicBool, Ordering},
     Arc,
 };
 use std::time::Duration;
+use suna::agent::desktop::permission_key_for;
+use suna::agent::desktop::LocalAgentState;
+use suna::agent::protocol::{PermissionDecision, PermissionRisk};
+use suna::agent::runtime::{CancellationToken, PermissionRequest, PermissionResolver};
 use uuid::Uuid;
 
 fn request(permission_id: Uuid) -> PermissionRequest {

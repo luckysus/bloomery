@@ -1477,8 +1477,7 @@ mod tests {
 
     #[test]
     fn builds_onnx_prediction_payload_with_hash_and_batch_features() {
-        let path =
-            std::env::temp_dir().join(format!("suna-model-{}.onnx", uuid::Uuid::new_v4()));
+        let path = std::env::temp_dir().join(format!("suna-model-{}.onnx", uuid::Uuid::new_v4()));
         let bytes = b"onnx-fixture";
         std::fs::write(&path, bytes).expect("write model fixture");
         let mut digest = Sha256::new();
@@ -1514,8 +1513,7 @@ mod tests {
 
     #[test]
     fn rejects_onnx_prediction_when_model_hash_is_wrong() {
-        let path =
-            std::env::temp_dir().join(format!("suna-model-{}.onnx", uuid::Uuid::new_v4()));
+        let path = std::env::temp_dir().join(format!("suna-model-{}.onnx", uuid::Uuid::new_v4()));
         std::fs::write(&path, b"onnx-fixture").expect("write model fixture");
         let request = PredictOnnxModelRequest {
             model_path: path.to_string_lossy().into_owned(),
@@ -1533,8 +1531,7 @@ mod tests {
 
     #[test]
     fn hashes_onnx_model_file_for_ui_pinning() {
-        let path =
-            std::env::temp_dir().join(format!("suna-hash-{}.onnx", uuid::Uuid::new_v4()));
+        let path = std::env::temp_dir().join(format!("suna-hash-{}.onnx", uuid::Uuid::new_v4()));
         std::fs::write(&path, b"onnx-fixture").expect("write model fixture");
 
         let mut digest = Sha256::new();
@@ -1562,10 +1559,8 @@ mod tests {
 
     #[test]
     fn hashes_onnx_model_from_the_authorized_handle_not_the_path() {
-        let path = std::env::temp_dir().join(format!(
-            "suna-model-handle-{}.onnx",
-            uuid::Uuid::new_v4()
-        ));
+        let path =
+            std::env::temp_dir().join(format!("suna-model-handle-{}.onnx", uuid::Uuid::new_v4()));
         std::fs::write(&path, b"onnx-fixture").expect("write model fixture");
         let file = std::fs::File::open(&path).expect("open authorized model");
 

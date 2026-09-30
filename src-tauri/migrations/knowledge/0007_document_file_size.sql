@@ -1,0 +1,2 @@
+ALTER TABLE source_documents
+    ADD COLUMN IF NOT EXISTS file_size BIGINT NOT NULL DEFAULT 0;
