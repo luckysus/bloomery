@@ -3,9 +3,7 @@ use crate::agent::runtime::{AgentInputKind, AgentRecoveryService, RecoveredRun, 
 use crate::db::{current_workspace_id, with_conn_mut, DbState};
 use crate::permissions::{ParameterScope, PermissionAction, PermissionRule, RuleEffect};
 use crate::tools::{ToolId, ToolSource, ToolVersion};
-use chrono::Utc;
 use serde::Deserialize;
-use std::collections::HashSet;
 use uuid::Uuid;
 
 #[derive(Debug, Deserialize)]
@@ -54,13 +52,7 @@ pub fn recover_agent_runs(
     state: tauri::State<RuntimeHost>,
 ) -> Result<Vec<RecoveredRun>, String> {
     let recovered = with_conn_mut(&db, |connection| {
-        if !crate::agent::desktop::load_agent_preferences(connection, current_workspace_id())?
-            .allow_recovery
-        {
-            return Ok(Vec::new());
-        }
-        let mut service = AgentRecoveryService::new(connection, current_workspace_id())?;
-        service.recover_active(&HashSet::new(), Utc::now())
+        crate::agent::desktop::recover_active_runs_if_allowed(connection, current_workspace_id())
     })?;
     for candidate in recovered.iter().filter(|candidate| {
         !candidate.events.is_empty()

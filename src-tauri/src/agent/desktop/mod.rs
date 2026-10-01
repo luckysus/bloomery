@@ -19,7 +19,7 @@ pub(crate) use provider::{
 pub(crate) use routing::build_agent_response_json;
 pub(crate) use service::{
     add_mailbox_context, append_agent_message, build_agent_loop_request_with_attachments,
-    prepare_chat, prepare_summary, save_summary, ChatPreparation,
+    prepare_chat, prepare_summary, recover_active_runs_if_allowed, save_summary, ChatPreparation,
 };
 
 #[cfg(test)]

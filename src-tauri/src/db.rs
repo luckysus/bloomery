@@ -1,7 +1,7 @@
 use chrono::Utc;
 use rusqlite::Connection;
 use std::time::Duration;
-use std::{collections::HashSet, fs, path::PathBuf, sync::Arc, sync::Mutex};
+use std::{fs, path::PathBuf, sync::Arc, sync::Mutex};
 use tauri::Manager;
 
 use crate::tasks::scheduler::SchedulerState;
@@ -105,20 +105,10 @@ pub fn db_init(
         Utc::now(),
     )
     .map_err(|error| format!("interrupt orphan child turns failed: {error}"))?;
-    let allow_recovery =
-        crate::agent::desktop::load_agent_preferences(&connection, current_workspace_id())?
-            .allow_recovery;
-    let recovered_runs = if allow_recovery {
-        let mut recovery = crate::agent::runtime::AgentRecoveryService::new(
-            &mut connection,
-            current_workspace_id(),
-        )?;
-        recovery
-            .recover_active(&HashSet::new(), Utc::now())
-            .map_err(|error| format!("recover agent runs failed: {error}"))?
-    } else {
-        Vec::new()
-    };
+    let recovered_runs = crate::agent::desktop::recover_active_runs_if_allowed(
+        &mut connection,
+        current_workspace_id(),
+    )?;
     *db.conn.lock().map_err(|_| "db state poisoned")? = Some(connection);
     crate::knowledge_db::auto_initialize_knowledge_database(app.clone());
     let bundled_result = crate::app::bundled_domain::ensure_bundled_steel_package(&app, &db);

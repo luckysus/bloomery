@@ -15,8 +15,10 @@ use crate::rag::citation::{load_evidence_pack, EvidencePack};
 use crate::skills::SkillContext;
 use crate::storage::secrets::SecretStore;
 use crate::tasks::mailbox::MailboxMessage;
+use chrono::Utc;
 use rusqlite::Connection;
 use serde_json::Value;
+use std::collections::HashSet;
 use uuid::Uuid;
 
 pub struct ChatPreparation {
@@ -192,6 +194,17 @@ pub fn prepare_chat(
         unavailable_response,
         agent_preferences,
     })
+}
+
+pub fn recover_active_runs_if_allowed(
+    connection: &mut Connection,
+    workspace_id: &str,
+) -> Result<Vec<crate::agent::runtime::RecoveredRun>, String> {
+    if !load_agent_preferences(connection, workspace_id)?.allow_recovery {
+        return Ok(Vec::new());
+    }
+    let mut recovery = crate::agent::runtime::AgentRecoveryService::new(connection, workspace_id)?;
+    recovery.recover_active(&HashSet::new(), Utc::now())
 }
 
 fn load_evidence_pack_reference(

@@ -260,6 +260,7 @@ fn turn_snapshot_round_trips_without_credentials() {
         provider_base_url: "https://provider.example/v1".to_string(),
         smart_search_enabled: true,
         evidence_pack_id: None,
+        system_prompt: String::new(),
     };
     turn_snapshots::save(
         &connection,
