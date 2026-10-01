@@ -261,6 +261,8 @@ impl ToolHandler for SubagentHandler {
                             max_model_calls: Some(MAX_SUBAGENT_MODEL_CALLS),
                             max_tool_calls: Some(MAX_SUBAGENT_TOOL_CALLS),
                             max_tool_rounds: Some(MAX_SUBAGENT_TOOL_ROUNDS),
+                            context_budget: parent.limits.context_budget,
+                            save_checkpoints: parent.limits.save_checkpoints,
                             ..AgentLoopLimits::default()
                         },
                         tool_ids: Vec::new(),

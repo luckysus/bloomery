@@ -1,10 +1,10 @@
 use crate::agent::desktop::StreamedLlmAnswer;
-use crate::agent::protocol::{AgentEventData, AgentRunState, RunOutcome};
+use crate::agent::protocol::{AgentEventData, AgentRunState, PermissionDecision, RunOutcome};
 use crate::agent::runtime::{
     AgentContextCheckpoint, AgentLoop, AgentLoopResume, CompositeToolExecutor, DomainToolExecutor,
-    ModelAdapter, PermissionFuture, ProviderModelAdapter, ResumableToolCall, RuntimeHost,
-    SkillTool, SnapshotToolExecutor, SqliteAgentEventSink, SqliteChildTurnStore, SubagentTool,
-    TodoTracker, TurnSnapshot,
+    ModelAdapter, PermissionFuture, PermissionRequest, PermissionResolver, ProviderModelAdapter,
+    ResumableToolCall, RuntimeHost, SkillTool, SnapshotToolExecutor, SqliteAgentEventSink,
+    SqliteChildTurnStore, SubagentTool, TodoTracker, TurnSnapshot,
 };
 use crate::app::mcp_agent_runtime::load_enabled_tools_for_query;
 use crate::db::database_path;
@@ -23,6 +23,26 @@ use uuid::Uuid;
 
 fn should_load_agent_tools(smart_search_enabled: bool, has_evidence_pack: bool) -> bool {
     smart_search_enabled && has_evidence_pack
+}
+
+struct PreferencePermissionResolver {
+    inner: Arc<dyn PermissionResolver>,
+    confirm_dangerous: bool,
+}
+
+impl PermissionResolver for PreferencePermissionResolver {
+    fn decide(
+        &self,
+        request: PermissionRequest,
+        cancellation: crate::agent::runtime::CancellationToken,
+    ) -> PermissionFuture {
+        if !self.confirm_dangerous
+            && request.risk == crate::agent::protocol::PermissionRisk::Dangerous
+        {
+            return Box::pin(async { PermissionDecision::Deny });
+        }
+        self.inner.decide(request, cancellation)
+    }
 }
 
 pub(crate) async fn run_standard_agent(
@@ -200,7 +220,7 @@ async fn run_standard_agent_inner(
     let skill_tool = SkillTool::default();
     let mcp_configs = crate::storage::repositories::mcp::list(&connection, workspace_id)
         .map_err(|error| format!("load MCP configurations failed: {error}"))?;
-    let mcp_tools = if tool_calls_enabled {
+    let mcp_tools = if tool_calls_enabled && preparation.agent_preferences.allow_mcp {
         load_enabled_tools_for_query(app, mcp_configs, &preparation.message).await?
     } else {
         crate::mcp::McpToolExecutor::from_bindings(Vec::new())
@@ -226,7 +246,14 @@ async fn run_standard_agent_inner(
     let child_tools: Arc<dyn crate::agent::runtime::ToolExecutor> =
         Arc::new(SnapshotToolExecutor::from(&domain_tools));
     let permissions: Arc<dyn crate::agent::runtime::PermissionResolver> =
-        Arc::new(agent_state.permission_resolver());
+        Arc::new(PreferencePermissionResolver {
+            inner: Arc::new(
+                agent_state.permission_resolver_with_options(
+                    preparation.agent_preferences.confirm_dangerous,
+                ),
+            ),
+            confirm_dangerous: preparation.agent_preferences.confirm_dangerous,
+        });
     let subagent_hooks: Arc<dyn crate::agent::runtime::AgentHooks> = todo_tracker.clone();
     let child_store = Arc::new(SqliteChildTurnStore::new(
         database.clone(),
@@ -265,6 +292,7 @@ async fn run_standard_agent_inner(
         preparation.evidence_pack.as_ref(),
         &preparation.attachments,
     );
+    request.limits = preparation.agent_preferences.loop_limits();
     if let Some(message) = mailbox_message.as_ref() {
         crate::agent::desktop::add_mailbox_context(&mut request, message);
     }
@@ -345,6 +373,7 @@ async fn run_standard_agent_inner(
             provider_base_url: preparation.config.base_url.clone(),
             smart_search_enabled: preparation.smart_search_enabled,
             evidence_pack_id: preparation.evidence_pack.as_ref().map(|pack| pack.id),
+            system_prompt: preparation.agent_preferences.system_prompt.clone(),
         },
         chrono::Utc::now(),
     )
@@ -499,6 +528,11 @@ async fn resume_recovered_agent_inner(
     let database = database_path(app)?;
     let (mut connection, _) = crate::storage::database::open(&database)
         .map_err(|error| format!("open recovery database failed: {error}"))?;
+    let preferences_enabled =
+        crate::agent::desktop::load_agent_preferences(&connection, workspace_id)?;
+    if !preferences_enabled.allow_recovery {
+        return Ok(());
+    }
     let snapshot =
         crate::storage::repositories::turn_snapshots::get(&connection, workspace_id, run.id)
             .map_err(|error| error.to_string())?
@@ -594,6 +628,10 @@ async fn resume_recovered_agent_inner(
     }
     let active_domains =
         crate::storage::repositories::domains::active_manifests(&connection, workspace_id)?;
+    let mut agent_preferences = preferences_enabled;
+    if !snapshot.system_prompt.trim().is_empty() {
+        agent_preferences.system_prompt = snapshot.system_prompt.clone();
+    }
     let preparation = crate::agent::desktop::ChatPreparation {
         run_id: run.id,
         conversation_id: run.conversation_id,
@@ -605,7 +643,7 @@ async fn resume_recovered_agent_inner(
             reason: "recovered agent turn",
             unavailable_capability: None,
         },
-        prompt: String::new(),
+        prompt: agent_preferences.system_prompt.clone(),
         config,
         evidence_pack,
         attachments: Vec::new(),
@@ -613,6 +651,7 @@ async fn resume_recovered_agent_inner(
         active_domains,
         selected_memories: Vec::new(),
         unavailable_response: None,
+        agent_preferences,
     };
     let result = if resumable_tools.is_empty() {
         resume_standard_agent(

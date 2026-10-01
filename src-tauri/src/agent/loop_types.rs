@@ -26,6 +26,10 @@ pub struct AgentLoopLimits {
     pub max_tool_calls: Option<usize>,
     pub max_tool_rounds: Option<usize>,
     pub max_recovery_attempts: usize,
+    #[serde(default)]
+    pub context_budget: Option<usize>,
+    #[serde(default = "default_save_checkpoints")]
+    pub save_checkpoints: bool,
     pub context_checkpoint_timeout_ms: u64,
     pub deadline_ms: Option<u64>,
 }
@@ -37,6 +41,8 @@ impl Default for AgentLoopLimits {
             max_tool_calls: None,
             max_tool_rounds: None,
             max_recovery_attempts: 2,
+            context_budget: None,
+            save_checkpoints: true,
             context_checkpoint_timeout_ms: 300_000,
             deadline_ms: None,
         }
@@ -54,6 +60,9 @@ impl AgentLoopLimits {
         if self.max_tool_rounds == Some(0) {
             return Err("max_tool_rounds must be greater than zero".to_string());
         }
+        if self.context_budget == Some(0) {
+            return Err("context_budget must be greater than zero".to_string());
+        }
         if self.context_checkpoint_timeout_ms == 0 {
             return Err("context_checkpoint_timeout_ms must be greater than zero".to_string());
         }
@@ -62,6 +71,10 @@ impl AgentLoopLimits {
         }
         Ok(())
     }
+}
+
+fn default_save_checkpoints() -> bool {
+    true
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

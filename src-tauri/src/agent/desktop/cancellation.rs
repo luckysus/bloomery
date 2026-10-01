@@ -1,5 +1,5 @@
 use crate::agent::context::{ContextItem, ContextSource};
-use crate::agent::protocol::PermissionDecision;
+use crate::agent::protocol::{PermissionDecision, PermissionRisk};
 use crate::agent::runtime::{
     AgentInputKind, AgentInputQueue, CancellationToken, ContextEntry, PermissionFuture,
     PermissionRequest, PermissionResolver,
@@ -25,6 +25,7 @@ pub struct InteractivePermissionResolver {
     pending_permissions: Arc<Mutex<HashMap<Uuid, PendingPermission>>>,
     session_permissions: Arc<Mutex<HashSet<String>>>,
     always_permissions: Arc<Mutex<HashSet<String>>>,
+    require_dangerous_confirmation: bool,
 }
 
 struct PendingPermission {
@@ -123,10 +124,18 @@ impl LocalAgentState {
     }
 
     pub fn permission_resolver(&self) -> InteractivePermissionResolver {
+        self.permission_resolver_with_options(false)
+    }
+
+    pub fn permission_resolver_with_options(
+        &self,
+        require_dangerous_confirmation: bool,
+    ) -> InteractivePermissionResolver {
         InteractivePermissionResolver {
             pending_permissions: Arc::clone(&self.pending_permissions),
             session_permissions: Arc::clone(&self.session_permissions),
             always_permissions: Arc::clone(&self.always_permissions),
+            require_dangerous_confirmation,
         }
     }
 
@@ -221,7 +230,9 @@ impl PermissionResolver for InteractivePermissionResolver {
             .lock()
             .map(|permissions| permissions.contains(&key))
             .unwrap_or(false);
-        if already_allowed {
+        if already_allowed
+            && !(self.require_dangerous_confirmation && request.risk == PermissionRisk::Dangerous)
+        {
             return Box::pin(async { PermissionDecision::AllowAlways });
         }
         let session_allowed = self

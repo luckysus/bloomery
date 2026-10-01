@@ -54,6 +54,11 @@ pub fn recover_agent_runs(
     state: tauri::State<RuntimeHost>,
 ) -> Result<Vec<RecoveredRun>, String> {
     let recovered = with_conn_mut(&db, |connection| {
+        if !crate::agent::desktop::load_agent_preferences(connection, current_workspace_id())?
+            .allow_recovery
+        {
+            return Ok(Vec::new());
+        }
         let mut service = AgentRecoveryService::new(connection, current_workspace_id())?;
         service.recover_active(&HashSet::new(), Utc::now())
     })?;

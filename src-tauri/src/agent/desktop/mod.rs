@@ -8,8 +8,9 @@ mod session;
 
 pub use cancellation::{permission_key_for, LocalAgentState};
 pub use model::{
-    DesktopIntentKind, DesktopRoute, LocalAgentChatRequest, LocalLlmConfig, StreamedLlmAnswer,
-    SummarizeConversationRequest, SummarizeConversationResponse,
+    load_agent_preferences, AgentPreferences, DesktopIntentKind, DesktopRoute,
+    LocalAgentChatRequest, LocalLlmConfig, StreamedLlmAnswer, SummarizeConversationRequest,
+    SummarizeConversationResponse,
 };
 pub(crate) use prompt::assistant_content_for_stream_result;
 pub(crate) use provider::{

@@ -15,6 +15,8 @@ pub struct AgentTurnSnapshot {
     pub provider_base_url: String,
     pub smart_search_enabled: bool,
     pub evidence_pack_id: Option<Uuid>,
+    #[serde(default)]
+    pub system_prompt: String,
 }
 
 pub fn save(

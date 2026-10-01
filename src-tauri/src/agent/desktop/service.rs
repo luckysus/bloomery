@@ -1,6 +1,6 @@
 use super::model::{
-    DesktopRoute, LocalAgentAttachment, LocalAgentChatRequest, LocalLlmConfig,
-    SummarizeConversationResponse, SummaryPreparation,
+    load_agent_preferences, AgentPreferences, DesktopRoute, LocalAgentAttachment,
+    LocalAgentChatRequest, LocalLlmConfig, SummarizeConversationResponse, SummaryPreparation,
 };
 use crate::agent::context::{
     build_summary_prompt, estimate_summary_tokens, messages_after_covered_id, plan_summary,
@@ -33,6 +33,7 @@ pub struct ChatPreparation {
     pub active_domains: Vec<crate::domains::DomainManifest>,
     pub selected_memories: Vec<Value>,
     pub unavailable_response: Option<Value>,
+    pub agent_preferences: AgentPreferences,
 }
 
 pub fn build_agent_loop_request_with_attachments(
@@ -110,6 +111,7 @@ pub fn prepare_chat(
         .map(|value| Uuid::parse_str(value.trim()).map_err(|_| "run_id must be a UUID".to_string()))
         .transpose()?
         .unwrap_or_else(Uuid::new_v4);
+    let agent_preferences = load_agent_preferences(conn, workspace_id)?;
     let conversation_id = super::session::resolve_conversation(
         conn,
         workspace_id,
@@ -169,8 +171,9 @@ pub fn prepare_chat(
         super::provider::validate_local_llm_config(&config)?;
         let active_domains =
             crate::storage::repositories::domains::active_manifests(conn, workspace_id)?;
-        let prompt =
+        let context_prompt =
             super::prompt::build_desktop_context_prompt_for_domains(&packet, &active_domains);
+        let prompt = format!("{}\n\n{}", agent_preferences.system_prompt, context_prompt);
         (config, prompt, active_domains)
     };
     Ok(ChatPreparation {
@@ -187,6 +190,7 @@ pub fn prepare_chat(
         active_domains,
         selected_memories,
         unavailable_response,
+        agent_preferences,
     })
 }
 

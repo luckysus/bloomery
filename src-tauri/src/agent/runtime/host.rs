@@ -231,6 +231,14 @@ impl RuntimeHost {
         self.local.permission_resolver()
     }
 
+    pub fn permission_resolver_with_options(
+        &self,
+        require_dangerous_confirmation: bool,
+    ) -> impl PermissionResolver {
+        self.local
+            .permission_resolver_with_options(require_dangerous_confirmation)
+    }
+
     pub fn resolve_permission(
         &self,
         permission_id: Uuid,
