@@ -19,7 +19,7 @@ import SettingsPage from "../features/settings/SettingsPage";
 import { getNavigationSection, navigationSections, primaryNavigationSections, utilityNavigationSections, type NavigationSection, type SectionId } from "./navigation";
 import { LocaleProvider } from "../i18n/locale";
 import { ThemeProvider } from "../theme/theme";
-import { AppearanceProvider } from "../settings/appearance";
+import { AppearanceProvider, useAppearanceSettings } from "../settings/appearance";
 import "./suna-shell.css";
 
 export default function SunaApp() { return <LocaleProvider><ThemeProvider><AppearanceProvider><ChatControllerProvider><SunaAppShell /></ChatControllerProvider></AppearanceProvider></ThemeProvider></LocaleProvider>; }
@@ -28,12 +28,19 @@ function ModuleView({ section, onOpenSettings }: { section: SectionId; onOpenSet
 function NavButton({ item, active, onClick }: { item: NavigationSection; active: SectionId; onClick: (id: SectionId) => void }) { const Icon = item.icon; const label = item.id === "chat" ? "对话中心" : item.label; return <button className={`suna-new-nav-item ${active === item.id ? "is-active" : ""}`} onClick={() => onClick(item.id)}><Icon size={17} /><span>{label}</span>{active === item.id && <span className="suna-new-nav-indicator" />}</button>; }
 function SunaAppShell() {
   const chat = useChatControllerContext();
+  const { preferences, loaded: appearanceLoaded } = useAppearanceSettings();
+  const startupApplied = useRef(false);
   const [activeSection, setActiveSection] = useState<SectionId>("chat");
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<Awaited<ReturnType<typeof chat.onSearchHistory>>>([]);
   const [modelOpen, setModelOpen] = useState(false);
   const [accountName, setAccountName] = useState("Suna");
+  useEffect(() => {
+    if (!appearanceLoaded || startupApplied.current) return;
+    startupApplied.current = true;
+    if (preferences.startupPage !== "chat") setActiveSection(preferences.startupPage);
+  }, [appearanceLoaded, preferences.startupPage]);
   const searchRef = useRef<HTMLInputElement>(null);
   useEffect(() => { void desktop.initialize(); }, []);
   useEffect(() => {

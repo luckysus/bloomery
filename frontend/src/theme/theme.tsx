@@ -46,7 +46,7 @@ const defaultTheme: ThemeContextValue = {
 const ThemeContext = createContext<ThemeContextValue>(defaultTheme);
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [preference, setPreferenceState] = useState<ThemePreference>("system");
+  const [preference, setPreferenceState] = useState<ThemePreference>("light");
   const [systemTheme, setSystemTheme] = useState<ResolvedTheme>(readSystemTheme);
   const userChangedPreference = useRef(false);
   const resolvedTheme = resolveTheme(preference, systemTheme);

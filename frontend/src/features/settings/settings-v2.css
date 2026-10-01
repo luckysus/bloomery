@@ -6,3 +6,81 @@
 @media(max-width:720px){.suna-appearance-panel{padding:20px 16px}.suna-theme-preview-grid{grid-template-columns:1fr}.suna-settings-language-row,.suna-settings-control-row{align-items:flex-start;flex-direction:column;padding:14px 0}.suna-settings-language-row select{width:100%}.suna-settings-control-row .suna-settings-segmented{width:100%}.suna-settings-segmented{display:grid;grid-template-columns:repeat(3,1fr);width:100%}.suna-settings-segmented button{width:100%}}
  [data-theme="dark"] .suna-settings-v2 .suna-settings-header{border-color:var(--suna-line)}[data-theme="dark"] .suna-settings-v2 .suna-settings-header h1{color:var(--suna-text)}[data-theme="dark"] .suna-settings-v2 .suna-settings-header p{color:var(--suna-text-muted)}[data-theme="dark"] .suna-settings-v2 .suna-settings-toolbar>input{border-color:var(--suna-line-strong);background:var(--suna-bg-soft);color:var(--suna-text)}[data-theme="dark"] .suna-settings-v2 .suna-settings-tabs,[data-theme="dark"] .suna-settings-v2 .suna-settings-section-intro,[data-theme="dark"] .suna-settings-v2 .suna-model-capability{border-color:var(--suna-line);background:var(--suna-bg-raised)}[data-theme="dark"] .suna-settings-v2 .suna-settings-tab{color:var(--suna-text-muted)}[data-theme="dark"] .suna-settings-v2 .suna-settings-tab:hover{background:var(--suna-bg-hover);color:var(--suna-text)}[data-theme="dark"] .suna-settings-v2 .suna-settings-tab.is-active{background:#253d63;color:#e5efff}
 .suna-storage-data-panel{margin-bottom:16px;padding:20px;border:1px solid #dce7f3;border-radius:9px;background:#fff}.suna-storage-data-panel>header{display:flex;align-items:flex-start;justify-content:space-between;gap:16px}.suna-storage-data-panel h2{margin-top:7px;color:#24436f;font-size:17px}.suna-storage-data-panel header p{margin-top:6px;color:#788eac;font-size:11px;line-height:1.6}.suna-storage-error{margin-top:12px;padding:9px 11px;border:1px solid #f0caca;border-radius:6px;background:#fff7f7;color:#b44747;font-size:11px}.suna-storage-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px;margin-top:17px}.suna-storage-metrics>div{display:grid;grid-template-columns:18px 1fr;grid-template-rows:auto auto;gap:4px 7px;padding:11px;border:1px solid #e0eaf5;border-radius:7px;background:#fbfdff}.suna-storage-metrics svg{grid-row:1 / span 2;color:#3678d8}.suna-storage-metrics span{color:#879bb6;font-size:10px}.suna-storage-metrics strong{color:#315a8e;font-size:12px}.suna-storage-paths{display:grid;gap:0;margin-top:17px;border-top:1px solid #e5edf7}.suna-storage-paths h3{margin:14px 0 6px;color:#3b5a7e;font-size:12px}.suna-storage-paths>div{display:grid;grid-template-columns:108px minmax(0,1fr);gap:12px;padding:8px 0;border-bottom:1px solid #edf2f8}.suna-storage-paths>div span{color:#879bb6;font-size:10px}.suna-storage-paths code{overflow:hidden;color:#55759e;font:10px/1.5 var(--suna-mono);text-overflow:ellipsis;white-space:nowrap}@media(max-width:850px){.suna-storage-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}}[data-theme="dark"] .suna-storage-data-panel{border-color:var(--suna-line);background:var(--suna-bg-raised)}[data-theme="dark"] .suna-storage-data-panel h2,[data-theme="dark"] .suna-storage-paths h3{color:var(--suna-text)}[data-theme="dark"] .suna-storage-data-panel header p,[data-theme="dark"] .suna-storage-paths>div span{color:var(--suna-text-muted)}[data-theme="dark"] .suna-storage-metrics>div{border-color:var(--suna-line);background:var(--suna-bg-soft)}[data-theme="dark"] .suna-storage-metrics strong,[data-theme="dark"] .suna-storage-paths code{color:var(--suna-text-soft)}[data-theme="dark"] .suna-storage-paths{border-color:var(--suna-line)}[data-theme="dark"] .suna-storage-paths>div{border-color:var(--suna-line)}
+
+/* Settings center reference layout */
+.suna-settings-v2{max-width:none!important;margin:0!important;padding:30px 28px 48px!important;background:#f8fbff!important;border:0!important;box-shadow:none!important}
+.suna-settings-v2 .suna-settings-header{align-items:flex-start;padding:0 12px 27px;border:0}
+.suna-settings-v2 .suna-settings-header h1{margin:0;color:#102a72;font-size:34px;line-height:1.15;font-weight:700;letter-spacing:-.02em}
+.suna-settings-v2 .suna-settings-header p{margin-top:8px;color:#5f78a8;font-size:16px;line-height:1.5}
+.suna-settings-v2 .suna-settings-header-actions{align-items:center;gap:7px}
+.suna-settings-v2 .suna-settings-layout{display:grid;grid-template-columns:265px minmax(0,1fr);gap:0;margin-top:0;min-height:calc(100vh - 250px);border:1px solid #d6e6fa;border-radius:10px;background:#fff;box-shadow:0 2px 12px rgba(44,93,160,.04);overflow:hidden}
+.suna-settings-v2 .suna-settings-tabs{position:static;display:flex;align-self:stretch;gap:4px;padding:25px 10px;border:0;border-right:1px solid #d6e6fa;border-radius:0;background:#fbfdff}
+.suna-settings-v2 .suna-settings-tab{display:grid;grid-template-columns:29px minmax(0,1fr);align-items:center;min-height:56px;padding:0 12px;border:0;border-radius:8px;background:transparent;color:#102a72;text-align:left}
+.suna-settings-v2 .suna-settings-tab svg{width:21px;height:21px;color:#102a72}
+.suna-settings-v2 .suna-settings-tab span{font-size:15px;font-weight:500;line-height:1.25}
+.suna-settings-v2 .suna-settings-tab:hover{background:#edf5ff;color:#155edb}
+.suna-settings-v2 .suna-settings-tab:hover svg{color:#155edb}
+.suna-settings-v2 .suna-settings-tab.is-active{background:#176cff;color:#fff;box-shadow:0 5px 12px rgba(23,108,255,.2)}
+.suna-settings-v2 .suna-settings-tab.is-active svg{color:#fff}
+.suna-settings-v2 [role=tabpanel]{min-width:0;padding:27px 35px;background:#fff}
+.suna-settings-v2 .suna-settings-layout.is-appearance [role=tabpanel]{padding:0}
+.suna-settings-v2 .suna-settings-toolbar{margin:0;padding:0;border:0}
+.suna-settings-v2 .suna-settings-toolbar>input{max-width:360px;height:34px}
+.suna-settings-more{position:relative}
+.suna-settings-more>summary{display:grid;place-items:center;width:34px;height:34px;border:1px solid #dce8f8;border-radius:8px;background:#fff;color:#244a88;cursor:pointer;list-style:none}
+.suna-settings-more>summary::-webkit-details-marker{display:none}
+.suna-settings-more[open]>summary{background:#edf5ff;color:#176cff}
+.suna-settings-more-menu{position:absolute;z-index:8;top:40px;right:0;display:grid;min-width:144px;padding:5px;border:1px solid #d8e6f7;border-radius:8px;background:#fff;box-shadow:0 12px 28px rgba(32,76,139,.15)}
+.suna-settings-more-menu button,.suna-settings-more-menu label{display:block;width:100%;padding:8px 9px;border:0;border-radius:5px;background:transparent;color:#355985;font:inherit;font-size:11px;text-align:left;cursor:pointer}
+.suna-settings-more-menu button:hover,.suna-settings-more-menu label:hover{background:#edf5ff;color:#176cff}
+.suna-appearance-panel{padding:28px 35px 35px!important;border:0!important;border-radius:0!important;background:#fff!important}
+.suna-appearance-heading{padding:0 0 20px;border:0}
+.suna-appearance-heading h2{margin:0;color:#102a72;font-size:25px;line-height:1.2}
+.suna-appearance-heading p{margin-top:8px;color:#6680ad;font-size:15px;line-height:1.5}
+.suna-appearance-section{padding:20px 0;border-bottom:1px solid #e2ecf8}
+.suna-appearance-section>h3{margin:0 0 14px;color:#122d73;font-size:16px}
+.suna-theme-preview-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:22px}
+.suna-theme-preview-card{gap:12px;min-height:201px;padding:17px;border-radius:9px;border-color:#d7e6f8;background:#fff}
+.suna-theme-preview-card.is-selected{border-color:#176cff;background:#fff;box-shadow:0 0 0 1px #176cff}
+.suna-theme-preview{height:101px;padding:11px;gap:6px;border-radius:7px}
+.suna-theme-preview>span{height:10px;border-radius:3px}
+.suna-theme-preview>span:first-child{height:13px}
+.suna-theme-preview-copy strong{color:#102a72;font-size:15px;text-align:center}
+.suna-theme-preview-copy small{color:#6b83ae;font-size:13px;text-align:center;white-space:normal}
+.suna-theme-check{top:11px;right:11px;width:25px;height:25px;background:#176cff}
+.suna-theme-preview-icon{right:15px;bottom:15px;width:19px;height:19px;color:#102a72}
+.suna-settings-language-row,.suna-settings-control-row{min-height:67px}
+.suna-settings-language-row strong,.suna-settings-control-row strong{color:#122d73;font-size:15px}
+.suna-settings-language-row small,.suna-settings-control-row small{color:#6b83ae;font-size:12px}
+.suna-settings-language-row select{min-width:170px;height:42px;font-size:14px;border-radius:7px}
+.suna-settings-segmented{padding:3px;border-radius:8px}
+.suna-settings-segmented button{min-width:112px;height:34px;font-size:14px}
+.suna-settings-toggle-row{min-height:78px}
+.suna-settings-toggle-row strong{color:#122d73;font-size:15px}
+.suna-settings-toggle-row small{color:#6b83ae;font-size:12px}
+.suna-settings-toggle-row i{width:45px;height:25px;flex-basis:45px;background:#bfd0e7}
+.suna-settings-toggle-row i::after{top:3px;left:3px;width:19px;height:19px}
+.suna-settings-toggle-row input:checked+i{background:#176cff}
+.suna-settings-toggle-row input:checked+i::after{transform:translateX(20px)}
+[data-theme="dark"] .suna-settings-v2{background:var(--suna-bg)!important}
+[data-theme="dark"] .suna-settings-v2 .suna-settings-layout{border-color:var(--suna-line);background:var(--suna-bg-raised)}
+[data-theme="dark"] .suna-settings-v2 .suna-settings-tabs{border-color:var(--suna-line);background:var(--suna-bg-soft)}
+[data-theme="dark"] .suna-settings-v2 .suna-settings-tab{color:var(--suna-text)}
+[data-theme="dark"] .suna-settings-v2 .suna-settings-tab svg{color:var(--suna-text-muted)}
+[data-theme="dark"] .suna-settings-v2 .suna-settings-tab.is-active{background:#216bf2;color:#fff}
+[data-theme="dark"] .suna-settings-v2 [role=tabpanel],[data-theme="dark"] .suna-appearance-panel{background:var(--suna-bg-raised)!important}
+[data-theme="dark"] .suna-settings-v2 .suna-settings-header h1,[data-theme="dark"] .suna-appearance-heading h2,[data-theme="dark"] .suna-appearance-section>h3,[data-theme="dark"] .suna-settings-language-row strong,[data-theme="dark"] .suna-settings-control-row strong,[data-theme="dark"] .suna-settings-toggle-row strong{color:var(--suna-text)}
+[data-theme="dark"] .suna-settings-v2 .suna-settings-header p,[data-theme="dark"] .suna-appearance-heading p,[data-theme="dark"] .suna-settings-language-row small,[data-theme="dark"] .suna-settings-control-row small,[data-theme="dark"] .suna-settings-toggle-row small{color:var(--suna-text-muted)}
+[data-theme="dark"] .suna-theme-preview-card{border-color:var(--suna-line);background:var(--suna-bg-soft)}
+[data-theme="dark"] .suna-theme-preview-copy strong,[data-theme="dark"] .suna-theme-preview-icon{color:var(--suna-text)}
+[data-theme="dark"] .suna-theme-preview-copy small{color:var(--suna-text-muted)}
+[data-theme="dark"] .suna-settings-more>summary,[data-theme="dark"] .suna-settings-more-menu{border-color:var(--suna-line);background:var(--suna-bg-raised);color:var(--suna-text)}
+@media(max-width:850px){.suna-settings-v2{padding:24px 18px 40px!important}.suna-settings-v2 .suna-settings-layout{grid-template-columns:1fr}.suna-settings-v2 .suna-settings-tabs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));border-right:0;border-bottom:1px solid #d6e6fa}.suna-settings-v2 [role=tabpanel]{padding:22px 20px}.suna-theme-preview-grid{grid-template-columns:1fr 1fr}}
+@media(max-width:560px){.suna-theme-preview-grid{grid-template-columns:1fr}.suna-settings-v2 .suna-settings-tab span{font-size:13px}.suna-settings-v2 .suna-settings-header h1{font-size:28px}.suna-settings-v2 .suna-settings-header p{font-size:13px}}.suna-settings-general-selects{border-bottom:1px solid #e8eff7}
+.suna-settings-advanced{padding-top:17px}
+.suna-settings-advanced>summary{display:flex;align-items:center;justify-content:space-between;color:#5373a3;font-size:12px;cursor:pointer;list-style:none}
+.suna-settings-advanced>summary::-webkit-details-marker{display:none}
+.suna-settings-advanced>summary::after{content:"＋";font-size:15px;color:#6d91c5}
+.suna-settings-advanced[open]>summary::after{content:"－"}
+.suna-settings-advanced .suna-settings-control-row{margin-top:8px;padding-top:9px;border-top:1px solid #e8eff7}
+[data-theme="dark"] .suna-settings-general-selects,[data-theme="dark"] .suna-settings-advanced .suna-settings-control-row{border-color:var(--suna-line)}

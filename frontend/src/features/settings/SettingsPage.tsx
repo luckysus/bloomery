@@ -34,21 +34,20 @@ import "./settings-v2.css";
 interface SettingsPageProps { onOpenDiagnostics?: () => void; initialTab?: SettingsTab; }
 type SettingsTab = "account" | "providers" | "general" | "appearance" | "knowledge" | "agent" | "mcp" | "skill" | "databases" | "shortcuts" | "about";
 const settingsTabs: SettingsTabOption<SettingsTab>[] = [
-  { id: "account", labelKey: "settingsCategoryAccount", icon: UserRound, description: "本地身份" },
-  { id: "providers", labelKey: "settingsTabProviders", icon: Sparkles, description: "Provider 与默认模型" },
-  { id: "general", labelKey: "settingsTabGeneral", icon: Settings2, description: "启动与确认" },
-  { id: "appearance", labelKey: "settingsCategoryAppearance", icon: Palette, description: "主题与密度" },
-  { id: "knowledge", labelKey: "settingsCategoryKnowledge", icon: Database, description: "PostgreSQL 与 RAG" },
-  { id: "agent", labelKey: "settingsCategoryAgent", icon: Bot, description: "预算与权限" },
-  { id: "mcp", labelKey: "settingsCategoryMcp", icon: Server, description: "外部工具服务" },
-  { id: "skill", labelKey: "settingsCategorySkill", icon: CircleHelp, description: "专业能力" },
-  { id: "databases", labelKey: "settingsTabDatabases", icon: HardDrive, description: "外部数据连接" },
-  { id: "shortcuts", labelKey: "settingsCategoryShortcuts", icon: Keyboard, description: "键盘操作" },
-  { id: "about", labelKey: "settingsCategoryAbout", icon: CircleHelp, description: "版本与诊断" },
-];
-export default function SettingsPage({ onOpenDiagnostics, initialTab }: SettingsPageProps) {
+  { id: "general", labelKey: "settingsTabGeneral", icon: Settings2 },
+  { id: "appearance", labelKey: "settingsCategoryAppearance", icon: Palette },
+  { id: "providers", labelKey: "settingsTabProviders", icon: Sparkles },
+  { id: "knowledge", labelKey: "settingsCategoryKnowledge", icon: Database },
+  { id: "agent", labelKey: "settingsCategoryAgent", icon: Bot },
+  { id: "databases", labelKey: "settingsTabDatabases", icon: HardDrive },
+  { id: "about", labelKey: "settingsCategoryAbout", icon: CircleHelp },
+  { id: "account", labelKey: "settingsCategoryAccount", icon: UserRound },
+  { id: "mcp", labelKey: "settingsCategoryMcp", icon: Server },
+  { id: "skill", labelKey: "settingsCategorySkill", icon: CircleHelp },
+  { id: "shortcuts", labelKey: "settingsCategoryShortcuts", icon: Keyboard },
+];export default function SettingsPage({ onOpenDiagnostics, initialTab }: SettingsPageProps) {
   const { t } = useLocale();
-  const [activeTab, setActiveTab] = useState<SettingsTab>(initialTab ?? "providers");
+  const [activeTab, setActiveTab] = useState<SettingsTab>(initialTab ?? "appearance");
   const [editors, setEditors] = useState<SettingsEditor[]>([]);
   const [plan, setPlan] = useState<RetrievalPlan>("free");
   const [retrievalIds, setRetrievalIds] = useState<RetrievalIds>(defaultRetrievalIds);
@@ -287,8 +286,8 @@ export default function SettingsPage({ onOpenDiagnostics, initialTab }: Settings
   };
   return (
     <section className="suna-settings suna-settings-v2 suna-page-surface" aria-labelledby="settings-heading">
-      <SettingsPageChrome t={t} loading={loading} error={error} notice={notice} query={query} setQuery={setQuery} load={() => void load()} exportSettings={exportSettings} importSettings={(file) => void importSettings(file)} fileInputKey={fileInputKey} resetPreferences={() => void resetPreferences()} onOpenDiagnostics={onOpenDiagnostics} />
-      <div className="suna-settings-layout">
+      <SettingsPageChrome t={t} loading={loading} error={error} notice={notice} query={query} setQuery={setQuery} load={() => void load()} exportSettings={exportSettings} importSettings={(file) => void importSettings(file)} fileInputKey={fileInputKey} resetPreferences={() => void resetPreferences()} onOpenDiagnostics={onOpenDiagnostics} showUtilities={activeTab !== "appearance"} />
+      <div className={`suna-settings-layout ${activeTab === "appearance" ? "is-appearance" : ""}`}>
         <SettingsTabList tabs={visibleTabs} activeTab={activeTab} onSelect={setActiveTab} />
         <div role="tabpanel" id={`settings-panel-${activeTab}`} aria-labelledby={`settings-tab-${activeTab}`}>
           <SettingsPagePanel activeTab={activeTab} accountName={accountName} setAccountName={setAccountName} saveAccount={() => void saveAccount()} shortcutSend={shortcutSend} saveShortcut={(value) => void saveShortcut(value)} plan={plan} loading={loading} editors={editors} busySlot={busySlot} testingSlot={testingSlot} updateEditor={updateEditor} saveEditor={saveEditor} testEditor={(editor) => void testEditor(editor)} deleteEditor={(editor) => void deleteEditor(editor)} changePlan={(nextPlan) => void changePlan(nextPlan)} permissionRules={permissionRules} permissionBusyId={permissionBusyId} revokePermission={(rule) => void revokePermission(rule)} t={t} onOpenDiagnostics={onOpenDiagnostics} />

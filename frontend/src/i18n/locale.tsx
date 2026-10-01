@@ -632,14 +632,14 @@ const zhCN = {
   providerNetwork: "无法连接服务商，请检查网络和 Base URL。",
   providerInvalidResponse: "Provider 返回了无法使用的响应，请检查配置后重试。",
   setupError: "配置失败，请检查输入后重试。",
-  settingsTabProviders: "模型配置",
-  settingsTabGeneral: "通用",
+  settingsTabProviders: "模型管理",
+  settingsTabGeneral: "常规设置",
   settingsTabPermissions: "权限",
-  settingsTabDatabases: "数据存储",
+  settingsTabDatabases: "存储与数据",
   settingsCategoryAccount: "账户",
-  settingsCategoryAppearance: "外观",
-  settingsCategoryKnowledge: "知识库",
-  settingsCategoryAgent: "Agent",
+  settingsCategoryAppearance: "外观设置",
+  settingsCategoryKnowledge: "知识库设置",
+  settingsCategoryAgent: "Agent 设置",
   settingsCategoryMcp: "MCP",
   settingsCategorySkill: "Skill",
   settingsCategoryShortcuts: "快捷键",
@@ -654,6 +654,26 @@ const zhCN = {
   settingsVersion: "版本",
   settingsRuntime: "运行时",
   settingsGeneralCopy: "控制启动、草稿、工具展示和危险操作确认。",
+  settingsDefaultPage: "默认页面",
+  settingsDefaultPageCopy: "启动 Suna 时打开的第一个工作区。",
+  settingsDefaultPageChat: "对话中心",
+  settingsDefaultPageKnowledge: "知识中心",
+  settingsDefaultPageLiterature: "文献研究",
+  settingsDefaultPageData: "数据实验室",
+  settingsRestoreSessionCopy: "启动时恢复上次打开的会话。",
+  settingsSaveDraftsCopy: "在输入过程中保存未发送的消息草稿。",
+  settingsAutoUpdate: "自动检查更新",
+  settingsAutoUpdateCopy: "启动时检查稳定版本更新。",
+  settingsNotifications: "显示运行通知",
+  settingsNotificationsCopy: "在 Agent 完成、失败或需要确认时显示通知。",
+  settingsShowToolDetailsCopy: "在回答中展开工具调用和执行结果。",
+  settingsConfirmDangerousCopy: "执行文件、Shell 或外部服务操作前显示确认。",
+  settingsAdvancedLayout: "更多布局选项",
+  settingsSidebarWidth: "侧栏宽度",
+  settingsSidebarWidthCopy: "调整主导航侧栏的显示宽度。",
+  settingsSidebarNarrow: "窄",
+  settingsSidebarStandard: "标准",
+  settingsSidebarWide: "宽",
   settingsAppearanceCopy: "控制主题、密度、动效和运行检查器显示。",
   settingsAppearanceHeading: "外观设置",
   settingsAppearanceLede: "自定义界面外观，让工作环境更符合你的使用习惯",
@@ -706,6 +726,7 @@ const zhCN = {
   settingsCenterLede: "个性化配置，打造更高效的研究体验",
   settingsLede: "管理 LLM、SiliconFlow 检索和 MinerU 解析服务，密钥只保存在本机凭据库。",
   settingsDiagnostics: "诊断与日志",
+  settingsMore: "更多设置",
   themeTitle: "主题",
   themeSystem: "跟随系统",
   themeLight: "浅色",
@@ -1452,14 +1473,14 @@ const messages: Record<Locale, Record<MessageKey, string>> = {
     providerNetwork: "Could not connect to the provider. Check the network and base URL.",
     providerInvalidResponse: "The provider returned an unusable response. Check the configuration and try again.",
     setupError: "Setup failed. Check the input and try again.",
-    settingsTabProviders: "Providers",
-    settingsTabGeneral: "General",
+    settingsTabProviders: "Model management",
+    settingsTabGeneral: "General settings",
     settingsTabPermissions: "Permissions",
-    settingsTabDatabases: "Databases",
+    settingsTabDatabases: "Storage & data",
     settingsCategoryAccount: "Account",
-    settingsCategoryAppearance: "Appearance",
-    settingsCategoryKnowledge: "Knowledge",
-    settingsCategoryAgent: "Agent",
+    settingsCategoryAppearance: "Appearance settings",
+    settingsCategoryKnowledge: "Knowledge settings",
+    settingsCategoryAgent: "Agent 设置",
     settingsCategoryMcp: "MCP",
     settingsCategorySkill: "Skill",
     settingsCategoryShortcuts: "Shortcuts",
@@ -1474,6 +1495,26 @@ const messages: Record<Locale, Record<MessageKey, string>> = {
     settingsVersion: "Version",
     settingsRuntime: "Runtime",
     settingsGeneralCopy: "Control startup, drafts, tool visibility, and dangerous action confirmation.",
+    settingsDefaultPage: "Default page",
+    settingsDefaultPageCopy: "The first workspace Suna opens at startup.",
+    settingsDefaultPageChat: "Chat center",
+    settingsDefaultPageKnowledge: "Knowledge center",
+    settingsDefaultPageLiterature: "Literature research",
+    settingsDefaultPageData: "Data lab",
+    settingsRestoreSessionCopy: "Restore the last open conversation at startup.",
+    settingsSaveDraftsCopy: "Keep unsent message drafts while you type.",
+    settingsAutoUpdate: "Check for updates automatically",
+    settingsAutoUpdateCopy: "Check stable releases when Suna starts.",
+    settingsNotifications: "Show run notifications",
+    settingsNotificationsCopy: "Notify when an Agent completes, fails, or needs approval.",
+    settingsShowToolDetailsCopy: "Expand tool calls and execution results in answers.",
+    settingsConfirmDangerousCopy: "Ask before file, Shell, or external service actions.",
+    settingsAdvancedLayout: "More layout options",
+    settingsSidebarWidth: "Sidebar width",
+    settingsSidebarWidthCopy: "Adjust the width of the main navigation rail.",
+    settingsSidebarNarrow: "Narrow",
+    settingsSidebarStandard: "Standard",
+    settingsSidebarWide: "Wide",
     settingsAppearanceCopy: "Control theme, density, motion, and the run inspector.",
     settingsAppearanceHeading: "Appearance",
     settingsAppearanceLede: "Customize the interface to fit the way you work",
@@ -1526,6 +1567,7 @@ const messages: Record<Locale, Record<MessageKey, string>> = {
     settingsCenterLede: "Personalize Suna for a more efficient research workflow",
     settingsLede: "Manage the LLM, SiliconFlow retrieval, and MinerU parsing services. Credentials stay in the local vault.",
     settingsDiagnostics: "Diagnostics & logs",
+    settingsMore: "More settings",
     themeTitle: "Theme",
     themeSystem: "System",
     themeLight: "Light",
@@ -1655,12 +1697,12 @@ export function formatMessage(message: string, params: Record<string, string | n
 }
 
 function parsePreference(value: string | null): LanguagePreference {
-  if (!value) return "system";
+  if (!value) return "zh-CN";
   try {
     const parsed = JSON.parse(value) as { preference?: unknown };
-    return parsed.preference === "zh-CN" || parsed.preference === "en-US" ? parsed.preference : "system";
+    return parsed.preference === "zh-CN" || parsed.preference === "en-US" ? parsed.preference : "zh-CN";
   } catch {
-    return "system";
+    return "zh-CN";
   }
 }
 
@@ -1673,7 +1715,7 @@ interface LocaleContextValue {
 
 const defaultLocale: LocaleContextValue = {
   locale: "zh-CN",
-  preference: "system",
+  preference: "zh-CN",
   setPreference: () => undefined,
   t: (key, params) => formatMessage(messages["zh-CN"][key], params),
 };
@@ -1681,7 +1723,7 @@ const defaultLocale: LocaleContextValue = {
 const LocaleContext = createContext<LocaleContextValue>(defaultLocale);
 
 export function LocaleProvider({ children }: { children: ReactNode }) {
-  const [preference, setPreference] = useState<LanguagePreference>("system");
+  const [preference, setPreference] = useState<LanguagePreference>("zh-CN");
   const [systemLocale] = useState(detectSystemLocale);
 
   useEffect(() => {

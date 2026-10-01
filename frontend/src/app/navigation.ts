@@ -19,7 +19,7 @@ export const utilityNavigationSections: readonly NavigationSection[] = [
   { id: "skills", label: "Skill 管理", description: "管理可复用的专业能力", icon: Sparkles, group: "manage" },
   { id: "models", label: "模型管理", description: "配置对话、Embedding 和重排模型", icon: Cpu, group: "manage" },
   { id: "reports", label: "科研报告", description: "生成报告、综述和实验记录", icon: FileChartColumn, group: "manage" },
-  { id: "settings", label: "设置", description: "配置模型、外观和本地数据", icon: Settings2, group: "manage" },
+  { id: "settings", label: "设置中心", description: "配置模型、外观和本地数据", icon: Settings2, group: "manage" },
   { id: "account", label: "用户中心", description: "管理本地账户和个人偏好", icon: UserRound, group: "manage" },
   { id: "about", label: "关于", description: "Suna 版本和项目信息", icon: CircleHelp, group: "manage" },
   { id: "diagnostics", label: "运行记录", description: "查看 Agent 任务和系统状态", icon: Settings2, group: "manage" },

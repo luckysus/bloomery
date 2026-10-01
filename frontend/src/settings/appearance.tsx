@@ -3,6 +3,8 @@ import { desktop } from "../bridge/desktop";
 
 export type FontSizePreference = "small" | "medium" | "large";
 export type DensityPreference = "compact" | "comfortable" | "spacious";
+export type StartupPagePreference = "chat" | "knowledge" | "literature" | "data";
+export type SidebarWidthPreference = "narrow" | "standard" | "wide";
 export type AppearanceSaveState = "idle" | "saving" | "saved" | "error";
 
 export interface AppearancePreferences {
@@ -14,6 +16,10 @@ export interface AppearancePreferences {
   saveDrafts: boolean;
   showToolDetails: boolean;
   confirmDangerous: boolean;
+  startupPage: StartupPagePreference;
+  autoUpdate: boolean;
+  notifications: boolean;
+  sidebarWidth: SidebarWidthPreference;
 }
 
 export const defaultAppearancePreferences: AppearancePreferences = {
@@ -25,6 +31,10 @@ export const defaultAppearancePreferences: AppearancePreferences = {
   saveDrafts: true,
   showToolDetails: true,
   confirmDangerous: true,
+  startupPage: "chat",
+  autoUpdate: true,
+  notifications: true,
+  sidebarWidth: "standard",
 };
 
 function normalizePreferences(raw: unknown): AppearancePreferences {
@@ -42,6 +52,10 @@ function normalizePreferences(raw: unknown): AppearancePreferences {
     saveDrafts: typeof value.saveDrafts === "boolean" ? value.saveDrafts : true,
     showToolDetails: typeof value.showToolDetails === "boolean" ? value.showToolDetails : true,
     confirmDangerous: typeof value.confirmDangerous === "boolean" ? value.confirmDangerous : true,
+    startupPage: value.startupPage === "knowledge" || value.startupPage === "literature" || value.startupPage === "data" ? value.startupPage : "chat",
+    autoUpdate: typeof value.autoUpdate === "boolean" ? value.autoUpdate : true,
+    notifications: typeof value.notifications === "boolean" ? value.notifications : true,
+    sidebarWidth: value.sidebarWidth === "narrow" || value.sidebarWidth === "wide" ? value.sidebarWidth : "standard",
   };
 }
 
@@ -49,6 +63,7 @@ interface AppearanceContextValue {
   preferences: AppearancePreferences;
   updatePreferences: (next: Partial<AppearancePreferences>) => void;
   saveState: AppearanceSaveState;
+  loaded: boolean;
   retrySave: () => void;
 }
 
@@ -56,6 +71,7 @@ const defaultContext: AppearanceContextValue = {
   preferences: defaultAppearancePreferences,
   updatePreferences: () => undefined,
   saveState: "idle",
+  loaded: false,
   retrySave: () => undefined,
 };
 
@@ -64,6 +80,7 @@ const AppearanceContext = createContext<AppearanceContextValue>(defaultContext);
 export function AppearanceProvider({ children }: { children: ReactNode }) {
   const [preferences, setPreferences] = useState(defaultAppearancePreferences);
   const [saveState, setSaveState] = useState<AppearanceSaveState>("idle");
+  const [loaded, setLoaded] = useState(false);
   const pendingRef = useRef<AppearancePreferences>(defaultAppearancePreferences);
   const timerRef = useRef<number | null>(null);
   const requestRef = useRef(0);
@@ -81,21 +98,25 @@ export function AppearanceProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let mounted = true;
     const load = async () => {
-      for (let attempt = 0; attempt < 3 && mounted; attempt += 1) {
-        try {
-          const raw = await desktop.getSetting("ui.preferences");
-          if (!mounted || !raw) return;
+      try {
+        for (let attempt = 0; attempt < 3 && mounted; attempt += 1) {
           try {
-            const next = normalizePreferences(JSON.parse(raw));
-            pendingRef.current = next;
-            setPreferences(next);
+            const raw = await desktop.getSetting("ui.preferences");
+            if (!mounted || !raw) return;
+            try {
+              const next = normalizePreferences(JSON.parse(raw));
+              pendingRef.current = next;
+              setPreferences(next);
+            } catch {
+              // Keep safe defaults when older or invalid settings are present.
+            }
+            return;
           } catch {
-            // Keep the safe defaults when older or invalid settings are present.
+            if (attempt < 2) await new Promise((resolve) => window.setTimeout(resolve, 150));
           }
-          return;
-        } catch {
-          if (attempt < 2) await new Promise((resolve) => window.setTimeout(resolve, 150));
         }
+      } finally {
+        if (mounted) setLoaded(true);
       }
     };
     void load();
@@ -110,11 +131,13 @@ export function AppearanceProvider({ children }: { children: ReactNode }) {
     root.dataset.fontSize = preferences.fontSize;
     root.dataset.density = preferences.density;
     root.dataset.motion = preferences.enableAnimations ? "enabled" : "reduced";
+    root.dataset.sidebarWidth = preferences.sidebarWidth;
   }, [preferences]);
 
   const value = useMemo<AppearanceContextValue>(() => ({
     preferences,
     saveState,
+    loaded,
     updatePreferences: (partial) => {
       const next = normalizePreferences({ ...pendingRef.current, ...partial });
       pendingRef.current = next;
@@ -126,7 +149,7 @@ export function AppearanceProvider({ children }: { children: ReactNode }) {
       }, 650);
     },
     retrySave: () => persist(pendingRef.current),
-  }), [preferences, saveState]);
+  }), [preferences, saveState, loaded]);
 
   return <AppearanceContext.Provider value={value}>{children}</AppearanceContext.Provider>;
 }
