@@ -34,7 +34,17 @@
   --suna-scrollbar-hover: rgba(108, 106, 100, 0.36);
   --suna-range-track: #e6dfd8;
   --suna-mono: "Cascadia Code", "JetBrains Mono", Consolas, monospace;
+  --suna-ui-font-scale: 1;
+  --suna-ui-space-scale: 1;
 }
+
+html[data-font-size="small"] { --suna-ui-font-scale: .92; }
+html[data-font-size="large"] { --suna-ui-font-scale: 1.08; }
+html[data-density="compact"] { --suna-ui-space-scale: .82; }
+html[data-density="spacious"] { --suna-ui-space-scale: 1.18; }
+html[data-motion="reduced"] *,
+html[data-motion="reduced"] *::before,
+html[data-motion="reduced"] *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; transition-duration: .01ms !important; }
 
 [data-theme="light"] {
   color-scheme: light;

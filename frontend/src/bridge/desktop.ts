@@ -834,6 +834,15 @@ export interface StorageHealth {
   available_disk_bytes: number | null;
 }
 
+export interface StoragePaths {
+  app_data: string;
+  sqlite_database: string;
+  knowledge_content: string;
+  cache: string;
+  logs: string;
+  temp: string;
+}
+
 export interface BackupSummary {
   format_version: number;
   archive_path: string;
@@ -1498,6 +1507,7 @@ getComputeOptimizationResult: (id: string) =>
   deletePostgresKnowledgeEdge: (edgeId: string) =>
     call<void>("delete_postgres_knowledge_edge", { edgeId }),
   getStorageHealth: () => call<StorageHealth>("get_storage_health"),
+  getStoragePaths: () => call<StoragePaths>("get_storage_paths"),
   exportDiagnostics: (lastErrorKind?: string) =>
     call<Record<string, unknown>>("export_diagnostics", lastErrorKind ? { lastErrorKind } : undefined),
   writeDiagnosticsExport: (outputPath: string, lastErrorKind?: string) =>

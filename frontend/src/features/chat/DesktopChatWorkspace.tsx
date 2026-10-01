@@ -39,6 +39,7 @@ import WebConfirmDialog from "./web/WebConfirmDialog";
 import WebFeedback from "./web/WebFeedback";
 import WebRecommendationCard from "./web/WebRecommendationCard";
 import WebTurnNavigator from "./web/WebTurnNavigator";
+import { useAppearanceSettings } from "../../settings/appearance";
 
 function isAssistant(message: Message) {
   return message.role === "agent" || message.role === "assistant";
@@ -281,6 +282,7 @@ export default function DesktopChatWorkspace({
   ...controller
 }: ChatControllerProps & { onOpenSection?: (section: SectionId) => void }) {
   const { t } = useLocale();
+  const { preferences } = useAppearanceSettings();
   const [search, setSearch] = useState("");
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renamingTitle, setRenamingTitle] = useState("");
@@ -348,7 +350,7 @@ export default function DesktopChatWorkspace({
   };
 
   return (
-    <section className="suna-chat" aria-label="本地智能体对话">
+    <section className={`suna-chat ${preferences.showAgentPanel ? "" : "has-agent-panel-hidden"}`} aria-label="本地智能体对话">
       <aside className="suna-chat-sidebar" aria-label={t("conversationList")}>
         <div className="suna-chat-sidebar-actions">
           <button type="button" className="suna-chat-sidebar-action is-primary" onClick={() => void controller.onNewConversation()}>
@@ -587,13 +589,13 @@ export default function DesktopChatWorkspace({
         </form>
       </main>
 
-      <AgentRunInspector
-        run={controller.agentRun}
-        recovery={controller.recovery}
-        onResolvePermission={controller.onResolvePermission}
-        onRetry={controller.onRetry}
-        onResume={controller.onResume}
-      />
+      {preferences.showAgentPanel && <AgentRunInspector
+          run={controller.agentRun}
+          recovery={controller.recovery}
+          onResolvePermission={controller.onResolvePermission}
+          onRetry={controller.onRetry}
+          onResume={controller.onResume}
+        />}
     </section>
   );
 }

@@ -19,9 +19,10 @@ import SettingsPage from "../features/settings/SettingsPage";
 import { getNavigationSection, navigationSections, primaryNavigationSections, utilityNavigationSections, type NavigationSection, type SectionId } from "./navigation";
 import { LocaleProvider } from "../i18n/locale";
 import { ThemeProvider } from "../theme/theme";
+import { AppearanceProvider } from "../settings/appearance";
 import "./suna-shell.css";
 
-export default function SunaApp() { return <LocaleProvider><ThemeProvider><ChatControllerProvider><SunaAppShell /></ChatControllerProvider></ThemeProvider></LocaleProvider>; }
+export default function SunaApp() { return <LocaleProvider><ThemeProvider><AppearanceProvider><ChatControllerProvider><SunaAppShell /></ChatControllerProvider></AppearanceProvider></ThemeProvider></LocaleProvider>; }
 function SunaMark() { return <span className="suna-new-mark" aria-hidden="true"><span /><span /><span /></span>; }
 function ModuleView({ section, onOpenSettings }: { section: SectionId; onOpenSettings: () => void }) { return section === "literature" ? <LiteratureResearchPage /> : section === "prediction" ? <PerformancePredictionPage /> : section === "optimization" ? <ProcessOptimizationPage /> : section === "mcp" ? <McpManagementPage /> : section === "experiment" ? <ExperimentAssistantPage /> : section === "reports" ? <ResearchReportPage /> : section === "data" ? <DataLabPage /> : section === "agents" || section === "tools" || section === "skills" ? <CapabilityManagementPage section={section} /> : section === "models" ? <SettingsPage onOpenDiagnostics={onOpenSettings} initialTab="providers" /> : section === "account" ? <SettingsPage onOpenDiagnostics={onOpenSettings} initialTab="account" /> : section === "about" ? <SettingsPage onOpenDiagnostics={onOpenSettings} initialTab="about" /> : <ResearchModulePage section={section} />; }
 function NavButton({ item, active, onClick }: { item: NavigationSection; active: SectionId; onClick: (id: SectionId) => void }) { const Icon = item.icon; const label = item.id === "chat" ? "对话中心" : item.label; return <button className={`suna-new-nav-item ${active === item.id ? "is-active" : ""}`} onClick={() => onClick(item.id)}><Icon size={17} /><span>{label}</span>{active === item.id && <span className="suna-new-nav-indicator" />}</button>; }

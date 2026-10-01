@@ -5,14 +5,14 @@ export type ThemePreference = "system" | "light" | "dark";
 export type ResolvedTheme = "light" | "dark";
 
 export function parseThemePreference(value: string | null): ThemePreference {
-  if (!value) return "system";
+  if (!value) return "light";
   try {
     const parsed = JSON.parse(value) as { preference?: unknown };
     return parsed.preference === "light" || parsed.preference === "dark"
       ? parsed.preference
-      : "system";
+      : "light";
   } catch {
-    return "system";
+    return "light";
   }
 }
 
@@ -38,7 +38,7 @@ interface ThemeContextValue {
 }
 
 const defaultTheme: ThemeContextValue = {
-  preference: "system",
+  preference: "light",
   resolvedTheme: "light",
   setPreference: () => undefined,
 };

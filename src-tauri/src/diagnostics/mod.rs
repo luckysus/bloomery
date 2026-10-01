@@ -2,7 +2,7 @@ pub(crate) mod export;
 pub mod observability;
 pub mod redaction;
 
-use crate::db::{current_workspace_id, database_path, with_conn, DbState};
+use crate::db::{app_data_directory, current_workspace_id, database_path, with_conn, DbState};
 use crate::rag::index::rebuild::IndexRebuildRequest;
 use crate::rag::index::repair::{inspect_index_health, IndexHealthReport};
 use crate::storage::migrations::latest_version;
@@ -18,6 +18,16 @@ pub struct StorageHealth {
     pub database_size_bytes: u64,
     pub reclaimable_bytes: u64,
     pub available_disk_bytes: Option<u64>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct StoragePaths {
+    pub app_data: String,
+    pub sqlite_database: String,
+    pub knowledge_content: String,
+    pub cache: String,
+    pub logs: String,
+    pub temp: String,
 }
 
 fn storage_health(connection: &Connection, path: &Path) -> Result<StorageHealth, String> {
@@ -91,6 +101,19 @@ pub fn get_storage_health(
 ) -> Result<StorageHealth, String> {
     let path = database_path(&app)?;
     with_conn(&db, |connection| storage_health(connection, &path))
+}
+
+#[tauri::command]
+pub fn get_storage_paths(app: tauri::AppHandle) -> Result<StoragePaths, String> {
+    let root = app_data_directory(&app)?;
+    Ok(StoragePaths {
+        app_data: root.to_string_lossy().into_owned(),
+        sqlite_database: root.join("suna.sqlite3").to_string_lossy().into_owned(),
+        knowledge_content: root.join("content").to_string_lossy().into_owned(),
+        cache: root.join("cache").to_string_lossy().into_owned(),
+        logs: root.join("logs").to_string_lossy().into_owned(),
+        temp: root.join("temp").to_string_lossy().into_owned(),
+    })
 }
 
 #[tauri::command]

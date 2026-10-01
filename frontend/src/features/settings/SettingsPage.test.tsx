@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import SettingsPage from "./SettingsPage";
 import { desktop, type PermissionRuleRecord, type ProviderProfileResponse } from "../../bridge/desktop";
 import { ThemeProvider } from "../../theme/theme";
+import { AppearanceProvider } from "../../settings/appearance";
 
 vi.mock("../../i18n/locale", () => ({
   useLocale: () => ({
@@ -73,7 +74,9 @@ const permissionRule: PermissionRuleRecord = {
 describe("SettingsPage", () => {
   const renderSettings = () => render(
     <ThemeProvider>
-      <SettingsPage />
+      <AppearanceProvider>
+        <SettingsPage />
+      </AppearanceProvider>
     </ThemeProvider>,
   );
 
@@ -246,5 +249,22 @@ describe("SettingsPage", () => {
     expect(screen.queryByRole("heading", { name: "settingsDatabaseTitle" })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("tab", { name: "settingsTabDatabases" }));
     expect(await screen.findByRole("heading", { name: "settingsDatabaseTitle" })).toBeInTheDocument();
+  });
+
+  it("persists appearance controls through the shared preferences setting", async () => {
+    renderSettings();
+
+    fireEvent.click(await screen.findByRole("tab", { name: "settingsCategoryAppearance" }));
+    fireEvent.click(screen.getByRole("button", { name: "settingsFontLarge" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: /settingsAgentPanel/ }));
+
+    await waitFor(() => expect(desktop.setSetting).toHaveBeenCalledWith(
+      "ui.preferences",
+      expect.stringContaining('"fontSize":"large"'),
+    ), { timeout: 1500 });
+    expect(desktop.setSetting).toHaveBeenCalledWith(
+      "ui.preferences",
+      expect.stringContaining('"showAgentPanel":false'),
+    );
   });
 });

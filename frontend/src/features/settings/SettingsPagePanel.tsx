@@ -10,6 +10,7 @@ import SettingsProvidersPanel from "./SettingsProvidersPanel";
 import ModelRuntimeSettings from "./ModelRuntimeSettings";
 import McpManagementPage from "../mcp/McpManagementPage";
 import DatabaseConnectionsPanel from "./DatabaseConnectionsPanel";
+import StorageDataPanel from "./StorageDataPanel";
 import { SUNA_VERSION } from "../../version";
 import type { ProviderSlot, RetrievalPlan, SettingsEditor } from "./settingsModel";
 import type { MessageKey } from "../../i18n/locale";
@@ -49,7 +50,7 @@ export default function SettingsPagePanel(props: Props) {
   if (activeTab === "agent") return <><SettingsAgentPanel /><PermissionRulesPanel rules={props.permissionRules} busyId={props.permissionBusyId} onRevoke={props.revokePermission} /></>;
   if (activeTab === "mcp") return <McpManagementPage />;
   if (activeTab === "skill") return <SettingsSkillsPanel />;
-  if (activeTab === "databases") return <DatabaseConnectionsPanel />;
+  if (activeTab === "databases") return <><StorageDataPanel /><DatabaseConnectionsPanel /></>;
   if (activeTab === "shortcuts") return <section className="suna-settings-category"><h2>{t("settingsCategoryShortcuts")}</h2><p>{t("settingsShortcutsCopy")}</p><label className="suna-settings-field">{t("settingsShortcutSend")}<select value={props.shortcutSend} onChange={(event) => props.saveShortcut(event.target.value)}><option>Ctrl+Enter</option><option>Enter</option></select></label></section>;
   if (activeTab === "about") return <section className="suna-settings-category suna-about-panel"><div className="suna-about-brand"><span className="suna-about-mark">S</span><div><h2>Suna</h2><p>钢铁材料研发智能体平台</p></div></div><p>{t("settingsAboutCopy")}</p><dl className="suna-settings-about"><div><dt>{t("settingsVersion")}</dt><dd>{SUNA_VERSION}</dd></div><div><dt>{t("settingsRuntime")}</dt><dd>Tauri Desktop</dd></div><div><dt>前端</dt><dd>React 19 · Vite</dd></div><div><dt>核心运行时</dt><dd>Rust Agent Runtime</dd></div></dl><div className="suna-about-links"><button type="button" onClick={() => window.open("https://github.com/openvetta/open-vetta", "_blank")}>项目仓库</button><button type="button" onClick={props.onOpenDiagnostics}>运行诊断</button></div></section>;
   return <><div className="suna-settings-section-intro"><span>MODEL ROUTING</span><h2>模型配置</h2><p>为聊天、Embedding、Reranker 和文档解析分别绑定 Provider。API Key 只写入系统凭据管理器。</p></div><div className="suna-model-capability-grid">{props.editors.map((editor) => <div className="suna-model-capability" key={editor.slot}><div><span className="suna-model-capability-icon">{editor.slot === "chat" ? <Bot size={16} /> : editor.slot === "embedding" ? <Sparkles size={16} /> : editor.slot === "reranker" ? <Check size={16} /> : <Database size={16} />}</span><strong>{editor.slot === "chat" ? "对话模型" : editor.slot === "embedding" ? "Embedding" : editor.slot === "reranker" ? "Reranker" : "文档解析"}</strong></div><span className={editor.id && editor.enabled ? "is-ready" : "is-missing"}>{editor.id && editor.enabled ? "已配置" : "待配置"}</span><small>{editor.modelId || editor.displayName}</small></div>)}</div><ModelRuntimeSettings /><SettingsProvidersPanel {...providerProps(props)} editors={props.editors} /></>;
