@@ -173,6 +173,8 @@ models/
 literature/
 !backend/rag/literature/
 !backend/rag/literature/*.py
+!frontend/src/features/literature/
+!frontend/src/features/literature/**
 experimental_photos/
 lab_tasks/
 lab_uploads/
