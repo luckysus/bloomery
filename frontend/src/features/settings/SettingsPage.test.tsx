@@ -118,6 +118,7 @@ describe("SettingsPage", () => {
 
     expect(await screen.findByRole("heading", { name: "settingsTitle" })).toBeInTheDocument();
     expect(screen.getByRole("combobox", { name: "languageLabel" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("tab", { name: "settingsTabProviders" }));
     expect(screen.getByDisplayValue("https://api.example.com/v1")).toBeInTheDocument();
     expect(screen.getAllByText("settingsSecretConfigured").length).toBeGreaterThan(0);
 
@@ -142,6 +143,7 @@ describe("SettingsPage", () => {
   it("saves an edited provider and writes a replacement key through the secret bridge", async () => {
     renderSettings();
 
+    fireEvent.click(await screen.findByRole("tab", { name: "settingsTabProviders" }));
     const name = await screen.findByDisplayValue("Steel LLM");
     fireEvent.change(name, { target: { value: "Updated Steel LLM" } });
     const chatForm = name.closest("form");
@@ -173,6 +175,7 @@ describe("SettingsPage", () => {
   it("persists the selected chat provider in onboarding state", async () => {
     renderSettings();
 
+    fireEvent.click(await screen.findByRole("tab", { name: "settingsTabProviders" }));
     const name = await screen.findByDisplayValue("Steel LLM");
     const chatForm = name.closest("form");
     if (!chatForm) throw new Error("chat provider form is missing");
@@ -192,6 +195,7 @@ describe("SettingsPage", () => {
   it("persists the SiliconFlow free or Pro selection without exposing credentials", async () => {
     renderSettings();
 
+    fireEvent.click(await screen.findByRole("tab", { name: "settingsTabProviders" }));
     const pro = await screen.findByLabelText("settingsPlanPro");
     fireEvent.click(pro);
 
@@ -207,6 +211,7 @@ describe("SettingsPage", () => {
     vi.mocked(desktop.setSetting).mockRejectedValueOnce(new Error("settings unavailable"));
     renderSettings();
 
+    fireEvent.click(await screen.findByRole("tab", { name: "settingsTabProviders" }));
     const free = await screen.findByLabelText("settingsPlanFree");
     fireEvent.click(screen.getByLabelText("settingsPlanPro"));
 
@@ -218,6 +223,7 @@ describe("SettingsPage", () => {
     vi.mocked(desktop.setProviderSecret).mockRejectedValueOnce(new Error("keyring unavailable"));
     renderSettings();
 
+    fireEvent.click(await screen.findByRole("tab", { name: "settingsTabProviders" }));
     const name = await screen.findByDisplayValue("Steel LLM");
     const chatForm = name.closest("form");
     if (!chatForm) throw new Error("chat provider form is missing");

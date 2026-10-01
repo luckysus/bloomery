@@ -84,3 +84,190 @@
 .suna-settings-advanced[open]>summary::after{content:"－"}
 .suna-settings-advanced .suna-settings-control-row{margin-top:8px;padding-top:9px;border-top:1px solid #e8eff7}
 [data-theme="dark"] .suna-settings-general-selects,[data-theme="dark"] .suna-settings-advanced .suna-settings-control-row{border-color:var(--suna-line)}
+/* Settings center forms */
+.suna-settings-form-panel{padding:27px 30px 30px;border:1px solid #dce7f3;border-radius:10px;background:#fff;color:#203d70}
+.suna-settings-form-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;padding-bottom:20px;border-bottom:1px solid #e5edf7}
+.suna-settings-form-heading>svg{color:#2868ed}
+.suna-settings-form-heading h2{margin-top:7px;color:#102a72;font-size:23px;line-height:1.25}
+.suna-settings-form-heading p{margin-top:7px;color:#6b83ae;font-size:12px;line-height:1.7}
+.suna-settings-form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-top:20px}
+.suna-settings-form-grid .suna-settings-field{margin:0}
+.suna-settings-field{display:grid;gap:7px;color:#416184;font-size:12px}
+.suna-settings-field input,.suna-settings-field select,.suna-settings-field textarea{width:100%;min-height:38px;padding:0 11px;border:1px solid #d6e4f3;border-radius:7px;background:#fff;color:#284875;font:inherit;font-size:12px;outline:0}
+.suna-settings-field textarea{padding:10px;resize:vertical;line-height:1.55}
+.suna-settings-field input:focus,.suna-settings-field select:focus,.suna-settings-field textarea:focus{border-color:#6d9ee8;box-shadow:0 0 0 3px rgba(56,119,224,.12)}
+.suna-settings-textarea-field{margin-top:16px}
+.suna-settings-form-actions{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-top:22px;padding-top:18px;border-top:1px solid #e5edf7}
+.suna-settings-form-actions button{display:inline-flex;align-items:center;gap:7px}
+.suna-settings-inline-saved{display:inline-flex;align-items:center;gap:5px;color:#2b9667;font-size:11px}
+.suna-settings-inline-error{margin-top:14px;padding:9px 11px;border:1px solid #f1cccc;border-radius:7px;background:#fff7f7;color:#b84c4c;font-size:11px}
+.suna-settings-status-badge{display:inline-flex;align-items:center;gap:4px;margin-left:auto;padding:5px 8px;border-radius:999px;background:#e9f8ef;color:#2a8d63;font-size:10px;white-space:nowrap}
+.suna-account-profile-card{display:flex;align-items:center;gap:12px;margin-top:20px;padding:15px;border:1px solid #dce9f7;border-radius:9px;background:#f8fbff}
+.suna-account-profile-card>div{display:flex;flex-direction:column;gap:4px}.suna-account-profile-card strong{color:#18376d;font-size:15px}.suna-account-profile-card div span{color:#7890af;font-size:11px}
+.suna-account-avatar-large{width:46px!important;height:46px!important;font-size:15px!important}
+.suna-settings-info-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:18px}
+.suna-settings-info-grid>div{display:grid;grid-template-columns:18px minmax(0,1fr);grid-template-rows:auto auto;gap:4px 7px;padding:12px;border:1px solid #e0eaf5;border-radius:8px;background:#fbfdff}
+.suna-settings-info-grid svg{grid-row:1 / span 2;color:#3779d7}.suna-settings-info-grid span{color:#8197b4;font-size:10px}.suna-settings-info-grid strong{color:#31598d;font-size:12px}.suna-settings-info-grid code{overflow:hidden;color:#55769f;font:10px/1.4 var(--suna-mono);text-overflow:ellipsis;white-space:nowrap}
+.suna-settings-subsection{margin-top:22px;padding:15px 0 0;border-top:1px solid #e5edf7}.suna-settings-subsection-heading{display:flex;align-items:flex-start;gap:9px;margin-bottom:6px}.suna-settings-subsection-heading>svg{color:#3475d5}.suna-settings-subsection-heading div{display:flex;flex-direction:column;gap:3px}.suna-settings-subsection-heading strong{color:#315579;font-size:13px}.suna-settings-subsection-heading small{color:#8197b4;font-size:10px}
+.suna-shortcut-list{margin-top:12px}.suna-shortcut-row{display:flex;align-items:center;justify-content:space-between;gap:18px;min-height:59px;border-bottom:1px solid #e8eff7;cursor:pointer}.suna-shortcut-row>span{display:flex;flex-direction:column;gap:4px}.suna-shortcut-row strong{color:#355779;font-size:12px}.suna-shortcut-row small{color:#8599b4;font-size:10px}.suna-shortcut-row select{min-width:136px;height:34px;padding:0 9px;border:1px solid #d6e4f3;border-radius:7px;background:#fff;color:#35619a;font:inherit;font-size:11px}
+.suna-about-panel{max-width:none}.suna-about-brand{display:flex;align-items:center;gap:12px;margin-top:20px;padding:16px;border:1px solid #dce9f7;border-radius:9px;background:#f8fbff}.suna-about-brand>div{display:flex;flex-direction:column;gap:3px}.suna-about-brand strong{color:#102a72;font-size:20px}.suna-about-brand span{color:#6f88ae;font-size:11px}.suna-about-health{grid-template-columns:repeat(4,minmax(0,1fr));margin-top:14px}.suna-about-health>div{min-height:64px}.suna-about-health strong{color:#2d7a66}.suna-about-copy{display:block;margin-top:18px;color:#8095b3;font-size:11px;line-height:1.6}
+[data-theme="dark"] .suna-settings-form-panel{border-color:var(--suna-line);background:var(--suna-bg-raised);color:var(--suna-text)}
+[data-theme="dark"] .suna-settings-form-heading,[data-theme="dark"] .suna-settings-form-actions,[data-theme="dark"] .suna-settings-subsection{border-color:var(--suna-line)}
+[data-theme="dark"] .suna-settings-form-heading h2,[data-theme="dark"] .suna-account-profile-card strong,[data-theme="dark"] .suna-settings-subsection-heading strong,[data-theme="dark"] .suna-shortcut-row strong,[data-theme="dark"] .suna-about-brand strong{color:var(--suna-text)}
+[data-theme="dark"] .suna-settings-form-heading p,[data-theme="dark"] .suna-settings-field,[data-theme="dark"] .suna-settings-subsection-heading small,[data-theme="dark"] .suna-shortcut-row small,[data-theme="dark"] .suna-about-copy{color:var(--suna-text-muted)}
+[data-theme="dark"] .suna-settings-field input,[data-theme="dark"] .suna-settings-field select,[data-theme="dark"] .suna-settings-field textarea,[data-theme="dark"] .suna-shortcut-row select{border-color:var(--suna-line-strong);background:var(--suna-bg-soft);color:var(--suna-text)}
+[data-theme="dark"] .suna-account-profile-card,[data-theme="dark"] .suna-about-brand{border-color:var(--suna-line);background:var(--suna-bg-soft)}
+[data-theme="dark"] .suna-settings-info-grid>div{border-color:var(--suna-line);background:var(--suna-bg-soft)}
+@media(max-width:850px){.suna-settings-form-grid,.suna-settings-info-grid,.suna-about-health{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:560px){.suna-settings-form-panel{padding:21px 16px}.suna-settings-form-grid,.suna-settings-info-grid,.suna-about-health{grid-template-columns:1fr}.suna-shortcut-row{align-items:flex-start;flex-direction:column;padding:12px 0}.suna-shortcut-row select{width:100%}.suna-settings-status-badge{margin-left:0}}
+
+/* Supplemental panel styles. Keep these scoped because the MCP page is also
+   rendered outside the settings center. */
+.suna-settings-v2 .suna-settings-form-heading-actions{display:flex;align-items:center;gap:10px}
+.suna-settings-v2 .suna-settings-form-heading-actions .suna-icon-button{flex:0 0 auto}
+.suna-settings-v2 .suna-settings-form-heading>div:first-child{min-width:0}
+.suna-settings-v2 .suna-settings-form-heading p,.suna-settings-v2 .suna-settings-field span,.suna-settings-v2 .suna-settings-subsection-heading small{overflow-wrap:anywhere}
+.suna-settings-v2 .suna-settings-form-panel .suna-settings-loading{min-height:180px}
+.suna-settings-v2 .suna-settings-databases{color:#29466f}
+.suna-settings-v2 .suna-settings-databases>div:first-child h2{color:#24436f;font-size:17px}
+.suna-settings-v2 .suna-settings-databases>div:first-child p{margin-top:6px;color:#788eac;font-size:11px;line-height:1.6}
+.suna-settings-v2 .suna-settings-databases>div.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:17px}
+.suna-settings-v2 .suna-settings-databases>div.grid>label{display:grid;gap:6px;min-width:0;color:#55749c;font-size:11px}
+.suna-settings-v2 .suna-settings-databases>div.grid>label.md\:col-span-2{grid-column:1 / -1}
+.suna-settings-v2 .suna-settings-databases>div.grid input{box-sizing:border-box;width:100%;min-height:38px;padding:8px 10px;border:1px solid #d6e4f3;border-radius:7px;background:#fff;color:#284875;font:inherit;font-size:12px;outline:0}
+.suna-settings-v2 .suna-settings-databases>div.grid input:focus{border-color:#6d9ee8;box-shadow:0 0 0 3px rgba(56,119,224,.12)}
+.suna-settings-v2 .suna-settings-databases>div.flex{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin-top:17px}
+.suna-settings-v2 .suna-settings-databases>div.flex button,.suna-settings-v2 .suna-settings-databases>div.flex a{display:inline-flex;align-items:center;gap:6px;min-height:34px;padding:0 11px;border:1px solid #cbdcf3;border-radius:7px;background:#fff;color:#2764c9;font:inherit;font-size:11px;text-decoration:none;cursor:pointer}
+.suna-settings-v2 .suna-settings-databases>div.flex button:hover,.suna-settings-v2 .suna-settings-databases>div.flex a:hover{background:#edf5ff}
+.suna-settings-v2 .suna-settings-databases>p[role=status]{margin-top:13px;color:#54749e;font-size:11px;line-height:1.6}
+.suna-settings-v2 .suna-settings-databases>p[role=alert]{margin-top:12px;color:#b44747;font-size:11px;overflow-wrap:anywhere}
+
+/* Skill catalog */
+.suna-settings-v2 .suna-settings-skill-list{display:grid;gap:10px;margin-top:18px}
+.suna-settings-v2 .suna-settings-skill-card{min-width:0;padding:14px;border:1px solid #dce7f3;border-radius:8px;background:#fbfdff}
+.suna-settings-v2 .suna-settings-skill-card-head{display:flex;align-items:flex-start;gap:10px;min-width:0}
+.suna-settings-v2 .suna-settings-skill-card-head>div{min-width:0;flex:1}
+.suna-settings-v2 .suna-settings-skill-icon{display:grid;place-items:center;flex:0 0 30px;width:30px;height:30px;border-radius:7px;background:#edf4ff;color:#2868ed}
+.suna-settings-v2 .suna-settings-skill-card strong{display:block;color:#315579;font-size:13px;overflow-wrap:anywhere}
+.suna-settings-v2 .suna-settings-skill-card-head p{margin-top:4px;color:#8197b4;font-size:11px;line-height:1.55;overflow-wrap:anywhere}
+.suna-settings-v2 .suna-settings-skill-meta,.suna-settings-v2 .suna-settings-skill-details{display:flex;flex-wrap:wrap;gap:7px 14px;margin-top:11px;color:#6f88ae;font-size:10px}
+.suna-settings-v2 .suna-settings-skill-meta span,.suna-settings-v2 .suna-settings-skill-details span{display:inline-flex;align-items:center;gap:4px;min-width:0;overflow-wrap:anywhere}
+.suna-settings-v2 .suna-settings-skill-meta span:nth-child(3){color:#2c9468}
+.suna-settings-v2 .suna-settings-skill-details{margin-top:8px;padding-top:9px;border-top:1px solid #e5edf7;color:#8197b4}
+.suna-settings-v2 .suna-settings-skill-details span:last-child{font-family:var(--suna-mono);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.suna-settings-v2 .suna-skill-switch{position:relative;display:inline-flex;flex:0 0 38px;width:38px;height:21px;cursor:pointer}
+.suna-settings-v2 .suna-skill-switch input{position:absolute;width:1px;height:1px;opacity:0}
+.suna-settings-v2 .suna-skill-switch i{position:relative;display:block;width:38px;height:21px;border-radius:999px;background:#c4d3e5;transition:background .16s}
+.suna-settings-v2 .suna-skill-switch i::after{position:absolute;top:3px;left:3px;width:15px;height:15px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(37,67,105,.23);content:"";transition:transform .16s}
+.suna-settings-v2 .suna-skill-switch input:checked+i{background:#3a7be5}
+.suna-settings-v2 .suna-skill-switch input:checked+i::after{transform:translateX(17px)}
+.suna-settings-v2 .suna-skill-switch input:focus-visible+i{outline:3px solid rgba(58,123,229,.22);outline-offset:2px}
+.suna-settings-v2 .suna-skill-errors{display:grid;gap:6px;margin-top:14px}
+.suna-settings-v2 .suna-skill-errors p{display:flex;align-items:flex-start;gap:6px;margin:0;padding:8px 10px;border:1px solid #f0caca;border-radius:6px;background:#fff7f7;color:#b44747;font-size:11px;overflow-wrap:anywhere}
+
+/* Storage and database connection actions */
+.suna-settings-v2 .suna-storage-notice{margin-top:12px;color:#2c9468;font-size:11px;line-height:1.5}
+.suna-settings-v2 .suna-storage-paths>div{grid-template-columns:minmax(100px,130px) minmax(0,1fr) auto;align-items:center}
+.suna-settings-v2 .suna-storage-paths>div button{justify-self:end}
+.suna-settings-v2 .suna-storage-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:17px}
+.suna-settings-v2 .suna-settings-databases .suna-mcp-form{margin-top:17px}
+.suna-settings-v2 .suna-settings-databases .suna-mcp-list{margin-top:17px}
+.suna-settings-v2 .suna-settings-databases .suna-mcp-item{min-width:0}
+.suna-settings-v2 .suna-settings-databases .suna-mcp-item-main{min-width:0}
+.suna-settings-v2 .suna-settings-databases .suna-mcp-item-main p,.suna-settings-v2 .suna-settings-databases .suna-mcp-item-main code{overflow-wrap:anywhere}
+.suna-settings-v2 .suna-settings-databases .suna-mcp-actions{flex-wrap:wrap;justify-content:flex-end}
+
+/* MCP management embedded in the settings tab */
+.suna-settings-v2 .suna-mcp-page{max-width:none;margin:0;padding:0;color:var(--suna-text)}
+.suna-settings-v2 .suna-mcp-page .suna-mcp-header h1{color:var(--suna-text);font-size:23px}
+.suna-settings-v2 .suna-mcp-page .suna-mcp-header p{color:var(--suna-text-muted)}
+.suna-settings-v2 .suna-mcp-page .suna-mcp-editor,.suna-settings-v2 .suna-mcp-page .suna-mcp-card{background:var(--suna-bg-soft);border-color:var(--suna-line);box-shadow:none}
+.suna-settings-v2 .suna-mcp-page .suna-mcp-editor-grid label{color:var(--suna-text-muted)}
+.suna-settings-v2 .suna-mcp-page .suna-mcp-editor-grid input,.suna-settings-v2 .suna-mcp-page .suna-mcp-editor-grid select,.suna-settings-v2 .suna-mcp-page .suna-mcp-editor-grid textarea{box-sizing:border-box;width:100%;min-height:36px;border-color:var(--suna-line-strong);background:var(--suna-bg-raised);color:var(--suna-text);border-radius:7px}
+.suna-settings-v2 .suna-mcp-page .suna-mcp-editor-grid textarea{padding:8px 9px;resize:vertical}
+.suna-settings-v2 .suna-mcp-page .suna-mcp-card h2{color:var(--suna-text)}
+.suna-settings-v2 .suna-mcp-page .suna-mcp-card p,.suna-settings-v2 .suna-mcp-page .suna-mcp-card-meta{color:var(--suna-text-muted)}
+.suna-settings-v2 .suna-mcp-page .suna-mcp-tools span{background:var(--suna-bg-hover);color:var(--suna-text-soft)}
+.suna-settings-v2 .suna-mcp-page .suna-mcp-empty strong{color:var(--suna-text-soft)}
+
+/* Dark theme corrections for supplemental panels */
+[data-theme="dark"] .suna-settings-v2 .suna-settings-databases>div:first-child h2,[data-theme="dark"] .suna-settings-v2 .suna-settings-skill-card strong{color:var(--suna-text)}
+[data-theme="dark"] .suna-settings-v2 .suna-settings-databases>div:first-child p,[data-theme="dark"] .suna-settings-v2 .suna-settings-databases>div.grid>label,[data-theme="dark"] .suna-settings-v2 .suna-settings-skill-card-head p,[data-theme="dark"] .suna-settings-v2 .suna-settings-skill-meta,[data-theme="dark"] .suna-settings-v2 .suna-settings-skill-details{color:var(--suna-text-muted)}
+[data-theme="dark"] .suna-settings-v2 .suna-settings-databases>div.grid input{border-color:var(--suna-line-strong);background:var(--suna-bg-soft);color:var(--suna-text)}
+[data-theme="dark"] .suna-settings-v2 .suna-settings-databases>div.flex button,[data-theme="dark"] .suna-settings-v2 .suna-settings-databases>div.flex a{border-color:var(--suna-line-strong);background:var(--suna-bg-soft);color:var(--suna-text-soft)}
+[data-theme="dark"] .suna-settings-v2 .suna-settings-databases>div.flex button:hover,[data-theme="dark"] .suna-settings-v2 .suna-settings-databases>div.flex a:hover{background:var(--suna-bg-hover)}
+[data-theme="dark"] .suna-settings-v2 .suna-settings-skill-card{border-color:var(--suna-line);background:var(--suna-bg-soft)}
+[data-theme="dark"] .suna-settings-v2 .suna-settings-skill-icon{background:var(--suna-bg-hover);color:var(--suna-accent)}
+[data-theme="dark"] .suna-settings-v2 .suna-settings-skill-details{border-color:var(--suna-line)}
+[data-theme="dark"] .suna-settings-v2 .suna-skill-switch i{background:var(--suna-line-strong)}
+[data-theme="dark"] .suna-settings-v2 .suna-skill-switch input:checked+i{background:var(--suna-accent)}
+[data-theme="dark"] .suna-settings-v2 .suna-skill-errors p{border-color:var(--suna-red-line);background:var(--suna-red-soft);color:var(--suna-red)}
+
+@media(max-width:850px){
+  .suna-settings-v2 .suna-settings-runtime-heading{align-items:flex-start;flex-wrap:wrap}
+  .suna-settings-v2 .suna-settings-plan{align-items:stretch;flex-direction:column;gap:14px}
+  .suna-settings-v2 .suna-settings-plan-options{flex-wrap:wrap}
+  .suna-settings-v2 .suna-settings-plan-options legend{flex-basis:100%}
+  .suna-settings-v2 .suna-mcp-page .suna-mcp-list{grid-template-columns:1fr}
+  .suna-settings-v2 .suna-mcp-page .suna-mcp-editor-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(max-width:560px){
+  .suna-settings-v2 .suna-settings-databases>div.grid{grid-template-columns:1fr}
+  .suna-settings-v2 .suna-settings-databases>div.grid>label.md\:col-span-2{grid-column:auto}
+  .suna-settings-v2 .suna-storage-paths>div{grid-template-columns:minmax(88px,100px) minmax(0,1fr) auto;gap:8px}
+  .suna-settings-v2 .suna-storage-actions button{flex:1 1 140px;justify-content:center}
+  .suna-settings-v2 .suna-mcp-page .suna-mcp-editor-grid{grid-template-columns:1fr}
+  .suna-settings-v2 .suna-mcp-page .suna-mcp-card{padding:14px}
+  .suna-settings-v2 .suna-mcp-page .suna-mcp-card-actions{flex-wrap:wrap}
+  .suna-settings-v2 .suna-mcp-page .suna-mcp-card-actions .suna-ghost-button{flex:1 1 auto;justify-content:center}
+  .suna-settings-v2 .suna-settings-form-heading{gap:12px}
+  .suna-settings-v2 .suna-settings-form-heading>svg{flex:0 0 auto}
+}
+@media(max-width:420px){
+  .suna-settings-v2 .suna-settings-tabs{grid-template-columns:1fr}
+  .suna-settings-v2 .suna-settings-tab{min-height:47px}
+  .suna-settings-v2 .suna-settings-layout [role=tabpanel]{padding:18px 14px}
+  .suna-settings-v2 .suna-settings-header{padding-right:0;padding-left:0}
+  .suna-settings-v2 .suna-settings-header-actions{display:flex;flex-wrap:wrap}
+  .suna-settings-v2 .suna-settings-runtime-grid{grid-template-columns:1fr}
+  .suna-settings-v2 .suna-settings-skill-meta,.suna-settings-v2 .suna-settings-skill-details{gap:6px 9px}
+}
+
+/* Final narrow-window and dark-surface corrections. */
+.suna-settings-v2 .suna-settings-header>div:first-child,.suna-settings-v2 .suna-settings-form-heading>div:first-child,.suna-settings-v2 .suna-settings-runtime-heading>div:first-child{min-width:0}
+.suna-settings-v2 .suna-settings-header-actions{display:flex;flex-wrap:wrap;min-width:0}
+.suna-settings-v2 .suna-settings-header-actions>*{min-width:0}
+.suna-settings-v2 .suna-settings-form-heading{min-width:0}
+.suna-settings-v2 .suna-settings-form-heading-actions{flex:0 0 auto}
+[data-theme="dark"] .suna-settings-v2 .suna-appearance-section{border-color:var(--suna-line)}
+[data-theme="dark"] .suna-settings-v2 .suna-theme-preview-card.is-selected{border-color:var(--suna-accent);background:var(--suna-bg-soft);box-shadow:0 0 0 1px var(--suna-accent)}
+[data-theme="dark"] .suna-settings-v2 .suna-settings-language-row select,[data-theme="dark"] .suna-settings-v2 .suna-settings-more-menu button,[data-theme="dark"] .suna-settings-v2 .suna-settings-more-menu label{border-color:var(--suna-line-strong);background:var(--suna-bg-soft);color:var(--suna-text)}
+[data-theme="dark"] .suna-settings-v2 .suna-settings-more>summary{color:var(--suna-text)}
+[data-theme="dark"] .suna-settings-v2 .suna-settings-segmented{border-color:var(--suna-line-strong);background:var(--suna-bg-soft)}
+[data-theme="dark"] .suna-settings-v2 .suna-settings-segmented button{color:var(--suna-text-muted)}
+[data-theme="dark"] .suna-settings-v2 .suna-settings-segmented button.is-selected{background:var(--suna-bg-hover);color:var(--suna-text)}
+[data-theme="dark"] .suna-settings-v2 .suna-settings-toggle-row,[data-theme="dark"] .suna-settings-v2 .suna-settings-language-row,[data-theme="dark"] .suna-settings-v2 .suna-settings-control-row{border-color:var(--suna-line)}
+[data-theme="dark"] .suna-settings-v2 .suna-settings-advanced>summary{color:var(--suna-text-muted)}
+[data-theme="dark"] .suna-settings-v2 .suna-settings-general-selects{border-color:var(--suna-line)}
+[data-theme="dark"] .suna-settings-v2 .suna-settings-category,[data-theme="dark"] .suna-settings-v2 .suna-settings-preferences,[data-theme="dark"] .suna-settings-v2 .suna-settings-runtime,[data-theme="dark"] .suna-settings-v2 .suna-settings-section-intro,[data-theme="dark"] .suna-settings-v2 .suna-model-capability,[data-theme="dark"] .suna-settings-v2 .suna-settings-info-grid>div,[data-theme="dark"] .suna-settings-v2 .suna-about-brand,[data-theme="dark"] .suna-settings-v2 .suna-settings-about>div{border-color:var(--suna-line);background:var(--suna-bg-raised)}
+[data-theme="dark"] .suna-settings-v2 .suna-settings-category h2,[data-theme="dark"] .suna-settings-v2 .suna-settings-preferences h2,[data-theme="dark"] .suna-settings-v2 .suna-settings-section-intro h2,[data-theme="dark"] .suna-settings-v2 .suna-model-capability strong,[data-theme="dark"] .suna-settings-v2 .suna-settings-info-grid strong,[data-theme="dark"] .suna-settings-v2 .suna-settings-about dd{color:var(--suna-text)}
+[data-theme="dark"] .suna-settings-v2 .suna-settings-category>p,[data-theme="dark"] .suna-settings-v2 .suna-settings-preferences>p,[data-theme="dark"] .suna-settings-v2 .suna-settings-section-intro p,[data-theme="dark"] .suna-settings-v2 .suna-model-capability small,[data-theme="dark"] .suna-settings-v2 .suna-settings-info-grid span,[data-theme="dark"] .suna-settings-v2 .suna-settings-about dt{color:var(--suna-text-muted)}
+[data-theme="dark"] .suna-settings-v2 .suna-settings-runtime-heading h2{color:var(--suna-text)}
+[data-theme="dark"] .suna-settings-v2 .suna-settings-runtime-heading p{color:var(--suna-text-muted)}
+[data-theme="dark"] .suna-settings-v2 .suna-settings-inline-error{border-color:var(--suna-red-line);background:var(--suna-red-soft);color:var(--suna-red)}
+[data-theme="dark"] .suna-settings-v2 .suna-settings-status-badge{background:var(--suna-green-soft);color:var(--suna-green)}
+
+@media(max-width:720px){
+  .suna-settings-v2 .suna-appearance-panel{padding:20px 16px 24px!important}
+  .suna-settings-v2 .suna-appearance-heading{gap:12px;flex-wrap:wrap}
+  .suna-settings-v2 .suna-appearance-heading>div{min-width:0;flex:1 1 240px}
+}
+@media(max-width:560px){
+  .suna-model-capability-grid,.suna-settings-v2 .suna-settings-runtime-grid,.suna-settings-v2 .suna-storage-metrics,.suna-settings-v2 .suna-settings-form-grid,.suna-settings-v2 .suna-settings-info-grid,.suna-settings-v2 .suna-about-health{grid-template-columns:1fr}
+  .suna-settings-v2 .suna-settings-segmented{grid-template-columns:repeat(3,minmax(0,1fr));min-width:0}
+  .suna-settings-v2 .suna-settings-segmented button{min-width:0;padding:0 6px}
+  .suna-settings-v2 .suna-settings-header-actions{gap:6px}
+  .suna-settings-v2 .suna-settings-header-actions .suna-language-control{max-width:100%}
+  .suna-settings-v2 .suna-storage-data-panel>header,.suna-settings-v2 .suna-account-profile-card{flex-wrap:wrap}
+  .suna-settings-v2 .suna-account-profile-card .suna-settings-status-badge{margin-left:0}
+}

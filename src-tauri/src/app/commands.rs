@@ -125,6 +125,8 @@ macro_rules! handler {
             crate::app::task_commands::tasks::retry_background_task,
             crate::diagnostics::get_storage_health,
             crate::diagnostics::get_storage_paths,
+            crate::diagnostics::open_storage_path,
+            crate::diagnostics::clear_storage_cache,
             crate::diagnostics::get_index_health,
             crate::diagnostics::export::export_diagnostics,
             crate::diagnostics::export::write_diagnostics_export,

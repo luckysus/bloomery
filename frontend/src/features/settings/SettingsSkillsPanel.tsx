@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { FileCode2, LoaderCircle, Puzzle } from "lucide-react";
+import { Check, CircleAlert, FileCode2, Hash, LoaderCircle, Puzzle, RefreshCw, Tag } from "lucide-react";
 import { desktop, type SkillCatalog, type SkillSummary } from "../../bridge/desktop";
 import { useLocale } from "../../i18n/locale";
 
@@ -9,35 +9,9 @@ export default function SettingsSkillsPanel() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    void desktop.listSkills().then(setCatalog).catch((cause) => setError(String(cause))).finally(() => setLoading(false));
-  }, []);
-
-  const toggle = async (skill: SkillSummary) => {
-    setBusy(skill.name);
-    setError(null);
-    try {
-      setCatalog(await desktop.setSkillEnabled(skill.name, !skill.enabled));
-    } catch (cause) {
-      setError(String(cause));
-    } finally {
-      setBusy(null);
-    }
-  };
-
-  if (loading) return <p className="suna-settings-loading"><LoaderCircle size={16} className="suna-spin" />{t("loading")}</p>;
-  return (
-    <section className="suna-settings-extension-list" aria-labelledby="settings-skills-heading">
-      <h2 id="settings-skills-heading">{t("settingsCategorySkill")}</h2>
-      {error && <p role="alert">{error}</p>}
-      {catalog.skills.length === 0 ? <p className="suna-settings-empty"><Puzzle size={16} />{t("extensionsNoSkills")}</p> : catalog.skills.map((skill) => (
-        <article className="suna-settings-extension-row" key={`${skill.name}-${skill.source.path}`}>
-          <FileCode2 size={17} aria-hidden="true" />
-          <div><strong>{skill.name}</strong><span>{skill.description}</span></div>
-          <label><input type="checkbox" checked={skill.enabled} disabled={busy === skill.name} onChange={() => void toggle(skill)} />{skill.enabled ? t("extensionsEnabled") : t("extensionsDisabled")}</label>
-        </article>
-      ))}
-    </section>
-  );
+  const load = async () => { setLoading(true); setError(null); try { setCatalog(await desktop.listSkills()); } catch (cause) { setError(cause instanceof Error ? cause.message : "无法读取 Skill"); } finally { setLoading(false); } };
+  useEffect(() => { void load(); }, []);
+  const toggle = async (skill: SkillSummary) => { setBusy(skill.name); setError(null); try { setCatalog(await desktop.setSkillEnabled(skill.name, !skill.enabled)); } catch (cause) { setError(cause instanceof Error ? cause.message : "Skill 状态保存失败"); } finally { setBusy(null); } };
+  if (loading) return <section className="suna-settings-form-panel"><p className="suna-settings-loading"><LoaderCircle size={16} className="suna-spin" />{t("loading")}</p></section>;
+  return <section className="suna-settings-form-panel suna-settings-skill-panel" aria-labelledby="settings-skills-heading"><header className="suna-settings-form-heading"><div><span className="suna-settings-kicker">REUSABLE CAPABILITIES</span><h2 id="settings-skills-heading">{t("settingsCategorySkill")}</h2><p>管理可复用的专业研究能力、来源和加载状态。</p></div><div className="suna-settings-form-heading-actions"><button type="button" className="suna-icon-button" onClick={() => void load()} disabled={loading} aria-label="刷新 Skill"><RefreshCw size={17} /></button><Puzzle size={22} aria-hidden="true" /></div></header>{error && <p className="suna-settings-inline-error" role="alert">{error}</p>}{catalog.errors.length > 0 && <div className="suna-skill-errors">{catalog.errors.map((item) => <p key={item.path}><CircleAlert size={14} />{item.path} · {item.message}</p>)}</div>}{catalog.skills.length === 0 ? <p className="suna-settings-empty"><Puzzle size={16} />{t("extensionsNoSkills")}</p> : <div className="suna-settings-skill-list">{catalog.skills.map((skill) => <article className="suna-settings-skill-card" key={skill.name + "-" + skill.source.path}><div className="suna-settings-skill-card-head"><span className="suna-settings-skill-icon"><FileCode2 size={18} /></span><div><strong>{skill.name}</strong><p>{skill.description || "可复用的专业 Agent 能力"}</p></div><label className="suna-skill-switch"><input type="checkbox" checked={skill.enabled} disabled={busy === skill.name} onChange={() => void toggle(skill)} /><i aria-hidden="true" /></label></div><div className="suna-settings-skill-meta"><span><Tag size={13} />{skill.tags.length ? skill.tags.join(" · ") : "未分类"}</span><span>v{skill.version}</span><span>{skill.enabled ? <><Check size={13} />已启用</> : "已停用"}</span></div><div className="suna-settings-skill-details"><span>来源：{skill.source.scope === "user" ? "用户 Skill" : skill.source.scope}</span><span>兼容：{skill.compatibility.length ? skill.compatibility.join(", ") : "通用"}</span><span title={skill.content_sha256}><Hash size={12} />{skill.content_sha256.slice(0, 16)}…</span></div></article>)}</div>}</section>;
 }

@@ -1508,6 +1508,8 @@ getComputeOptimizationResult: (id: string) =>
     call<void>("delete_postgres_knowledge_edge", { edgeId }),
   getStorageHealth: () => call<StorageHealth>("get_storage_health"),
   getStoragePaths: () => call<StoragePaths>("get_storage_paths"),
+  openStoragePath: (kind: keyof StoragePaths) => call<void>("open_storage_path", { kind }),
+  clearStorageCache: (kind: "cache" | "temp") => call<number>("clear_storage_cache", { kind }),
   exportDiagnostics: (lastErrorKind?: string) =>
     call<Record<string, unknown>>("export_diagnostics", lastErrorKind ? { lastErrorKind } : undefined),
   writeDiagnosticsExport: (outputPath: string, lastErrorKind?: string) =>

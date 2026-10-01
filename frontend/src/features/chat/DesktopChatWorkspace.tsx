@@ -1,4 +1,4 @@
-import { useRef, useState, type ChangeEvent, type FormEvent, type KeyboardEvent } from "react";
+import { useEffect, useRef, useState, type ChangeEvent, type FormEvent, type KeyboardEvent } from "react";
 import {
   Archive,
   ArrowUp,
@@ -40,6 +40,7 @@ import WebFeedback from "./web/WebFeedback";
 import WebRecommendationCard from "./web/WebRecommendationCard";
 import WebTurnNavigator from "./web/WebTurnNavigator";
 import { useAppearanceSettings } from "../../settings/appearance";
+import { desktop } from "../../bridge/desktop";
 
 function isAssistant(message: Message) {
   return message.role === "agent" || message.role === "assistant";
@@ -288,6 +289,7 @@ export default function DesktopChatWorkspace({
   const [renamingTitle, setRenamingTitle] = useState("");
   const [menuId, setMenuId] = useState<string | null>(null);
   const [modelMenuOpen, setModelMenuOpen] = useState(false);
+  const [sendShortcut, setSendShortcut] = useState("Ctrl+Enter");
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesRef = useRef<HTMLDivElement>(null);
@@ -298,8 +300,30 @@ export default function DesktopChatWorkspace({
     return !search.trim() || conversation.title.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase());
   });
 
+  useEffect(() => {
+    let active = true;
+    if (typeof desktop.getSetting !== "function") return () => { active = false; };
+    void desktop.getSetting("ui.shortcuts").then((raw) => {
+      if (!active || !raw) return;
+      try {
+        const value = JSON.parse(raw) as Record<string, unknown>;
+        if (typeof value.send === "string" && value.send) setSendShortcut(value.send);
+      } catch {
+        // Keep the safe default when settings are unavailable or malformed.
+      }
+    }).catch(() => undefined);
+    return () => { active = false; };
+  }, []);
+
   const onComposerKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
-    if (event.key === "Enter" && !event.shiftKey) {
+    const parts = sendShortcut.toLowerCase().split("+");
+    const key = parts[parts.length - 1] ?? "enter";
+    const matches = event.key.toLowerCase() === key
+      && event.ctrlKey === parts.includes("ctrl")
+      && event.shiftKey === parts.includes("shift")
+      && event.altKey === parts.includes("alt")
+      && event.metaKey === parts.includes("meta");
+    if (sendShortcut !== "未设置" && matches) {
       event.preventDefault();
       event.currentTarget.form?.requestSubmit();
     }

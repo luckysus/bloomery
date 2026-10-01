@@ -8,7 +8,8 @@ use crate::rag::index::repair::{inspect_index_health, IndexHealthReport};
 use crate::storage::migrations::latest_version;
 use rusqlite::Connection;
 use serde::Serialize;
-use std::path::Path;
+use std::path::{Path, PathBuf};
+use std::process::Command;
 
 #[derive(Debug, Serialize)]
 pub struct StorageHealth {
@@ -138,6 +139,116 @@ pub fn get_index_health(
     })
 }
 
+fn storage_path(app: &tauri::AppHandle, kind: &str) -> Result<PathBuf, String> {
+    let root = app_data_directory(app)?;
+    let path = match kind {
+        "app_data" => root,
+        "sqlite_database" => root.join("suna.sqlite3"),
+        "knowledge_content" => root.join("content"),
+        "cache" => root.join("cache"),
+        "logs" => root.join("logs"),
+        "temp" => root.join("temp"),
+        _ => return Err("storage path kind is invalid".to_string()),
+    };
+    Ok(path)
+}
+
+#[cfg(windows)]
+fn is_link_or_reparse_point(metadata: &std::fs::Metadata) -> bool {
+    use std::os::windows::fs::MetadataExt;
+
+    const FILE_ATTRIBUTE_REPARSE_POINT: u32 = 0x400;
+    metadata.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT != 0
+}
+
+#[cfg(not(windows))]
+fn is_link_or_reparse_point(metadata: &std::fs::Metadata) -> bool {
+    metadata.file_type().is_symlink()
+}
+
+#[tauri::command]
+pub fn open_storage_path(app: tauri::AppHandle, kind: String) -> Result<(), String> {
+    let path = storage_path(&app, &kind)?;
+    if !path.exists()
+        && matches!(
+            kind.as_str(),
+            "app_data" | "cache" | "temp" | "logs" | "knowledge_content"
+        )
+    {
+        std::fs::create_dir_all(&path)
+            .map_err(|error| format!("create storage directory failed: {error}"))?;
+    }
+    #[cfg(windows)]
+    {
+        Command::new("explorer.exe")
+            .arg(&path)
+            .spawn()
+            .map_err(|error| format!("open storage directory failed: {error}"))?;
+    }
+    #[cfg(target_os = "macos")]
+    {
+        Command::new("open")
+            .arg(&path)
+            .spawn()
+            .map_err(|error| format!("open storage directory failed: {error}"))?;
+    }
+    #[cfg(all(unix, not(target_os = "macos")))]
+    {
+        Command::new("xdg-open")
+            .arg(&path)
+            .spawn()
+            .map_err(|error| format!("open storage directory failed: {error}"))?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub fn clear_storage_cache(app: tauri::AppHandle, kind: String) -> Result<u64, String> {
+    if !matches!(kind.as_str(), "cache" | "temp") {
+        return Err("only cache and temp directories can be cleared".to_string());
+    }
+    let path = storage_path(&app, &kind)?;
+    let metadata = match std::fs::symlink_metadata(&path) {
+        Ok(metadata) => metadata,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(0),
+        Err(error) => return Err(format!("read storage directory failed: {error}")),
+    };
+    if is_link_or_reparse_point(&metadata) {
+        return Err("refusing to clear a redirected storage directory".to_string());
+    }
+    if !metadata.is_dir() {
+        return Err("storage cache path is not a directory".to_string());
+    }
+
+    let entries = std::fs::read_dir(&path)
+        .map_err(|error| format!("read storage directory failed: {error}"))?
+        .map(|entry| {
+            entry
+                .map(|entry| entry.path())
+                .map_err(|error| format!("read storage entry failed: {error}"))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    for entry_path in &entries {
+        let metadata = std::fs::symlink_metadata(entry_path)
+            .map_err(|error| format!("read storage entry failed: {error}"))?;
+        if is_link_or_reparse_point(&metadata) {
+            return Err("refusing to clear a redirected storage entry".to_string());
+        }
+    }
+
+    let mut removed = 0_u64;
+    for entry_path in entries {
+        if entry_path.is_dir() {
+            std::fs::remove_dir_all(&entry_path)
+                .map_err(|error| format!("clear storage directory failed: {error}"))?;
+        } else {
+            std::fs::remove_file(&entry_path)
+                .map_err(|error| format!("clear storage file failed: {error}"))?;
+        }
+        removed = removed.saturating_add(1);
+    }
+    Ok(removed)
+}
 #[cfg(test)]
 mod tests {
     use super::*;

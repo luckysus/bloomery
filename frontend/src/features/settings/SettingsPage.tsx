@@ -34,17 +34,17 @@ import "./settings-v2.css";
 interface SettingsPageProps { onOpenDiagnostics?: () => void; initialTab?: SettingsTab; }
 type SettingsTab = "account" | "providers" | "general" | "appearance" | "knowledge" | "agent" | "mcp" | "skill" | "databases" | "shortcuts" | "about";
 const settingsTabs: SettingsTabOption<SettingsTab>[] = [
+  { id: "account", labelKey: "settingsCategoryAccount", icon: UserRound },
+  { id: "providers", labelKey: "settingsTabProviders", icon: Sparkles },
   { id: "general", labelKey: "settingsTabGeneral", icon: Settings2 },
   { id: "appearance", labelKey: "settingsCategoryAppearance", icon: Palette },
-  { id: "providers", labelKey: "settingsTabProviders", icon: Sparkles },
   { id: "knowledge", labelKey: "settingsCategoryKnowledge", icon: Database },
   { id: "agent", labelKey: "settingsCategoryAgent", icon: Bot },
-  { id: "databases", labelKey: "settingsTabDatabases", icon: HardDrive },
-  { id: "about", labelKey: "settingsCategoryAbout", icon: CircleHelp },
-  { id: "account", labelKey: "settingsCategoryAccount", icon: UserRound },
   { id: "mcp", labelKey: "settingsCategoryMcp", icon: Server },
   { id: "skill", labelKey: "settingsCategorySkill", icon: CircleHelp },
+  { id: "databases", labelKey: "settingsTabDatabases", icon: HardDrive },
   { id: "shortcuts", labelKey: "settingsCategoryShortcuts", icon: Keyboard },
+  { id: "about", labelKey: "settingsCategoryAbout", icon: CircleHelp },
 ];export default function SettingsPage({ onOpenDiagnostics, initialTab }: SettingsPageProps) {
   const { t } = useLocale();
   const [activeTab, setActiveTab] = useState<SettingsTab>(initialTab ?? "appearance");
