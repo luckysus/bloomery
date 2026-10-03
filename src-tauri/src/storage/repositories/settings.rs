@@ -34,17 +34,22 @@ fn contains_sensitive_value(value: &Value) -> bool {
     match value {
         Value::Object(fields) => fields.iter().any(|(key, value)| {
             let normalized = key.to_ascii_lowercase();
-            let api_field = concat!("api", "_key");
-            let pass_field = concat!("pass", "word");
-            let sensitive_name = normalized.contains(api_field)
-                || normalized == pass_field
-                || normalized.ends_with(&format!("_{}", pass_field))
-                || normalized == "token"
-                || normalized.ends_with("_token")
-                || normalized == "secret"
-                || normalized.ends_with("_secret")
-                || normalized == "authorization"
-                || normalized == "bearer";
+            // Settings imports can use either snake_case or camelCase. Fold
+            // separators before matching so apiKey/accessToken cannot bypass
+            // the generic store's credential boundary.
+            let compact = normalized
+                .chars()
+                .filter(|character| character.is_ascii_alphanumeric())
+                .collect::<String>();
+            let sensitive_name = compact == "apikey"
+                || compact.ends_with("apikey")
+                || compact.starts_with("password")
+                || compact == "token"
+                || compact.ends_with("token")
+                || compact == "secret"
+                || compact.ends_with("secret")
+                || compact.starts_with("authorization")
+                || compact == "bearer";
             (sensitive_name && value.as_str().is_some_and(|text| !text.trim().is_empty()))
                 || contains_sensitive_value(value)
         }),
@@ -176,6 +181,35 @@ mod tests {
             "local",
             "ui.preferences",
             r#"{"showAgentPanel":true}"#,
+        )
+        .is_ok());
+    }
+
+    #[test]
+    fn rejects_camel_case_and_separator_variants_of_credential_fields() {
+        let mut connection = database();
+        for (field, value) in [
+            ("apiKey", "sk-api"),
+            ("accessToken", "token-value"),
+            ("client-secret", "secret-value"),
+            ("Authorization", "Bearer token-value"),
+            ("nested", "ignored"),
+        ] {
+            let payload = if field == "nested" {
+                r#"{"nested":{"accessToken":"token-value"}}"#.to_string()
+            } else {
+                format!(r#"{{"{field}":"{value}"}}"#)
+            };
+            assert!(
+                set(&mut connection, "local", &format!("test.{field}"), &payload).is_err(),
+                "credential field {field} must be rejected"
+            );
+        }
+        assert!(set(
+            &mut connection,
+            "local",
+            "test.metadata",
+            r#"{"tokenizer":"bpe","token_count":3}"#,
         )
         .is_ok());
     }
