@@ -271,6 +271,9 @@ mod tests {
             secret_ref: None,
             enabled: true,
         };
-        assert_eq!(profile.validate().unwrap_err(), "provider model ID is too long");
+        assert_eq!(
+            profile.validate().unwrap_err(),
+            "provider model ID is too long"
+        );
     }
 }

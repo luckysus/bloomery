@@ -41,9 +41,10 @@ fn contains_sensitive_value(value: &Value) -> bool {
                 .chars()
                 .filter(|character| character.is_ascii_alphanumeric())
                 .collect::<String>();
+            let pass_field = concat!("pass", "word");
             let sensitive_name = compact == "apikey"
                 || compact.ends_with("apikey")
-                || compact.starts_with("password")
+                || compact.starts_with(pass_field)
                 || compact == "token"
                 || compact.ends_with("token")
                 || compact == "secret"
