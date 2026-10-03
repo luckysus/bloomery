@@ -601,6 +601,8 @@ async fn search(
         candidate_limit: limit as usize,
         rrf_k: 60,
         rerank_limit: limit as usize,
+        similarity_threshold: None,
+        degradation_policy: None,
         filters: Some(filters.clone()),
     };
     let secrets = app.state::<SecretState>();

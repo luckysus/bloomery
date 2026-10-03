@@ -3,7 +3,7 @@ use super::{
     cancellation::LocalAgentState,
     model::{DesktopIntentKind, LocalAgentChatRequest, StreamedLlmAnswer},
     prompt::{build_desktop_context_prompt_for_domains, build_summary_prompt},
-    routing::classify_desktop_intent,
+    routing::{classify_desktop_intent, plan_steps_for_route, selected_agent_id},
 };
 use serde_json::json;
 use uuid::Uuid;
@@ -37,6 +37,14 @@ fn knowledge_route_uses_a_local_evidence_pack_when_one_is_available() {
 
     assert_eq!(route.intent, DesktopIntentKind::KnowledgeQa);
     assert_eq!(route.unavailable_capability, None);
+}
+
+#[test]
+fn automatic_agent_selection_and_planning_follow_route() {
+    let route = classify_desktop_intent("search Q355B literature");
+    assert_eq!(selected_agent_id(&route, "master", true), "knowledge");
+    assert_eq!(selected_agent_id(&route, "master", false), "master");
+    assert_eq!(plan_steps_for_route(&route).first(), Some(&"检索知识库"));
 }
 
 #[test]

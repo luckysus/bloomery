@@ -1,5 +1,78 @@
 /* Suna desktop shell: pale research workspace with a fixed navigation rail. */
-.suna-new-app{min-height:100vh;display:flex;background:#f3f8ff;color:#132e66}.suna-new-app.is-sidebar-collapsed .suna-new-sidebar{display:none}.suna-new-sidebar{width:234px;flex:0 0 234px;display:flex;flex-direction:column;border-right:1px solid #dbe8f8;background:linear-gradient(180deg,#f5faff 0%,#edf6ff 100%)}.suna-new-brand{padding:20px 18px 15px}.suna-new-brand strong{color:#122866;font-size:24px;letter-spacing:-.04em}.suna-new-brand span:not(.suna-new-mark){color:#708bb5;font-size:10px}.suna-new-mark{width:34px;height:34px}.suna-new-create{margin:0 15px 15px;min-height:40px;border-radius:8px;background:#216bf2;box-shadow:0 5px 12px rgb(31 103 236 / 18%)}.suna-new-nav-scroll{padding:0 10px}.suna-new-nav-label{margin:6px 10px;color:#8ba2c3;font-size:10px;letter-spacing:.08em}.suna-new-nav-item{min-height:36px;padding:0 10px;border-radius:7px;color:#2a4b82;font-size:12px}.suna-new-nav-item:hover{background:#e3efff;color:#1b62da}.suna-new-nav-item.is-active{background:#2370f4;color:#fff;box-shadow:0 4px 10px rgb(34 106 235 / 18%)}.suna-new-nav-item.is-active svg{color:#fff}.suna-new-nav-indicator{display:none}.suna-new-history-list{margin:0 4px 8px}.suna-new-history-item{min-height:30px;color:#58739f;font-size:11px}.suna-new-history-item:hover,.suna-new-history-item.is-active{background:#e2efff;color:#1d5fd3}.suna-new-sidebar-bottom{padding:10px 11px 14px;border-top-color:#dbe8f8}.suna-new-bottom-link{min-height:33px;color:#4d6793}.suna-new-user{margin-top:8px;padding:10px 7px;border-top-color:#dbe8f8}.suna-new-user>span{background:#2573ed}.suna-new-main{min-width:0;background:#f3f8ff}.suna-new-header{height:58px;flex-basis:58px;padding:0 20px;border-bottom-color:#dbe8f8;background:#fff}.suna-new-breadcrumb{gap:8px;color:#1d326a;font-size:14px}.suna-new-breadcrumb>svg{color:#1e65db}.suna-header-new-button{display:grid;place-items:center;width:30px;height:30px;margin-left:8px;border:0;border-left:1px solid #dbe8f8;background:transparent;color:#1e62d8;cursor:pointer}.suna-header-model{min-height:34px;padding:0 12px;border-color:#deebfb;border-radius:8px;color:#203a76}.suna-header-icon{width:34px;height:34px;border-radius:8px;color:#172d6b}.suna-header-icon:hover,.suna-header-model:hover{background:#edf5ff;color:#1d65dc}.suna-new-content{background:#f3f8ff}.suna-new-content>.suna-chat{min-height:calc(100vh - 58px);border:0;border-radius:0;background:transparent}.suna-new-content .suna-chat-main{background:#fff}.suna-new-content .suna-chat-inspector{margin:10px 10px 10px 0;border:1px solid #dceafa;border-radius:10px;background:#fff;box-shadow:0 4px 14px rgb(30 81 153 / 5%);padding:15px 14px}.suna-new-content .suna-chat-header{min-height:56px;padding:10px 20px;border-bottom:1px solid #e3edf9}.suna-new-content .suna-chat-messages{padding:22px clamp(18px,3vw,42px) 18px}.suna-new-content .suna-chat-composer{margin:0 20px 16px;border-color:#dbe8f8;border-radius:10px;box-shadow:0 5px 16px rgb(23 72 145 / 8%)}.suna-new-content .suna-new-welcome{padding-top:44px!important}.suna-header-model-menu{border-color:#dceafa;box-shadow:0 14px 28px rgb(30 81 153 / 15%)}.suna-search-results button:hover{background:#edf5ff;color:#1d65dc}@media(max-width:1050px){.suna-new-sidebar{width:214px;flex-basis:214px}.suna-new-content>.suna-chat{grid-template-columns:minmax(0,1fr) 270px}}@media(max-width:760px){.suna-new-sidebar{width:64px;flex-basis:64px}.suna-new-brand{justify-content:center;padding:15px 8px}.suna-new-brand>div,.suna-new-create span,.suna-new-create kbd,.suna-new-nav-label,.suna-new-nav-item span:not(.suna-new-nav-indicator),.suna-new-sidebar-bottom>button:not(.suna-new-user)>:not(svg),.suna-new-user div,.suna-new-user>svg{display:none}.suna-new-create{justify-content:center;margin:0 10px 12px;padding:0}.suna-new-nav-item{justify-content:center;padding:0}.suna-new-user{justify-content:center;padding:10px 0}.suna-new-user>span{width:31px;height:31px}.suna-new-content>.suna-chat{grid-template-columns:minmax(0,1fr)}.suna-new-content .suna-chat-inspector{display:none}}
+.suna-new-app{min-height:100vh;display:flex;background:#f3f8ff;color:#132e66}.suna-new-app.is-sidebar-collapsed .suna-new-sidebar{display:none}.suna-new-sidebar{width:234px;flex:0 0 234px;display:flex;flex-direction:column;border-right:1px solid #dbe8f8;background:linear-gradient(180deg,#f5faff 0%,#edf6ff 100%)}.suna-new-brand{padding:20px 18px 15px}.suna-new-brand strong{color:#122866;font-size:calc(24px * var(--suna-ui-font-scale));letter-spacing:-.04em}.suna-new-brand span:not(.suna-new-mark){color:#708bb5;font-size:calc(10px * var(--suna-ui-font-scale))}.suna-new-mark{width:34px;height:34px}.suna-new-create{margin:0 15px 15px;min-height:40px;border-radius:8px;background:#216bf2;box-shadow:0 5px 12px rgb(31 103 236 / 18%)}.suna-new-nav-scroll{padding:0 10px}.suna-new-nav-label{margin:6px 10px;color:#8ba2c3;font-size:calc(10px * var(--suna-ui-font-scale));letter-spacing:.08em}.suna-new-nav-item{min-height:36px;padding:0 10px;border-radius:7px;color:#2a4b82;font-size:calc(12px * var(--suna-ui-font-scale))}.suna-new-nav-item:hover{background:#e3efff;color:#1b62da}.suna-new-nav-item.is-active{background:#2370f4;color:#fff;box-shadow:0 4px 10px rgb(34 106 235 / 18%)}.suna-new-nav-item.is-active svg{color:#fff}.suna-new-nav-indicator{display:none}.suna-new-history-list{margin:0 4px 8px}.suna-new-history-item{min-height:30px;color:#58739f;font-size:calc(11px * var(--suna-ui-font-scale))}.suna-new-history-item:hover,.suna-new-history-item.is-active{background:#e2efff;color:#1d5fd3}.suna-new-sidebar-bottom{padding:10px 11px 14px;border-top-color:#dbe8f8}.suna-new-bottom-link{min-height:33px;color:#4d6793}.suna-new-user{margin-top:8px;padding:10px 7px;border-top-color:#dbe8f8}.suna-new-user>span{background:#2573ed}.suna-new-main{min-width:0;background:#f3f8ff}.suna-new-header{height:58px;flex-basis:58px;padding:0 20px;border-bottom-color:#dbe8f8;background:#fff}.suna-new-breadcrumb{gap:8px;color:#1d326a;font-size:calc(14px * var(--suna-ui-font-scale))}.suna-new-breadcrumb>svg{color:#1e65db}.suna-header-new-button{display:grid;place-items:center;width:30px;height:30px;margin-left:8px;border:0;border-left:1px solid #dbe8f8;background:transparent;color:#1e62d8;cursor:pointer}.suna-header-model{min-height:34px;padding:0 12px;border-color:#deebfb;border-radius:8px;color:#203a76}.suna-header-icon{width:34px;height:34px;border-radius:8px;color:#172d6b}.suna-header-icon:hover,.suna-header-model:hover{background:#edf5ff;color:#1d65dc}.suna-new-content{background:#f3f8ff}.suna-new-content>.suna-chat{min-height:calc(100vh - 58px);border:0;border-radius:0;background:transparent}.suna-new-content .suna-chat-main{background:#fff}.suna-new-content .suna-chat-inspector{margin:10px 10px 10px 0;border:1px solid #dceafa;border-radius:10px;background:#fff;box-shadow:0 4px 14px rgb(30 81 153 / 5%);padding:15px 14px}.suna-new-content .suna-chat-header{min-height:56px;padding:10px 20px;border-bottom:1px solid #e3edf9}.suna-new-content .suna-chat-messages{padding:22px clamp(18px,3vw,42px) 18px}.suna-new-content .suna-chat-composer{margin:0 20px 16px;border-color:#dbe8f8;border-radius:10px;box-shadow:0 5px 16px rgb(23 72 145 / 8%)}.suna-new-content .suna-new-welcome{padding-top:44px!important}.suna-header-model-menu{border-color:#dceafa;box-shadow:0 14px 28px rgb(30 81 153 / 15%)}.suna-search-results button:hover{background:#edf5ff;color:#1d65dc}@media(max-width:1050px){.suna-new-sidebar{width:214px;flex-basis:214px}.suna-new-content>.suna-chat{grid-template-columns:minmax(0,1fr) 270px}}@media(max-width:760px){.suna-new-sidebar{width:64px;flex-basis:64px}.suna-new-brand{justify-content:center;padding:15px 8px}.suna-new-brand>div,.suna-new-create span,.suna-new-create kbd,.suna-new-nav-label,.suna-new-nav-item span:not(.suna-new-nav-indicator),.suna-new-sidebar-bottom>button:not(.suna-new-user)>:not(svg),.suna-new-user div,.suna-new-user>svg{display:none}.suna-new-create{justify-content:center;margin:0 10px 12px;padding:0}.suna-new-nav-item{justify-content:center;padding:0}.suna-new-user{justify-content:center;padding:10px 0}.suna-new-user>span{width:31px;height:31px}.suna-new-content>.suna-chat{grid-template-columns:minmax(0,1fr)}.suna-new-content .suna-chat-inspector{display:none}}
+/* Keep the navigation rail and content viewport bounded by the window. The
+   middle section owns scrolling so the footer actions stay visible. */
+.suna-new-app{height:100vh;overflow:hidden;}
+.suna-new-sidebar{height:100vh;min-height:0;overflow:hidden}
+.suna-new-nav-scroll{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:#b8cce6 transparent}
+.suna-new-sidebar-bottom{flex:0 0 auto;background:inherit}
+.suna-new-main{display:flex;flex-direction:column;height:100vh;min-height:0;overflow:hidden}
+.suna-new-content{flex:1 1 auto;min-height:0;overflow:auto}
+.suna-new-nav-scroll::-webkit-scrollbar{width:7px}
+.suna-new-nav-scroll::-webkit-scrollbar-thumb{border-radius:999px;background:#b8cce6}
+[data-theme="dark"] .suna-new-nav-scroll{scrollbar-color:#486488 transparent}
+[data-theme="dark"] .suna-new-nav-scroll::-webkit-scrollbar-thumb{background:#486488}
 [data-sidebar-width="narrow"] .suna-new-sidebar{width:210px;flex-basis:210px}
 [data-sidebar-width="wide"] .suna-new-sidebar{width:270px;flex-basis:270px}
 @media(max-width:1050px){[data-sidebar-width="narrow"] .suna-new-sidebar{width:200px;flex-basis:200px}[data-sidebar-width="wide"] .suna-new-sidebar{width:250px;flex-basis:250px}}
+
+/* Appearance settings apply to the new desktop shell as well as settings
+   cards. Keep the dark surface in the same blue research palette as the
+   reference preview instead of leaving the shell on light-mode literals. */
+[data-theme="dark"] .suna-new-app{background:var(--suna-bg);color:var(--suna-text)}
+[data-theme="dark"] .suna-new-sidebar{border-right-color:var(--suna-line);background:linear-gradient(180deg,#142846 0%,#101d33 100%)}
+[data-theme="dark"] .suna-new-brand strong{color:#eaf2ff}
+[data-theme="dark"] .suna-new-brand span:not(.suna-new-mark){color:#9ab1d1}
+[data-theme="dark"] .suna-new-create{background:#3f86f6;box-shadow:0 5px 12px rgba(0,0,0,.24)}
+[data-theme="dark"] .suna-new-nav-label{color:#7894bb}
+[data-theme="dark"] .suna-new-nav-item{color:#b1c5e0}
+[data-theme="dark"] .suna-new-nav-item:hover{background:#203858;color:#eaf2ff}
+[data-theme="dark"] .suna-new-nav-item.is-active{background:#347be8;color:#fff}
+[data-theme="dark"] .suna-new-history-item{color:#9db4d4}
+[data-theme="dark"] .suna-new-history-item:hover,[data-theme="dark"] .suna-new-history-item.is-active{background:#203858;color:#eaf2ff}
+[data-theme="dark"] .suna-new-sidebar-bottom{border-top-color:var(--suna-line)}
+[data-theme="dark"] .suna-new-bottom-link{color:#9db4d4}
+[data-theme="dark"] .suna-new-bottom-link:hover{background:#203858;color:#eaf2ff}
+[data-theme="dark"] .suna-new-user{border-top-color:var(--suna-line);color:var(--suna-text)}
+[data-theme="dark"] .suna-new-main,[data-theme="dark"] .suna-new-content{background:var(--suna-bg)}
+[data-theme="dark"] .suna-new-header{border-bottom-color:var(--suna-line);background:var(--suna-bg-raised)}
+[data-theme="dark"] .suna-new-breadcrumb{color:var(--suna-text)}
+[data-theme="dark"] .suna-new-breadcrumb>svg,[data-theme="dark"] .suna-header-new-button{color:#83b2ff}
+[data-theme="dark"] .suna-header-new-button{border-left-color:var(--suna-line)}
+[data-theme="dark"] .suna-header-model{border-color:var(--suna-line);background:var(--suna-bg-soft);color:var(--suna-text)}
+[data-theme="dark"] .suna-header-icon{border-color:var(--suna-line);background:var(--suna-bg-soft);color:#c6d7ef}
+[data-theme="dark"] .suna-header-icon:hover,[data-theme="dark"] .suna-header-model:hover{background:var(--suna-bg-hover);color:#fff}
+[data-theme="dark"] .suna-header-model-menu{border-color:var(--suna-line);background:var(--suna-bg-raised);box-shadow:0 14px 28px rgba(0,0,0,.32)}
+[data-theme="dark"] .suna-new-content .suna-chat-main{background:var(--suna-bg-raised)}
+[data-theme="dark"] .suna-new-content .suna-chat-inspector{border-color:var(--suna-line);background:var(--suna-bg-raised);box-shadow:0 4px 14px rgba(0,0,0,.2)}
+[data-theme="dark"] .suna-new-content .suna-chat-composer{border-color:var(--suna-line);background:var(--suna-bg-raised);box-shadow:0 5px 16px rgba(0,0,0,.24)}
+
+/* Keep the desktop shell usable in a narrow browser viewport.  The footer
+   remains outside the scrollable navigation list, so the settings and account
+   entry stay reachable while the main surface owns vertical scrolling. */
+@media(max-width:900px){
+  .suna-new-app .suna-new-sidebar{width:64px;flex-basis:64px}
+  .suna-new-brand{justify-content:center;padding:15px 8px}
+  .suna-new-brand>div,
+  .suna-new-create span,
+  .suna-new-create kbd,
+  .suna-new-nav-label,
+  .suna-new-nav-item span:not(.suna-new-nav-indicator),
+  .suna-new-sidebar-bottom>button:not(.suna-new-user)>:not(svg),
+  .suna-new-user div,
+  .suna-new-user>svg{display:none}
+  .suna-new-create{justify-content:center;margin:0 10px 12px;padding:0}
+  .suna-new-nav-item{justify-content:center;padding:0}
+  .suna-new-user{justify-content:center;padding:10px 0}
+  .suna-new-user>span{width:31px;height:31px}
+  .suna-new-content>.suna-chat{grid-template-columns:minmax(0,1fr)}
+  .suna-new-content .suna-chat-inspector{display:none}
+}
+@media(max-width:600px){
+  .suna-new-header{padding:0 10px}
+  .suna-new-breadcrumb{min-width:0;gap:5px}
+  .suna-new-breadcrumb strong{max-width:86px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .suna-new-header-actions{gap:2px}
+  .suna-header-model{max-width:108px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .suna-header-icon{width:30px}
+}

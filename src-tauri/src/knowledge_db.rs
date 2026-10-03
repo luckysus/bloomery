@@ -12,7 +12,10 @@ use crate::storage::repositories::provider_profiles;
 use crate::storage::repositories::settings;
 use crate::storage::secrets::{SecretRef, SecretState, SecretValue};
 use serde::{Deserialize, Serialize};
-use sqlx::{postgres::PgPoolOptions, PgPool, Postgres, Row, Transaction};
+use sqlx::{
+    postgres::{PgConnectOptions, PgPoolOptions, PgSslMode},
+    PgPool, Postgres, Row, Transaction,
+};
 use std::sync::Mutex;
 use std::time::Instant;
 use tauri::Manager;
@@ -25,12 +28,62 @@ const PASSWORD_NAME: &str = "knowledge_postgres_password";
 const PASSWORD_BACKUP_NAME: &str = "knowledge_postgres_password_backup";
 const KNOWLEDGE_SECRET_ID: Uuid = Uuid::from_u128(1);
 
+fn knowledge_chunk_policy_from_settings(connection: &rusqlite::Connection) -> ChunkPolicy {
+    let value = settings::get(connection, current_workspace_id(), "knowledge.preferences")
+        .ok()
+        .flatten()
+        .and_then(|raw| serde_json::from_str::<serde_json::Value>(&raw).ok())
+        .unwrap_or_default();
+    let max_tokens = value
+        .get("chunk_size")
+        .and_then(serde_json::Value::as_u64)
+        .map(|value| value.clamp(128, 4096) as usize)
+        .unwrap_or(512);
+    let target_tokens = (max_tokens.saturating_mul(3) / 4)
+        .max(1)
+        .min(max_tokens.saturating_sub(1).max(1));
+    let overlap_tokens = value
+        .get("chunk_overlap")
+        .and_then(serde_json::Value::as_u64)
+        .map(|value| (value as usize).min(target_tokens.saturating_sub(1)))
+        .unwrap_or(64);
+    ChunkPolicy {
+        version: format!("suna-v1-t{target_tokens}-m{max_tokens}-o{overlap_tokens}"),
+        target_tokens,
+        max_tokens,
+        overlap_tokens,
+        table_header_rows: 1,
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(default)]
 pub struct KnowledgeDatabaseConfig {
     pub host: String,
     pub port: u16,
     pub database: String,
     pub username: String,
+    pub ssl: bool,
+    pub vector_store: String,
+    pub embedding_model: String,
+    pub vector_dimension: u32,
+    pub index_type: String,
+}
+
+impl Default for KnowledgeDatabaseConfig {
+    fn default() -> Self {
+        Self {
+            host: "127.0.0.1".to_string(),
+            port: 5432,
+            database: "suna".to_string(),
+            username: "postgres".to_string(),
+            ssl: false,
+            vector_store: "postgresql_pgvector".to_string(),
+            embedding_model: "BAAI/bge-m3".to_string(),
+            vector_dimension: 1024,
+            index_type: "hnsw".to_string(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -506,17 +559,32 @@ fn validate_config(config: &KnowledgeDatabaseConfig) -> Result<(), String> {
     if config.port == 0 {
         return Err("PostgreSQL 端口无效".to_string());
     }
+    if config.vector_store != "postgresql_pgvector" {
+        return Err("当前仅支持 PostgreSQL + pgvector 向量存储".to_string());
+    }
+    if config.embedding_model.trim().is_empty() {
+        return Err("Embedding 模型不能为空".to_string());
+    }
+    if config.vector_dimension == 0 || config.vector_dimension > 65_536 {
+        return Err("向量维度必须在 1 到 65536 之间".to_string());
+    }
+    if !matches!(config.index_type.as_str(), "hnsw" | "ivfflat") {
+        return Err("向量索引类型无效".to_string());
+    }
     Ok(())
 }
 
 async fn connect(config: &KnowledgeDatabaseConfig, password: &str) -> Result<PgPool, String> {
     validate_config(config)?;
-    let options = sqlx::postgres::PgConnectOptions::new()
+    let mut options = PgConnectOptions::new()
         .host(config.host.trim())
         .port(config.port)
         .database(config.database.trim())
         .username(config.username.trim())
         .password(password);
+    if config.ssl {
+        options = options.ssl_mode(PgSslMode::Require);
+    }
     PgPoolOptions::new()
         .max_connections(5)
         .connect_with(options)
@@ -1064,7 +1132,13 @@ async fn import_postgres_document_inner_with_job(
         }
     };
     update_ingestion_stage_or_fail(&pool, job_id, attempt_id, "chunking").await?;
-    let chunks = match chunk_document(&parsed, &ChunkPolicy::default()) {
+    let chunk_policy = {
+        let db = app.state::<DbState>();
+        with_conn_ref(db.inner(), |connection| {
+            Ok(knowledge_chunk_policy_from_settings(connection))
+        })?
+    };
+    let chunks = match chunk_document(&parsed, &chunk_policy) {
         Ok(chunks) => chunks,
         Err(error) => {
             record_postgres_ingestion_failure(
@@ -1314,7 +1388,7 @@ async fn import_postgres_document_inner_with_job(
     .bind(&source.mime_type)
     .bind("suna")
     .bind("v1")
-    .bind(ChunkPolicy::default().version)
+    .bind(&chunk_policy.version)
     .bind(
         embedding_profile_id
             .map(|id| id.to_string())
@@ -2348,6 +2422,7 @@ pub(crate) async fn search_postgres_hybrid_pool(
     embedding: &[f32],
     limit: usize,
     rrf_k: u32,
+    similarity_threshold: Option<f32>,
     filters: Option<&PostgresKnowledgeSearchFilters>,
 ) -> Result<Vec<PostgresKnowledgeSearchHit>, String> {
     let vector = encode_pgvector(embedding)?;
@@ -2417,6 +2492,7 @@ pub(crate) async fn search_postgres_hybrid_pool(
               AND e.dimension = $6
               AND e.model_id = v.embedding_model_id
               AND v.manifest_sealed = TRUE
+              AND ($13::real IS NULL OR (1 - (e.embedding <=> $3::vector)) >= $13::real)
             ORDER BY position
             LIMIT $4
          ), scored AS (
@@ -2445,6 +2521,7 @@ pub(crate) async fn search_postgres_hybrid_pool(
     .bind(property)
     .bind(tag)
     .bind(year)
+    .bind(similarity_threshold)
     .fetch_all(pool)
     .await
     .map_err(|error| format!("PostgreSQL 混合检索失败: {}", safe_error(&error.to_string())))?;
@@ -5339,6 +5416,7 @@ mod tests {
             port: 5432,
             database: "suna".to_string(),
             username: "postgres".to_string(),
+            ..KnowledgeDatabaseConfig::default()
         };
         assert!(validate_config(&config).is_err());
     }

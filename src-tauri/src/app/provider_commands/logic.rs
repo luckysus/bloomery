@@ -6,6 +6,7 @@ use crate::providers::profiles::{
 };
 use crate::storage::repositories::provider_profiles;
 use crate::storage::secrets::{status, SecretRef, SecretStore, SecretValue, MAX_SECRET_GENERATION};
+use chrono::Utc;
 use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
 use std::time::{Duration, Instant};
@@ -168,6 +169,17 @@ pub(crate) fn save_profile(
             error.to_string(),
         ));
     }
+    connection
+        .execute(
+            "INSERT INTO settings_audit_log (user_id, action, resource, result, created_at)
+             VALUES (?1, 'model_provider.upsert', ?2, 'success', ?3)",
+            rusqlite::params![
+                workspace_id,
+                saved.profile.id.to_string(),
+                Utc::now().to_rfc3339()
+            ],
+        )
+        .map_err(|error| error.to_string())?;
     profile_response(saved, store)
 }
 
@@ -177,7 +189,15 @@ pub(crate) fn set_default_profile(
     capability: ProviderCapability,
     profile_id: Option<Uuid>,
 ) -> Result<(), String> {
-    provider_profiles::set_default(connection, workspace_id, capability, profile_id)
+    provider_profiles::set_default(connection, workspace_id, capability, profile_id)?;
+    connection
+        .execute(
+            "INSERT INTO settings_audit_log (user_id, action, resource, result, created_at)
+             VALUES (?1, 'model_provider.set_default', ?2, 'success', ?3)",
+            rusqlite::params![workspace_id, capability.as_str(), Utc::now().to_rfc3339()],
+        )
+        .map_err(|error| error.to_string())?;
+    Ok(())
 }
 
 pub(crate) fn profile_credential(
@@ -214,6 +234,13 @@ pub(crate) fn delete_profile(
     if let Err(error) = provider_profiles::delete(connection, workspace_id, id) {
         return Err(restore_deleted_generations(store, &deleted, error));
     }
+    connection
+        .execute(
+            "INSERT INTO settings_audit_log (user_id, action, resource, result, created_at)
+             VALUES (?1, 'model_provider.delete', ?2, 'success', ?3)",
+            rusqlite::params![workspace_id, id.to_string(), Utc::now().to_rfc3339()],
+        )
+        .map_err(|error| error.to_string())?;
     Ok(())
 }
 
@@ -337,7 +364,13 @@ async fn probe_base_url(
         .map_err(ProbeFailure::from)?;
         let mut request = client.get(&profile.base_url);
         if let Some(value) = credential.as_ref() {
-            request = request.bearer_auth(value.expose());
+            if profile.kind == ProviderKind::Anthropic {
+                request = request
+                    .header("x-api-key", value.expose())
+                    .header("anthropic-version", "2023-06-01");
+            } else {
+                request = request.bearer_auth(value.expose());
+            }
         }
         request.send().await.map_err(|error| {
             if error.is_timeout() {
@@ -850,6 +883,44 @@ mod tests {
         assert!(!result.ok);
         assert_eq!(result.status_code, Some(401));
         assert_eq!(result.error_code.as_deref(), Some("authentication"));
+    }
+
+    #[test]
+    fn anthropic_probe_uses_native_api_key_header() {
+        let listener = TcpListener::bind("127.0.0.1:0").expect("bind Anthropic probe");
+        let address = listener.local_addr().expect("provider address");
+        let server = thread::spawn(move || {
+            let (mut stream, _) = listener.accept().expect("accept Anthropic probe");
+            let mut request = [0_u8; 4096];
+            let size = stream.read(&mut request).expect("read Anthropic probe");
+            stream
+                .write_all(b"HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\n\r\n")
+                .expect("write Anthropic probe response");
+            String::from_utf8_lossy(&request[..size]).to_string()
+        });
+        let profile = ProviderProfile {
+            id: Uuid::new_v4(),
+            kind: ProviderKind::Anthropic,
+            display_name: "Anthropic".to_string(),
+            base_url: format!("http://{address}/v1"),
+            model_id: Some("claude-test".to_string()),
+            secret_ref: Some("api_key".to_string()),
+            enabled: true,
+        };
+        let result = tauri::async_runtime::block_on(probe_provider(
+            profile,
+            Some(SecretValue::new("sk-anthropic-test").expect("secret")),
+            None,
+        ));
+        let request = server.join().expect("join Anthropic probe");
+        assert!(result.ok);
+        assert_eq!(result.status_code, Some(404));
+        assert!(request
+            .to_ascii_lowercase()
+            .contains("x-api-key: sk-anthropic-test"));
+        assert!(!request
+            .to_ascii_lowercase()
+            .contains("authorization: bearer"));
     }
 
     #[test]

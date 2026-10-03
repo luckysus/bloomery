@@ -438,12 +438,22 @@ pub fn set_enabled(
     }
     let mut names = load_enabled_names(connection, workspace_id)?;
     if enabled {
+        validate_enabled_limit(&names, name)?;
         names.insert(name.to_string());
     } else {
         names.remove(name);
     }
     save_enabled_names(connection, workspace_id, &names)?;
     catalog(connection, workspace_id, app_version)
+}
+
+fn validate_enabled_limit(names: &BTreeSet<String>, name: &str) -> Result<(), String> {
+    if !names.contains(name) && names.len() >= MAX_ENABLED_SKILLS {
+        return Err(format!(
+            "最多同时启用 {MAX_ENABLED_SKILLS} 个 Skill，请先停用一个已启用的 Skill"
+        ));
+    }
+    Ok(())
 }
 
 fn load_skill(
@@ -784,5 +794,26 @@ mod tests {
                 home.join(".suna").join("skills"),
             )]
         );
+    }
+
+    #[test]
+    fn enabling_a_new_skill_respects_the_runtime_limit() {
+        let names = (0..MAX_ENABLED_SKILLS)
+            .map(|index| format!("skill-{index}"))
+            .collect::<BTreeSet<_>>();
+
+        let error = validate_enabled_limit(&names, "new-skill")
+            .expect_err("the skill limit must be enforced");
+        assert!(error.contains("最多同时启用"));
+    }
+
+    #[test]
+    fn re_enabling_an_existing_skill_is_idempotent_at_the_limit() {
+        let names = (0..MAX_ENABLED_SKILLS)
+            .map(|index| format!("skill-{index}"))
+            .collect::<BTreeSet<_>>();
+
+        validate_enabled_limit(&names, "skill-0")
+            .expect("an already enabled skill may remain enabled");
     }
 }

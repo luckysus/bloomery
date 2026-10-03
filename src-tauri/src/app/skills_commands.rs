@@ -1,5 +1,6 @@
 use crate::db::{current_workspace_id, with_conn, with_conn_mut, DbState};
 use crate::skills::{self, SkillCatalog};
+use crate::storage::repositories::settings;
 
 #[tauri::command]
 pub fn list_skills(db: tauri::State<DbState>) -> Result<SkillCatalog, String> {
@@ -19,12 +20,20 @@ pub fn set_skill_enabled(
     enabled: bool,
 ) -> Result<SkillCatalog, String> {
     with_conn_mut(&db, |connection| {
-        skills::set_enabled(
+        let catalog = skills::set_enabled(
             connection,
             current_workspace_id(),
             &name,
             enabled,
             env!("CARGO_PKG_VERSION"),
-        )
+        )?;
+        settings::record_audit(
+            connection,
+            current_workspace_id(),
+            "skill.update",
+            &name,
+            "success",
+        )?;
+        Ok(catalog)
     })
 }

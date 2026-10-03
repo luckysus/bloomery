@@ -57,6 +57,8 @@ pub fn build_desktop_context_prompt_for_domains(
         packet.get("recent_messages"),
     );
     push_json_section(&mut sections, "desktop_meta", packet.get("desktop_meta"));
+    push_json_section(&mut sections, "agent_profile", packet.get("agent_profile"));
+    push_json_section(&mut sections, "agent_plan", packet.get("agent_plan"));
     sections.join("\n\n")
 }
 

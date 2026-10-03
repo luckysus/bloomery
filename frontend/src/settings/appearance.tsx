@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { desktop } from "../bridge/desktop";
+import { desktop, isDesktopRuntime } from "../bridge/desktop";
 
 export type FontSizePreference = "small" | "medium" | "large";
 export type DensityPreference = "compact" | "comfortable" | "spacious";
@@ -64,6 +64,8 @@ interface AppearanceContextValue {
   updatePreferences: (next: Partial<AppearancePreferences>) => void;
   saveState: AppearanceSaveState;
   loaded: boolean;
+  loadError: string | null;
+  retryLoad: () => void;
   retrySave: () => void;
 }
 
@@ -71,7 +73,11 @@ const defaultContext: AppearanceContextValue = {
   preferences: defaultAppearancePreferences,
   updatePreferences: () => undefined,
   saveState: "idle",
-  loaded: false,
+  // Isolated previews and tests use the safe defaults immediately. The real
+  // provider still reports `false` while persisted preferences are loading.
+  loaded: true,
+  loadError: null,
+  retryLoad: () => undefined,
   retrySave: () => undefined,
 };
 
@@ -81,6 +87,8 @@ export function AppearanceProvider({ children }: { children: ReactNode }) {
   const [preferences, setPreferences] = useState(defaultAppearancePreferences);
   const [saveState, setSaveState] = useState<AppearanceSaveState>("idle");
   const [loaded, setLoaded] = useState(false);
+  const [loadNonce, setLoadNonce] = useState(0);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const pendingRef = useRef<AppearancePreferences>(defaultAppearancePreferences);
   const timerRef = useRef<number | null>(null);
   const requestRef = useRef(0);
@@ -88,6 +96,15 @@ export function AppearanceProvider({ children }: { children: ReactNode }) {
   const persist = (next: AppearancePreferences) => {
     const request = ++requestRef.current;
     setSaveState("saving");
+    if (!isDesktopRuntime()) {
+      try {
+        window.localStorage.setItem("suna.ui.preferences", JSON.stringify(next));
+        if (request === requestRef.current) setSaveState("saved");
+      } catch {
+        if (request === requestRef.current) setSaveState("error");
+      }
+      return;
+    }
     void desktop.setSetting("ui.preferences", JSON.stringify(next)).then(() => {
       if (request === requestRef.current) setSaveState("saved");
     }).catch(() => {
@@ -98,6 +115,22 @@ export function AppearanceProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let mounted = true;
     const load = async () => {
+      setLoadError(null);
+      if (!isDesktopRuntime()) {
+        try {
+          const raw = window.localStorage.getItem("suna.ui.preferences");
+        if (raw) {
+          const next = normalizePreferences(JSON.parse(raw));
+          pendingRef.current = next;
+          setPreferences(next);
+        }
+      } catch {
+          if (mounted) setLoadError("无法读取外观设置，请重试");
+        } finally {
+          if (mounted) setLoaded(true);
+        }
+        return;
+      }
       try {
         for (let attempt = 0; attempt < 3 && mounted; attempt += 1) {
           try {
@@ -108,11 +141,12 @@ export function AppearanceProvider({ children }: { children: ReactNode }) {
               pendingRef.current = next;
               setPreferences(next);
             } catch {
-              // Keep safe defaults when older or invalid settings are present.
+              if (mounted) setLoadError("外观设置格式无效，已使用默认值");
             }
             return;
           } catch {
             if (attempt < 2) await new Promise((resolve) => window.setTimeout(resolve, 150));
+            else if (mounted) setLoadError("无法读取外观设置，请重试");
           }
         }
       } finally {
@@ -123,6 +157,27 @@ export function AppearanceProvider({ children }: { children: ReactNode }) {
     return () => {
       mounted = false;
       if (timerRef.current !== null) window.clearTimeout(timerRef.current);
+    };
+  }, [loadNonce]);
+
+  useEffect(() => {
+    const apply = (next: AppearancePreferences) => {
+      pendingRef.current = next;
+      setPreferences(next);
+      setLoadError(null);
+      setSaveState("saved");
+    };
+    const reset = () => apply(defaultAppearancePreferences);
+    const changed = (event: Event) => {
+      const detail = (event as CustomEvent<{ key?: string; value?: string }>).detail;
+      if (detail?.key !== "ui.preferences" || !detail.value) return;
+      try { apply(normalizePreferences(JSON.parse(detail.value))); } catch { setLoadError("外观设置格式无效，已使用默认值"); }
+    };
+    window.addEventListener("suna:settings-reset", reset);
+    window.addEventListener("suna:setting-changed", changed);
+    return () => {
+      window.removeEventListener("suna:settings-reset", reset);
+      window.removeEventListener("suna:setting-changed", changed);
     };
   }, []);
 
@@ -138,6 +193,8 @@ export function AppearanceProvider({ children }: { children: ReactNode }) {
     preferences,
     saveState,
     loaded,
+    loadError,
+    retryLoad: () => setLoadNonce((nonce) => nonce + 1),
     updatePreferences: (partial) => {
       const next = normalizePreferences({ ...pendingRef.current, ...partial });
       pendingRef.current = next;
@@ -149,7 +206,7 @@ export function AppearanceProvider({ children }: { children: ReactNode }) {
       }, 650);
     },
     retrySave: () => persist(pendingRef.current),
-  }), [preferences, saveState, loaded]);
+  }), [preferences, saveState, loaded, loadError]);
 
   return <AppearanceContext.Provider value={value}>{children}</AppearanceContext.Provider>;
 }

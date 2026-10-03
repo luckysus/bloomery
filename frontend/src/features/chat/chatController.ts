@@ -12,6 +12,7 @@ import {
 } from "../../bridge/desktop";
 import type { PermissionDecision } from "../../bridge/generated/protocol";
 import { createAgentRunView, reduceAgentEvent, reduceAgentEvents, type AgentRunView } from "./agentEvents";
+import { useAppearanceSettings } from "../../settings/appearance";
 
 function errorMessage(error: unknown, fallback: string) {
   return error instanceof Error ? error.message : fallback;
@@ -54,6 +55,43 @@ function shouldRunSmartSearch(question: string) {
   }).length;
   const asciiTokens = value.match(/[a-z0-9][a-z0-9._/-]*/gi)?.length ?? 0;
   return cjkCount >= 4 || asciiTokens >= 2 || /钢|铁|材料|牌号|屈服|抗拉|延伸|成分|工艺|标准|文献|知识库|q\d/i.test(value);
+}
+
+function parseKnowledgePreferences(raw: string | null) {
+  try {
+    const value = JSON.parse(raw ?? "{}") as Record<string, unknown>;
+    const topK = typeof value.top_k === "number" && Number.isFinite(value.top_k)
+      ? Math.min(50, Math.max(1, Math.round(value.top_k)))
+      : 8;
+    const similarityThreshold = typeof value.similarity_threshold === "number" && Number.isFinite(value.similarity_threshold)
+      ? Math.min(1, Math.max(0, value.similarity_threshold))
+      : 0.7;
+    const rerankerEnabled = value.reranker_enabled !== false;
+    return {
+      defaultKnowledgeBase: typeof value.default_knowledge_base === "string" ? value.default_knowledge_base.trim() : "",
+      citationsEnabled: value.citations_enabled !== false,
+      retrievalOptions: {
+        lexical_limit: topK * 3,
+        dense_limit: topK * 3,
+        candidate_limit: topK,
+        rerank_limit: rerankerEnabled ? topK : 0,
+        similarity_threshold: similarityThreshold,
+        degradation_policy: value.degradation_policy === "strict" ? "strict" : "fallback",
+      },
+    };
+  } catch {
+    return { defaultKnowledgeBase: "", citationsEnabled: true, retrievalOptions: { degradation_policy: "fallback" } };
+  }
+}
+
+function notifyRunResult(title: string, body: string) {
+  if (typeof document === "undefined" || document.visibilityState !== "hidden") return;
+  if (typeof Notification === "undefined" || Notification.permission !== "granted") return;
+  try {
+    new Notification(title, { body });
+  } catch {
+    // Browser previews and older desktop shells may not expose notifications.
+  }
 }
 
 export interface ChatControllerProps {
@@ -107,6 +145,7 @@ export function useChatControllerContext() {
 
 export function useChatController(): ChatControllerProps {
   const { t } = useLocale();
+  const { preferences, loaded: appearanceLoaded } = useAppearanceSettings();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -127,6 +166,7 @@ export function useChatController(): ChatControllerProps {
   const agentViews = useRef(new Map<string, AgentRunView>());
   const replayingRuns = useRef(new Set<string>());
   const recoveredRunsRef = useRef<RecoveredRun[]>([]);
+  const loadedConversationsRef = useRef(false);
 
   const selectedConversation = useMemo(
     () => conversations.find((conversation) => conversation.id === selectedId) ?? null,
@@ -140,7 +180,8 @@ export function useChatController(): ChatControllerProps {
       setConversations(next);
       setSelectedId((current) => current && next.some((conversation) => conversation.id === current)
         ? current
-        : next[0]?.id ?? null);
+        : (preferences.restoreSession || loadedConversationsRef.current ? next[0]?.id ?? null : null));
+      loadedConversationsRef.current = true;
     } catch (cause) {
       setError(errorMessage(cause, t("chatError")));
     } finally {
@@ -153,7 +194,7 @@ export function useChatController(): ChatControllerProps {
     try {
       const [nextMessages, nextDraft] = await Promise.all([
         desktop.listMessages(conversationId),
-        desktop.getConversationDraft(conversationId),
+        preferences.saveDrafts ? desktop.getConversationDraft(conversationId) : Promise.resolve(""),
       ]);
       setMessages(nextMessages);
       setDraft(nextDraft);
@@ -181,6 +222,7 @@ export function useChatController(): ChatControllerProps {
   };
 
   useEffect(() => {
+    if (!appearanceLoaded) return;
     let mounted = true;
     void Promise.all([
       desktop.listKnowledgeBases(),
@@ -189,7 +231,14 @@ export function useChatController(): ChatControllerProps {
     ])
       .then(async ([bases, profiles, recoveries]) => {
         if (!mounted) return;
-        setKnowledgeBaseIds(bases.map((base) => base.id));
+        const knowledgePreferencesRaw = typeof desktop.getSetting === "function"
+          ? await desktop.getSetting("knowledge.preferences").catch(() => null)
+          : null;
+        const knowledgePreferences = parseKnowledgePreferences(knowledgePreferencesRaw);
+        const allKnowledgeBaseIds = bases.map((base) => base.id);
+        setKnowledgeBaseIds(knowledgePreferences.defaultKnowledgeBase && allKnowledgeBaseIds.includes(knowledgePreferences.defaultKnowledgeBase)
+          ? [knowledgePreferences.defaultKnowledgeBase]
+          : allKnowledgeBaseIds);
         const available = profiles.filter((profile) => profile.enabled && profile.model_id && ["deepseek", "open_ai_compatible", "ollama"].includes(profile.kind));
         setChatProfiles(available);
         setActiveChatProfileId((current) => current && available.some((profile) => profile.id === current)
@@ -200,12 +249,20 @@ export function useChatController(): ChatControllerProps {
         await loadConversations();
       })
       .catch((cause) => {
-        if (mounted) setError(errorMessage(cause, t("chatError")));
+        if (!mounted) return;
+        if (errorMessage(cause, "") === "Desktop runtime is unavailable") {
+          setConversations([]);
+          setSelectedId(null);
+          setMessages([]);
+          setLoading(false);
+          return;
+        }
+        setError(errorMessage(cause, t("chatError")));
       });
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [appearanceLoaded, preferences.restoreSession]);
 
   useEffect(() => {
     let mounted = true;
@@ -262,19 +319,19 @@ export function useChatController(): ChatControllerProps {
   }, [selectedId]);
 
   useEffect(() => {
-    if (!selectedId || loadingMessages || pendingQuestion !== null) return;
+    if (!preferences.saveDrafts || !selectedId || loadingMessages || pendingQuestion !== null) return;
     const timer = window.setTimeout(() => {
       void desktop.saveConversationDraft(selectedId, draft).catch((cause) => setError(errorMessage(cause, t("chatError"))));
     }, 450);
     return () => window.clearTimeout(timer);
-  }, [draft, loadingMessages, pendingQuestion, selectedId]);
+  }, [draft, loadingMessages, pendingQuestion, preferences.saveDrafts, selectedId]);
 
   const createConversation = async (initialDraft = "") => {
     setError(null);
     setNotice(null);
     try {
       const created = await desktop.createConversation(t("newConversation"));
-      if (initialDraft) await desktop.saveConversationDraft(created.id, initialDraft);
+      if (preferences.saveDrafts && initialDraft) await desktop.saveConversationDraft(created.id, initialDraft);
       setConversations((current) => [created, ...current]);
       setSelectedId(created.id);
       setMessages([]);
@@ -342,8 +399,13 @@ export function useChatController(): ChatControllerProps {
       let evidencePackId: string | undefined;
       if (smartSearchEnabled && shouldRunSmartSearch(question) && knowledgeBaseIds.length > 0) {
         try {
-          const evidencePack = await desktop.queryLocalKnowledge({ query: question, knowledge_base_ids: knowledgeBaseIds });
-          evidencePackId = evidencePack.id;
+          const knowledgePreferences = typeof desktop.getSetting === "function"
+            ? await desktop.getSetting("knowledge.preferences").then(parseKnowledgePreferences).catch(() => ({ defaultKnowledgeBase: "", citationsEnabled: true, retrievalOptions: {} }))
+            : { defaultKnowledgeBase: "", citationsEnabled: true, retrievalOptions: {} };
+          if (knowledgePreferences.citationsEnabled) {
+            const evidencePack = await desktop.queryLocalKnowledge({ query: question, knowledge_base_ids: knowledgeBaseIds, ...knowledgePreferences.retrievalOptions });
+            evidencePackId = evidencePack.id;
+          }
         } catch (cause) {
           setError(errorMessage(cause, t("chatError")));
         }
@@ -360,9 +422,13 @@ export function useChatController(): ChatControllerProps {
         if (!current || current.runId !== runId || current.assistantText || !response.answer) return current;
         return { ...current, assistantText: response.answer };
       });
+      if (preferences.notifications) {
+        notifyRunResult("Suna", response.status === "completed" ? t("runtimeReady") : t("chatError"));
+      }
       await refreshConversation(conversationId);
     } catch (cause) {
       setError(errorMessage(cause, t("chatError")));
+      if (preferences.notifications) notifyRunResult("Suna", t("chatError"));
       if (conversationId) await refreshConversation(conversationId).catch(() => undefined);
     } finally {
       setPendingQuestion(null);
@@ -423,9 +489,13 @@ export function useChatController(): ChatControllerProps {
       setAgentRun((current) => current?.runId === runId && !current.assistantText && response.answer
         ? { ...current, assistantText: response.answer }
         : current);
+      if (preferences.notifications) {
+        notifyRunResult("Suna", response.status === "completed" ? t("runtimeReady") : t("chatError"));
+      }
       await refreshConversation(selectedId);
     } catch (cause) {
       setError(errorMessage(cause, t("chatError")));
+      if (preferences.notifications) notifyRunResult("Suna", t("chatError"));
       await refreshConversation(selectedId).catch(() => undefined);
     } finally {
       setPendingQuestion(null);

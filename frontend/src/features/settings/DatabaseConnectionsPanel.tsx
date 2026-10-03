@@ -19,6 +19,7 @@ import {
   type DatabaseConnectionSummary,
 } from "../../bridge/desktop";
 import { useLocale } from "../../i18n/locale";
+import { settingsErrorMessage } from "./settingsError";
 
 type Draft = {
   id: string | null;
@@ -43,7 +44,7 @@ const emptyDraft = (): Draft => ({
 });
 
 function errorMessage(error: unknown, fallback: string) {
-  return error instanceof Error ? error.message : fallback;
+  return settingsErrorMessage(error, fallback);
 }
 
 function updateConnection(connections: DatabaseConnectionSummary[], next: DatabaseConnectionSummary) {
@@ -224,7 +225,7 @@ export default function DatabaseConnectionsPanel() {
         <div className="suna-mcp-form-actions"><button type="submit" className="suna-secondary-button" disabled={busy === "save"}><Save size={15} aria-hidden="true" />{busy === "save" ? t("settingsDatabaseSaving") : t("settingsDatabaseSave")}</button>{draft.id && <button type="button" className="suna-icon-button" onClick={() => setDraft(emptyDraft())} aria-label={t("settingsDatabaseCancelEdit")} title={t("settingsDatabaseCancelEdit")}><CircleX size={17} aria-hidden="true" /></button>}</div>
       </form>
 
-      {connections.length === 0 ? <div className="suna-extensions-empty"><Database size={18} aria-hidden="true" /><span>{t("settingsDatabaseEmpty")}</span></div> : <div className="suna-mcp-list">
+      {loading ? <div className="suna-settings-loading" role="status"><Database size={18} aria-hidden="true" />{t("loading")}</div> : connections.length === 0 ? <div className="suna-extensions-empty"><Database size={18} aria-hidden="true" /><span>{t("settingsDatabaseEmpty")}</span></div> : <div className="suna-mcp-list">
         {connections.map((connection) => {
           const result = testResults[connection.id];
           const connectionTables = tables[connection.id] ?? [];
@@ -234,7 +235,7 @@ export default function DatabaseConnectionsPanel() {
               {connection.last_checked_at && (
                 <p className={connection.last_error ? "suna-mcp-error" : "suna-mcp-health is-healthy"}>
                   {connection.last_error
-                    ? `${t("settingsDatabaseLastChecked")}: ${connection.last_error}`
+                    ? `${t("settingsDatabaseLastChecked")}: ${errorMessage(connection.last_error, t("settingsDatabaseTestFailed"))}`
                     : `${connection.last_version ?? ""} · ${t("settingsDatabaseLatency", { ms: connection.last_latency_ms ?? 0 })}`}
                 </p>
               )}

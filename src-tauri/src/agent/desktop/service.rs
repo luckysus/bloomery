@@ -114,6 +114,9 @@ pub fn prepare_chat(
         .transpose()?
         .unwrap_or_else(Uuid::new_v4);
     let agent_preferences = load_agent_preferences(conn, workspace_id)?;
+    if !agent_preferences.allow_file_access && !request.attachments.is_empty() {
+        return Err("文件访问已在 Agent 设置中关闭，不能处理附件".to_string());
+    }
     let conversation_id = super::session::resolve_conversation(
         conn,
         workspace_id,
@@ -132,7 +135,26 @@ pub fn prepare_chat(
     let mut packet = packet;
     let evidence_pack = load_evidence_pack_reference(conn, workspace_id, request.evidence_pack_id)?;
     let route = super::routing::route_with_evidence_pack(classified_route, evidence_pack.is_some());
+    let selected_agent = super::routing::selected_agent_id(
+        &route,
+        &agent_preferences.default_agent,
+        agent_preferences.auto_select_agent,
+    );
     packet["desktop_route"] = super::routing::route_to_json(&route);
+    packet["agent_profile"] = serde_json::json!({
+        "default_id": agent_preferences.default_agent,
+        "auto_select": agent_preferences.auto_select_agent,
+        "selected_id": selected_agent,
+        "auto_plan": agent_preferences.auto_plan,
+        "auto_knowledge": agent_preferences.auto_knowledge,
+        "auto_tools": agent_preferences.auto_tools,
+    });
+    if agent_preferences.auto_plan {
+        packet["agent_plan"] = serde_json::json!({
+            "enabled": true,
+            "steps": super::routing::plan_steps_for_route(&route),
+        });
+    }
     if let Some(pack) = &evidence_pack {
         packet["evidence_pack"] = serde_json::to_value(pack).map_err(|error| error.to_string())?;
     }

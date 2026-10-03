@@ -19,7 +19,6 @@ import {
   RotateCcw,
   Search,
   ShieldAlert,
-  Sparkles,
   Square,
   Trash2,
   Wrench,
@@ -41,6 +40,7 @@ import WebRecommendationCard from "./web/WebRecommendationCard";
 import WebTurnNavigator from "./web/WebTurnNavigator";
 import { useAppearanceSettings } from "../../settings/appearance";
 import { desktop } from "../../bridge/desktop";
+import SunaLogo from "../../components/SunaLogo";
 
 function isAssistant(message: Message) {
   return message.role === "agent" || message.role === "assistant";
@@ -475,7 +475,7 @@ export default function DesktopChatWorkspace({
             <div className="suna-chat-empty"><LoaderCircle size={20} className="suna-spin" /><span>{t("loading")}</span></div>
           ) : controller.messages.length === 0 && controller.pendingQuestion === null ? (
             <div className="suna-chat-empty suna-chat-empty-large suna-new-welcome">
-              <div className="suna-welcome-brand"><span className="suna-welcome-mark"><Sparkles size={27} /></span><div><strong>Suna</strong><small>钢铁材料智能体平台</small></div></div>
+              <div className="suna-welcome-brand"><span className="suna-welcome-mark"><SunaLogo size={58} title="Suna" /></span><div><strong>Suna</strong><small>钢铁材料智能体平台</small></div></div>
               <h1>你好，我是 <em>Suna</em></h1>
               <span className="suna-welcome-compat-copy">从一个具体问题开始</span>
               <span className="suna-welcome-compat-copy">例如：比较 Q345B 与 Q355B 的屈服强度要求，并指出适用标准。</span>
@@ -616,6 +616,7 @@ export default function DesktopChatWorkspace({
       {preferences.showAgentPanel && <AgentRunInspector
           run={controller.agentRun}
           recovery={controller.recovery}
+          showToolDetails={preferences.showToolDetails}
           onResolvePermission={controller.onResolvePermission}
           onRetry={controller.onRetry}
           onResume={controller.onResume}

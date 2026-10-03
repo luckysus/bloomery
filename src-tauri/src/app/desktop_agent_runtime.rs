@@ -1,10 +1,11 @@
 use crate::agent::desktop::StreamedLlmAnswer;
 use crate::agent::protocol::{AgentEventData, AgentRunState, PermissionDecision, RunOutcome};
 use crate::agent::runtime::{
-    AgentContextCheckpoint, AgentLoop, AgentLoopResume, CompositeToolExecutor, DomainToolExecutor,
-    ModelAdapter, PermissionFuture, PermissionRequest, PermissionResolver, ProviderModelAdapter,
-    ResumableToolCall, RuntimeHost, SkillTool, SnapshotToolExecutor, SqliteAgentEventSink,
-    SqliteChildTurnStore, SubagentTool, TodoTracker, TurnSnapshot,
+    AgentContextCheckpoint, AgentLoop, AgentLoopResume, CancellationToken, CompositeToolExecutor,
+    DomainToolExecutor, ModelAdapter, PermissionFuture, PermissionRequest, PermissionResolver,
+    ProviderModelAdapter, ResumableToolCall, RuntimeHost, SkillTool, SnapshotToolExecutor,
+    SqliteAgentEventSink, SqliteChildTurnStore, SubagentTool, TodoTracker, ToolExecutionError,
+    ToolExecutor, ToolFuture, ToolInvocation, ToolRegistration, TurnSnapshot,
 };
 use crate::app::mcp_agent_runtime::load_enabled_tools_for_query;
 use crate::db::database_path;
@@ -28,6 +29,122 @@ fn should_load_agent_tools(smart_search_enabled: bool, has_evidence_pack: bool) 
 struct PreferencePermissionResolver {
     inner: Arc<dyn PermissionResolver>,
     confirm_dangerous: bool,
+}
+
+/// Applies the capability switches from the Agent settings to the tool
+/// snapshot that is exposed to the model. Keeping this boundary in the
+/// runtime means a persisted setting cannot become a UI-only preference.
+struct CapabilityToolExecutor<'a> {
+    inner: &'a dyn ToolExecutor,
+    registrations: Vec<ToolRegistration>,
+}
+
+impl<'a> CapabilityToolExecutor<'a> {
+    fn new(
+        inner: &'a dyn ToolExecutor,
+        preferences: &crate::agent::desktop::AgentPreferences,
+    ) -> Self {
+        let registrations = inner
+            .registrations()
+            .iter()
+            .filter(|registration| capability_allows(registration, preferences))
+            .cloned()
+            .collect();
+        Self {
+            inner,
+            registrations,
+        }
+    }
+}
+
+impl ToolExecutor for CapabilityToolExecutor<'_> {
+    fn registrations(&self) -> &[ToolRegistration] {
+        &self.registrations
+    }
+
+    fn execute(&self, invocation: ToolInvocation, cancellation: CancellationToken) -> ToolFuture {
+        if self.registrations.iter().any(|registration| {
+            registration.spec.id == invocation.tool_id
+                && registration.spec.name == invocation.tool_name
+        }) {
+            self.inner.execute(invocation, cancellation)
+        } else {
+            Box::pin(async {
+                Err(ToolExecutionError::new(
+                    "agent_capability_disabled",
+                    "the tool is disabled by Agent capability settings",
+                ))
+            })
+        }
+    }
+}
+
+fn capability_allows(
+    registration: &ToolRegistration,
+    preferences: &crate::agent::desktop::AgentPreferences,
+) -> bool {
+    let id = registration.spec.id.to_ascii_lowercase();
+    let name = registration.spec.name.to_ascii_lowercase();
+    let text = format!("{id} {name}");
+    if !preferences.allow_mcp && id.starts_with("mcp.") {
+        return false;
+    }
+    if !preferences.allow_file_access
+        && [
+            "read_file",
+            "write_file",
+            "process_literature",
+            "export_data",
+        ]
+        .iter()
+        .any(|term| text.contains(term))
+    {
+        return false;
+    }
+    if !preferences.allow_shell
+        && ["shell", "terminal", "exec", "command"]
+            .iter()
+            .any(|term| text.contains(term))
+    {
+        return false;
+    }
+    // A disabled network capability removes MCP tools as well as explicitly
+    // network-facing tools. The configured model endpoint is checked below.
+    if !preferences.allow_network
+        && (id.starts_with("mcp.")
+            || ["http", "https", "fetch", "browser", "web_request"]
+                .iter()
+                .any(|term| text.contains(term)))
+    {
+        return false;
+    }
+    if !preferences.allow_database
+        && [
+            "query_production_data",
+            "query_composition_standard",
+            "query_process_standard",
+            "database",
+        ]
+        .iter()
+        .any(|term| text.contains(term))
+    {
+        return false;
+    }
+    true
+}
+
+fn is_local_endpoint(base_url: &str) -> bool {
+    let value = base_url.trim().to_ascii_lowercase();
+    [
+        "http://localhost",
+        "https://localhost",
+        "http://127.0.0.1",
+        "https://127.0.0.1",
+        "http://[::1]",
+        "https://[::1]",
+    ]
+    .iter()
+    .any(|prefix| value.starts_with(prefix))
 }
 
 impl PermissionResolver for PreferencePermissionResolver {
@@ -161,6 +278,8 @@ async fn run_standard_agent_inner(
     let database = database_path(app)?;
     let (mut connection, _) = crate::storage::database::open(&database)
         .map_err(|error| format!("open agent runtime database failed: {error}"))?;
+    let model_preferences =
+        crate::agent::desktop::load_model_runtime_preferences(&connection, workspace_id)?;
     let persistent_permission_keys =
         crate::storage::repositories::permissions::list(&connection, workspace_id)
             .map_err(|error| format!("load permission rules failed: {error}"))?
@@ -182,14 +301,21 @@ async fn run_standard_agent_inner(
     agent_state.load_always_permission_keys(persistent_permission_keys);
     let (profile, credential) =
         crate::agent::desktop::provider_profile_from_config(&preparation.config)?;
+    if !preparation.agent_preferences.allow_network
+        && !is_local_endpoint(&preparation.config.base_url)
+    {
+        return Err("网络访问已在 Agent 设置中关闭，当前模型地址不是本机地址".to_string());
+    }
     let provider = configured_chat_provider(profile, credential)
         .map_err(|error| format!("configure local chat provider failed: {error}"))?;
-    let tool_calls_enabled = provider.capabilities().tool_calls;
+    let tool_calls_enabled =
+        provider.capabilities().tool_calls && preparation.agent_preferences.auto_tools;
     let model = Arc::new(ProviderModelAdapter::new(provider));
-    let retrieval_tools_enabled = should_load_agent_tools(
-        preparation.smart_search_enabled,
-        preparation.evidence_pack.is_some(),
-    );
+    let retrieval_tools_enabled = preparation.agent_preferences.auto_knowledge
+        && should_load_agent_tools(
+            preparation.smart_search_enabled,
+            preparation.evidence_pack.is_some(),
+        );
     let steel_tools = if retrieval_tools_enabled {
         let optimization_gateway = std::sync::Arc::new(
             crate::app::compute_commands::gateway::DesktopOptimizationGateway::new(
@@ -241,8 +367,10 @@ async fn run_standard_agent_inner(
     }
     let combined_tools = CompositeToolExecutor::try_new(tool_sources)
         .map_err(|error| format!("combine Agent tools failed: {error}"))?;
+    let capability_tools =
+        CapabilityToolExecutor::new(&combined_tools, &preparation.agent_preferences);
     let domain_tools =
-        DomainToolExecutor::new_for_domains(&combined_tools, &preparation.active_domains);
+        DomainToolExecutor::new_for_domains(&capability_tools, &preparation.active_domains);
     let child_tools: Arc<dyn crate::agent::runtime::ToolExecutor> =
         Arc::new(SnapshotToolExecutor::from(&domain_tools));
     let permissions: Arc<dyn crate::agent::runtime::PermissionResolver> =
@@ -293,6 +421,16 @@ async fn run_standard_agent_inner(
         &preparation.attachments,
     );
     request.limits = preparation.agent_preferences.loop_limits();
+    request.limits.deadline_ms = Some(model_preferences.timeout_seconds.saturating_mul(1_000));
+    request.limits.model_temperature = (model_preferences.temperature * 1000.0).round() as u16;
+    request.limits.model_max_tokens = Some(model_preferences.max_tokens);
+    request.limits.context_budget = Some(
+        request
+            .limits
+            .context_budget
+            .unwrap_or(model_preferences.context_length)
+            .min(model_preferences.context_length),
+    );
     if let Some(message) = mailbox_message.as_ref() {
         crate::agent::desktop::add_mailbox_context(&mut request, message);
     }
@@ -817,9 +955,41 @@ fn update_tool_call(
 
 #[cfg(test)]
 mod tests {
+    use super::capability_allows;
+    use crate::agent::desktop::AgentPreferences;
     use crate::agent::protocol::{AgentEventData, ToolCompleted, ToolOutcome, ToolRequested};
+    use crate::agent::runtime::{
+        CancellationToken, ToolExecutionError, ToolFuture, ToolHandler, ToolRegistration,
+    };
+    use crate::agent::tool_repair::ToolSpec;
     use serde_json::json;
+    use std::sync::Arc;
     use uuid::Uuid;
+
+    struct NoopHandler;
+
+    impl ToolHandler for NoopHandler {
+        fn execute(
+            &self,
+            _arguments: serde_json::Value,
+            _cancellation: CancellationToken,
+        ) -> ToolFuture {
+            Box::pin(async { Err(ToolExecutionError::new("test", "test")) })
+        }
+    }
+
+    fn registration(id: &str, name: &str) -> ToolRegistration {
+        ToolRegistration::new(
+            ToolSpec {
+                id: id.to_string(),
+                name: name.to_string(),
+                input_schema: json!({"type": "object"}),
+                risk: crate::agent::protocol::PermissionRisk::Automatic,
+            },
+            true,
+            Arc::new(NoopHandler),
+        )
+    }
 
     #[test]
     fn local_agent_tools_require_explicit_search_and_evidence() {
@@ -827,6 +997,43 @@ mod tests {
         assert!(!super::should_load_agent_tools(true, false));
         assert!(!super::should_load_agent_tools(false, true));
         assert!(super::should_load_agent_tools(true, true));
+    }
+
+    #[test]
+    fn capability_preferences_remove_disabled_tool_classes() {
+        let mut preferences = AgentPreferences::default();
+        preferences.allow_file_access = false;
+        preferences.allow_shell = false;
+        preferences.allow_network = false;
+        preferences.allow_mcp = false;
+        preferences.allow_database = false;
+        assert!(!capability_allows(
+            &registration("mcp.files.read", "read_file"),
+            &preferences
+        ));
+        assert!(!capability_allows(
+            &registration("builtin.exec", "run_command"),
+            &preferences
+        ));
+        assert!(!capability_allows(
+            &registration("mcp.web.fetch", "fetch"),
+            &preferences
+        ));
+        assert!(!capability_allows(
+            &registration("steel.query_production_data", "query_production_data"),
+            &preferences
+        ));
+        assert!(capability_allows(
+            &registration("steel.knowledge_search", "knowledge_search"),
+            &preferences
+        ));
+    }
+
+    #[test]
+    fn local_endpoint_detection_allows_loopback_only_when_network_is_disabled() {
+        assert!(super::is_local_endpoint("http://localhost:11434/v1"));
+        assert!(super::is_local_endpoint("http://127.0.0.1:8080"));
+        assert!(!super::is_local_endpoint("https://api.example.com/v1"));
     }
 
     #[test]

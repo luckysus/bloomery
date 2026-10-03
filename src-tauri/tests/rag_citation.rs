@@ -196,6 +196,8 @@ fn config() -> RetrievalConfigSnapshot {
         dense_limit: 30,
         candidate_limit: 10,
         rrf_k: 60,
+        similarity_threshold: None,
+        degradation_policy: None,
         embedding_provider_profile_id: "33333333-3333-4333-8333-333333333333".to_string(),
         embedding_model_id: "BAAI/bge-m3".to_string(),
         embedding_degradation: None,

@@ -692,6 +692,10 @@ pub fn default_openai_base_url(provider: &str) -> Option<&'static str> {
     let provider = provider.trim();
     if provider.eq_ignore_ascii_case("deepseek") {
         Some("https://api.deepseek.com")
+    } else if provider.eq_ignore_ascii_case("anthropic") {
+        Some("https://api.anthropic.com/v1")
+    } else if provider.eq_ignore_ascii_case("qwen") {
+        Some("https://dashscope.aliyuncs.com/compatible-mode/v1")
     } else if provider.eq_ignore_ascii_case("openai") {
         Some("https://api.openai.com/v1")
     } else {

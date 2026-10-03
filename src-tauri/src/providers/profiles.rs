@@ -9,6 +9,8 @@ use uuid::Uuid;
 #[serde(rename_all = "snake_case")]
 pub enum ProviderKind {
     OpenAiCompatible,
+    Anthropic,
+    Qwen,
     DeepSeek,
     Ollama,
     #[serde(rename = "siliconflow")]
@@ -21,6 +23,8 @@ impl ProviderKind {
     pub fn as_str(self) -> &'static str {
         match self {
             Self::OpenAiCompatible => "open_ai_compatible",
+            Self::Anthropic => "anthropic",
+            Self::Qwen => "qwen",
             Self::DeepSeek => "deepseek",
             Self::Ollama => "ollama",
             Self::SiliconFlow => "siliconflow",
@@ -30,7 +34,7 @@ impl ProviderKind {
 
     pub fn supports(self, capability: ProviderCapability) -> bool {
         match self {
-            Self::OpenAiCompatible | Self::Ollama => {
+            Self::OpenAiCompatible | Self::Anthropic | Self::Qwen | Self::Ollama => {
                 matches!(
                     capability,
                     ProviderCapability::Chat | ProviderCapability::Embedding
@@ -54,6 +58,8 @@ impl FromStr for ProviderKind {
     fn from_str(value: &str) -> Result<Self, Self::Err> {
         match value {
             "open_ai_compatible" => Ok(Self::OpenAiCompatible),
+            "anthropic" => Ok(Self::Anthropic),
+            "qwen" => Ok(Self::Qwen),
             "deepseek" => Ok(Self::DeepSeek),
             "ollama" => Ok(Self::Ollama),
             "siliconflow" => Ok(Self::SiliconFlow),
@@ -154,7 +160,11 @@ pub fn resolve_chat_profile(
     model_id: &str,
 ) -> Result<ProviderProfile, String> {
     let provider = provider.trim();
-    let kind = if provider.eq_ignore_ascii_case("deepseek") {
+    let kind = if provider.eq_ignore_ascii_case("anthropic") {
+        ProviderKind::Anthropic
+    } else if provider.eq_ignore_ascii_case("qwen") {
+        ProviderKind::Qwen
+    } else if provider.eq_ignore_ascii_case("deepseek") {
         ProviderKind::DeepSeek
     } else if provider.eq_ignore_ascii_case("ollama") {
         ProviderKind::Ollama
@@ -211,4 +221,35 @@ fn normalize_optional(value: Option<String>) -> Option<String> {
     value
         .map(|value| value.trim().to_string())
         .filter(|value| !value.is_empty())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{resolve_chat_profile, ProviderCapability, ProviderKind};
+
+    #[test]
+    fn supports_documented_chat_provider_types() {
+        for (name, kind, base_url) in [
+            (
+                "anthropic",
+                ProviderKind::Anthropic,
+                "https://api.anthropic.com/v1",
+            ),
+            (
+                "qwen",
+                ProviderKind::Qwen,
+                "https://dashscope.aliyuncs.com/compatible-mode/v1",
+            ),
+            (
+                "deepseek",
+                ProviderKind::DeepSeek,
+                "https://api.deepseek.com",
+            ),
+        ] {
+            let profile = resolve_chat_profile(name, "", "model").expect("provider profile");
+            assert_eq!(profile.kind, kind);
+            assert_eq!(profile.base_url, base_url);
+            assert!(profile.kind.supports(ProviderCapability::Chat));
+        }
+    }
 }

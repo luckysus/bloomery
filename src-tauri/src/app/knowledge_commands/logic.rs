@@ -22,7 +22,9 @@ use crate::rag::ingest::{
 };
 use crate::rag::model::{KnowledgeBaseId, SourceDocumentId};
 use crate::rag::parse::{parse_document, DocumentBlock, ParseLimits};
-use crate::rag::rerank::{rerank_candidates, RerankDegradationReason, RerankProviderState};
+use crate::rag::rerank::{
+    rerank_candidates, RerankDegradationReason, RerankOutcome, RerankProviderState,
+};
 use crate::rag::retrieve::{retrieve, HybridSearchRequest, RetrievedChunk};
 use crate::storage::repositories::domains;
 use crate::storage::repositories::knowledge::{
@@ -89,6 +91,10 @@ pub struct LocalKnowledgeQueryRequest {
     #[serde(default = "default_rerank_limit")]
     pub rerank_limit: usize,
     #[serde(default)]
+    pub similarity_threshold: Option<f32>,
+    #[serde(default)]
+    pub degradation_policy: Option<String>,
+    #[serde(default)]
     pub filters: Option<PostgresKnowledgeSearchFilters>,
 }
 
@@ -111,7 +117,23 @@ impl LocalKnowledgeQueryRequest {
         {
             return Err("knowledge retrieval limits are invalid".to_string());
         }
+        if self
+            .similarity_threshold
+            .is_some_and(|value| !value.is_finite() || !(0.0..=1.0).contains(&value))
+        {
+            return Err("knowledge similarity threshold is invalid".to_string());
+        }
+        if let Some(policy) = self.degradation_policy.as_mut() {
+            *policy = policy.trim().to_ascii_lowercase();
+            if !matches!(policy.as_str(), "fallback" | "strict") {
+                return Err("knowledge degradation policy is invalid".to_string());
+            }
+        }
         Ok(())
+    }
+
+    fn allows_embedding_fallback(&self) -> bool {
+        self.degradation_policy.as_deref() != Some("strict")
     }
 }
 
@@ -479,6 +501,9 @@ pub(crate) async fn query_postgres_knowledge(
         );
         drop(connection);
         let Some(record) = embedding_record else {
+            if !request.allows_embedding_fallback() {
+                return Err("Embedding 未配置，严格模式已阻止降级到全文检索".to_string());
+            }
             return query_postgres_knowledge_with_pool_degradation(
                 pool,
                 request,
@@ -489,6 +514,11 @@ pub(crate) async fn query_postgres_knowledge(
         let provider = match prepare_embedding_provider(&record, secrets.store(), retrieval_plan) {
             Ok(provider) => provider,
             Err(error) => {
+                if !request.allows_embedding_fallback() {
+                    return Err(format!(
+                        "Embedding 配置不可用，严格模式已阻止降级到全文检索: {error}"
+                    ));
+                }
                 return query_postgres_knowledge_with_pool_degradation(
                     pool,
                     request,
@@ -500,6 +530,11 @@ pub(crate) async fn query_postgres_knowledge(
         let response = match provider.embed(vec![request.query.clone()]).await {
             Ok(response) => response,
             Err(error) => {
+                if !request.allows_embedding_fallback() {
+                    return Err(format!(
+                        "Embedding 请求失败，严格模式已阻止降级到全文检索: {error}"
+                    ));
+                }
                 return query_postgres_knowledge_with_pool_degradation(
                     pool,
                     request,
@@ -509,6 +544,9 @@ pub(crate) async fn query_postgres_knowledge(
             }
         };
         let Some(vector) = response.vectors.into_iter().next() else {
+            if !request.allows_embedding_fallback() {
+                return Err("Embedding 返回空向量，严格模式已阻止降级到全文检索".to_string());
+            }
             return query_postgres_knowledge_with_pool_degradation(
                 pool,
                 request,
@@ -517,6 +555,9 @@ pub(crate) async fn query_postgres_knowledge(
             .await;
         };
         if vector.is_empty() || vector.iter().any(|value| !value.is_finite()) {
+            if !request.allows_embedding_fallback() {
+                return Err("Embedding 返回无效向量，严格模式已阻止降级到全文检索".to_string());
+            }
             return query_postgres_knowledge_with_pool_degradation(
                 pool,
                 request,
@@ -535,6 +576,7 @@ pub(crate) async fn query_postgres_knowledge(
                     &vector,
                     request.candidate_limit,
                     request.rrf_k,
+                    request.similarity_threshold,
                     request.filters.as_ref(),
                 )
                 .await?,
@@ -544,12 +586,11 @@ pub(crate) async fn query_postgres_knowledge(
         hits.truncate(request.candidate_limit);
         let chunks = postgres_hits_to_chunks(hits)?;
         let reranker = prepare_reranker(rerank_record, secrets.store(), retrieval_plan);
-        let reranked = rerank_candidates(
+        let reranked = rerank_or_passthrough(
             &request.query,
             chunks,
             reranker.state(),
             request.rerank_limit,
-            &|| false,
         )
         .await;
         return persist_postgres_evidence_pack(
@@ -561,6 +602,8 @@ pub(crate) async fn query_postgres_knowledge(
                 dense_limit: request.dense_limit,
                 candidate_limit: request.candidate_limit,
                 rrf_k: request.rrf_k,
+                similarity_threshold: request.similarity_threshold,
+                degradation_policy: request.degradation_policy.clone(),
                 embedding_provider_profile_id: record.profile.id.to_string(),
                 embedding_model_id: response.model_id,
                 embedding_degradation: None,
@@ -607,8 +650,12 @@ fn postgres_hits_to_chunks(
 
 pub(crate) async fn query_postgres_knowledge_with_pool(
     pool: sqlx::PgPool,
-    request: LocalKnowledgeQueryRequest,
+    mut request: LocalKnowledgeQueryRequest,
 ) -> Result<EvidencePack, String> {
+    request.validate()?;
+    if request.dense_limit > 0 && !request.allows_embedding_fallback() {
+        return Err("当前连接不支持 Embedding 检索，严格模式已阻止降级到全文检索".to_string());
+    }
     query_postgres_knowledge_with_pool_degradation(
         pool,
         request,
@@ -743,6 +790,8 @@ async fn query_postgres_knowledge_with_pool_degradation(
             dense_limit: 0,
             candidate_limit: request.candidate_limit,
             rrf_k: request.rrf_k,
+            similarity_threshold: request.similarity_threshold,
+            degradation_policy: request.degradation_policy.clone(),
             embedding_provider_profile_id: "postgresql".to_string(),
             embedding_model_id: "tsvector".to_string(),
             embedding_degradation,
@@ -846,6 +895,9 @@ pub(crate) async fn query_local_knowledge_from_path(
     }?;
     drop(connection);
     let Some(embedding_record) = embedding_record else {
+        if !request.allows_embedding_fallback() {
+            return Err("Embedding 未配置，严格模式已阻止降级到全文检索".to_string());
+        }
         let connection = open_query_connection(&path)?;
         return query_local_knowledge_fts_fallback(
             &connection,
@@ -877,6 +929,11 @@ pub(crate) async fn query_local_knowledge_from_path(
         match prepare_embedding_provider(&embedding_record, secrets, retrieval_plan) {
             Ok(provider) => provider,
             Err(error) => {
+                if !request.allows_embedding_fallback() {
+                    return Err(format!(
+                        "Embedding 配置不可用，严格模式已阻止降级到全文检索: {error}"
+                    ));
+                }
                 let connection = open_query_connection(&path)?;
                 return query_local_knowledge_fts_fallback(
                     &connection,
@@ -897,6 +954,11 @@ pub(crate) async fn query_local_knowledge_from_path(
     let embedding = match embedding_provider.embed(vec![request.query.clone()]).await {
         Ok(value) => value,
         Err(error) => {
+            if !request.allows_embedding_fallback() {
+                return Err(format!(
+                    "Embedding 请求失败，严格模式已阻止降级到全文检索: {error}"
+                ));
+            }
             let connection = open_query_connection(&path)?;
             return query_local_knowledge_fts_fallback(
                 &connection,
@@ -917,6 +979,9 @@ pub(crate) async fn query_local_knowledge_from_path(
         || embedding.vectors[0].is_empty()
         || embedding.vectors[0].iter().any(|value| !value.is_finite())
     {
+        if !request.allows_embedding_fallback() {
+            return Err("Embedding 返回无效向量，严格模式已阻止降级到全文检索".to_string());
+        }
         let connection = open_query_connection(&path)?;
         return query_local_knowledge_fts_fallback(
             &connection,
@@ -943,6 +1008,11 @@ pub(crate) async fn query_local_knowledge_from_path(
     let snapshot = match load_index_snapshot(&connection, workspace_id, &index_request) {
         Ok(value) => value,
         Err(error) => {
+            if !request.allows_embedding_fallback() {
+                return Err(format!(
+                    "本地向量索引不可用，严格模式已阻止降级到全文检索: {error}"
+                ));
+            }
             return query_local_knowledge_fts_fallback(
                 &connection,
                 workspace_id,
@@ -961,6 +1031,11 @@ pub(crate) async fn query_local_knowledge_from_path(
     ) {
         Ok(value) => value,
         Err(error) => {
+            if !request.allows_embedding_fallback() {
+                return Err(format!(
+                    "本地向量索引加载失败，严格模式已阻止降级到全文检索: {error}"
+                ));
+            }
             return query_local_knowledge_fts_fallback(
                 &connection,
                 workspace_id,
@@ -988,6 +1063,11 @@ pub(crate) async fn query_local_knowledge_from_path(
     ) {
         Ok(value) => value,
         Err(error) => {
+            if !request.allows_embedding_fallback() {
+                return Err(format!(
+                    "混合检索失败，严格模式已阻止降级到全文检索: {error}"
+                ));
+            }
             drop(index);
             return query_local_knowledge_fts_fallback(
                 &connection,
@@ -1003,12 +1083,11 @@ pub(crate) async fn query_local_knowledge_from_path(
     drop(index);
     drop(connection);
 
-    let reranked = rerank_candidates(
+    let reranked = rerank_or_passthrough(
         &request.query,
         chunks,
         reranker.state(),
         request.rerank_limit,
-        &|| false,
     )
     .await;
     let connection = open_query_connection(&path)?;
@@ -1022,6 +1101,8 @@ pub(crate) async fn query_local_knowledge_from_path(
             dense_limit: request.dense_limit,
             candidate_limit: request.candidate_limit,
             rrf_k: request.rrf_k,
+            similarity_threshold: request.similarity_threshold,
+            degradation_policy: request.degradation_policy.clone(),
             embedding_provider_profile_id: embedding_record.profile.id.to_string(),
             embedding_model_id: embedding.model_id,
             embedding_degradation: None,
@@ -1073,6 +1154,8 @@ fn query_local_knowledge_fts_fallback(
             dense_limit: 0,
             candidate_limit: request.candidate_limit,
             rrf_k: request.rrf_k,
+            similarity_threshold: request.similarity_threshold,
+            degradation_policy: request.degradation_policy.clone(),
             embedding_provider_profile_id: embedding_provider_profile_id.to_string(),
             embedding_model_id: embedding_model_id.to_string(),
             embedding_degradation,
@@ -1117,6 +1200,21 @@ fn fts_hit_to_retrieved_chunk(
         rrf_score: 1.0 / rank as f64,
         rerank_score: None,
     })
+}
+
+async fn rerank_or_passthrough(
+    query: &str,
+    chunks: Vec<RetrievedChunk>,
+    provider: RerankProviderState<'_>,
+    max_documents: usize,
+) -> RerankOutcome {
+    if max_documents == 0 {
+        return RerankOutcome {
+            chunks,
+            degradation: None,
+        };
+    }
+    rerank_candidates(query, chunks, provider, max_documents, &|| false).await
 }
 
 fn embedding_configuration_degradation(message: &str) -> EmbeddingDegradationReason {
@@ -1288,6 +1386,29 @@ mod tests {
     }
 
     #[test]
+    fn validates_retrieval_degradation_policy() {
+        let mut request = LocalKnowledgeQueryRequest {
+            query: "steel".to_string(),
+            knowledge_base_ids: vec![KnowledgeBaseId::new()],
+            lexical_limit: 1,
+            dense_limit: 1,
+            candidate_limit: 1,
+            rrf_k: 60,
+            rerank_limit: 0,
+            similarity_threshold: None,
+            degradation_policy: Some("strict".to_string()),
+            filters: None,
+        };
+        assert!(request.validate().is_ok());
+        assert!(!request.allows_embedding_fallback());
+        request.degradation_policy = Some("unknown".to_string());
+        assert_eq!(
+            request.validate().unwrap_err(),
+            "knowledge degradation policy is invalid"
+        );
+    }
+
+    #[test]
     fn local_knowledge_query_falls_back_to_fts_without_embedding_provider() {
         let path = std::env::temp_dir().join(format!(
             "suna-local-knowledge-fallback-{}.sqlite3",
@@ -1382,6 +1503,8 @@ mod tests {
                 candidate_limit: 5,
                 rrf_k: 60,
                 rerank_limit: 5,
+                similarity_threshold: None,
+                degradation_policy: None,
                 filters: None,
             },
         ))

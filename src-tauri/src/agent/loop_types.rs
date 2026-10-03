@@ -28,8 +28,20 @@ pub struct AgentLoopLimits {
     pub max_recovery_attempts: usize,
     #[serde(default)]
     pub context_budget: Option<usize>,
+    /// Temperature in thousandths keeps the durable limits type Eq while
+    /// allowing the user-facing model preference to remain a float.
+    #[serde(default = "default_model_temperature")]
+    pub model_temperature: u16,
+    #[serde(default)]
+    pub model_max_tokens: Option<usize>,
     #[serde(default = "default_save_checkpoints")]
     pub save_checkpoints: bool,
+    /// Whether the runtime should emit incremental reasoning and message
+    /// deltas while the provider is generating a response. The provider may
+    /// still use its streaming transport internally; disabling this only
+    /// changes the event contract exposed to the desktop client.
+    #[serde(default = "default_stream_output")]
+    pub stream_output: bool,
     pub context_checkpoint_timeout_ms: u64,
     pub deadline_ms: Option<u64>,
 }
@@ -42,11 +54,18 @@ impl Default for AgentLoopLimits {
             max_tool_rounds: None,
             max_recovery_attempts: 2,
             context_budget: None,
+            model_temperature: default_model_temperature(),
+            model_max_tokens: None,
             save_checkpoints: true,
+            stream_output: true,
             context_checkpoint_timeout_ms: 300_000,
             deadline_ms: None,
         }
     }
+}
+
+const fn default_model_temperature() -> u16 {
+    200
 }
 
 impl AgentLoopLimits {
@@ -74,6 +93,10 @@ impl AgentLoopLimits {
 }
 
 fn default_save_checkpoints() -> bool {
+    true
+}
+
+fn default_stream_output() -> bool {
     true
 }
 

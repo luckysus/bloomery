@@ -1,10 +1,50 @@
-import type {
-  ProviderKind,
-  ProviderProfileResponse,
-} from "../../bridge/desktop";
+import { desktop, isDesktopRuntime, type ProviderKind, type ProviderProfileResponse } from "../../bridge/desktop";
 
 export type ProviderSlot = "chat" | "embedding" | "reranker" | "mineru";
 export type RetrievalPlan = "free" | "pro";
+const localSettingKey = (key: string) => `suna.setting.${key}`;
+const localAliases: Record<string, string> = {
+  "ui.theme": "suna.ui.theme",
+  "ui.locale": "suna.ui.locale",
+  "ui.preferences": "suna.ui.preferences",
+};
+export const settingChangedEvent = "suna:setting-changed";
+
+export function readLocalSettingValue(key: string): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    return window.localStorage.getItem(localSettingKey(key))
+      ?? (localAliases[key] ? window.localStorage.getItem(localAliases[key]) : null);
+  } catch {
+    return null;
+  }
+}
+
+function writeLocalSettingValue(key: string, value: string): void {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(localSettingKey(key), value);
+  const alias = localAliases[key];
+  if (alias) window.localStorage.setItem(alias, value);
+}
+
+export function getSettingValue(key: string): Promise<string | null> {
+  return isDesktopRuntime() ? desktop.getSetting(key) : Promise.resolve(readLocalSettingValue(key));
+}
+
+export async function setSettingValue(key: string, value: string): Promise<void> {
+  if (isDesktopRuntime()) {
+    await desktop.setSetting(key, value);
+  } else {
+    try {
+      writeLocalSettingValue(key, value);
+    } catch (error) {
+      throw error instanceof Error ? error : new Error("本地设置不可用");
+    }
+  }
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent(settingChangedEvent, { detail: { key, value } }));
+  }
+}
 
 export interface RetrievalIds {
   embedding: string | null;
@@ -22,7 +62,11 @@ export interface SettingsEditor {
   apiKey: string;
   enabled: boolean;
   secretConfigured: boolean;
+  temperature: number;
+  maxTokens: number;
 }
+
+export type ProviderRuntimeMeta = { temperature?: number; max_tokens?: number };
 
 export const defaultRetrievalIds: RetrievalIds = {
   embedding: null,
@@ -32,32 +76,44 @@ export const defaultRetrievalIds: RetrievalIds = {
 
 export const defaults: Record<ProviderSlot, Omit<SettingsEditor, "slot" | "id" | "apiKey" | "secretConfigured">> = {
   chat: {
-    kind: "deepseek",
-    displayName: "DeepSeek",
-    baseUrl: "https://api.deepseek.com",
-    modelId: "deepseek-v4-flash",
-    enabled: true,
+    // An absent profile is an unconfigured capability. Provider presets are
+    // applied only after the user selects a provider in the editor; keeping
+    // these fields empty prevents the settings page from presenting demo
+    // credentials/configuration as if a model were already connected.
+    kind: "open_ai_compatible",
+    displayName: "",
+    baseUrl: "",
+    modelId: "",
+    enabled: false,
+    temperature: 0.2,
+    maxTokens: 4096,
   },
   embedding: {
     kind: "siliconflow",
-    displayName: "SiliconFlow Embedding",
-    baseUrl: "https://api.siliconflow.cn/v1",
-    modelId: "BAAI/bge-m3",
-    enabled: true,
+    displayName: "",
+    baseUrl: "",
+    modelId: "",
+    enabled: false,
+    temperature: 0.2,
+    maxTokens: 4096,
   },
   reranker: {
     kind: "siliconflow",
-    displayName: "SiliconFlow Reranker",
-    baseUrl: "https://api.siliconflow.cn/v1",
-    modelId: "BAAI/bge-reranker-v2-m3",
-    enabled: true,
+    displayName: "",
+    baseUrl: "",
+    modelId: "",
+    enabled: false,
+    temperature: 0.2,
+    maxTokens: 4096,
   },
   mineru: {
     kind: "mineru",
-    displayName: "MinerU",
-    baseUrl: "https://mineru.net/api/v4",
+    displayName: "",
+    baseUrl: "",
     modelId: "",
-    enabled: true,
+    enabled: false,
+    temperature: 0.2,
+    maxTokens: 4096,
   },
 };
 
@@ -97,6 +153,8 @@ export function profileForSlot(
   return profiles.find((profile) => {
     if (slot === "chat") {
       return profile.kind === "deepseek"
+        || profile.kind === "anthropic"
+        || profile.kind === "qwen"
         || profile.kind === "open_ai_compatible"
         || profile.kind === "ollama";
     }
@@ -108,8 +166,14 @@ export function profileForSlot(
   });
 }
 
-export function editorFor(slot: ProviderSlot, profile: ProviderProfileResponse | undefined): SettingsEditor {
+export function editorFor(slot: ProviderSlot, profile: ProviderProfileResponse | undefined, meta: ProviderRuntimeMeta = {}): SettingsEditor {
   const fallback = defaults[slot];
+  const temperature = typeof meta.temperature === "number" && Number.isFinite(meta.temperature)
+    ? Math.min(2, Math.max(0, meta.temperature))
+    : fallback.temperature;
+  const maxTokens = typeof meta.max_tokens === "number" && Number.isFinite(meta.max_tokens)
+    ? Math.min(262_144, Math.max(256, Math.round(meta.max_tokens)))
+    : fallback.maxTokens;
   return {
     slot,
     id: profile?.id ?? null,
@@ -120,6 +184,8 @@ export function editorFor(slot: ProviderSlot, profile: ProviderProfileResponse |
     apiKey: "",
     enabled: profile?.enabled ?? fallback.enabled,
     secretConfigured: profile?.secret_configured ?? false,
+    temperature,
+    maxTokens,
   };
 }
 

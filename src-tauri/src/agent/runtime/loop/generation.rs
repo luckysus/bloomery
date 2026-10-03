@@ -26,6 +26,7 @@ where
         message_id: Uuid,
         sink: &mut dyn AgentEventSink,
         cancellation: &CancellationToken,
+        stream_output: bool,
     ) -> Result<(ChatResponse, String, u64), AgentLoopError> {
         let mut streamed_text = String::new();
         let mut reasoning_started_at: Option<Instant> = None;
@@ -52,7 +53,7 @@ where
                     reasoning_completed = true;
                 }
                 streamed_text.push_str(&delta);
-                if sink_error.is_none() {
+                if stream_output && sink_error.is_none() {
                     if let Err(error) = sink.record(AgentEventData::MessageDelta(
                         crate::agent::protocol::MessageDelta {
                             message_id,
@@ -71,7 +72,7 @@ where
                 if reasoning_started_at.is_none() {
                     reasoning_started_at = Some(Instant::now());
                 }
-                if sink_error.is_none() {
+                if stream_output && sink_error.is_none() {
                     if let Err(error) =
                         sink.record(AgentEventData::ReasoningDelta(ReasoningDelta {
                             message_id,
@@ -139,6 +140,7 @@ where
         model_call_count: &mut usize,
         max_model_calls: Option<usize>,
         max_tokens: Option<usize>,
+        stream_output: bool,
     ) -> Result<RepairedToolBatch, AgentLoopError> {
         let specs = tool_snapshot
             .iter()
@@ -189,6 +191,7 @@ where
                     message_id,
                     sink,
                     cancellation,
+                    stream_output,
                 )
                 .await?;
             if response.cancelled || cancellation.is_cancelled() {

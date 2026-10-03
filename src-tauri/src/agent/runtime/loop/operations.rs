@@ -179,11 +179,18 @@ where
         message_id: Uuid,
         sink: &mut dyn AgentEventSink,
         cancellation: &CancellationToken,
+        stream_output: bool,
     ) -> Result<(crate::providers::capabilities::ChatResponse, String, u64), AgentLoopError> {
         let mut retried = false;
         loop {
             match self
-                .generate(chat_request.clone(), message_id, sink, cancellation)
+                .generate(
+                    chat_request.clone(),
+                    message_id,
+                    sink,
+                    cancellation,
+                    stream_output,
+                )
                 .await
             {
                 Ok(result) => return Ok(result),

@@ -581,6 +581,35 @@ fn deepseek_reasoning_streams_as_separate_events_before_the_answer() {
 }
 
 #[test]
+fn stream_output_setting_suppresses_incremental_events_but_keeps_final_answer() {
+    let model = StreamingReasoningModel::new();
+    let mut sink = RecordingSink::new();
+    let mut request = request(None);
+    request.output_reservation = 2_048;
+    request.reasoning_reservation = 1_024;
+    request.limits.stream_output = false;
+
+    let result = tauri::async_runtime::block_on(
+        AgentLoop::new(&model, &NoopToolExecutor, &DenyPermissions).run(
+            request,
+            &mut sink,
+            CancellationToken::new(|| false),
+        ),
+    )
+    .expect("non-streaming answer succeeds");
+
+    assert_eq!(result.answer, "Q355B 是结构钢。");
+    assert!(!sink.events.iter().any(|event| matches!(
+        event.data,
+        AgentEventData::MessageDelta(_) | AgentEventData::ReasoningDelta(_)
+    )));
+    assert!(sink.events.iter().any(|event| matches!(
+        &event.data,
+        AgentEventData::MessageCompleted(message) if message.content == "Q355B 是结构钢。"
+    )));
+}
+
+#[test]
 fn one_automatic_tool_is_observed_before_the_final_answer() {
     let calls = Arc::new(Mutex::new(Vec::new()));
     let tools = TestTools {

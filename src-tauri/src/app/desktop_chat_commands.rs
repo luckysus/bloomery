@@ -71,6 +71,24 @@ pub async fn desktop_agent_chat(
         response["status"] = Value::String("cancelled".to_string());
         response["workflow"]["state"] = Value::String("cancelled".to_string());
     }
+    let selected_agent = crate::agent::desktop::selected_agent_id(
+        &preparation.route,
+        &preparation.agent_preferences.default_agent,
+        preparation.agent_preferences.auto_select_agent,
+    );
+    response["agent_profile"] = serde_json::json!({
+        "default_id": preparation.agent_preferences.default_agent,
+        "selected_id": selected_agent,
+        "auto_select": preparation.agent_preferences.auto_select_agent,
+    });
+    response["plan_steps"] = if preparation.agent_preferences.auto_plan {
+        serde_json::to_value(crate::agent::desktop::plan_steps_for_route(
+            &preparation.route,
+        ))
+        .unwrap_or_else(|_| serde_json::json!([]))
+    } else {
+        serde_json::json!([])
+    };
     with_conn_mut(&db, |conn| {
         append_agent_message(
             conn,

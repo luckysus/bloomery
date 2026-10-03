@@ -60,6 +60,45 @@ impl DesktopSteelAgentGateway {
         Ok(connection)
     }
 
+    fn knowledge_retrieval_settings(&self) -> (bool, Option<f32>, String, usize) {
+        let value = self
+            .open()
+            .ok()
+            .and_then(|connection| {
+                settings::get(&connection, &self.workspace_id, "knowledge.preferences")
+                    .ok()
+                    .flatten()
+            })
+            .and_then(|raw| serde_json::from_str::<Value>(&raw).ok())
+            .unwrap_or_default();
+        let reranker_enabled = value
+            .get("reranker_enabled")
+            .and_then(Value::as_bool)
+            .unwrap_or(true);
+        let similarity_threshold = value
+            .get("similarity_threshold")
+            .and_then(Value::as_f64)
+            .map(|value| value.clamp(0.0, 1.0) as f32);
+        let degradation_policy =
+            if value.get("degradation_policy").and_then(Value::as_str) == Some("strict") {
+                "strict"
+            } else {
+                "fallback"
+            };
+        let top_k = value
+            .get("top_k")
+            .and_then(Value::as_u64)
+            .and_then(|value| usize::try_from(value).ok())
+            .unwrap_or(8)
+            .clamp(1, 50);
+        (
+            reranker_enabled,
+            similarity_threshold,
+            degradation_policy.to_string(),
+            top_k,
+        )
+    }
+
     /// Knowledge data has one authoritative backend in the desktop product.
     /// Unit tests use the SQLite fixture because they deliberately do not boot
     /// a PostgreSQL server; production callers must initialize PostgreSQL first.
@@ -114,12 +153,16 @@ impl DesktopSteelAgentGateway {
             self.knowledge_base_ids(&connection, &arguments)?
         };
         if !base_ids.is_empty() {
+            let strict_degradation = self.knowledge_retrieval_settings().2 == "strict";
             match self
                 .search_literature_hybrid(query.clone(), base_ids.clone(), limit, None)
                 .await
             {
                 Ok(result) => return Ok(result),
                 Err(error) => {
+                    if strict_degradation {
+                        return Err(error);
+                    }
                     let connection = self.open()?;
                     let results = self.search_fts(&connection, &query, base_ids, limit)?;
                     let literature_results = results.clone();
@@ -155,7 +198,8 @@ impl DesktopSteelAgentGateway {
         if query.is_empty() {
             return Err("query is required".to_string());
         }
-        let top_k = limit_arg(&arguments, 12);
+        let configured_top_k = self.knowledge_retrieval_settings().3;
+        let top_k = limit_arg(&arguments, configured_top_k);
         let filters = arguments
             .get("filters")
             .cloned()
@@ -233,6 +277,8 @@ impl DesktopSteelAgentGateway {
         limit: usize,
         filters: Option<PostgresKnowledgeSearchFilters>,
     ) -> Result<Value, String> {
+        let (reranker_enabled, similarity_threshold, degradation_policy, _) =
+            self.knowledge_retrieval_settings();
         if let Some(pool) = &self.postgres_pool {
             let request = LocalKnowledgeQueryRequest {
                 query,
@@ -241,7 +287,9 @@ impl DesktopSteelAgentGateway {
                 dense_limit: (limit * 3).min(50),
                 candidate_limit: limit,
                 rrf_k: 60,
-                rerank_limit: limit,
+                rerank_limit: if reranker_enabled { limit } else { 0 },
+                similarity_threshold,
+                degradation_policy: Some(degradation_policy.clone()),
                 filters,
             };
             let pack = if let Some(app) = &self.app {
@@ -290,7 +338,9 @@ impl DesktopSteelAgentGateway {
                 dense_limit: (limit * 3).min(50),
                 candidate_limit: limit,
                 rrf_k: 60,
-                rerank_limit: limit,
+                rerank_limit: if reranker_enabled { limit } else { 0 },
+                similarity_threshold,
+                degradation_policy: Some(degradation_policy),
                 filters,
             },
         )
@@ -349,6 +399,8 @@ impl DesktopSteelAgentGateway {
                 candidate_limit: limit,
                 rrf_k: 60,
                 rerank_limit: limit,
+                similarity_threshold: None,
+                degradation_policy: None,
                 filters: None,
             };
             let pack = query_postgres_knowledge_with_pool(
@@ -423,6 +475,8 @@ impl DesktopSteelAgentGateway {
                     candidate_limit: limit,
                     rrf_k: 60,
                     rerank_limit: limit,
+                    similarity_threshold: None,
+                    degradation_policy: None,
                     filters: None,
                 },
             )
@@ -751,8 +805,27 @@ impl DesktopSteelAgentGateway {
                 return Ok(ids);
             }
         }
-        knowledge::list_knowledge_bases(connection, &self.workspace_id)
-            .map(|bases| bases.into_iter().map(|base| base.id).collect())
+        let bases = knowledge::list_knowledge_bases(connection, &self.workspace_id)?;
+        let configured = settings::get(connection, &self.workspace_id, "knowledge.preferences")
+            .ok()
+            .flatten()
+            .and_then(|raw| serde_json::from_str::<Value>(&raw).ok())
+            .and_then(|value| {
+                value
+                    .get("default_knowledge_base")
+                    .and_then(Value::as_str)
+                    .map(str::trim)
+                    .filter(|value| !value.is_empty())
+                    .map(KnowledgeBaseId::from_str)
+            })
+            .transpose()
+            .map_err(|error| error.to_string())?;
+        if let Some(default_id) = configured {
+            if bases.iter().any(|base| base.id == default_id) {
+                return Ok(vec![default_id]);
+            }
+        }
+        Ok(bases.into_iter().map(|base| base.id).collect())
     }
 
     async fn postgres_knowledge_base_ids(
@@ -777,6 +850,39 @@ impl DesktopSteelAgentGateway {
             .postgres_pool
             .as_ref()
             .ok_or_else(|| "PostgreSQL 知识库尚未初始化".to_string())?;
+        let configured = self
+            .open()
+            .ok()
+            .and_then(|connection| {
+                settings::get(&connection, &self.workspace_id, "knowledge.preferences")
+                    .ok()
+                    .flatten()
+            })
+            .and_then(|raw| serde_json::from_str::<Value>(&raw).ok())
+            .and_then(|value| {
+                value
+                    .get("default_knowledge_base")
+                    .and_then(Value::as_str)
+                    .map(str::trim)
+                    .filter(|value| !value.is_empty())
+                    .map(KnowledgeBaseId::from_str)
+            })
+            .transpose()
+            .map_err(|error| error.to_string())?;
+        if let Some(default_id) = configured {
+            let default_uuid =
+                Uuid::parse_str(&default_id.to_string()).map_err(|error| error.to_string())?;
+            let exists: Option<Uuid> = sqlx::query_scalar(
+                "SELECT id FROM knowledge_bases WHERE id = $1 AND deleted_at IS NULL",
+            )
+            .bind(default_uuid)
+            .fetch_optional(pool)
+            .await
+            .map_err(|error| format!("读取默认知识库失败: {error}"))?;
+            if exists.is_some() {
+                return Ok(vec![default_id]);
+            }
+        }
         let rows = sqlx::query(
             "SELECT id FROM knowledge_bases WHERE deleted_at IS NULL ORDER BY created_at, id",
         )

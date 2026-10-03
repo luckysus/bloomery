@@ -19,6 +19,7 @@ import type { AgentPermissionView, AgentRunView, AgentToolView } from "./agentEv
 interface AgentRunInspectorProps {
   run: AgentRunView | null;
   recovery: RecoveredRun | null;
+  showToolDetails?: boolean;
   onResolvePermission: (permissionId: string, decision: PermissionDecision) => void;
   onRetry: () => void;
   onResume: () => void;
@@ -111,6 +112,7 @@ function ToolRow({ tool }: { tool: AgentToolView }) {
 export default function AgentRunInspector({
   run,
   recovery,
+  showToolDetails = true,
   onResolvePermission,
   onRetry,
   onResume,
@@ -149,7 +151,7 @@ export default function AgentRunInspector({
 
       <div className="suna-chat-inspector-metrics">
         <div><span>事件序号</span><strong>{run.sequence}</strong></div>
-        <div><span>工具调用</span><strong>{run.toolCalls.length}</strong></div>
+        <div><span>工具调用</span><strong>{showToolDetails ? run.toolCalls.length : "—"}</strong></div>
         <div><span>Token</span><strong>{formatTokens(run.usage?.total_tokens)}</strong></div>
         <div><span>引用</span><strong>{run.citationNumbers.length}</strong></div>
       </div>
@@ -164,7 +166,7 @@ export default function AgentRunInspector({
         </div>
       </section>
 
-      {run.toolCalls.length > 0 && (
+      {showToolDetails && run.toolCalls.length > 0 && (
         <section className="suna-chat-inspector-section" aria-labelledby="agent-tools-heading">
           <div className="suna-chat-inspector-section-heading">
             <h4 id="agent-tools-heading"><Wrench size={13} aria-hidden="true" />工具调用</h4>

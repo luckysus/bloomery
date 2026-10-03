@@ -30,13 +30,17 @@ pub enum EmbeddingDegradationReason {
     MalformedResponse,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct RetrievalConfigSnapshot {
     pub knowledge_base_ids: Vec<KnowledgeBaseId>,
     pub lexical_limit: usize,
     pub dense_limit: usize,
     pub candidate_limit: usize,
     pub rrf_k: u32,
+    #[serde(default)]
+    pub similarity_threshold: Option<f32>,
+    #[serde(default)]
+    pub degradation_policy: Option<String>,
     pub embedding_provider_profile_id: String,
     pub embedding_model_id: String,
     #[serde(default)]

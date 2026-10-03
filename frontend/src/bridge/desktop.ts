@@ -468,6 +468,11 @@ export interface KnowledgeDatabaseConfig {
   port: number;
   database: string;
   username: string;
+  ssl: boolean;
+  vector_store: "postgresql_pgvector";
+  embedding_model: string;
+  vector_dimension: number;
+  index_type: "hnsw" | "ivfflat";
 }
 
 export interface KnowledgeDatabaseHealth {
@@ -796,6 +801,8 @@ export interface LocalKnowledgeQueryRequest {
   candidate_limit?: number;
   rrf_k?: number;
   rerank_limit?: number;
+  similarity_threshold?: number;
+  degradation_policy?: "fallback" | "strict";
   filters?: PostgresKnowledgeSearchFilters;
 }
 
@@ -841,6 +848,15 @@ export interface StoragePaths {
   cache: string;
   logs: string;
   temp: string;
+}
+
+export interface UpdateCheckResult {
+  current_version: string;
+  latest_version: string | null;
+  update_available: boolean;
+  release_url: string | null;
+  published_at: string | null;
+  checked_at: string;
 }
 
 export interface BackupSummary {
@@ -934,7 +950,7 @@ export interface KnowledgeDocumentRaw {
   sheets: KnowledgePreviewSheet[];
 }
 
-export type ProviderKind = "open_ai_compatible" | "deepseek" | "ollama" | "siliconflow" | "mineru";
+export type ProviderKind = "open_ai_compatible" | "anthropic" | "qwen" | "deepseek" | "ollama" | "siliconflow" | "mineru";
 export type ProviderCapability = "chat" | "embedding" | "rerank" | "document_parser";
 
 export interface ProviderProfileInput {
@@ -1186,6 +1202,7 @@ export const desktop = {
   saveFileDialog: (options?: SaveFileDialogOptions) => saveNativeDialog(options),
   setSetting: (key: string, valueJson: string) =>
     call<void>("set_setting", { key, valueJson }),
+  checkForUpdates: () => call<UpdateCheckResult>("check_for_updates"),
   listConversations: () => call<Conversation[]>("list_conversations"),
   searchHistory: (request: {
     query: string;

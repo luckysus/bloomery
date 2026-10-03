@@ -34,9 +34,13 @@ export default function SettingsProviderCard({
   const updateKind = (kind: ProviderKind) => {
     const preset = kind === "deepseek"
       ? { displayName: "DeepSeek", baseUrl: "https://api.deepseek.com", modelId: "deepseek-v4-flash" }
-      : kind === "ollama"
-        ? { displayName: "Ollama", baseUrl: "http://127.0.0.1:11434", modelId: "qwen3" }
-        : { displayName: "OpenAI Compatible", baseUrl: "https://api.openai.com/v1", modelId: "gpt-4o-mini" };
+      : kind === "anthropic"
+        ? { displayName: "Anthropic", baseUrl: "https://api.anthropic.com/v1", modelId: "claude-sonnet-4" }
+        : kind === "qwen"
+          ? { displayName: "Qwen", baseUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1", modelId: "qwen-plus" }
+          : kind === "ollama"
+            ? { displayName: "Ollama", baseUrl: "http://127.0.0.1:11434", modelId: "qwen3" }
+            : { displayName: "OpenAI Compatible", baseUrl: "https://api.openai.com/v1", modelId: "gpt-4o-mini" };
     onChange({ ...editor, kind, ...preset });
   };
 
@@ -49,6 +53,8 @@ export default function SettingsProviderCard({
             <label htmlFor="settings-chat-kind">{t("settingsProviderType")}</label>
             <select id="settings-chat-kind" value={editor.kind} onChange={(event) => updateKind(event.target.value as ProviderKind)}>
               <option value="deepseek">{t("providerDeepSeek")}</option>
+              <option value="anthropic">{t("providerAnthropic")}</option>
+              <option value="qwen">{t("providerQwen")}</option>
               <option value="open_ai_compatible">{t("providerOpenAiCompatible")}</option>
               <option value="ollama">{t("providerOllama")}</option>
             </select>
@@ -70,6 +76,10 @@ export default function SettingsProviderCard({
             )}
           </>
         )}
+        <label htmlFor={`settings-${editor.slot}-temperature`}>Temperature</label>
+        <input id={`settings-${editor.slot}-temperature`} type="number" min="0" max="2" step="0.1" value={editor.temperature} onChange={(event) => update("temperature", Number(event.target.value))} />
+        <label htmlFor={`settings-${editor.slot}-max-tokens`}>Max Tokens</label>
+        <input id={`settings-${editor.slot}-max-tokens`} type="number" min="256" max="262144" step="256" value={editor.maxTokens} onChange={(event) => update("maxTokens", Number(event.target.value))} />
         <label htmlFor={`settings-${editor.slot}-key`}>{t("settingsApiKey")}</label>
         <input id={`settings-${editor.slot}-key`} aria-label={`provider.${editor.slot}.apiKey`} type="password" autoComplete="new-password" value={editor.apiKey} onChange={(event) => update("apiKey", event.target.value)} placeholder={t("settingsApiKeyPlaceholder")} />
       </div>

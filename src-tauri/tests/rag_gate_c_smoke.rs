@@ -140,6 +140,8 @@ fn config() -> RetrievalConfigSnapshot {
         dense_limit: 10,
         candidate_limit: 10,
         rrf_k: 60,
+        similarity_threshold: None,
+        degradation_policy: None,
         embedding_provider_profile_id: PROFILE_ID.to_string(),
         embedding_model_id: MODEL_ID.to_string(),
         embedding_degradation: None,

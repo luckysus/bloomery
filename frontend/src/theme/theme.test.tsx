@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { desktop } from "../bridge/desktop";
+import { desktop, isDesktopRuntime } from "../bridge/desktop";
 import { ThemeProvider, useTheme } from "./theme";
 
 vi.mock("../bridge/desktop", () => ({
@@ -28,6 +28,7 @@ describe("ThemeProvider", () => {
     vi.mocked(desktop.setSetting).mockResolvedValue(undefined);
     document.documentElement.removeAttribute("data-theme");
     document.documentElement.style.removeProperty("color-scheme");
+    window.localStorage.removeItem("suna.ui.theme");
   });
 
   it("loads the saved theme and applies it to the document", async () => {
@@ -47,6 +48,7 @@ describe("ThemeProvider", () => {
   });
 
   it("persists a user-selected theme", async () => {
+    vi.mocked(isDesktopRuntime).mockReturnValue(true);
     render(
       <ThemeProvider>
         <ThemeProbe />

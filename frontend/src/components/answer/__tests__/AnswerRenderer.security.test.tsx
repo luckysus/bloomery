@@ -5,6 +5,7 @@ import { proxyImg } from "../../../utils/searchRender";
 import { LocaleProvider } from "../../../i18n/locale";
 
 vi.mock("../../../bridge/desktop", () => ({
+  isDesktopRuntime: vi.fn().mockReturnValue(false),
   desktop: {
     getSetting: vi.fn().mockResolvedValue(JSON.stringify({ preference: "zh-CN" })),
     setSetting: vi.fn().mockResolvedValue(undefined),

@@ -150,6 +150,10 @@ fn seed_database_at_version(connection: &mut Connection, version: u32) {
             30,
             include_str!("../src/storage/migrations/0030_agent_child_turns.sql"),
         ),
+        (
+            31,
+            include_str!("../src/storage/migrations/0031_settings_audit_log.sql"),
+        ),
     ];
 
     for (migration_version, sql) in migrations.into_iter().take(version as usize) {

@@ -1,3 +1,4 @@
+pub mod anthropic;
 pub mod capabilities;
 pub mod http;
 pub mod mineru;
@@ -6,6 +7,7 @@ pub mod openai;
 pub mod profiles;
 pub mod siliconflow;
 
+use self::anthropic::AnthropicProvider;
 use self::capabilities::{
     ChatEvent, ChatProvider, ChatRequest, ChatResponse, EmbeddingProvider, EmbeddingResponse,
     ProviderCapabilities, RerankDocument, RerankProvider, RerankResult,
@@ -130,6 +132,7 @@ impl RerankProvider for ConfiguredRerankProvider {
 }
 
 pub enum ConfiguredChatProvider {
+    Anthropic(AnthropicProvider),
     OpenAi(OpenAiProvider),
     DeepSeek(OpenAiProvider),
     Ollama(OllamaProvider),
@@ -140,6 +143,9 @@ pub fn configured_chat_provider(
     credential: Option<SecretValue>,
 ) -> Result<ConfiguredChatProvider, ProviderError> {
     match profile.kind {
+        ProviderKind::Anthropic => {
+            AnthropicProvider::new(profile, credential).map(ConfiguredChatProvider::Anthropic)
+        }
         ProviderKind::Ollama => OllamaProvider::new(profile).map(ConfiguredChatProvider::Ollama),
         ProviderKind::DeepSeek => {
             OpenAiProvider::new(profile, credential).map(ConfiguredChatProvider::DeepSeek)
@@ -158,6 +164,7 @@ pub fn configured_chat_provider(
 impl ChatProvider for ConfiguredChatProvider {
     fn capabilities(&self) -> &ProviderCapabilities {
         match self {
+            Self::Anthropic(provider) => provider.capabilities(),
             Self::OpenAi(provider) => provider.capabilities(),
             Self::DeepSeek(provider) => provider.capabilities(),
             Self::Ollama(provider) => provider.capabilities(),
@@ -171,6 +178,7 @@ impl ChatProvider for ConfiguredChatProvider {
         is_cancelled: &(dyn Fn() -> bool + Send + Sync),
     ) -> Result<ChatResponse, ProviderError> {
         match self {
+            Self::Anthropic(provider) => provider.chat(request, on_event, is_cancelled).await,
             Self::OpenAi(provider) => provider.chat(request, on_event, is_cancelled).await,
             Self::DeepSeek(provider) => provider.chat(request, on_event, is_cancelled).await,
             Self::Ollama(provider) => provider.chat(request, on_event, is_cancelled).await,

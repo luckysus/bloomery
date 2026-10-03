@@ -23,6 +23,12 @@ pub fn load_local_llm_config(
     if let Some(config) = legacy.filter(|config: &LocalLlmConfig| {
         !config.provider.trim().is_empty() && !config.model_name.trim().is_empty()
     }) {
+        if !config.api_key.trim().is_empty() {
+            return Err(
+                "旧版模型凭据仍保存在本地设置中，请在模型管理中重新保存以迁移到系统凭据库"
+                    .to_string(),
+            );
+        }
         return Ok(config);
     }
 

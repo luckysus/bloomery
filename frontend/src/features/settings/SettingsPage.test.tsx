@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import SettingsPage from "./SettingsPage";
-import { desktop, type PermissionRuleRecord, type ProviderProfileResponse } from "../../bridge/desktop";
+import { desktop, isDesktopRuntime, type PermissionRuleRecord, type ProviderProfileResponse } from "../../bridge/desktop";
 import { ThemeProvider } from "../../theme/theme";
 import { AppearanceProvider } from "../../settings/appearance";
 
@@ -82,6 +82,7 @@ describe("SettingsPage", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(isDesktopRuntime).mockReturnValue(true);
     vi.mocked(desktop.listDatabaseConnections).mockResolvedValue([]);
     vi.mocked(desktop.listProviderProfiles).mockResolvedValue([chatProfile, embeddingProfile]);
     vi.mocked(desktop.getSetting).mockImplementation(async (key) => {
@@ -138,6 +139,28 @@ describe("SettingsPage", () => {
     expect(screen.queryByText("settingsMineruDescription")).not.toBeInTheDocument();
     expect(screen.queryByText("permissionRulesCopy")).not.toBeInTheDocument();
     expect(screen.queryByText("secret-token")).not.toBeInTheDocument();
+  });
+
+  it("persists the selected settings section for the next desktop launch", async () => {
+    renderSettings();
+
+    fireEvent.click(await screen.findByRole("tab", { name: "settingsCategoryAgent" }));
+
+    await waitFor(() => expect(desktop.setSetting).toHaveBeenCalledWith(
+      "ui.settings_tab",
+      expect.stringContaining('"tab":"agent"'),
+    ));
+  });
+
+  it("shows empty provider fields when no model has been configured", async () => {
+    vi.mocked(desktop.listProviderProfiles).mockResolvedValue([]);
+    renderSettings();
+
+    fireEvent.click(await screen.findByRole("tab", { name: "settingsTabProviders" }));
+    expect(await screen.findByRole("heading", { name: "settingsChatProvider" })).toBeInTheDocument();
+    expect(screen.queryByDisplayValue("DeepSeek")).not.toBeInTheDocument();
+    expect(screen.queryByDisplayValue("https://api.deepseek.com")).not.toBeInTheDocument();
+    expect(screen.getAllByText("settingsSecretMissing").length).toBeGreaterThan(0);
   });
 
   it("saves an edited provider and writes a replacement key through the secret bridge", async () => {
@@ -208,7 +231,9 @@ describe("SettingsPage", () => {
   });
 
   it("restores the previous SiliconFlow plan when persistence fails", async () => {
-    vi.mocked(desktop.setSetting).mockRejectedValueOnce(new Error("settings unavailable"));
+    vi.mocked(desktop.setSetting).mockImplementation(async (key) => {
+      if (key === "onboarding.retrieval") throw new Error("settings unavailable");
+    });
     renderSettings();
 
     fireEvent.click(await screen.findByRole("tab", { name: "settingsTabProviders" }));
@@ -264,6 +289,8 @@ describe("SettingsPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "settingsFontLarge" }));
     fireEvent.click(screen.getByRole("checkbox", { name: /settingsAgentPanel/ }));
 
+    await waitFor(() => expect(document.documentElement.dataset.fontSize).toBe("large"));
+
     await waitFor(() => expect(desktop.setSetting).toHaveBeenCalledWith(
       "ui.preferences",
       expect.stringContaining('"fontSize":"large"'),
@@ -272,5 +299,20 @@ describe("SettingsPage", () => {
       "ui.preferences",
       expect.stringContaining('"showAgentPanel":false'),
     );
+  });
+
+  it("applies each font size choice to the document", async () => {
+    renderSettings();
+
+    fireEvent.click(await screen.findByRole("tab", { name: "settingsCategoryAppearance" }));
+    const sizes = [
+      ["settingsFontSmall", "small"],
+      ["settingsFontMedium", "medium"],
+      ["settingsFontLarge", "large"],
+    ] as const;
+    for (const [label, expected] of sizes) {
+      fireEvent.click(screen.getByRole("button", { name: label }));
+      await waitFor(() => expect(document.documentElement.dataset.fontSize).toBe(expected));
+    }
   });
 });

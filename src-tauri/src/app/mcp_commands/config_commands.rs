@@ -5,7 +5,10 @@ use super::{
 use crate::{
     app::mcp_runtime::McpRuntimeState,
     db::{current_workspace_id, with_conn, DbState},
-    storage::{repositories::mcp as mcp_repository, secrets::SecretState},
+    storage::{
+        repositories::{mcp as mcp_repository, settings},
+        secrets::SecretState,
+    },
 };
 
 #[tauri::command]
@@ -44,6 +47,17 @@ pub(crate) async fn save_mcp_server(
             &config,
             &input,
             existing.as_ref(),
+        )?;
+        settings::record_audit(
+            connection,
+            crate::db::current_workspace_id(),
+            if existing.is_some() {
+                "mcp.update"
+            } else {
+                "mcp.create"
+            },
+            &config.server_id,
+            "success",
         )
     })?;
     logic::shutdown_active(&runtime, config.id).await?;
@@ -68,5 +82,14 @@ pub(crate) async fn delete_mcp_server(
             id,
             &config,
         )
+        .and_then(|()| {
+            settings::record_audit(
+                connection,
+                crate::db::current_workspace_id(),
+                "mcp.delete",
+                &config.server_id,
+                "success",
+            )
+        })
     })
 }

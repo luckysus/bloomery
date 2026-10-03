@@ -409,19 +409,21 @@ where
             }
             let chat_request = ChatRequest {
                 messages: request_messages.clone(),
-                temperature: 0.2,
+                temperature: f32::from(limits.model_temperature) / 1000.0,
                 tools: tool_payload.clone(),
                 response_format: None,
                 reasoning_effort: None,
-                max_tokens: (request
-                    .output_reservation
-                    .saturating_add(request.reasoning_reservation)
-                    > 0)
-                .then_some(
-                    request
+                max_tokens: limits.model_max_tokens.or_else(|| {
+                    (request
                         .output_reservation
-                        .saturating_add(request.reasoning_reservation),
-                ),
+                        .saturating_add(request.reasoning_reservation)
+                        > 0)
+                    .then_some(
+                        request
+                            .output_reservation
+                            .saturating_add(request.reasoning_reservation),
+                    )
+                }),
                 stop: None,
             };
             let (response, streamed_text, current_reasoning_ms) = match self
@@ -430,6 +432,7 @@ where
                     request.assistant_message_id,
                     sink,
                     &cancellation,
+                    limits.stream_output,
                 )
                 .await
             {
@@ -598,6 +601,7 @@ where
                             .output_reservation
                             .saturating_add(request.reasoning_reservation),
                     ),
+                    limits.stream_output,
                 )
                 .await
             {

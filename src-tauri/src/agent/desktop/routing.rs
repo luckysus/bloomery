@@ -108,6 +108,36 @@ pub fn route_with_evidence_pack(mut route: DesktopRoute, has_evidence_pack: bool
     route
 }
 
+/// Resolve the built-in profile that should own a turn when automatic Agent
+/// selection is enabled. These IDs are stable and match `list_agent_profiles`.
+pub fn selected_agent_id(route: &DesktopRoute, default_agent: &str, auto_select: bool) -> String {
+    if !auto_select {
+        return default_agent.trim().to_string();
+    }
+    match route.intent {
+        DesktopIntentKind::KnowledgeQa => "knowledge",
+        DesktopIntentKind::LiteratureTask => "literature",
+        DesktopIntentKind::OptimizationAdvice => "material",
+        DesktopIntentKind::OptimizationTask => "optimization",
+        DesktopIntentKind::TrainingTask => "prediction",
+        DesktopIntentKind::LocalQa | DesktopIntentKind::Clarify => "master",
+    }
+    .to_string()
+}
+
+pub fn plan_steps_for_route(route: &DesktopRoute) -> Vec<&'static str> {
+    match route.intent {
+        DesktopIntentKind::KnowledgeQa => vec!["检索知识库", "核对来源", "组织带引用回答"],
+        DesktopIntentKind::LiteratureTask => vec!["解析文献", "提取研究结论", "整理综述证据"],
+        DesktopIntentKind::OptimizationAdvice => {
+            vec!["读取材料与工艺上下文", "识别约束", "给出可验证建议"]
+        }
+        DesktopIntentKind::OptimizationTask => vec!["检查训练数据", "运行约束优化", "比较候选方案"],
+        DesktopIntentKind::TrainingTask => vec!["检查数据集", "启动训练任务", "报告模型指标"],
+        DesktopIntentKind::LocalQa | DesktopIntentKind::Clarify => vec!["理解任务", "生成回答"],
+    }
+}
+
 pub fn route_to_json(route: &DesktopRoute) -> Value {
     json!({
         "intent": route.intent.as_str(),

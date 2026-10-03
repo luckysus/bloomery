@@ -1,14 +1,16 @@
+pub(crate) mod health;
 mod logic;
 pub(crate) mod query;
 mod types;
 
 use crate::{
-    database,
     db::{current_workspace_id, with_conn, DbState},
-    storage::{repositories::database_connections as repository, secrets::SecretState},
+    storage::{
+        repositories::{database_connections as repository, settings},
+        secrets::SecretState,
+    },
 };
 use logic::load_record;
-use std::time::Instant;
 use types::{parse_id, DatabaseConnectionInput, DatabaseConnectionSummary};
 
 #[tauri::command]
@@ -37,6 +39,7 @@ pub(crate) async fn save_database_connection(
         .transpose()?
         .map(|id| load_record(&db, id))
         .transpose()?;
+    let is_update = existing.is_some();
     let provided = input
         .password
         .as_deref()
@@ -57,7 +60,18 @@ pub(crate) async fn save_database_connection(
         logic::set_password(secrets.store(), id, value)?;
     }
     crate::db::with_conn_mut(&db, |connection| {
-        repository::save(connection, current_workspace_id(), &record)
+        repository::save(connection, current_workspace_id(), &record)?;
+        settings::record_audit(
+            connection,
+            current_workspace_id(),
+            if is_update {
+                "database.update"
+            } else {
+                "database.create"
+            },
+            &format!("database:{}", id),
+            "success",
+        )
     })?;
     Ok(logic::summary(&record, secrets.store()))
 }
@@ -71,55 +85,14 @@ pub(crate) async fn delete_database_connection(
     let id = parse_id(&id)?;
     load_record(&db, id)?;
     crate::db::with_conn_mut(&db, |connection| {
-        repository::delete(connection, current_workspace_id(), id)
+        repository::delete(connection, current_workspace_id(), id)?;
+        settings::record_audit(
+            connection,
+            current_workspace_id(),
+            "database.delete",
+            &format!("database:{}", id),
+            "success",
+        )
     })?;
     logic::delete_password(secrets.store(), id)
-}
-
-#[tauri::command]
-pub(crate) async fn test_database_connection(
-    db: tauri::State<'_, DbState>,
-    secrets: tauri::State<'_, SecretState>,
-    id: String,
-) -> Result<String, String> {
-    let id = parse_id(&id)?;
-    let record = load_record(&db, id)?;
-    let secret = logic::password(secrets.store(), id)?;
-    let started = Instant::now();
-    let outcome = async {
-        let mut client = database::connect(&record, &secret).await?;
-        database::server_version(&mut client).await
-    }
-    .await;
-    let checked_at = chrono::Utc::now().to_rfc3339();
-    match &outcome {
-        Ok(version) => {
-            crate::db::with_conn(&db, |connection| {
-                repository::record_health(
-                    connection,
-                    current_workspace_id(),
-                    id,
-                    &checked_at,
-                    Some(started.elapsed().as_millis() as i64),
-                    Some(version),
-                    None,
-                )
-            })?;
-            Ok(version.clone())
-        }
-        Err(error) => {
-            let _ = crate::db::with_conn(&db, |connection| {
-                repository::record_health(
-                    connection,
-                    current_workspace_id(),
-                    id,
-                    &checked_at,
-                    None,
-                    None,
-                    Some(error),
-                )
-            });
-            Err(error.clone())
-        }
-    }
 }

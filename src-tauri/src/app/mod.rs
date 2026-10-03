@@ -29,6 +29,7 @@ pub(crate) mod steel_agent_gateway;
 pub(crate) mod steel_commands;
 pub(crate) mod storage_commands;
 pub(crate) mod task_commands;
+pub(crate) mod update_commands;
 
 use crate::{db, tasks::scheduler::SchedulerState};
 use std::time::Duration;

@@ -2,8 +2,10 @@ import { render, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import AIAnswerRenderer from "./AnswerRenderer";
 import { LocaleProvider } from "../../i18n/locale";
+import { isDesktopRuntime } from "../../bridge/desktop";
 
 vi.mock("../../bridge/desktop", () => ({
+  isDesktopRuntime: vi.fn().mockReturnValue(false),
   desktop: {
     getSetting: vi.fn().mockResolvedValue(JSON.stringify({ preference: "en-US" })),
     setSetting: vi.fn().mockResolvedValue(undefined),
@@ -12,6 +14,7 @@ vi.mock("../../bridge/desktop", () => ({
 
 describe("AIAnswerRenderer", () => {
   it("renders English reference and image markers with the selected UI language", async () => {
+    vi.mocked(isDesktopRuntime).mockReturnValue(true);
     render(
       <LocaleProvider>
         <AIAnswerRenderer
