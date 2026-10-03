@@ -10,6 +10,7 @@ use rusqlite::Connection;
 use serde::Serialize;
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use tauri::Manager;
 
 #[derive(Debug, Serialize)]
 pub struct StorageHealth {
@@ -24,6 +25,8 @@ pub struct StorageHealth {
 #[derive(Debug, Serialize)]
 pub struct StoragePaths {
     pub app_data: String,
+    pub documents: String,
+    pub local_data: String,
     pub sqlite_database: String,
     pub knowledge_content: String,
     pub cache: String,
@@ -107,8 +110,18 @@ pub fn get_storage_health(
 #[tauri::command]
 pub fn get_storage_paths(app: tauri::AppHandle) -> Result<StoragePaths, String> {
     let root = app_data_directory(&app)?;
+    let documents = app
+        .path()
+        .document_dir()
+        .map_err(|error| format!("resolve documents dir failed: {error}"))?;
+    let local_data = app
+        .path()
+        .app_local_data_dir()
+        .map_err(|error| format!("resolve local data dir failed: {error}"))?;
     Ok(StoragePaths {
         app_data: root.to_string_lossy().into_owned(),
+        documents: documents.to_string_lossy().into_owned(),
+        local_data: local_data.to_string_lossy().into_owned(),
         sqlite_database: root.join("suna.sqlite3").to_string_lossy().into_owned(),
         knowledge_content: root.join("content").to_string_lossy().into_owned(),
         cache: root.join("cache").to_string_lossy().into_owned(),
@@ -143,6 +156,14 @@ fn storage_path(app: &tauri::AppHandle, kind: &str) -> Result<PathBuf, String> {
     let root = app_data_directory(app)?;
     let path = match kind {
         "app_data" => root,
+        "documents" => app
+            .path()
+            .document_dir()
+            .map_err(|error| format!("resolve documents dir failed: {error}"))?,
+        "local_data" => app
+            .path()
+            .app_local_data_dir()
+            .map_err(|error| format!("resolve local data dir failed: {error}"))?,
         "sqlite_database" => root.join("suna.sqlite3"),
         "knowledge_content" => root.join("content"),
         "cache" => root.join("cache"),
@@ -172,7 +193,13 @@ pub fn open_storage_path(app: tauri::AppHandle, kind: String) -> Result<(), Stri
     if !path.exists()
         && matches!(
             kind.as_str(),
-            "app_data" | "cache" | "temp" | "logs" | "knowledge_content"
+            "app_data"
+                | "documents"
+                | "local_data"
+                | "cache"
+                | "temp"
+                | "logs"
+                | "knowledge_content"
         )
     {
         std::fs::create_dir_all(&path)

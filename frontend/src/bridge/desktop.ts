@@ -843,6 +843,8 @@ export interface StorageHealth {
 
 export interface StoragePaths {
   app_data: string;
+  documents: string;
+  local_data: string;
   sqlite_database: string;
   knowledge_content: string;
   cache: string;
