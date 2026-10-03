@@ -149,6 +149,13 @@ impl ProviderProfile {
         }
         self.base_url = parsed.to_string().trim_end_matches('/').to_string();
         self.model_id = normalize_optional(self.model_id);
+        if self
+            .model_id
+            .as_deref()
+            .is_some_and(|model| model.chars().count() > 200)
+        {
+            return Err("provider model ID is too long".to_string());
+        }
         self.secret_ref = normalize_optional(self.secret_ref);
         Ok(self)
     }
@@ -225,7 +232,7 @@ fn normalize_optional(value: Option<String>) -> Option<String> {
 
 #[cfg(test)]
 mod tests {
-    use super::{resolve_chat_profile, ProviderCapability, ProviderKind};
+    use super::{resolve_chat_profile, ProviderCapability, ProviderKind, ProviderProfile};
 
     #[test]
     fn supports_documented_chat_provider_types() {
@@ -251,5 +258,19 @@ mod tests {
             assert_eq!(profile.base_url, base_url);
             assert!(profile.kind.supports(ProviderCapability::Chat));
         }
+    }
+
+    #[test]
+    fn rejects_unbounded_provider_model_ids() {
+        let profile = ProviderProfile {
+            id: uuid::Uuid::new_v4(),
+            kind: ProviderKind::OpenAiCompatible,
+            display_name: "Custom".to_string(),
+            base_url: "https://api.example.com/v1".to_string(),
+            model_id: Some("m".repeat(201)),
+            secret_ref: None,
+            enabled: true,
+        };
+        assert_eq!(profile.validate().unwrap_err(), "provider model ID is too long");
     }
 }
