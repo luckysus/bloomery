@@ -58,7 +58,6 @@ function SunaAppShell() {
     document.querySelector<HTMLElement>(".suna-new-content")?.scrollTo({ top: 0, behavior: "auto" });
   }, [activeSection]);
   const searchRef = useRef<HTMLInputElement>(null);
-  useEffect(() => { void desktop.initialize(); }, []);
   useEffect(() => {
     void desktop.getSetting("profile.account").then((value) => {
       try {
