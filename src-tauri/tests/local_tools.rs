@@ -241,7 +241,7 @@ async fn powershell_preserves_utf8_and_bounds_both_output_streams() {
 }
 
 fn spawn_child_script() -> &'static str {
-    r#"$child=Start-Process -FilePath "$env:SystemRoot/System32/cmd.exe" -ArgumentList '/c','ping -n 60 127.0.0.1 > nul' -WindowStyle Hidden -PassThru; [IO.File]::WriteAllText((Join-Path (Get-Location) 'child.pid'), [string]$child.Id); Start-Sleep -Seconds 60"#
+    r#"$start=New-Object System.Diagnostics.ProcessStartInfo; $start.FileName=[IO.Path]::Combine([Environment]::SystemDirectory,'cmd.exe'); $start.Arguments='/c ping -n 60 127.0.0.1 > nul'; $start.UseShellExecute=$false; $start.CreateNoWindow=$true; $child=[Diagnostics.Process]::Start($start); [IO.File]::WriteAllText((Join-Path (Get-Location) 'child.pid'), [string]$child.Id); Start-Sleep -Seconds 60"#
 }
 
 fn assert_child_stopped(fixture: &Fixture) {
@@ -250,7 +250,7 @@ fn assert_child_stopped(fixture: &Fixture) {
         OpenProcess, WaitForSingleObject, PROCESS_SYNCHRONIZE,
     };
     let pid: u32 = fs::read_to_string(fixture.0.join("workspace/child.pid"))
-        .unwrap()
+        .expect("PowerShell did not write the child process fixture PID")
         .parse()
         .unwrap();
     let process = unsafe { OpenProcess(PROCESS_SYNCHRONIZE, 0, pid) };
