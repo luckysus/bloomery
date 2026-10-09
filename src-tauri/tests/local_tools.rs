@@ -241,7 +241,7 @@ async fn powershell_preserves_utf8_and_bounds_both_output_streams() {
 }
 
 fn spawn_child_script() -> &'static str {
-    r#"$child=Start-Process -FilePath "$env:SystemRoot/System32/WindowsPowerShell/v1.0/powershell.exe" -ArgumentList '-NoProfile','-NonInteractive','-Command','Start-Sleep -Seconds 60' -WindowStyle Hidden -PassThru; [IO.File]::WriteAllText((Join-Path (Get-Location) 'child.pid'), [string]$child.Id); Start-Sleep -Seconds 60"#
+    r#"$child=Start-Process -FilePath "$env:SystemRoot/System32/cmd.exe" -ArgumentList '/c','ping -n 60 127.0.0.1 > nul' -WindowStyle Hidden -PassThru; [IO.File]::WriteAllText((Join-Path (Get-Location) 'child.pid'), [string]$child.Id); Start-Sleep -Seconds 60"#
 }
 
 fn assert_child_stopped(fixture: &Fixture) {
@@ -303,6 +303,7 @@ async fn powershell_cancellation_terminates_its_process_tree() {
     while !fixture.0.join("workspace/child.pid").exists() && Instant::now() < deadline {
         tokio::time::sleep(Duration::from_millis(25)).await;
     }
+    let child_started = fixture.0.join("workspace/child.pid").exists();
     cancelled.store(true, Ordering::SeqCst);
     let error = tokio::time::timeout(Duration::from_secs(5), task)
         .await
@@ -310,5 +311,9 @@ async fn powershell_cancellation_terminates_its_process_tree() {
         .unwrap()
         .unwrap_err();
     assert!(error.cancelled);
+    assert!(
+        child_started,
+        "PowerShell did not start the child process fixture"
+    );
     assert_child_stopped(&fixture);
 }
