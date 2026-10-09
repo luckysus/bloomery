@@ -307,11 +307,13 @@ describe("ChatPage", () => {
     await screen.findByRole("button", { name: "Q355B 标准" });
     fireEvent.click(screen.getByRole("button", { name: "选择知识库" }));
     fireEvent.click(screen.getByRole("menuitemcheckbox", { name: "Research papers" }));
+    fireEvent.change(screen.getByRole("textbox", { name: "材料" }), { target: { value: "Q355B" } });
     fireEvent.click(screen.getByRole("button", { name: "智能搜索" }));
-    fireEvent.change(screen.getByRole("textbox"), { target: { value: "Q355B strength" } });
+    fireEvent.change(screen.getByRole("textbox", { name: "输入消息" }), { target: { value: "Q355B strength" } });
     fireEvent.click(screen.getByRole("button", { name: "发送" }));
     await waitFor(() => expect(desktop.queryLocalKnowledge).toHaveBeenCalledWith(expect.objectContaining({
       knowledge_base_ids: ["kb-steel"],
+      filters: expect.objectContaining({ material: "Q355B" }),
     })));
   });
 

@@ -6,6 +6,7 @@ import {
   type ConversationExportFormat,
   type HistoryHit,
   type KnowledgeBaseRecord,
+  type PostgresKnowledgeSearchFilters,
   type LocalAgentAttachment,
   type Message,
   type AgentProfileSummary,
@@ -115,6 +116,7 @@ export interface ChatControllerProps {
   activeAgentId: string | null;
   knowledgeBases: KnowledgeBaseRecord[];
   selectedKnowledgeBaseIds: string[];
+  knowledgeFilters: PostgresKnowledgeSearchFilters;
   streamingCitations: EvidenceItem[];
   autoKnowledgeSearchEnabled: boolean;
   smartSearchEnabled: boolean;
@@ -141,6 +143,7 @@ export interface ChatControllerProps {
   onSelectChatProfile: (profileId: string) => void;
   onSelectAgent: (agentId: string | null) => void;
   onSelectKnowledgeBases: (knowledgeBaseIds: string[]) => void;
+  onSelectKnowledgeFilters: (filters: PostgresKnowledgeSearchFilters) => void;
   onToggleSmartSearch: () => void;
 }
 
@@ -163,6 +166,7 @@ export function useChatController(): ChatControllerProps {
   const [messages, setMessages] = useState<Message[]>([]);
   const [knowledgeBaseIds, setKnowledgeBaseIds] = useState<string[]>([]);
   const [knowledgeBases, setKnowledgeBases] = useState<KnowledgeBaseRecord[]>([]);
+  const [knowledgeFilters, setKnowledgeFilters] = useState<PostgresKnowledgeSearchFilters>({});
   const [chatProfiles, setChatProfiles] = useState<ProviderProfileResponse[]>([]);
   const [activeChatProfileId, setActiveChatProfileId] = useState<string | null>(null);
   const [agentProfiles, setAgentProfiles] = useState<AgentProfileSummary[]>([]);
@@ -441,7 +445,7 @@ export function useChatController(): ChatControllerProps {
             ? await desktop.getSetting("knowledge.preferences").then(parseKnowledgePreferences).catch(() => ({ defaultKnowledgeBase: "", citationsEnabled: true, autoRetrieve: false, retrievalOptions: {} }))
             : { defaultKnowledgeBase: "", citationsEnabled: true, autoRetrieve: false, retrievalOptions: {} };
           if (knowledgePreferences.citationsEnabled) {
-            const evidencePack = await desktop.queryLocalKnowledge({ query: question, knowledge_base_ids: knowledgeBaseIds, ...knowledgePreferences.retrievalOptions });
+            const evidencePack = await desktop.queryLocalKnowledge({ query: question, knowledge_base_ids: knowledgeBaseIds, ...knowledgePreferences.retrievalOptions, filters: knowledgeFilters });
             evidencePackId = evidencePack.id;
           }
         } catch (cause) {
@@ -624,6 +628,10 @@ export function useChatController(): ChatControllerProps {
     setKnowledgeBaseIds(ids);
   };
 
+  const selectKnowledgeFilters = (filters: PostgresKnowledgeSearchFilters) => {
+    setKnowledgeFilters(filters);
+  };
+
   return {
     conversations,
     selectedId,
@@ -641,6 +649,7 @@ export function useChatController(): ChatControllerProps {
     activeAgentId,
     knowledgeBases,
     selectedKnowledgeBaseIds: knowledgeBaseIds,
+    knowledgeFilters,
     streamingCitations,
     autoKnowledgeSearchEnabled: autoSearchEnabled,
     smartSearchEnabled,
@@ -667,6 +676,7 @@ export function useChatController(): ChatControllerProps {
     onSelectChatProfile: (profileId) => void selectChatProfile(profileId),
     onSelectAgent: selectAgent,
     onSelectKnowledgeBases: selectKnowledgeBases,
+    onSelectKnowledgeFilters: selectKnowledgeFilters,
     onToggleSmartSearch: () => setSmartSearchEnabled((enabled) => !enabled),
   };
 }

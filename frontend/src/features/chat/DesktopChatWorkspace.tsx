@@ -27,7 +27,7 @@ import {
 } from "lucide-react";
 import { useLocale } from "../../i18n/locale";
 import type { SectionId } from "../../app/navigation";
-import type { Conversation, Message } from "../../bridge/desktop";
+import type { Conversation, Message, PostgresKnowledgeSearchFilters } from "../../bridge/desktop";
 import type { PermissionDecision } from "../../bridge/generated/protocol";
 import AIAnswerRenderer from "../../components/answer/AnswerRenderer";
 import CitationPanel from "./CitationPanel";
@@ -676,11 +676,37 @@ export default function DesktopChatWorkspace({
               </div>
               <div className="suna-chat-model-picker">
                 {knowledgeMenuOpen && (
-                  <div className="suna-chat-model-menu" role="menu" aria-label="选择知识库">
+                  <div className="suna-chat-model-menu suna-chat-knowledge-menu" role="menu" aria-label="选择知识库和检索范围">
                     {controller.knowledgeBases.length === 0 ? <span className="suna-chat-model-empty">暂无可用知识库</span> : controller.knowledgeBases.map((base) => {
                       const checked = controller.selectedKnowledgeBaseIds.includes(base.id);
                       return <button type="button" role="menuitemcheckbox" aria-checked={checked} className={checked ? "is-active" : ""} key={base.id} onClick={() => controller.onSelectKnowledgeBases(checked ? controller.selectedKnowledgeBaseIds.filter((id) => id !== base.id) : [...controller.selectedKnowledgeBaseIds, base.id])}><span>{base.name}</span>{checked && <Check size={14} />}</button>;
                     })}
+                    <div className="suna-chat-knowledge-filters" role="group" aria-label="检索范围筛选">
+                      <span className="suna-chat-knowledge-filters-title">检索范围</span>
+                      {([
+                        ["document_type", "文档类型"],
+                        ["material", "材料"],
+                        ["process", "工艺"],
+                        ["property", "性能"],
+                        ["year", "年份"],
+                        ["tag", "标签"],
+                      ] as const).map(([key, label]) => (
+                        <input
+                          key={key}
+                          aria-label={label}
+                          placeholder={label}
+                          inputMode={key === "year" ? "numeric" : undefined}
+                          value={controller.knowledgeFilters[key] ?? ""}
+                          onChange={(event) => {
+                            const raw = event.target.value;
+                            const digits = raw.replace(/[^0-9]/g, "");
+                            const value = key === "year" ? (digits ? Number(digits) : undefined) : raw;
+                            controller.onSelectKnowledgeFilters({ ...controller.knowledgeFilters, [key]: value } as PostgresKnowledgeSearchFilters);
+                          }}
+                        />
+                      ))}
+                      <button type="button" className="suna-chat-knowledge-clear" onClick={() => controller.onSelectKnowledgeFilters({})}>清除筛选</button>
+                    </div>
                   </div>
                 )}
                 <button type="button" className="suna-chat-model-button" aria-label="选择知识库" title="选择本轮检索的知识库" aria-expanded={knowledgeMenuOpen} onClick={() => { setKnowledgeMenuOpen((open) => !open); setModelMenuOpen(false); setAgentMenuOpen(false); }} disabled={controller.pendingQuestion !== null}>

@@ -3232,6 +3232,49 @@ body {
   padding: 9px;
 }
 
+.suna-chat-knowledge-menu {
+  max-height: min(520px, 70vh);
+  min-width: 280px;
+}
+
+.suna-chat-knowledge-filters {
+  border-top: 1px solid var(--suna-line);
+  display: grid;
+  gap: 6px;
+  margin-top: 5px;
+  padding: 9px 4px 4px;
+}
+
+.suna-chat-knowledge-filters-title {
+  color: var(--suna-text-muted);
+  font-size: calc(11px * var(--suna-ui-font-scale));
+  font-weight: 600;
+  padding: 0 6px 2px;
+}
+
+.suna-chat-knowledge-filters input {
+  background: var(--suna-bg-soft);
+  border: 1px solid var(--suna-line);
+  border-radius: 7px;
+  color: var(--suna-text);
+  font: inherit;
+  font-size: calc(11px * var(--suna-ui-font-scale));
+  min-height: 30px;
+  outline: none;
+  padding: 0 8px;
+}
+
+.suna-chat-knowledge-filters input:focus {
+  border-color: var(--suna-steel);
+}
+
+.suna-chat-knowledge-clear {
+  color: var(--suna-text-muted) !important;
+  justify-content: center !important;
+  min-height: 30px !important;
+  padding: 0 8px !important;
+}
+
 .suna-chat-send-button {
   align-items: center;
   background: var(--suna-steel);
