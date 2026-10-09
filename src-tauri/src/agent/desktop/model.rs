@@ -31,6 +31,9 @@ pub struct AgentPreferences {
     pub max_tool_calls: usize,
     pub context_budget: usize,
     pub retries: usize,
+    pub recovery_retries: usize,
+    pub run_timeout_seconds: u64,
+    pub working_directory: String,
     pub stream_output: bool,
     pub auto_plan: bool,
     pub auto_knowledge: bool,
@@ -55,6 +58,9 @@ impl Default for AgentPreferences {
             max_tool_calls: 64,
             context_budget: 32_768,
             retries: 2,
+            recovery_retries: 2,
+            run_timeout_seconds: 1_800,
+            working_directory: String::new(),
             stream_output: true,
             auto_plan: true,
             auto_knowledge: true,
@@ -102,6 +108,9 @@ impl AgentPreferences {
             .context_budget
             .clamp(MIN_CONTEXT_BUDGET, MAX_CONTEXT_BUDGET);
         self.retries = self.retries.min(10);
+        self.recovery_retries = self.recovery_retries.min(10);
+        self.run_timeout_seconds = self.run_timeout_seconds.clamp(30, 86_400);
+        self.working_directory = self.working_directory.trim().to_string();
     }
 
     pub fn loop_limits(&self) -> AgentLoopLimits {
@@ -109,7 +118,9 @@ impl AgentPreferences {
             max_model_calls: Some(self.max_turns),
             max_tool_calls: Some(self.max_tool_calls),
             max_tool_rounds: Some(self.max_turns),
-            max_recovery_attempts: self.retries,
+            max_recovery_attempts: self.recovery_retries,
+            max_network_retries: self.retries,
+            deadline_ms: Some(self.run_timeout_seconds.saturating_mul(1_000)),
             context_budget: Some(self.context_budget),
             save_checkpoints: self.save_checkpoints,
             stream_output: self.stream_output,
@@ -222,6 +233,8 @@ pub struct LocalAgentChatRequest {
     pub session_id: Option<String>,
     pub message: String,
     pub run_id: Option<String>,
+    #[serde(default)]
+    pub agent_id: Option<String>,
     pub evidence_pack_id: Option<String>,
     #[serde(default)]
     pub smart_search_enabled: bool,
@@ -315,7 +328,9 @@ mod tests {
 
         assert_eq!(limits.max_model_calls, Some(7));
         assert_eq!(limits.max_tool_rounds, Some(7));
-        assert_eq!(limits.max_recovery_attempts, 3);
+        assert_eq!(limits.max_network_retries, 3);
+        assert_eq!(limits.max_recovery_attempts, 2);
+        assert_eq!(limits.deadline_ms, Some(1_800_000));
         assert_eq!(limits.context_budget, Some(4_096));
         assert!(!limits.save_checkpoints);
     }

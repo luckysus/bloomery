@@ -15,6 +15,7 @@ import { useLocale } from "../../i18n/locale";
 import type { PermissionDecision } from "../../bridge/generated/protocol";
 import type { RecoveredRun } from "../../bridge/desktop";
 import type { AgentPermissionView, AgentRunView, AgentToolView } from "./agentEvents";
+import ChildAgentPanel from "./ChildAgentPanel";
 
 interface AgentRunInspectorProps {
   run: AgentRunView | null;
@@ -177,6 +178,8 @@ export default function AgentRunInspector({
           </div>
         </section>
       )}
+
+      <ChildAgentPanel parentRunId={run.runId} parentConversationId={run.conversationId} showToolDetails={showToolDetails} onResolvePermission={onResolvePermission} />
 
       {pendingPermissions.length > 0 && (
         <section className="suna-chat-inspector-section suna-chat-inspector-permissions" aria-labelledby="agent-permissions-heading">

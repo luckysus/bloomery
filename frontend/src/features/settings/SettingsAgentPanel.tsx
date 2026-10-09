@@ -13,6 +13,9 @@ type AgentSettings = {
   maxToolCalls: number;
   contextBudget: number;
   retries: number;
+  recoveryRetries: number;
+  runTimeoutSeconds: number;
+  workingDirectory: string;
   streamOutput: boolean;
   autoPlan: boolean;
   autoKnowledge: boolean;
@@ -35,6 +38,9 @@ const defaults: AgentSettings = {
   maxToolCalls: 64,
   contextBudget: 32768,
   retries: 2,
+  recoveryRetries: 2,
+  runTimeoutSeconds: 1800,
+  workingDirectory: "",
   streamOutput: true,
   autoPlan: true,
   autoKnowledge: true,
@@ -57,7 +63,7 @@ function numberValue(value: unknown, fallback: number, min: number, max: number)
   return typeof value === "number" && Number.isFinite(value) ? Math.min(max, Math.max(min, Math.round(value))) : fallback;
 }
 
-function normalize(raw: string | null): AgentSettings {
+export function normalizeAgentPreferences(raw: string | null): AgentSettings {
   const value = parseObject(raw);
   return {
     defaultAgent: typeof value.defaultAgent === "string" && value.defaultAgent.trim() ? value.defaultAgent.trim() : defaults.defaultAgent,
@@ -67,6 +73,9 @@ function normalize(raw: string | null): AgentSettings {
     maxToolCalls: numberValue(value.maxToolCalls, defaults.maxToolCalls, 1, 1000),
     contextBudget: numberValue(value.contextBudget, defaults.contextBudget, 1024, 262144),
     retries: numberValue(value.retries, defaults.retries, 0, 10),
+    recoveryRetries: numberValue(value.recoveryRetries, defaults.recoveryRetries, 0, 10),
+    runTimeoutSeconds: numberValue(value.runTimeoutSeconds, defaults.runTimeoutSeconds, 30, 86400),
+    workingDirectory: typeof value.workingDirectory === "string" ? value.workingDirectory.trim() : "",
     streamOutput: booleanValue(value.streamOutput, defaults.streamOutput),
     autoPlan: booleanValue(value.autoPlan, defaults.autoPlan),
     autoKnowledge: booleanValue(value.autoKnowledge, defaults.autoKnowledge),
@@ -108,7 +117,7 @@ export default function SettingsAgentPanel() {
     setLoadError(false);
     setError(null);
     try {
-      await setSettingValue("agent.preferences", JSON.stringify({ version: 2, ...next }));
+      await setSettingValue("agent.preferences", JSON.stringify({ version: 3, ...next }));
       await syncDangerousPreference(next.confirmDangerous);
       setSaveState("saved");
     } catch (cause) {
@@ -123,7 +132,7 @@ export default function SettingsAgentPanel() {
     setLoadError(false);
     setError(null);
     void getSettingValue("agent.preferences")
-      .then((raw) => { if (mounted) { const next = normalize(raw); pending.current = next; setValue(next); setLoadError(false); } })
+      .then((raw) => { if (mounted) { const next = normalizeAgentPreferences(raw); pending.current = next; setValue(next); setLoadError(false); } })
       .catch((cause) => { if (mounted) { setLoadError(true); setError(settingsErrorMessage(cause, "无法读取 Agent 设置，请重试")); } })
       .finally(() => { if (mounted) setLoaded(true); });
     if (isDesktopRuntime() && typeof desktop.listAgentProfiles === "function") {
@@ -132,7 +141,7 @@ export default function SettingsAgentPanel() {
     const changed = (event: Event) => {
       const detail = (event as CustomEvent<{ key?: string; value?: string }>).detail;
       if (detail?.key !== "agent.preferences" || !detail.value) return;
-      const next = normalize(detail.value);
+      const next = normalizeAgentPreferences(detail.value);
       pending.current = next;
       setValue(next);
       setSaveState("saved");
@@ -146,7 +155,7 @@ export default function SettingsAgentPanel() {
   }, [loadNonce]);
 
   const update = <K extends keyof AgentSettings>(key: K, nextValue: AgentSettings[K]) => {
-    const next = normalize(JSON.stringify({ ...pending.current, [key]: nextValue }));
+    const next = normalizeAgentPreferences(JSON.stringify({ ...pending.current, [key]: nextValue }));
     pending.current = next;
     setValue(next);
     setSaveState("idle");
@@ -173,8 +182,11 @@ export default function SettingsAgentPanel() {
         <label className="suna-settings-field"><span>上下文预算 Token</span><input type="number" min="1024" max="262144" step="1024" value={value.contextBudget} onChange={(event) => update("contextBudget", Number(event.target.value))} /></label>
         <label className="suna-settings-field"><span>最大循环次数</span><input type="number" min="1" max="100" value={value.maxTurns} onChange={(event) => update("maxTurns", Number(event.target.value))} /></label>
         <label className="suna-settings-field"><span>最大工具调用次数</span><input type="number" min="1" max="1000" value={value.maxToolCalls} onChange={(event) => update("maxToolCalls", Number(event.target.value))} /></label>
-        <label className="suna-settings-field"><span>失败重试次数</span><input type="number" min="0" max="10" value={value.retries} onChange={(event) => update("retries", Number(event.target.value))} /></label>
+        <label className="suna-settings-field"><span>网络重试次数</span><input type="number" min="0" max="10" value={value.retries} onChange={(event) => update("retries", Number(event.target.value))} /></label>
+        <label className="suna-settings-field"><span>检查点恢复次数</span><input type="number" min="0" max="10" value={value.recoveryRetries} onChange={(event) => update("recoveryRetries", Number(event.target.value))} /></label>
+        <label className="suna-settings-field"><span>整次运行期限（秒）</span><input type="number" min="30" max="86400" value={value.runTimeoutSeconds} onChange={(event) => update("runTimeoutSeconds", Number(event.target.value))} /></label>
       </div>
+      <label className="suna-settings-field suna-settings-textarea-field"><span>Agent 工作目录</span><input aria-label="Agent 工作目录" value={value.workingDirectory} placeholder="留空使用应用的 Agent 工作目录" onChange={(event) => update("workingDirectory", event.target.value)} /><small>文件读写和 Shell 仅允许在此目录内执行。留空使用应用专用目录。</small><button type="button" className="suna-secondary-button" onClick={() => void desktop.openFileDialog({ directory: true, multiple: false }).then((path) => { if (typeof path === "string") update("workingDirectory", path); }).catch((cause) => setError(settingsErrorMessage(cause, "无法选择工作目录")))}>选择文件夹</button></label>
       <label className="suna-settings-field suna-settings-textarea-field"><span>System Prompt</span><textarea rows={4} value={value.systemPrompt} onChange={(event) => update("systemPrompt", event.target.value)} /></label>
       <div className="suna-settings-subsection"><div className="suna-settings-subsection-heading"><ShieldCheck size={17} /><div><strong>运行策略</strong><small>这些开关会直接影响 Agent Loop 的规划、知识检索、工具调用和输出行为。</small></div></div><div className="suna-settings-toggle-list">
         <Toggle checked={value.autoSelectAgent} label="自动选择 Agent" copy="根据任务类型选择最合适的 Agent 配置。" onChange={(next) => update("autoSelectAgent", next)} />

@@ -96,7 +96,7 @@ export default function ModelRuntimeSettings() {
         <label className="suna-settings-field"><span>Temperature</span><input disabled={loading} type="number" min="0" max="2" step="0.1" value={value.temperature} onChange={(event) => void update({ temperature: Number(event.target.value) })} /></label>
         <label className="suna-settings-field"><span>Max Tokens</span><input disabled={loading} type="number" min="256" max="262144" step="256" value={value.maxTokens} onChange={(event) => void update({ maxTokens: Number(event.target.value) })} /></label>
         <label className="suna-settings-field"><span>Context Length</span><input disabled={loading} type="number" min="1024" max="1048576" step="1024" value={value.contextLength} onChange={(event) => void update({ contextLength: Number(event.target.value) })} /></label>
-        <label className="suna-settings-field"><span>Timeout (seconds)</span><input disabled={loading} type="number" min="5" max="1800" step="5" value={value.timeoutSeconds} onChange={(event) => void update({ timeoutSeconds: Number(event.target.value) })} /></label>
+        <label className="suna-settings-field"><span>单次模型请求超时（秒）</span><input disabled={loading} type="number" min="5" max="1800" step="5" value={value.timeoutSeconds} onChange={(event) => void update({ timeoutSeconds: Number(event.target.value) })} /></label>
       </div>
       <footer className="suna-settings-form-actions"><button type="button" className="suna-secondary-button" onClick={reset} disabled={loading || state === "saving"}><RotateCcw size={15} />恢复运行参数默认值</button></footer>
     </section>

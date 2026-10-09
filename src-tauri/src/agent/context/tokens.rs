@@ -1,4 +1,6 @@
-const ASCII_CHARS_PER_TOKEN: usize = 4;
+// Conservative fallback for custom models without an exposed tokenizer.
+// Provider usage remains the authoritative count after each request.
+const ASCII_CHARS_PER_TOKEN: usize = 3;
 
 pub fn estimate_tokens(text: &str) -> usize {
     let mut tokens = 0usize;
@@ -16,11 +18,11 @@ fn next_token_cost(character: char, ascii_run: &mut usize) -> usize {
         cost
     } else {
         *ascii_run = 0;
-        1
+        character.len_utf8()
     }
 }
 
-pub(super) fn truncate_to_tokens(text: &str, limit: usize) -> String {
+pub(crate) fn truncate_to_tokens(text: &str, limit: usize) -> String {
     let mut tokens = 0usize;
     let mut ascii_run = 0usize;
     let mut end = 0usize;

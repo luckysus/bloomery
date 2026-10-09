@@ -3,7 +3,8 @@ mod hash;
 mod import;
 
 pub use import::{
-    queue_document_import, DocumentImportRequest, DocumentImportResponse, KnowledgeBaseTarget,
+    queue_document_import, queue_document_import_for_agent, DocumentImportRequest,
+    DocumentImportResponse, KnowledgeBaseTarget,
 };
 
 use std::fmt;

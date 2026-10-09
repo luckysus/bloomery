@@ -576,7 +576,7 @@ pub(crate) fn train_steel_dataset(
 }
 
 pub fn train_steel_dataset_on_connection(
-    connection: &mut rusqlite::Connection,
+    connection: &rusqlite::Connection,
     workspace_id: &str,
     request: &TrainSteelDatasetRequest,
 ) -> Result<crate::tasks::TaskRecord, String> {
@@ -678,7 +678,7 @@ pub(crate) fn predict_steel_model(
 }
 
 pub fn predict_steel_model_on_connection(
-    connection: &mut rusqlite::Connection,
+    connection: &rusqlite::Connection,
     workspace_id: &str,
     request: &PredictSteelModelRequest,
     training_task_id: uuid::Uuid,
@@ -1003,7 +1003,7 @@ pub(crate) fn optimize_steel_process(
 }
 
 pub fn submit_optimization_on_connection(
-    connection: &mut rusqlite::Connection,
+    connection: &rusqlite::Connection,
     request: &OptimizeSteelProcessRequest,
     training_task_id: uuid::Uuid,
 ) -> Result<crate::tasks::model::TaskRecord, String> {

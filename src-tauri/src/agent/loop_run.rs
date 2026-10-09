@@ -16,7 +16,10 @@ use crate::providers::capabilities::{ChatMessage, ChatRequest, ChatToolCall};
 use crate::providers::profiles::ProviderCapability;
 use uuid::Uuid;
 
-fn effective_context_window(configured: Option<usize>, model: Option<usize>) -> Option<usize> {
+pub(super) fn effective_context_window(
+    configured: Option<usize>,
+    model: Option<usize>,
+) -> Option<usize> {
     match (configured, model) {
         (Some(configured), Some(model)) => Some(configured.min(model)),
         (Some(configured), None) => Some(configured),
@@ -104,7 +107,8 @@ where
         if resume.is_none() {
             self.change_state(&mut machine, AgentRunState::Preparing, sink)?;
             if cancellation.is_cancelled() {
-                return self.cancel(
+                return self.cancel_or_timeout(
+                    &cancellation,
                     &mut machine,
                     sink,
                     request.assistant_message_id,
@@ -200,6 +204,47 @@ where
             .map(|resume| resume.pending_tools.clone())
             .unwrap_or_default();
         loop {
+            let background = match self
+                .await_background_results(sink, &cancellation, resume_natural_stop)
+                .await
+            {
+                Ok(results) => results,
+                Err(_) if cancellation.is_cancelled() => {
+                    return self.cancel_or_timeout(
+                        &cancellation,
+                        &mut machine,
+                        sink,
+                        request.assistant_message_id,
+                        context,
+                        answer,
+                    )
+                }
+                Err(error) => {
+                    return self.fail(sink, machine.state(), request.assistant_message_id, error)
+                }
+            };
+            if !background.is_empty() {
+                messages.extend(background);
+                // Task receipt and its acknowledgement are one durable transaction,
+                // including when optional ordinary checkpoints are disabled.
+                self.save_checkpoint(
+                    sink,
+                    AgentContextCheckpoint {
+                        reason: ContextCheckpointReason::ModelCall,
+                        model_call_index: model_calls.saturating_sub(1),
+                        model_calls,
+                        tool_calls,
+                        tool_round,
+                        recovery_attempt,
+                        messages: checkpoint_messages(&messages),
+                    },
+                    limits.context_checkpoint_timeout_ms,
+                )?;
+                resume_natural_stop = false;
+                if machine.state() == AgentRunState::Verifying {
+                    self.change_state(&mut machine, AgentRunState::Generating, sink)?;
+                }
+            }
             if resume_natural_stop {
                 resume_natural_stop = false;
                 let assistant_result_recorded = resume
@@ -323,7 +368,8 @@ where
                     Ok((_, observations)) => observations,
                     Err(error) => {
                         if cancellation.is_cancelled() {
-                            return self.cancel(
+                            return self.cancel_or_timeout(
+                                &cancellation,
                                 &mut machine,
                                 sink,
                                 request.assistant_message_id,
@@ -348,7 +394,8 @@ where
                 continue;
             }
             if cancellation.is_cancelled() {
-                return self.cancel(
+                return self.cancel_or_timeout(
+                    &cancellation,
                     &mut machine,
                     sink,
                     request.assistant_message_id,
@@ -426,6 +473,7 @@ where
                 }),
                 stop: None,
             };
+            let mut partial_response = crate::providers::capabilities::ChatResponse::default();
             let (response, streamed_text, current_reasoning_ms) = match self
                 .generate_with_recovery(
                     chat_request,
@@ -433,11 +481,30 @@ where
                     sink,
                     &cancellation,
                     limits.stream_output,
+                    &limits,
+                    (request.output_reservation, request.reasoning_reservation),
+                    &mut partial_response,
                 )
                 .await
             {
                 Ok(result) => result,
                 Err(error) => {
+                    answer.push_str(&partial_response.text);
+                    if !partial_response.reasoning.is_empty() {
+                        if !reasoning.is_empty() {
+                            reasoning.push_str("\n\n");
+                        }
+                        reasoning.push_str(&partial_response.reasoning);
+                    }
+                    let mut failed_messages = request_messages.clone();
+                    if !partial_response.text.is_empty() || !partial_response.reasoning.is_empty() {
+                        let mut partial_message =
+                            ChatMessage::new("assistant", partial_response.text);
+                        partial_message.reasoning_content =
+                            (!partial_response.reasoning.is_empty())
+                                .then_some(partial_response.reasoning);
+                        failed_messages.push(partial_message);
+                    }
                     if limits.save_checkpoints {
                         self.save_checkpoint(
                             sink,
@@ -448,19 +515,32 @@ where
                                 tool_calls,
                                 tool_round,
                                 recovery_attempt,
-                                messages: checkpoint_messages(&request_messages),
+                                messages: checkpoint_messages(&failed_messages),
                             },
                             limits.context_checkpoint_timeout_ms,
                         )?;
                     }
                     if cancellation.is_cancelled() {
-                        return self.cancel(
+                        let mut result = self.cancel_or_timeout(
+                            &cancellation,
                             &mut machine,
                             sink,
                             request.assistant_message_id,
                             context,
                             answer,
-                        );
+                        )?;
+                        result.reasoning = reasoning;
+                        result.reasoning_ms = reasoning_ms;
+                        return Ok(result);
+                    }
+                    if !answer.is_empty() {
+                        sink.record(AgentEventData::MessageCompleted(MessageCompleted {
+                            message_id: request.assistant_message_id,
+                            role: AgentMessageRole::Assistant,
+                            content: answer,
+                            partial: true,
+                        }))
+                        .map_err(AgentLoopError::EventSink)?;
                     }
                     return self.fail(sink, machine.state(), request.assistant_message_id, error);
                 }
@@ -494,7 +574,8 @@ where
                 usage = Some(add_usage(usage.take(), current));
             }
             if response.cancelled || cancellation.is_cancelled() {
-                return self.cancel(
+                return self.cancel_or_timeout(
+                    &cancellation,
                     &mut machine,
                     sink,
                     request.assistant_message_id,
@@ -503,6 +584,48 @@ where
                 );
             }
             if response.tool_calls.is_empty() {
+                messages = assistant_checkpoint.clone();
+                let background = match self
+                    .await_background_results(sink, &cancellation, true)
+                    .await
+                {
+                    Ok(results) => results,
+                    Err(_) if cancellation.is_cancelled() => {
+                        return self.cancel_or_timeout(
+                            &cancellation,
+                            &mut machine,
+                            sink,
+                            request.assistant_message_id,
+                            context,
+                            answer,
+                        )
+                    }
+                    Err(error) => {
+                        return self.fail(
+                            sink,
+                            machine.state(),
+                            request.assistant_message_id,
+                            error,
+                        )
+                    }
+                };
+                if !background.is_empty() {
+                    messages.extend(background);
+                    self.save_checkpoint(
+                        sink,
+                        AgentContextCheckpoint {
+                            reason: ContextCheckpointReason::ModelCall,
+                            model_call_index: model_calls.saturating_sub(1),
+                            model_calls,
+                            tool_calls,
+                            tool_round,
+                            recovery_attempt,
+                            messages: checkpoint_messages(&messages),
+                        },
+                        limits.context_checkpoint_timeout_ms,
+                    )?;
+                    continue;
+                }
                 // Match Vetta's checkpoint contract: assistant_result is a
                 // resumable natural stop, not the intermediate assistant
                 // message that still has pending tool calls.
@@ -581,6 +704,7 @@ where
                 }
             }
             tool_round += 1;
+            let mut repair_partial = crate::providers::capabilities::ChatResponse::default();
             let mut repaired = match self
                 .repair_tool_calls(
                     &messages,
@@ -602,19 +726,64 @@ where
                             .saturating_add(request.reasoning_reservation),
                     ),
                     limits.stream_output,
+                    &limits,
+                    &mut repair_partial,
                 )
                 .await
             {
                 Ok(repaired) => repaired,
                 Err(error) => {
+                    answer.push_str(&repair_partial.text);
+                    if !repair_partial.reasoning.is_empty() {
+                        if !reasoning.is_empty() {
+                            reasoning.push_str("\n\n");
+                        }
+                        reasoning.push_str(&repair_partial.reasoning);
+                    }
+                    if limits.save_checkpoints
+                        && (!repair_partial.text.is_empty() || !repair_partial.reasoning.is_empty())
+                    {
+                        let mut failed_messages = assistant_checkpoint.clone();
+                        let mut partial_message =
+                            ChatMessage::new("assistant", repair_partial.text);
+                        partial_message.reasoning_content = (!repair_partial.reasoning.is_empty())
+                            .then_some(repair_partial.reasoning);
+                        failed_messages.push(partial_message);
+                        self.save_checkpoint(
+                            sink,
+                            AgentContextCheckpoint {
+                                reason: ContextCheckpointReason::AssistantError,
+                                model_call_index: model_calls - 1,
+                                model_calls,
+                                tool_calls,
+                                tool_round,
+                                recovery_attempt,
+                                messages: checkpoint_messages(&failed_messages),
+                            },
+                            limits.context_checkpoint_timeout_ms,
+                        )?;
+                    }
                     if cancellation.is_cancelled() {
-                        return self.cancel(
+                        let mut result = self.cancel_or_timeout(
+                            &cancellation,
                             &mut machine,
                             sink,
                             request.assistant_message_id,
                             context,
                             answer,
-                        );
+                        )?;
+                        result.reasoning = reasoning;
+                        result.reasoning_ms = reasoning_ms;
+                        return Ok(result);
+                    }
+                    if !answer.is_empty() {
+                        sink.record(AgentEventData::MessageCompleted(MessageCompleted {
+                            message_id: request.assistant_message_id,
+                            role: AgentMessageRole::Assistant,
+                            content: answer,
+                            partial: true,
+                        }))
+                        .map_err(AgentLoopError::EventSink)?;
                     }
                     return self.fail(sink, machine.state(), request.assistant_message_id, error);
                 }
@@ -751,7 +920,8 @@ where
                 }
             }
             if cancellation.is_cancelled() {
-                return self.cancel(
+                return self.cancel_or_timeout(
+                    &cancellation,
                     &mut machine,
                     sink,
                     request.assistant_message_id,
@@ -786,7 +956,8 @@ where
                         .await?,
                 );
                 if cancellation.is_cancelled() {
-                    return self.cancel(
+                    return self.cancel_or_timeout(
+                        &cancellation,
                         &mut machine,
                         sink,
                         request.assistant_message_id,

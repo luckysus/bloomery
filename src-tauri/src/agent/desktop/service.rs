@@ -113,7 +113,25 @@ pub fn prepare_chat(
         .map(|value| Uuid::parse_str(value.trim()).map_err(|_| "run_id must be a UUID".to_string()))
         .transpose()?
         .unwrap_or_else(Uuid::new_v4);
-    let agent_preferences = load_agent_preferences(conn, workspace_id)?;
+    let scheduled_request_cancelled: bool = conn.query_row(
+        "SELECT EXISTS(SELECT 1 FROM cron_outbox WHERE workspace_id = ?1 AND run_id = ?2 AND acknowledged_at IS NOT NULL)",
+        rusqlite::params![workspace_id, run_id.to_string()], |row| row.get(0),
+    ).map_err(|error| error.to_string())?;
+    if scheduled_request_cancelled {
+        return Err("schedule slot was cancelled before Agent startup".to_string());
+    }
+    let mut agent_preferences = load_agent_preferences(conn, workspace_id)?;
+    if let Some(agent_id) = request.agent_id.as_deref() {
+        crate::tasks::model::validate_identifier("agent_id", agent_id)
+            .map_err(|error| error.to_string())?;
+        let profile = crate::agent::profiles::get(conn, workspace_id, agent_id)?
+            .ok_or_else(|| "requested Agent profile was not found".to_string())?;
+        if !profile.enabled {
+            return Err("requested Agent profile is disabled".to_string());
+        }
+        agent_preferences.default_agent = agent_id.to_string();
+        agent_preferences.auto_select_agent = false;
+    }
     if !agent_preferences.allow_file_access && !request.attachments.is_empty() {
         return Err("文件访问已在 Agent 设置中关闭，不能处理附件".to_string());
     }

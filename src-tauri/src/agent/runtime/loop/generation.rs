@@ -19,6 +19,7 @@ impl<'a, M: ?Sized, T: ?Sized, P: ?Sized> AgentLoop<'a, M, T, P>
 where
     M: ModelAdapter,
     T: ToolExecutor,
+    P: super::types::PermissionResolver,
 {
     pub(super) async fn generate(
         &self,
@@ -27,14 +28,18 @@ where
         sink: &mut dyn AgentEventSink,
         cancellation: &CancellationToken,
         stream_output: bool,
+        emitted: &mut bool,
+        timeout_ms: u64,
+        partial_response: &mut ChatResponse,
     ) -> Result<(ChatResponse, String, u64), AgentLoopError> {
-        let mut streamed_text = String::new();
+        *partial_response = ChatResponse::default();
         let mut reasoning_started_at: Option<Instant> = None;
         let mut reasoning_completed = false;
         let mut reasoning_duration_ms = 0;
         let mut sink_error = None;
         let mut on_event = |event: ChatEvent| match event {
             ChatEvent::TextDelta(delta) => {
+                *emitted |= !delta.is_empty();
                 if !reasoning_completed {
                     if let Some(started_at) = reasoning_started_at.take() {
                         reasoning_duration_ms =
@@ -52,7 +57,7 @@ where
                     }
                     reasoning_completed = true;
                 }
-                streamed_text.push_str(&delta);
+                partial_response.text.push_str(&delta);
                 if stream_output && sink_error.is_none() {
                     if let Err(error) = sink.record(AgentEventData::MessageDelta(
                         crate::agent::protocol::MessageDelta {
@@ -66,9 +71,11 @@ where
                 }
             }
             ChatEvent::ReasoningDelta(delta) => {
+                *emitted |= !delta.is_empty();
                 if delta.is_empty() {
                     return;
                 }
+                partial_response.reasoning.push_str(&delta);
                 if reasoning_started_at.is_none() {
                     reasoning_started_at = Some(Instant::now());
                 }
@@ -84,6 +91,7 @@ where
                 }
             }
             ChatEvent::Usage(usage) => {
+                partial_response.usage = Some(usage.clone());
                 if sink_error.is_none() {
                     if let Err(error) = sink.record(AgentEventData::UsageUpdated(
                         crate::agent::protocol::UsageUpdated {
@@ -98,13 +106,23 @@ where
                     }
                 }
             }
-            ChatEvent::ToolCallDelta(_) => {}
+            ChatEvent::ToolCallDelta(delta) => {
+                *emitted |= !delta.arguments.is_empty()
+                    || delta.id.as_ref().is_some_and(|value| !value.is_empty())
+                    || delta.name.as_ref().is_some_and(|value| !value.is_empty());
+            }
         };
-        let response = self
-            .model
-            .generate(request, &mut on_event, cancellation.callback())
-            .await
-            .map_err(AgentLoopError::Provider)?;
+        let response = {
+            let generation = self
+                .model
+                .generate(request, &mut on_event, cancellation.callback());
+            tokio::pin!(generation);
+            tokio::select! {
+                result = &mut generation => result,
+                _ = tokio::time::sleep(std::time::Duration::from_millis(timeout_ms)) => Err(ProviderError::new(crate::providers::http::ProviderErrorCode::Timeout, None, "single model request timed out")),
+                _ = async { while !cancellation.is_cancelled() { tokio::time::sleep(std::time::Duration::from_millis(50)).await; } } => Err(ProviderError::cancelled()),
+            }
+        };
         drop(on_event);
         if !reasoning_completed {
             if let Some(started_at) = reasoning_started_at.take() {
@@ -125,7 +143,11 @@ where
         if let Some(error) = sink_error {
             return Err(AgentLoopError::EventSink(error));
         }
-        Ok((response, streamed_text, reasoning_duration_ms))
+        Ok((
+            response.map_err(AgentLoopError::Provider)?,
+            partial_response.text.clone(),
+            reasoning_duration_ms,
+        ))
     }
 
     pub(super) async fn repair_tool_calls(
@@ -141,6 +163,8 @@ where
         max_model_calls: Option<usize>,
         max_tokens: Option<usize>,
         stream_output: bool,
+        limits: &super::types::AgentLoopLimits,
+        partial_response: &mut ChatResponse,
     ) -> Result<RepairedToolBatch, AgentLoopError> {
         let specs = tool_snapshot
             .iter()
@@ -178,7 +202,7 @@ where
                 format!("The previous tool call failed validation: {feedback}. Return corrected tool calls only."),
             ));
             let (response, _, _) = self
-                .generate(
+                .generate_with_recovery(
                     ChatRequest {
                         messages: repair_messages,
                         temperature: 0.0,
@@ -192,6 +216,9 @@ where
                     sink,
                     cancellation,
                     stream_output,
+                    limits,
+                    (max_tokens.unwrap_or(0), 0),
+                    partial_response,
                 )
                 .await?;
             if response.cancelled || cancellation.is_cancelled() {

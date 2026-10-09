@@ -1,5 +1,7 @@
+pub(crate) mod agent_automation;
 pub(crate) mod agent_cancel_commands;
 pub(crate) mod agent_commands;
+pub(crate) mod automation_commands;
 pub(crate) mod bundled_domain;
 pub(crate) mod bundled_domain_commands;
 pub(crate) mod capability_commands;
@@ -58,6 +60,7 @@ pub fn run() {
         .manage(crate::storage::secrets::SecretState::default())
         .manage(crate::knowledge_db::KnowledgeDatabaseState::default())
         .manage(SchedulerState::default())
+        .manage(agent_automation::AgentAutomationState::default())
         .invoke_handler(commands::handler!())
         .build(tauri::generate_context!())
         .expect("failed to build Suna");
@@ -72,9 +75,16 @@ pub fn run() {
                 .shutdown(Duration::from_secs(2));
             if !stopped {
                 api.prevent_exit();
+            } else {
+                app_handle
+                    .state::<agent_automation::AgentAutomationState>()
+                    .request_shutdown();
             }
         }
         RunEvent::Exit => {
+            app_handle
+                .state::<agent_automation::AgentAutomationState>()
+                .request_shutdown();
             let _ = tauri::async_runtime::block_on(
                 app_handle
                     .state::<mcp_runtime::McpRuntimeState>()

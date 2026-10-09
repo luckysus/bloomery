@@ -133,7 +133,7 @@ impl ToolExecutor for SteelToolExecutor {
         };
         registration
             .handler
-            .execute(invocation.arguments, cancellation)
+            .execute_for_invocation(invocation, cancellation)
     }
 }
 

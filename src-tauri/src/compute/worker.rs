@@ -355,16 +355,19 @@ fn drain_worker_stderr<R: Read>(mut reader: R) -> usize {
 
 #[cfg(windows)]
 #[derive(Debug)]
-struct WorkerProcessGroup {
+pub(crate) struct WorkerProcessGroup {
     handle: usize,
 }
 
 #[cfg(not(windows))]
 #[derive(Debug)]
-struct WorkerProcessGroup;
+pub(crate) struct WorkerProcessGroup;
 
 impl WorkerProcessGroup {
-    fn attach(child: &Child, memory_limit_bytes: u64) -> Result<Self, WorkerSupervisorError> {
+    pub(crate) fn attach(
+        child: &Child,
+        memory_limit_bytes: u64,
+    ) -> Result<Self, WorkerSupervisorError> {
         #[cfg(windows)]
         {
             use std::mem::{size_of, zeroed};
@@ -449,7 +452,7 @@ impl WorkerProcessGroup {
         }
     }
 
-    fn terminate(&self) {
+    pub(crate) fn terminate(&self) {
         #[cfg(windows)]
         {
             unsafe {

@@ -36,6 +36,8 @@ pub struct DesktopSteelAgentGateway {
     workspace_id: String,
     postgres_pool: Option<sqlx::PgPool>,
     app: Option<tauri::AppHandle>,
+    run_id: Option<Uuid>,
+    tool_call_id: Option<Uuid>,
 }
 
 impl DesktopSteelAgentGateway {
@@ -45,6 +47,8 @@ impl DesktopSteelAgentGateway {
             workspace_id: workspace_id.into(),
             postgres_pool: None,
             app: None,
+            run_id: None,
+            tool_call_id: None,
         }
     }
 
@@ -52,6 +56,30 @@ impl DesktopSteelAgentGateway {
         self.postgres_pool = Some(pool);
         self.app = Some(app);
         self
+    }
+
+    pub fn with_run_id(mut self, run_id: Uuid) -> Self {
+        self.run_id = Some(run_id);
+        self
+    }
+
+    fn submit_compute_task(
+        &self,
+        submit: impl FnOnce(&Connection) -> Result<crate::tasks::TaskRecord, String>,
+    ) -> Result<crate::tasks::TaskRecord, String> {
+        let mut connection = self.open()?;
+        match (self.run_id, self.tool_call_id) {
+            (Some(run_id), Some(tool_call_id)) => crate::tasks::sources::submit_with(
+                &mut connection,
+                crate::tasks::sources::AgentTaskSource {
+                    workspace_id: self.workspace_id.clone(),
+                    run_id,
+                    tool_call_id,
+                },
+                submit,
+            ),
+            _ => submit(&connection),
+        }
     }
 
     fn open(&self) -> Result<Connection, String> {
@@ -749,23 +777,40 @@ impl DesktopSteelAgentGateway {
             .map(std::path::Path::to_path_buf)
             .ok_or_else(|| "resolve RAG content root failed".to_string())?;
         let knowledge_base = self.knowledge_base_target(&connection, &arguments)?;
-        let response = queue_document_import(
-            &mut connection,
-            &self.workspace_id,
-            &KeyringSecretStore,
-            &content_root,
-            DocumentImportRequest {
-                source_path: PathBuf::from(file_path),
-                knowledge_base,
-                mineru_profile_id,
-                embedding_profile_id,
-                embedding_dimension: arguments
-                    .get("embedding_dimension")
-                    .and_then(Value::as_u64)
-                    .and_then(|value| u32::try_from(value).ok())
-                    .unwrap_or(1024),
-            },
-        )?;
+        let request = DocumentImportRequest {
+            source_path: PathBuf::from(file_path),
+            knowledge_base,
+            mineru_profile_id,
+            embedding_profile_id,
+            embedding_dimension: arguments
+                .get("embedding_dimension")
+                .and_then(Value::as_u64)
+                .and_then(|value| u32::try_from(value).ok())
+                .unwrap_or(1024),
+        };
+        let response = if let (Some(run_id), Some(tool_call_id)) = (self.run_id, self.tool_call_id)
+        {
+            crate::rag::ingest::queue_document_import_for_agent(
+                &mut connection,
+                &self.workspace_id,
+                &KeyringSecretStore,
+                &content_root,
+                request,
+                crate::tasks::sources::AgentTaskSource {
+                    workspace_id: self.workspace_id.clone(),
+                    run_id,
+                    tool_call_id,
+                },
+            )?
+        } else {
+            queue_document_import(
+                &mut connection,
+                &self.workspace_id,
+                &KeyringSecretStore,
+                &content_root,
+                request,
+            )?
+        };
         Ok(json!({
             "success": true,
             "task_id": response.task_id,
@@ -928,13 +973,14 @@ impl DesktopSteelAgentGateway {
             .map_err(|error| format!("invalid prediction request: {error}"))?;
         let training_task_id = uuid::Uuid::parse_str(&request.training_task_id)
             .map_err(|error| format!("invalid training task ID: {error}"))?;
-        let mut connection = self.open()?;
-        let task = logic::predict_steel_model_on_connection(
-            &mut connection,
-            &self.workspace_id,
-            &request,
-            training_task_id,
-        )?;
+        let task = self.submit_compute_task(|connection| {
+            logic::predict_steel_model_on_connection(
+                connection,
+                &self.workspace_id,
+                &request,
+                training_task_id,
+            )
+        })?;
         Ok(json!({
             "success": true,
             "task": background_task_response(task),
@@ -950,9 +996,9 @@ impl DesktopSteelAgentGateway {
             .map_err(|error| format!("invalid optimization request: {error}"))?;
         let training_task_id = uuid::Uuid::parse_str(&request.training_task_id)
             .map_err(|error| format!("invalid training task ID: {error}"))?;
-        let mut connection = self.open()?;
-        let task =
-            logic::submit_optimization_on_connection(&mut connection, &request, training_task_id)?;
+        let task = self.submit_compute_task(|connection| {
+            logic::submit_optimization_on_connection(connection, &request, training_task_id)
+        })?;
         Ok(json!({
             "success": true,
             "task": background_task_response(task),
@@ -966,12 +1012,9 @@ impl DesktopSteelAgentGateway {
         }
         let request: TrainSteelDatasetRequest = serde_json::from_value(arguments)
             .map_err(|error| format!("invalid training request: {error}"))?;
-        let mut connection = self.open()?;
-        let task = logic::train_steel_dataset_on_connection(
-            &mut connection,
-            &self.workspace_id,
-            &request,
-        )?;
+        let task = self.submit_compute_task(|connection| {
+            logic::train_steel_dataset_on_connection(connection, &self.workspace_id, &request)
+        })?;
         Ok(json!({
             "success": true,
             "task": background_task_response(task),
@@ -1131,6 +1174,18 @@ impl DesktopSteelAgentGateway {
 }
 
 impl SteelAgentGateway for DesktopSteelAgentGateway {
+    fn execute_for_tool_call(
+        &self,
+        tool_name: &'static str,
+        tool_call_id: Uuid,
+        arguments: Value,
+        cancellation: CancellationToken,
+    ) -> SteelAgentGatewayFuture {
+        let mut gateway = self.clone();
+        gateway.tool_call_id = Some(tool_call_id);
+        gateway.execute(tool_name, arguments, cancellation)
+    }
+
     fn execute(
         &self,
         tool_name: &'static str,

@@ -175,14 +175,19 @@ where
 
     pub(super) async fn generate_with_recovery(
         &self,
-        chat_request: ChatRequest,
+        mut chat_request: ChatRequest,
         message_id: Uuid,
         sink: &mut dyn AgentEventSink,
         cancellation: &CancellationToken,
         stream_output: bool,
+        limits: &super::types::AgentLoopLimits,
+        reservations: (usize, usize),
+        partial_response: &mut crate::providers::capabilities::ChatResponse,
     ) -> Result<(crate::providers::capabilities::ChatResponse, String, u64), AgentLoopError> {
-        let mut retried = false;
+        let mut retries = 0usize;
+        let mut context_retry = false;
         loop {
+            let mut emitted = false;
             match self
                 .generate(
                     chat_request.clone(),
@@ -190,20 +195,53 @@ where
                     sink,
                     cancellation,
                     stream_output,
+                    &mut emitted,
+                    limits.model_request_timeout_ms,
+                    partial_response,
                 )
                 .await
             {
                 Ok(result) => return Ok(result),
                 Err(AgentLoopError::Provider(error))
-                    if !retried
+                    if error.code() == ProviderErrorCode::ContextLimit
+                        && !context_retry
+                        && !emitted =>
+                {
+                    context_retry = true;
+                    let window = super::execution::effective_context_window(
+                        limits.context_budget,
+                        self.model.capabilities().context_window,
+                    )
+                    .unwrap_or(crate::agent::context::DEFAULT_MODEL_LIMIT);
+                    chat_request.messages = budget_chat_messages(
+                        chat_request.messages,
+                        Some(window.saturating_mul(3) / 4),
+                        reservations.0,
+                        reservations.1,
+                        chat_request.tools.as_ref(),
+                    )
+                    .map_err(AgentLoopError::Context)?;
+                }
+                Err(AgentLoopError::Provider(error))
+                    if retries < limits.max_network_retries
+                        && !emitted
                         && matches!(
                             error.code(),
                             ProviderErrorCode::Network | ProviderErrorCode::Timeout
                         )
                         && !cancellation.is_cancelled() =>
                 {
-                    retried = true;
-                    tokio::time::sleep(Duration::from_millis(250)).await;
+                    retries += 1;
+                    let backoff = Duration::from_millis(250 * (1u64 << (retries - 1).min(5)));
+                    let until = Instant::now() + backoff;
+                    while Instant::now() < until {
+                        if cancellation.is_cancelled() {
+                            return Err(AgentLoopError::Provider(
+                                crate::providers::http::ProviderError::cancelled(),
+                            ));
+                        }
+                        tokio::time::sleep(Duration::from_millis(50)).await;
+                    }
                 }
                 Err(error) => return Err(error),
             }
@@ -284,9 +322,15 @@ where
             });
         };
         let timeout = call.timeout;
-        let future = registration
-            .handler
-            .execute(call.arguments.clone(), cancellation);
+        let future = registration.handler.execute_for_invocation(
+            ToolInvocation {
+                tool_call_id: call.tool_call_id,
+                tool_id: call.tool_id.clone(),
+                tool_name: call.tool_name.clone(),
+                arguments: call.arguments.clone(),
+            },
+            cancellation.with_deadline(timeout),
+        );
         Box::pin(async move {
             tokio::time::timeout(timeout, future).await.map_err(|_| {
                 ToolExecutionError::new("timeout", "tool execution exceeded its timeout")

@@ -135,7 +135,7 @@ where
     })
 }
 
-fn profile_credential(
+pub(crate) fn profile_credential(
     record: &ProviderProfileRecord,
     secrets: &dyn SecretStore,
 ) -> Result<Option<SecretValue>, String> {

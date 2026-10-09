@@ -11,7 +11,7 @@ import {
   Sparkles,
   UserRound,
 } from "lucide-react";
-import { desktop, isDesktopRuntime, type PermissionRuleRecord, type ProviderCapability, type ProviderProfileInput } from "../../bridge/desktop";
+import { desktop, isDesktopRuntime, type AgentProfileSummary, type PermissionRuleRecord, type ProviderCapability, type ProviderProfileInput } from "../../bridge/desktop";
 import { useLocale } from "../../i18n/locale";
 import SettingsTabList, { type SettingsTabOption } from "./SettingsTabList";
 import SettingsPagePanel from "./SettingsPagePanel";
@@ -33,6 +33,7 @@ import {
   type SettingsEditor,
 } from "./settingsModel";
 import { settingsErrorMessage } from "./settingsError";
+import { normalizeAgentPreferences } from "./SettingsAgentPanel";
 import "./settings.css";
 interface SettingsPageProps { onOpenDiagnostics?: () => void; initialTab?: SettingsTab; }
 export type SettingsTab = "account" | "providers" | "general" | "appearance" | "knowledge" | "agent" | "mcp" | "skill" | "databases" | "shortcuts" | "about";
@@ -226,14 +227,16 @@ const settingsTabs: SettingsTabOption<SettingsTab>[] = [
       }
       const extensions: Record<string, unknown> = {};
       if (isDesktopRuntime()) {
-        const [mcpServers, skillCatalog] = await Promise.all([
+        const [mcpServers, skillCatalog, agentProfiles] = await Promise.all([
           desktop.listMcpServers().catch(() => []),
           desktop.listSkills().catch(() => ({ skills: [], errors: [] })),
+          desktop.listAgentProfiles(),
         ]);
         // Export MCP metadata only. Credentials, environment values and bearer
         // tokens stay in the local credential store and never enter this file.
         extensions.mcp_servers = mcpServers.map(({ id, display_name, server_id, transport, url, executable, args, working_directory, inherited_env, timeout_ms, enabled }) => ({ id, display_name, server_id, transport, url, executable, args, working_directory, inherited_env, timeout_ms, enabled }));
         extensions.skills = skillCatalog.skills.map(({ name, enabled }) => ({ name, enabled }));
+        extensions.agent_profiles = agentProfiles;
       }
       const payload = {
         version: 2,
@@ -252,7 +255,7 @@ const settingsTabs: SettingsTabOption<SettingsTab>[] = [
   };
   const importSettings = async (file: File) => {
     try {
-      const parsed = JSON.parse(await file.text()) as { settings?: Record<string, unknown> & { account?: string; shortcutSend?: string }; extensions?: { mcp_servers?: unknown; skills?: unknown } };
+      const parsed = JSON.parse(await file.text()) as { settings?: Record<string, unknown> & { account?: string; shortcutSend?: string }; extensions?: { mcp_servers?: unknown; skills?: unknown; agent_profiles?: unknown } };
       const settings = parsed.settings ?? {};
       const allowedKeys = new Set(["profile.account", "ui.shortcuts", "ui.settings_tab", "ui.theme", "ui.locale", "ui.preferences", "agent.preferences", "model.preferences", "model.provider.preferences", "knowledge.preferences", "knowledge.postgres", "onboarding.completed", "onboarding.retrieval"]);
       const imported: Record<string, string | null> = {};
@@ -263,8 +266,9 @@ const settingsTabs: SettingsTabOption<SettingsTab>[] = [
         try {
           const parsedValue = JSON.parse(value);
           if (parsedValue === null || typeof parsedValue !== "object" || Array.isArray(parsedValue)) { skipped += 1; continue; }
-          await persistSetting(key, value);
-          imported[key] = value;
+          const normalized = key === "agent.preferences" ? JSON.stringify({ version: 3, ...normalizeAgentPreferences(value) }) : value;
+          await persistSetting(key, normalized);
+          imported[key] = normalized;
           if (key === "profile.account") {
             const account = parsedValue as Record<string, unknown>;
             if (typeof account.display_name === "string" && account.display_name.trim()) setAccountName(account.display_name.trim());
@@ -293,6 +297,12 @@ const settingsTabs: SettingsTabOption<SettingsTab>[] = [
       let extensionImported = 0;
       let extensionSkipped = 0;
       if (isDesktopRuntime() && parsed.extensions) {
+        const agents = Array.isArray(parsed.extensions.agent_profiles) ? parsed.extensions.agent_profiles : [];
+        for (const entry of agents) {
+          if (!entry || typeof entry !== "object" || Array.isArray(entry)) { extensionSkipped += 1; continue; }
+          try { await desktop.saveAgentProfile(entry as AgentProfileSummary); extensionImported += 1; }
+          catch { failed += 1; }
+        }
         const skills = Array.isArray(parsed.extensions.skills) ? parsed.extensions.skills : [];
         for (const entry of skills) {
           if (!entry || typeof entry !== "object" || typeof (entry as { name?: unknown }).name !== "string" || typeof (entry as { enabled?: unknown }).enabled !== "boolean") { extensionSkipped += 1; continue; }

@@ -6,12 +6,13 @@ use crate::storage::StorageError;
 use chrono::{DateTime, Utc};
 use rusqlite::{params, Connection, OptionalExtension, Row, Transaction, TransactionBehavior};
 use serde::Serialize;
+use serde_json::json;
 use uuid::Uuid;
-
 #[path = "child_turns_control.rs"]
 mod control;
+#[path = "child_turns/events.rs"]
+mod events;
 pub use control::{cancel, finish, interrupt_orphans, replay, ChildTurnCommandResult};
-
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct ChildTurnRecord {
     pub child_turn_id: Uuid,
@@ -23,12 +24,25 @@ pub struct ChildTurnRecord {
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
     pub completed_at: Option<DateTime<Utc>>,
+    pub agent_id: Option<String>,
+    pub provider: String,
+    pub model: String,
+    pub task_summary: String,
 }
-
 pub fn create(
     connection: &mut Connection,
     workspace_id: &str,
     snapshot: &TurnSnapshot,
+    timestamp: DateTime<Utc>,
+) -> Result<(), StorageError> {
+    create_for_task(connection, workspace_id, snapshot, "", None, timestamp)
+}
+pub fn create_for_task(
+    connection: &mut Connection,
+    workspace_id: &str,
+    snapshot: &TurnSnapshot,
+    task: &str,
+    agent_id: Option<&str>,
     timestamp: DateTime<Utc>,
 ) -> Result<(), StorageError> {
     validate_workspace(workspace_id)?;
@@ -44,7 +58,22 @@ pub fn create(
             "child turn and session IDs are required",
         ));
     }
-    connection
+    let metadata = json!({
+        "snapshot": snapshot,
+        "task_summary": task.chars().take(512).collect::<String>(),
+        "agent_id": agent_id,
+    })
+    .to_string();
+    if metadata.len() > 512 * 1024 {
+        return Err(StorageError::new(
+            "agent_child_snapshot_too_large",
+            "child snapshot exceeds 512 KiB",
+        ));
+    }
+    let transaction = connection
+        .transaction_with_behavior(TransactionBehavior::Immediate)
+        .map_err(storage)?;
+    transaction
         .execute(
             "INSERT INTO agent_child_turns
              (child_turn_id, workspace_id, parent_turn_id, parent_conversation_id,
@@ -60,16 +89,20 @@ pub fn create(
             ],
         )
         .map_err(storage)?;
+    transaction.execute(
+        "INSERT INTO settings (workspace_id, key, value_json, updated_at) VALUES (?1, ?2, ?3, ?4)",
+        params![workspace_id, metadata_key(snapshot.turn_id), metadata, timestamp_text(timestamp)],
+    ).map_err(storage)?;
+    transaction.commit().map_err(storage)?;
     Ok(())
 }
-
 pub fn get(
     connection: &Connection,
     workspace_id: &str,
     child_turn_id: Uuid,
 ) -> Result<Option<ChildTurnRecord>, StorageError> {
     validate_workspace(workspace_id)?;
-    connection
+    let record = connection
         .query_row(
             "SELECT child_turn_id, workspace_id, parent_turn_id,
                     parent_conversation_id, session_id, state,
@@ -82,9 +115,14 @@ pub fn get(
         .optional()
         .map_err(storage)?
         .map(decode_record)
+        .transpose()?;
+    record
+        .map(|mut record| {
+            hydrate_metadata(connection, workspace_id, &mut record)?;
+            Ok(record)
+        })
         .transpose()
 }
-
 pub fn list(
     connection: &Connection,
     workspace_id: &str,
@@ -122,10 +160,46 @@ pub fn list(
             .query_map(params![parameters[0]], row_to_record)
             .map_err(storage)?
     };
-    rows.map(|row| row.map_err(storage).and_then(decode_record))
-        .collect()
+    let mut records = rows
+        .map(|row| row.map_err(storage).and_then(decode_record))
+        .collect::<Result<Vec<_>, _>>()?;
+    for record in &mut records {
+        hydrate_metadata(connection, workspace_id, record)?;
+    }
+    Ok(records)
 }
-
+fn metadata_key(child_turn_id: Uuid) -> String {
+    format!("agent.child_turn.{child_turn_id}")
+}
+fn hydrate_metadata(
+    connection: &Connection,
+    workspace_id: &str,
+    record: &mut ChildTurnRecord,
+) -> Result<(), StorageError> {
+    let raw = crate::storage::repositories::settings::get(
+        connection,
+        workspace_id,
+        &metadata_key(record.child_turn_id),
+    )
+    .map_err(|error| StorageError::new("agent_child_snapshot_read_failed", error))?;
+    if let Some(raw) = raw {
+        let metadata: serde_json::Value = serde_json::from_str(&raw).map_err(decode)?;
+        record.agent_id = metadata["agent_id"].as_str().map(str::to_string);
+        record.provider = metadata["snapshot"]["provider"]
+            .as_str()
+            .unwrap_or_default()
+            .to_string();
+        record.model = metadata["snapshot"]["model"]
+            .as_str()
+            .unwrap_or_default()
+            .to_string();
+        record.task_summary = metadata["task_summary"]
+            .as_str()
+            .unwrap_or_default()
+            .to_string();
+    }
+    Ok(())
+}
 pub fn append(
     connection: &mut Connection,
     workspace_id: &str,
@@ -141,7 +215,7 @@ pub fn append(
     let transaction = connection
         .transaction_with_behavior(TransactionBehavior::Immediate)
         .map_err(storage)?;
-    let stored = append_data_in_transaction(
+    let stored = events::append_data_in_transaction(
         &transaction,
         workspace_id,
         event.run_id,
@@ -150,7 +224,7 @@ pub fn append(
         event.timestamp,
         event.data.clone(),
     )?;
-    update_state_for_event(
+    events::update_state_for_event(
         &transaction,
         workspace_id,
         stored.run_id,
@@ -171,7 +245,6 @@ pub fn append(
     transaction.commit().map_err(storage)?;
     Ok(stored)
 }
-
 pub(super) fn append_data_in_transaction(
     transaction: &Transaction<'_>,
     workspace_id: &str,
@@ -181,76 +254,16 @@ pub(super) fn append_data_in_transaction(
     timestamp: DateTime<Utc>,
     data: AgentEventData,
 ) -> Result<AgentEventEnvelope, StorageError> {
-    let next_sequence: i64 = transaction
-        .query_row(
-            "SELECT COALESCE(MAX(sequence), 0) + 1
-             FROM agent_child_turn_events
-             WHERE workspace_id = ?1 AND child_turn_id = ?2",
-            params![workspace_id, child_turn_id.to_string()],
-            |row| row.get(0),
-        )
-        .map_err(storage)?;
-    let sequence = u64::try_from(next_sequence).map_err(decode)?;
-    let stored = AgentEventEnvelope {
-        protocol_version: PROTOCOL_VERSION,
-        event_id,
-        run_id: child_turn_id,
+    events::append_data_in_transaction(
+        transaction,
+        workspace_id,
+        child_turn_id,
         conversation_id,
-        sequence,
+        event_id,
         timestamp,
         data,
-    };
-    let event_json = serde_json::to_string(&stored).map_err(encode)?;
-    transaction
-        .execute(
-            "INSERT INTO agent_child_turn_events
-             (event_id, workspace_id, child_turn_id, sequence,
-              protocol_version, timestamp, event_json)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
-            params![
-                stored.event_id.to_string(),
-                workspace_id,
-                child_turn_id.to_string(),
-                next_sequence,
-                i64::from(stored.protocol_version),
-                timestamp_text(stored.timestamp),
-                event_json,
-            ],
-        )
-        .map_err(storage)?;
-    Ok(stored)
+    )
 }
-
-pub(super) fn update_state_for_event(
-    transaction: &Transaction<'_>,
-    workspace_id: &str,
-    child_turn_id: Uuid,
-    data: &AgentEventData,
-    timestamp: DateTime<Utc>,
-) -> Result<(), StorageError> {
-    let (state, completed) = match data {
-        AgentEventData::RunStateChanged(changed) => (changed.current, is_terminal(changed.current)),
-        AgentEventData::RunCompleted(completed) => (outcome_state(completed.outcome), true),
-        _ => return Ok(()),
-    };
-    transaction
-        .execute(
-            "UPDATE agent_child_turns
-             SET state = ?1, updated_at = ?2,
-                 completed_at = CASE WHEN ?3 = 1 THEN ?2 ELSE completed_at END
-             WHERE workspace_id = ?4 AND child_turn_id = ?5",
-            params![
-                state_text(state),
-                timestamp_text(timestamp),
-                i64::from(completed),
-                workspace_id,
-                child_turn_id.to_string()
-            ],
-        )
-        .map_err(storage)?;
-    Ok(())
-}
-
 fn row_to_record(row: &Row<'_>) -> rusqlite::Result<RawChildTurn> {
     Ok(RawChildTurn {
         child_turn_id: row.get(0)?,
@@ -264,7 +277,6 @@ fn row_to_record(row: &Row<'_>) -> rusqlite::Result<RawChildTurn> {
         completed_at: row.get(8)?,
     })
 }
-
 struct RawChildTurn {
     child_turn_id: String,
     workspace_id: String,
@@ -276,7 +288,6 @@ struct RawChildTurn {
     updated_at: String,
     completed_at: Option<String>,
 }
-
 fn decode_record(raw: RawChildTurn) -> Result<ChildTurnRecord, StorageError> {
     Ok(ChildTurnRecord {
         child_turn_id: parse_uuid(&raw.child_turn_id)?,
@@ -291,19 +302,20 @@ fn decode_record(raw: RawChildTurn) -> Result<ChildTurnRecord, StorageError> {
             .completed_at
             .map(|value| parse_timestamp(&value))
             .transpose()?,
+        agent_id: None,
+        provider: String::new(),
+        model: String::new(),
+        task_summary: String::new(),
     })
 }
-
 fn parse_uuid(value: &str) -> Result<Uuid, StorageError> {
     Uuid::parse_str(value).map_err(decode)
 }
-
 fn parse_timestamp(value: &str) -> Result<DateTime<Utc>, StorageError> {
     DateTime::parse_from_rfc3339(value)
         .map(|value| value.with_timezone(&Utc))
         .map_err(decode)
 }
-
 fn parse_state(value: &str) -> Result<AgentRunState, StorageError> {
     match value {
         "created" => Ok(AgentRunState::Created),

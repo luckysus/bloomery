@@ -14,7 +14,7 @@ pub use model::{
 };
 pub(crate) use prompt::assistant_content_for_stream_result;
 pub(crate) use provider::{
-    load_local_llm_config, provider_profile_from_config, stream_llm_answer_core,
+    load_local_llm_config, profile_credential, provider_profile_from_config, stream_llm_answer_core,
 };
 pub(crate) use routing::{build_agent_response_json, plan_steps_for_route, selected_agent_id};
 pub(crate) use service::{

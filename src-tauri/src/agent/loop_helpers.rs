@@ -293,7 +293,16 @@ pub(super) fn render_context_messages(
     let selected = report
         .included_items
         .iter()
-        .filter_map(|item| entries.iter().find(|entry| entry.item.id == item.id))
+        .filter_map(|item| {
+            entries
+                .iter()
+                .find(|entry| entry.item.id == item.id)
+                .map(|entry| {
+                    let mut rendered = entry.clone();
+                    rendered.item = item.clone();
+                    rendered
+                })
+        })
         .collect::<Vec<_>>();
     let mut messages = selected
         .iter()
@@ -308,7 +317,7 @@ pub(super) fn render_context_messages(
     let mut recent = selected
         .iter()
         .filter_map(|entry| match entry.item.source {
-            ContextSource::RecentTurn { newest_first_rank } => Some((newest_first_rank, *entry)),
+            ContextSource::RecentTurn { newest_first_rank } => Some((newest_first_rank, entry)),
             _ => None,
         })
         .collect::<Vec<_>>();
@@ -401,6 +410,10 @@ pub(super) fn budget_chat_messages(
         let end = index;
         let start = message_block_start(&messages, end);
         let block = &messages[start..end];
+        if block.iter().all(|message| message.role == "system") {
+            index = start;
+            continue;
+        }
         let cost = block
             .iter()
             .map(estimate_chat_message_tokens)
@@ -415,13 +428,30 @@ pub(super) fn budget_chat_messages(
                 }
             }
             remaining = remaining.saturating_sub(cost);
-        } else if selected.is_empty() || (end == messages.len() && !block_is_tool_call_block(block))
+        } else if (end == messages.len() && block_is_tool_call_block(block))
+            || selected.is_empty()
+            || (end == messages.len() && !block_is_tool_call_block(block))
         {
             if block_is_tool_call_block(block) {
-                return Err(ContextBudgetError::MessageBlockExceedsLimit {
-                    block_tokens: cost,
-                    input_limit: message_limit,
-                });
+                let compacted = compact_tool_block(block, remaining).ok_or_else(|| {
+                    ContextBudgetError::MessageBlockExceedsLimit {
+                        block_tokens: cost,
+                        input_limit: message_limit,
+                    }
+                })?;
+                let used = compacted
+                    .iter()
+                    .map(estimate_chat_message_tokens)
+                    .sum::<usize>();
+                selected.extend(
+                    compacted
+                        .into_iter()
+                        .enumerate()
+                        .map(|(offset, message)| (start + offset, message)),
+                );
+                remaining = remaining.saturating_sub(used);
+                index = start;
+                continue;
             }
             if remaining == 0 {
                 return Err(ContextBudgetError::MessageBlockExceedsLimit {
@@ -430,7 +460,15 @@ pub(super) fn budget_chat_messages(
                 });
             }
             let mut message = messages[end - 1].clone();
-            message.content = truncate_to_tokens(&message.content, remaining);
+            let content = std::mem::take(&mut message.content);
+            let overhead = estimate_chat_message_tokens(&message);
+            if overhead >= remaining {
+                return Err(ContextBudgetError::MessageBlockExceedsLimit {
+                    block_tokens: cost,
+                    input_limit: message_limit,
+                });
+            }
+            message.content = truncate_to_tokens(&content, remaining.saturating_sub(overhead));
             selected.push((end - 1, message));
             break;
         }
@@ -439,6 +477,47 @@ pub(super) fn budget_chat_messages(
 
     selected.sort_by_key(|(index, _)| *index);
     Ok(selected.into_iter().map(|(_, message)| message).collect())
+}
+
+fn compact_tool_block(block: &[ChatMessage], budget: usize) -> Option<Vec<ChatMessage>> {
+    let mut result = Vec::with_capacity(block.len());
+    let mut remaining = budget;
+    for message in block {
+        let mut compact = message.clone();
+        if compact.role == "tool" && estimate_chat_message_tokens(&compact) > remaining {
+            let content = std::mem::take(&mut compact.content);
+            let overhead = estimate_chat_message_tokens(&compact);
+            if overhead >= remaining {
+                return None;
+            }
+            let marker = "\n[tool output truncated to fit context budget]";
+            let marker_tokens = estimate_tokens(marker);
+            if overhead.saturating_add(marker_tokens) >= remaining {
+                return None;
+            }
+            let content_budget = remaining - overhead - marker_tokens;
+            let mut preview = truncate_to_tokens(&content, content_budget);
+            compact.content = format!("{preview}{marker}");
+            // The token estimator is intentionally conservative and framing can
+            // change at the truncation boundary. Trim until the complete tool
+            // message, including the marker, fits the remaining request budget.
+            while estimate_chat_message_tokens(&compact) > remaining {
+                let preview_tokens = estimate_tokens(&preview);
+                if preview_tokens == 0 {
+                    return None;
+                }
+                preview = truncate_to_tokens(&preview, preview_tokens - 1);
+                compact.content = format!("{preview}{marker}");
+            }
+        }
+        let cost = estimate_chat_message_tokens(&compact);
+        if cost > remaining {
+            return None;
+        }
+        remaining -= cost;
+        result.push(compact);
+    }
+    Some(result)
 }
 
 fn message_block_start(messages: &[ChatMessage], end: usize) -> usize {
@@ -489,28 +568,13 @@ fn estimate_chat_message_tokens(message: &ChatMessage) -> usize {
     }
     text.push_str(&message.tool_call_id.clone().unwrap_or_default());
     estimate_tokens(&text)
+        .saturating_add(16)
+        .saturating_add(message.tool_calls.len().saturating_mul(32))
+        .saturating_add(message.images.len().saturating_mul(4_096))
 }
 
 fn truncate_to_tokens(value: &str, limit: usize) -> String {
-    let mut tokens = 0usize;
-    let mut ascii_run = 0usize;
-    let mut end = 0usize;
-    for (index, character) in value.char_indices() {
-        let cost = if character.is_ascii_alphanumeric() || character == '_' {
-            let cost = usize::from(ascii_run.is_multiple_of(4));
-            ascii_run = ascii_run.saturating_add(1);
-            cost
-        } else {
-            ascii_run = 0;
-            1
-        };
-        if tokens.saturating_add(cost) > limit {
-            break;
-        }
-        tokens = tokens.saturating_add(cost);
-        end = index + character.len_utf8();
-    }
-    value[..end].to_string()
+    crate::agent::context::truncate_to_tokens(value, limit)
 }
 
 pub(super) fn append_input_messages(messages: &mut Vec<ChatMessage>, entries: Vec<ContextEntry>) {
@@ -638,7 +702,7 @@ pub(super) fn to_agent_error(error: &AgentLoopError) -> AgentError {
 
 #[cfg(test)]
 mod tests {
-    use super::{budget_chat_messages, tool_description};
+    use super::{budget_chat_messages, render_context_messages, tool_description};
     use crate::agent::context::ContextBudgetError;
     use crate::providers::capabilities::{ChatMessage, ChatToolCall};
     use serde_json::json;
@@ -656,7 +720,7 @@ mod tests {
             ChatMessage::tool_result("call-1", "x".repeat(256)),
             ChatMessage::new("user", "now"),
         ];
-        let bounded = budget_chat_messages(messages, Some(16), 0, 0, None)
+        let bounded = budget_chat_messages(messages, Some(64), 0, 0, None)
             .expect("oversized tool block should be omitted as a whole");
         assert!(bounded.iter().all(|message| {
             message.role != "tool"
@@ -680,6 +744,95 @@ mod tests {
             error,
             ContextBudgetError::ToolSchemaExceedsLimit { .. }
         ));
+    }
+
+    #[test]
+    fn provider_budget_never_discards_the_latest_tool_observation() {
+        let messages = vec![
+            ChatMessage::new("system", "s"),
+            ChatMessage::assistant_tool_calls(vec![ChatToolCall {
+                id: "call-1".into(),
+                name: "train".into(),
+                arguments: "{}".into(),
+            }]),
+            ChatMessage::tool_result("call-1", "x".repeat(256)),
+        ];
+        assert!(matches!(
+            budget_chat_messages(messages, Some(64), 0, 0, None),
+            Err(ContextBudgetError::MessageBlockExceedsLimit { .. })
+        ));
+    }
+
+    #[test]
+    fn provider_budget_reserves_images_and_message_framing() {
+        let message = ChatMessage::with_images(
+            "user",
+            "look",
+            vec![crate::providers::capabilities::ChatImage {
+                data: "aGVsbG8=".into(),
+                mime: "image/png".into(),
+            }],
+        );
+        assert!(matches!(
+            budget_chat_messages(vec![message.clone()], Some(2_048), 0, 0, None),
+            Err(ContextBudgetError::MessageBlockExceedsLimit { .. })
+        ));
+        assert_eq!(
+            budget_chat_messages(vec![message], Some(8_192), 1_024, 0, None).unwrap()[0]
+                .images
+                .len(),
+            1
+        );
+    }
+
+    #[test]
+    fn rendered_context_uses_the_budgeted_optional_content() {
+        use crate::agent::context::{budget_context, estimate_tokens, ContextItem, ContextSource};
+        use crate::agent::runtime::ContextEntry;
+        let entries = vec![
+            ContextEntry::new(ContextItem::new(
+                "request",
+                ContextSource::CurrentRequest,
+                "answer",
+            )),
+            ContextEntry::new(ContextItem::new(
+                "memory",
+                ContextSource::ExplicitMemory,
+                "x".repeat(500),
+            )),
+        ];
+        let report = budget_context(
+            &entries
+                .iter()
+                .map(|entry| entry.item.clone())
+                .collect::<Vec<_>>(),
+            Some(20),
+            0,
+            0,
+        )
+        .unwrap();
+        let rendered = render_context_messages(&report, &entries, &[]);
+        let memory = rendered
+            .iter()
+            .find(|message| message.role == "system")
+            .unwrap();
+        assert!(memory.content.len() < 500);
+        assert_eq!(
+            memory.content,
+            report
+                .included_items
+                .iter()
+                .find(|item| item.id == "memory")
+                .unwrap()
+                .content
+        );
+        assert!(
+            rendered
+                .iter()
+                .map(|message| estimate_tokens(&message.content))
+                .sum::<usize>()
+                <= 20
+        );
     }
 
     #[test]

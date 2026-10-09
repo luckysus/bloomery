@@ -314,3 +314,239 @@ async fn failed_child_returns_structured_error_details_to_parent() {
         .is_some_and(|errors| !errors.is_empty()));
     runtime.finish_turn(parent_id);
 }
+
+struct CapturingModel {
+    requests: Arc<Mutex<Vec<crate::providers::capabilities::ChatRequest>>>,
+    capabilities: ProviderCapabilities,
+}
+
+impl ModelAdapter for CapturingModel {
+    fn capabilities(&self) -> &ProviderCapabilities {
+        &self.capabilities
+    }
+
+    fn generate<'a>(
+        &'a self,
+        request: crate::providers::capabilities::ChatRequest,
+        _on_event: &'a mut (dyn FnMut(crate::providers::capabilities::ChatEvent) + Send),
+        _is_cancelled: &'a (dyn Fn() -> bool + Send + Sync),
+    ) -> super::super::ModelFuture<'a> {
+        self.requests.lock().unwrap().push(request);
+        Box::pin(async {
+            Ok(ChatResponse {
+                text: "expert conclusion".to_string(),
+                ..ChatResponse::default()
+            })
+        })
+    }
+}
+
+#[derive(Default)]
+struct RecordingStore {
+    snapshots: Mutex<Vec<TurnSnapshot>>,
+}
+
+impl ChildTurnStore for RecordingStore {
+    fn begin(&self, snapshot: &TurnSnapshot) -> Result<(), String> {
+        self.snapshots.lock().unwrap().push(snapshot.clone());
+        Ok(())
+    }
+    fn append(&self, _event: &AgentEventEnvelope) -> Result<(), String> {
+        Ok(())
+    }
+    fn finish(&self, _child_turn_id: Uuid, _outcome: RunOutcome) -> Result<(), String> {
+        Ok(())
+    }
+}
+
+fn echo_tools() -> Arc<dyn ToolExecutor> {
+    Arc::new(TestTools {
+        registration: ToolRegistration::new(
+            ToolSpec {
+                id: "test.echo".to_string(),
+                name: "echo".to_string(),
+                input_schema: json!({"type":"object", "properties":{"value":{"type":"string"}}, "required":["value"], "additionalProperties":false}),
+                risk: crate::agent::protocol::PermissionRisk::Automatic,
+            },
+            true,
+            Arc::new(EchoHandler),
+        ),
+    })
+}
+
+#[tokio::test]
+async fn expert_task_selects_its_model_prompt_tools_and_bounded_snapshot() {
+    let runtime = RuntimeHost::default();
+    let parent_id = Uuid::new_v4();
+    let tools = echo_tools();
+    runtime
+        .begin_turn(TurnSnapshot {
+            turn_id: parent_id,
+            session_id: Uuid::new_v4(),
+            parent_turn_id: None,
+            child_turn_limit: 2,
+            provider: "parent-provider".to_string(),
+            model: "parent-model".to_string(),
+            model_context_window: Some(8192),
+            output_reservation: 1024,
+            reasoning_reservation: 512,
+            limits: AgentLoopLimits {
+                max_model_calls: Some(5),
+                max_tool_calls: Some(10),
+                max_tool_rounds: Some(4),
+                model_request_timeout_ms: 77000,
+                max_network_retries: 1,
+                model_temperature: 700,
+                model_max_tokens: Some(1536),
+                ..AgentLoopLimits::default()
+            },
+            tool_ids: Vec::new(),
+            tool_snapshot: Vec::new(),
+        })
+        .unwrap();
+    runtime
+        .set_tool_snapshot(parent_id, tools.as_ref())
+        .unwrap();
+    let requests = Arc::new(Mutex::new(Vec::new()));
+    let store = Arc::new(RecordingStore::default());
+    let expert = SubagentProfile {
+        id: "steel".to_string(),
+        system_prompt: "Use steel-specific evidence.".to_string(),
+        model: Arc::new(CapturingModel {
+            requests: requests.clone(),
+            capabilities: ProviderCapabilities::chat(
+                ProviderKind::OpenAiCompatible,
+                "expert-model",
+            ),
+        }),
+        tools: tools.clone(),
+        limits: AgentLoopLimits {
+            max_model_calls: Some(3),
+            max_tool_calls: Some(100),
+            ..AgentLoopLimits::default()
+        },
+        provider: "expert-provider".to_string(),
+        model_name: "expert-model".to_string(),
+    };
+    let task = SubagentTool::new_for_parent_with_profiles(
+        model(Vec::new()),
+        tools,
+        Arc::new(DenyPermissions),
+        Arc::new(NoopAgentHooks),
+        runtime.clone(),
+        parent_id,
+        store.clone(),
+        vec![expert],
+    );
+    let output = task
+        .execute(
+            ToolInvocation {
+                tool_call_id: Uuid::new_v4(),
+                tool_id: TASK_TOOL_ID.to_string(),
+                tool_name: TASK_TOOL_NAME.to_string(),
+                arguments: json!({"task":"Review local evidence", "agent_id":"steel"}),
+            },
+            CancellationToken::new(|| false),
+        )
+        .await
+        .unwrap();
+    assert_eq!(output["conclusion"], "expert conclusion");
+    let requests = requests.lock().unwrap();
+    assert_eq!(requests.len(), 1);
+    assert!(requests[0].messages[0]
+        .content
+        .contains("Use steel-specific evidence."));
+    assert_eq!(requests[0].temperature, 0.7);
+    assert_eq!(requests[0].max_tokens, Some(1536));
+    let snapshots = store.snapshots.lock().unwrap();
+    let snapshot = &snapshots[0];
+    assert_eq!(snapshot.provider, "expert-provider");
+    assert_eq!(snapshot.model, "expert-model");
+    assert_eq!(snapshot.output_reservation, 1024);
+    assert_eq!(snapshot.reasoning_reservation, 512);
+    assert_eq!(snapshot.limits.max_model_calls, Some(3));
+    assert_eq!(snapshot.limits.max_tool_calls, Some(10));
+    assert_eq!(snapshot.limits.max_tool_rounds, Some(4));
+    assert_eq!(snapshot.limits.model_request_timeout_ms, 77000);
+    assert_eq!(snapshot.limits.max_network_retries, 1);
+    assert_eq!(snapshot.tool_ids, ["test.echo"]);
+    runtime.finish_turn(parent_id);
+}
+
+#[tokio::test]
+async fn disabled_expert_and_tools_outside_parent_scope_cannot_be_selected() {
+    let task = SubagentTool::new(
+        model(Vec::new()),
+        echo_tools(),
+        Arc::new(DenyPermissions),
+        Arc::new(NoopAgentHooks),
+    );
+    let error = task
+        .execute(
+            ToolInvocation {
+                tool_call_id: Uuid::new_v4(),
+                tool_id: TASK_TOOL_ID.to_string(),
+                tool_name: TASK_TOOL_NAME.to_string(),
+                arguments: json!({"task":"answer", "agent_id":"disabled"}),
+            },
+            CancellationToken::new(|| false),
+        )
+        .await
+        .unwrap_err();
+    assert_eq!(error.code, "agent_profile_disabled");
+    let tools = echo_tools();
+    let parent = crate::agent::runtime::NoopToolExecutor;
+    assert!(SnapshotToolExecutor::intersect(tools.as_ref(), &parent)
+        .registrations()
+        .is_empty());
+    let mut matching = SnapshotToolExecutor::intersect(tools.as_ref(), tools.as_ref());
+    assert_eq!(matching.registrations().len(), 1);
+    matching.restrict_to_ids(&["other.tool".to_string()]);
+    assert!(matching.registrations().is_empty());
+}
+
+#[tokio::test]
+async fn child_snapshot_preserves_invocation_identity_for_training_sources() {
+    struct IdentityHandler;
+    impl ToolHandler for IdentityHandler {
+        fn execute(&self, _arguments: Value, _cancellation: CancellationToken) -> ToolFuture {
+            Box::pin(async {
+                Err(ToolExecutionError::new(
+                    "identity_lost",
+                    "invocation required",
+                ))
+            })
+        }
+        fn execute_for_invocation(
+            &self,
+            invocation: ToolInvocation,
+            _cancellation: CancellationToken,
+        ) -> ToolFuture {
+            Box::pin(async move { Ok(json!({"tool_call_id":invocation.tool_call_id})) })
+        }
+    }
+    let tools = TestTools {
+        registration: ToolRegistration::new(
+            ToolSpec {
+                id: "test.identity".to_string(),
+                name: "identity".to_string(),
+                input_schema: json!({"type":"object"}),
+                risk: crate::agent::protocol::PermissionRisk::Automatic,
+            },
+            true,
+            Arc::new(IdentityHandler),
+        ),
+    };
+    let invocation = ToolInvocation {
+        tool_call_id: Uuid::new_v4(),
+        tool_id: "test.identity".to_string(),
+        tool_name: "identity".to_string(),
+        arguments: json!({}),
+    };
+    let id = invocation.tool_call_id;
+    let output = SnapshotToolExecutor::from(&tools)
+        .execute(invocation, CancellationToken::new(|| false))
+        .await
+        .unwrap();
+    assert_eq!(output["tool_call_id"], id.to_string());
+}

@@ -38,6 +38,16 @@ pub struct AnthropicProvider {
 }
 
 impl AnthropicProvider {
+    pub fn with_request_timeout(
+        mut self,
+        timeout: std::time::Duration,
+    ) -> Result<Self, ProviderError> {
+        self.client = build_client(&HttpClientConfig {
+            request_timeout: timeout,
+            ..HttpClientConfig::default()
+        })?;
+        Ok(self)
+    }
     pub fn new(
         profile: ProviderProfile,
         credential: Option<SecretValue>,

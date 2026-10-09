@@ -867,6 +867,11 @@ fn provider_error_is_persisted_before_failed_completion() {
             None,
             "provider offline",
         )),
+        Err(ProviderError::new(
+            ProviderErrorCode::Network,
+            None,
+            "provider offline",
+        )),
     ]);
     let mut sink = RecordingSink::new();
 
@@ -1401,4 +1406,221 @@ fn loop_resumes_idempotent_tools_from_the_persisted_call_batch() {
         .events
         .iter()
         .any(|event| { matches!(event.data, AgentEventData::ToolCompleted(_)) }));
+}
+
+struct FailingModel {
+    capabilities: ProviderCapabilities,
+    attempts: AtomicUsize,
+    partial: bool,
+    delay_ms: u64,
+}
+impl ModelAdapter for FailingModel {
+    fn capabilities(&self) -> &ProviderCapabilities {
+        &self.capabilities
+    }
+    fn generate<'a>(
+        &'a self,
+        _: ChatRequest,
+        on_event: &'a mut (dyn FnMut(ChatEvent) + Send),
+        _: &'a (dyn Fn() -> bool + Send + Sync),
+    ) -> ModelFuture<'a> {
+        self.attempts.fetch_add(1, Ordering::SeqCst);
+        if self.partial {
+            on_event(ChatEvent::TextDelta("partial output".into()));
+        }
+        Box::pin(async move {
+            tokio::time::sleep(Duration::from_millis(self.delay_ms)).await;
+            Err(ProviderError::new(
+                ProviderErrorCode::Network,
+                None,
+                "offline",
+            ))
+        })
+    }
+}
+#[test]
+fn network_retry_setting_controls_requests_and_partial_streams_are_not_replayed() {
+    for (retries, partial, expected) in [(0, false, 1), (2, false, 3), (3, true, 1)] {
+        let model = FailingModel {
+            capabilities: ProviderCapabilities::chat(ProviderKind::OpenAiCompatible, "test"),
+            attempts: AtomicUsize::new(0),
+            partial,
+            delay_ms: 0,
+        };
+        let mut request = request(None);
+        request.limits.max_network_retries = retries;
+        request.limits.max_recovery_attempts = 0;
+        let mut sink = RecordingSink::new();
+        assert!(tauri::async_runtime::block_on(
+            AgentLoop::new(&model, &NoopToolExecutor, &DenyPermissions).run(
+                request,
+                &mut sink,
+                CancellationToken::new(|| false)
+            )
+        )
+        .is_err());
+        assert_eq!(model.attempts.load(Ordering::SeqCst), expected);
+        assert_eq!(
+            sink.events
+                .iter()
+                .filter(|event| matches!(event.data, AgentEventData::MessageDelta(_)))
+                .count(),
+            usize::from(partial)
+        );
+    }
+}
+#[test]
+fn request_timeout_and_total_run_deadline_have_distinct_errors() {
+    for (request_timeout, deadline, expected) in [
+        (5, 500, "single model request"),
+        (500, 5, "total run deadline"),
+    ] {
+        let model = FailingModel {
+            capabilities: ProviderCapabilities::chat(ProviderKind::OpenAiCompatible, "test"),
+            attempts: AtomicUsize::new(0),
+            partial: false,
+            delay_ms: 100,
+        };
+        let mut request = request(None);
+        request.limits.max_network_retries = 0;
+        request.limits.model_request_timeout_ms = request_timeout;
+        request.limits.deadline_ms = Some(deadline);
+        let mut sink = RecordingSink::new();
+        let error = tauri::async_runtime::block_on(
+            AgentLoop::new(&model, &NoopToolExecutor, &DenyPermissions).run(
+                request,
+                &mut sink,
+                CancellationToken::new(|| false),
+            ),
+        )
+        .unwrap_err();
+        assert!(error.to_string().contains(expected), "{error}");
+        assert_eq!(model.attempts.load(Ordering::SeqCst), 1);
+        assert!(sink.events.iter().any(|event| matches!(
+            event.data,
+            AgentEventData::RunCompleted(RunCompleted {
+                outcome: RunOutcome::Failed,
+                ..
+            })
+        )));
+    }
+}
+struct BackgroundSink {
+    inner: RecordingSink,
+    delivery: Option<suna::tasks::agent_delivery::TaskDelivery>,
+    polls: usize,
+}
+impl AgentEventSink for BackgroundSink {
+    fn background_tasks(
+        &mut self,
+    ) -> Result<Vec<suna::tasks::agent_delivery::TaskDelivery>, String> {
+        self.polls += 1;
+        Ok(if self.polls == 1 {
+            Vec::new()
+        } else {
+            self.delivery
+                .clone()
+                .into_iter()
+                .map(|mut task| {
+                    if self.polls < 3 {
+                        task.state = suna::tasks::TaskState::Running;
+                    }
+                    task
+                })
+                .collect()
+        })
+    }
+    fn record(&mut self, data: AgentEventData) -> Result<AgentEventEnvelope, String> {
+        self.inner.record(data)
+    }
+    fn transition(&mut self, changed: RunStateChanged) -> Result<AgentEventEnvelope, String> {
+        self.inner.transition(changed)
+    }
+    fn finish(
+        &mut self,
+        changed: RunStateChanged,
+        outcome: RunOutcome,
+        message: Option<Uuid>,
+    ) -> Result<Vec<AgentEventEnvelope>, String> {
+        self.inner.finish(changed, outcome, message)
+    }
+    fn checkpoint(&mut self, checkpoint: AgentContextCheckpoint) -> Result<(), String> {
+        if self.delivery.as_ref().is_some_and(|task| {
+            checkpoint
+                .messages
+                .iter()
+                .any(|message| message.content == task.message())
+        }) {
+            self.delivery = None;
+        }
+        self.inner.checkpoint(checkpoint)
+    }
+}
+#[test]
+fn background_completion_continues_the_same_run_without_another_user_message() {
+    for state in [
+        suna::tasks::TaskState::Completed,
+        suna::tasks::TaskState::Failed,
+    ] {
+        let model = ScriptedModel::script(vec![
+            response("Submitted, waiting.", vec![]),
+            response("Analyzed task result.", vec![]),
+        ]);
+        let task_id = Uuid::new_v4();
+        let mut sink = BackgroundSink {
+            inner: RecordingSink::new(),
+            polls: 0,
+            delivery: Some(suna::tasks::agent_delivery::TaskDelivery {
+                task_id,
+                run_id: Uuid::new_v4(),
+                tool_call_id: Uuid::new_v4(),
+                kind: "training".into(),
+                state,
+                progress: 100,
+                error_code: (state == suna::tasks::TaskState::Failed)
+                    .then(|| "training_failed".into()),
+                result: json!({"r2":0.95}),
+            }),
+        };
+        let mut request = request(None);
+        request.limits.save_checkpoints = false;
+        let result = tauri::async_runtime::block_on(
+            AgentLoop::new(&model, &NoopToolExecutor, &DenyPermissions).run(
+                request,
+                &mut sink,
+                CancellationToken::new(|| false),
+            ),
+        )
+        .unwrap();
+        assert_eq!(result.outcome, RunOutcome::Completed);
+        let requests = model.requests.lock().unwrap();
+        assert_eq!(requests.len(), 2);
+        let received = requests[1]
+            .messages
+            .iter()
+            .find_map(|message| {
+                serde_json::from_str::<Value>(&message.content)
+                    .ok()
+                    .filter(|value| value["background_task_id"] == task_id.to_string())
+            })
+            .expect("same run receives final task result");
+        assert_eq!(
+            received["success"],
+            state == suna::tasks::TaskState::Completed
+        );
+        assert_eq!(received["result"]["r2"], 0.95);
+        assert_eq!(
+            sink.inner.checkpoints.len(),
+            1,
+            "delivery is durable even when ordinary checkpoints are disabled"
+        );
+        assert_eq!(
+            sink.inner
+                .events
+                .iter()
+                .filter(|event| matches!(event.data, AgentEventData::RunCompleted(_)))
+                .count(),
+            1
+        );
+    }
 }

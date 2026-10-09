@@ -138,6 +138,19 @@ pub enum ConfiguredChatProvider {
     Ollama(OllamaProvider),
 }
 
+impl ConfiguredChatProvider {
+    pub fn with_request_timeout(self, timeout: std::time::Duration) -> Result<Self, ProviderError> {
+        match self {
+            Self::Anthropic(provider) => {
+                provider.with_request_timeout(timeout).map(Self::Anthropic)
+            }
+            Self::OpenAi(provider) => provider.with_request_timeout(timeout).map(Self::OpenAi),
+            Self::DeepSeek(provider) => provider.with_request_timeout(timeout).map(Self::DeepSeek),
+            Self::Ollama(provider) => provider.with_request_timeout(timeout).map(Self::Ollama),
+        }
+    }
+}
+
 pub fn configured_chat_provider(
     profile: ProviderProfile,
     credential: Option<SecretValue>,

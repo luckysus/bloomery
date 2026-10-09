@@ -17,6 +17,10 @@ pub struct AgentTurnSnapshot {
     pub evidence_pack_id: Option<Uuid>,
     #[serde(default)]
     pub system_prompt: String,
+    #[serde(default)]
+    pub agent_profile: Option<crate::agent::profiles::AgentProfile>,
+    #[serde(default)]
+    pub working_directory: Option<String>,
 }
 
 pub fn save(

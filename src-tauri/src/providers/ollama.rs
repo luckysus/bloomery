@@ -11,6 +11,13 @@ pub struct OllamaProvider {
 }
 
 impl OllamaProvider {
+    pub fn with_request_timeout(
+        mut self,
+        timeout: std::time::Duration,
+    ) -> Result<Self, ProviderError> {
+        self.inner = self.inner.with_request_timeout(timeout)?;
+        Ok(self)
+    }
     pub fn new(profile: ProviderProfile) -> Result<Self, ProviderError> {
         if profile.kind != ProviderKind::Ollama {
             return Err(ProviderError::new(

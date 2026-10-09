@@ -1,6 +1,7 @@
 use crate::agent::protocol::PermissionRisk;
 use crate::agent::runtime::{
-    CancellationToken, ToolExecutionError, ToolFuture, ToolHandler, ToolRegistration,
+    CancellationToken, ToolExecutionError, ToolFuture, ToolHandler, ToolInvocation,
+    ToolRegistration,
 };
 use crate::agent::tool_repair::ToolSpec;
 use serde_json::{json, Value};
@@ -18,6 +19,17 @@ pub trait SteelAgentGateway: Send + Sync {
         arguments: Value,
         cancellation: CancellationToken,
     ) -> SteelAgentGatewayFuture;
+
+    fn execute_for_tool_call(
+        &self,
+        tool_name: &'static str,
+        tool_call_id: uuid::Uuid,
+        arguments: Value,
+        cancellation: CancellationToken,
+    ) -> SteelAgentGatewayFuture {
+        let _ = tool_call_id;
+        self.execute(tool_name, arguments, cancellation)
+    }
 }
 
 struct GatewayTool {
@@ -26,6 +38,29 @@ struct GatewayTool {
 }
 
 impl ToolHandler for GatewayTool {
+    fn execute_for_invocation(
+        &self,
+        invocation: ToolInvocation,
+        cancellation: CancellationToken,
+    ) -> ToolFuture {
+        let name = self.name;
+        let gateway = self.gateway.clone();
+        Box::pin(async move {
+            if cancellation.is_cancelled() {
+                return Err(ToolExecutionError::cancelled());
+            }
+            gateway
+                .execute_for_tool_call(
+                    name,
+                    invocation.tool_call_id,
+                    invocation.arguments,
+                    cancellation,
+                )
+                .await
+                .map_err(|error| ToolExecutionError::new(format!("steel_{name}_failed"), error))
+        })
+    }
+
     fn execute(&self, arguments: Value, cancellation: CancellationToken) -> ToolFuture {
         let name = self.name;
         let gateway = self.gateway.clone();

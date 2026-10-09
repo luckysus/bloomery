@@ -24,6 +24,8 @@ impl<'a, T: ToolExecutor + ?Sized> DomainToolExecutor<'a, T> {
             .filter(|registration| {
                 domains.is_empty() || {
                     registration.spec.id.starts_with("mcp.")
+                        || registration.spec.id.starts_with("builtin.")
+                        || registration.spec.id.starts_with("agent.")
                         || domains.iter().any(|manifest| {
                             manifest
                                 .builtin_tool_allowlist

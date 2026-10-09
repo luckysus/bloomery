@@ -64,6 +64,15 @@ impl<P> AgentEventSink for SqliteAgentEventSink<'_, P>
 where
     P: AgentEventPublisher,
 {
+    fn background_tasks(
+        &mut self,
+    ) -> Result<Vec<crate::tasks::agent_delivery::TaskDelivery>, String> {
+        crate::tasks::agent_delivery::pending_for_run(
+            self.connection,
+            &self.workspace_id,
+            self.run_id,
+        )
+    }
     fn record(&mut self, data: AgentEventData) -> Result<AgentEventEnvelope, String> {
         let event = events::append(
             self.connection,
@@ -124,16 +133,34 @@ where
                 CheckpointReason::AssistantError
             }
         };
+        let transaction = self
+            .connection
+            .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
+            .map_err(|error| error.to_string())?;
+        let received = crate::tasks::agent_delivery::ready_for_run(
+            &transaction,
+            &self.workspace_id,
+            self.run_id,
+        )?
+        .into_iter()
+        .filter(|delivery| {
+            checkpoint
+                .messages
+                .iter()
+                .any(|message| message.role == "user" && message.content == delivery.message())
+        })
+        .map(|delivery| delivery.task_id)
+        .collect::<Vec<_>>();
         checkpoints::save(
-            self.connection,
+            &transaction,
             &self.workspace_id,
             self.run_id,
             &checkpoint,
             Utc::now(),
         )
         .map_err(|error| error.to_string())?;
-        let event = events::append(
-            self.connection,
+        let event = events::append_in_transaction(
+            &transaction,
             &self.workspace_id,
             self.run_id,
             Uuid::new_v4(),
@@ -148,6 +175,13 @@ where
             }),
         )
         .map_err(|error| error.to_string())?;
+        crate::tasks::agent_delivery::acknowledge(
+            &transaction,
+            &self.workspace_id,
+            self.run_id,
+            &received,
+        )?;
+        transaction.commit().map_err(|error| error.to_string())?;
         self.publish(event).map(|_| ())
     }
 }

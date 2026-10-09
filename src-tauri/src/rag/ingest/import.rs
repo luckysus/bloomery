@@ -47,6 +47,67 @@ pub fn queue_document_import(
     content_root: &Path,
     request: DocumentImportRequest,
 ) -> Result<DocumentImportResponse, String> {
+    queue_document_import_inner(
+        connection,
+        workspace_id,
+        secrets,
+        content_root,
+        request,
+        None,
+    )
+}
+
+pub fn queue_document_import_for_agent(
+    connection: &mut Connection,
+    workspace_id: &str,
+    secrets: &dyn SecretStore,
+    content_root: &Path,
+    request: DocumentImportRequest,
+    source: crate::tasks::sources::AgentTaskSource,
+) -> Result<DocumentImportResponse, String> {
+    if let Some(task) = crate::tasks::sources::for_tool_call(connection, &source)? {
+        let payload: MinerUTaskPayload = serde_json::from_str(&task.payload_json)
+            .map_err(|error| format!("invalid linked literature task: {error}"))?;
+        let (knowledge_base_id, attempt_id): (String, String) = connection.query_row(
+            "SELECT d.knowledge_base_id, a.id FROM knowledge_source_documents d
+             JOIN knowledge_ingest_attempts a ON a.workspace_id = d.workspace_id AND a.document_id = d.id
+             WHERE d.workspace_id = ?1 AND d.id = ?2 AND a.task_id = ?3
+             ORDER BY a.created_at DESC LIMIT 1",
+            rusqlite::params![workspace_id, payload.document_id.to_string(), task.id.to_string()],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        ).map_err(|error| error.to_string())?;
+        return Ok(DocumentImportResponse {
+            knowledge_base_id: knowledge_base_id
+                .parse()
+                .map_err(|error| format!("invalid knowledge base ID: {error}"))?,
+            document_id: payload.document_id,
+            version_id: payload.version_id,
+            ingest_attempt_id: attempt_id
+                .parse()
+                .map_err(|error| format!("invalid ingest attempt ID: {error}"))?,
+            task_id: task.id,
+            duplicate_content: true,
+        });
+    }
+    crate::tasks::sources::validate_source_for_submission(connection, &source)?;
+    queue_document_import_inner(
+        connection,
+        workspace_id,
+        secrets,
+        content_root,
+        request,
+        Some(source),
+    )
+}
+
+fn queue_document_import_inner(
+    connection: &mut Connection,
+    workspace_id: &str,
+    secrets: &dyn SecretStore,
+    content_root: &Path,
+    request: DocumentImportRequest,
+    source_link: Option<crate::tasks::sources::AgentTaskSource>,
+) -> Result<DocumentImportResponse, String> {
     if request.embedding_dimension == 0 {
         return Err("embedding dimension must be positive".to_string());
     }
@@ -163,6 +224,9 @@ pub fn queue_document_import(
         Some(version.id),
         Some(task.id.to_string()),
     )?;
+    if let Some(source) = source_link {
+        crate::tasks::sources::attach_existing(&transaction, source, task.id)?;
+    }
     transaction.commit().map_err(|error| error.to_string())?;
     Ok(DocumentImportResponse {
         knowledge_base_id: knowledge_base.id,

@@ -1,6 +1,7 @@
 mod composite;
 mod domain_tools;
 mod host;
+mod local_tools;
 mod r#loop;
 pub mod model_adapter;
 pub mod persistence;
@@ -14,6 +15,7 @@ mod todos;
 pub use composite::CompositeToolExecutor;
 pub use domain_tools::DomainToolExecutor;
 pub use host::{RuntimeHost, ToolSnapshotEntry, TurnHandle, TurnSnapshot};
+pub use local_tools::LocalToolExecutor;
 pub use model_adapter::{ModelAdapter, ModelFuture, ProviderModelAdapter};
 pub use persistence::{AgentEventPublisher, NoopAgentEventPublisher, SqliteAgentEventSink};
 pub use r#loop::{
@@ -31,7 +33,7 @@ pub use recovery::{
 };
 pub use skills_tool::SkillTool;
 pub use subagents::{
-    ChildTurnStore, SnapshotToolExecutor, SqliteChildTurnStore, SubagentTool,
+    ChildTurnStore, SnapshotToolExecutor, SqliteChildTurnStore, SubagentProfile, SubagentTool,
     MAX_SUBAGENT_MODEL_CALLS, MAX_SUBAGENT_TOOL_CALLS, MAX_SUBAGENT_TOOL_ROUNDS,
 };
 pub use tasks_tool::BackgroundTasksTool;

@@ -40,6 +40,7 @@ export interface Message {
 
 export interface LocalAgentChatRequest {
   sessionId?: string;
+  agentId?: string;
   message: string;
   runId?: string;
   evidencePackId?: string;
@@ -94,6 +95,10 @@ export interface AgentChildTurnRecord {
   created_at: string;
   updated_at: string;
   completed_at: string | null;
+  agent_id: string | null;
+  provider: string;
+  model: string;
+  task_summary: string;
 }
 
 export interface ChildTurnCommandResult {
@@ -1017,7 +1022,63 @@ export interface SkillCatalog {
   errors: SkillLoadError[];
 }
 
-export interface AgentProfileSummary { id: string; name: string; description: string; enabled: boolean; status: string; }
+export interface AgentPermissionRestrictions {
+  allowFileAccess: boolean;
+  allowShell: boolean;
+  allowNetwork: boolean;
+  allowDatabase: boolean;
+  allowMcp: boolean;
+  confirmDangerous: boolean;
+}
+export interface AgentProfileLimits {
+  maxTurns: number;
+  maxToolCalls: number;
+  contextBudget: number;
+  retries: number;
+  recoveryRetries: number;
+  runTimeoutSeconds: number;
+}
+export interface AgentProfileSummary {
+  id: string;
+  name: string;
+  description: string;
+  enabled: boolean;
+  status: string;
+  preset: boolean;
+  systemPrompt: string;
+  providerId: string | null;
+  toolIds: string[];
+  permissionRestrictions: AgentPermissionRestrictions;
+  limits: AgentProfileLimits;
+}
+export interface AgentSchedule {
+  id: string;
+  workspaceId: string;
+  expression: string;
+  timezone: string;
+  prompt: string;
+  identity: string;
+  recurring: boolean;
+  durable: boolean;
+  enabled: boolean;
+  conversationId: string | null;
+  agentId: string;
+  nextRunAtUtc: string;
+  lastSlotAtUtc: string | null;
+  lastError: string | null;
+  lastRunId: string | null;
+  lastRunState: string | null;
+}
+export interface SaveAgentScheduleRequest {
+  id?: string;
+  conversationId: string;
+  agentId: string;
+  expression: string;
+  timezone: string;
+  prompt: string;
+  enabled: boolean;
+  recurring?: boolean;
+}
 export interface ToolCapabilitySummary { id: string; name: string; description: string; enabled: boolean; source: string; }
 
 export type DomainTrust = "official_signed" | "third_party_unsigned";
@@ -1251,6 +1312,10 @@ export const desktop = {
     if (!isDesktopRuntime()) return Promise.resolve(() => undefined);
     return listen<AgentEventEnvelope>("agent-event", (event) => handler(event.payload));
   },
+  listenAgentChildEvents: (handler: (event: AgentEventEnvelope) => void) => {
+    if (!isDesktopRuntime()) return Promise.resolve(() => undefined);
+    return listen<AgentEventEnvelope>("child-agent-event", (event) => handler(event.payload));
+  },
   listenSchedulerProgress: (handler: (event: SchedulerProgressEvent) => void) => {
     if (!isDesktopRuntime()) return Promise.resolve(() => undefined);
     return listen<{ Progress: SchedulerProgressEvent }>("scheduler:progress", (event) => {
@@ -1346,6 +1411,15 @@ getComputeOptimizationResult: (id: string) =>
   setSkillEnabled: (name: string, enabled: boolean) =>
     call<SkillCatalog>("set_skill_enabled", { name, enabled }),
   listAgentProfiles: () => call<AgentProfileSummary[]>("list_agent_profiles"),
+  listAgentProfilePresets: () => call<AgentProfileSummary[]>("list_agent_profile_presets"),
+  saveAgentProfile: (profile: AgentProfileSummary) =>
+    call<AgentProfileSummary>("save_agent_profile", { profile }),
+  resetAgentProfile: (id: string) => call<AgentProfileSummary>("reset_agent_profile", { id }),
+  deleteAgentProfile: (id: string) => call<void>("delete_agent_profile", { id }),
+  listAgentSchedules: () => call<AgentSchedule[]>("list_agent_schedules"),
+  saveAgentSchedule: (request: SaveAgentScheduleRequest) => call<AgentSchedule>("save_agent_schedule", { request }),
+  deleteAgentSchedule: (id: string) => call<void>("delete_agent_schedule", { id }),
+  setAgentScheduleEnabled: (id: string, enabled: boolean) => call<void>("set_agent_schedule_enabled", { id, enabled }),
   listToolCapabilities: () => call<ToolCapabilitySummary[]>("list_tool_capabilities"),
   listDomainPackages: () => call<DomainPackageRecord[]>("list_domain_packages"),
   installDomainPackage: (sourcePath: string) =>

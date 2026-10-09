@@ -26,6 +26,10 @@ pub struct AgentLoopLimits {
     pub max_tool_calls: Option<usize>,
     pub max_tool_rounds: Option<usize>,
     pub max_recovery_attempts: usize,
+    #[serde(default = "default_network_retries")]
+    pub max_network_retries: usize,
+    #[serde(default = "default_model_timeout")]
+    pub model_request_timeout_ms: u64,
     #[serde(default)]
     pub context_budget: Option<usize>,
     /// Temperature in thousandths keeps the durable limits type Eq while
@@ -53,6 +57,8 @@ impl Default for AgentLoopLimits {
             max_tool_calls: None,
             max_tool_rounds: None,
             max_recovery_attempts: 2,
+            max_network_retries: default_network_retries(),
+            model_request_timeout_ms: default_model_timeout(),
             context_budget: None,
             model_temperature: default_model_temperature(),
             model_max_tokens: None,
@@ -68,8 +74,18 @@ const fn default_model_temperature() -> u16 {
     200
 }
 
+const fn default_network_retries() -> usize {
+    2
+}
+const fn default_model_timeout() -> u64 {
+    120_000
+}
+
 impl AgentLoopLimits {
     pub fn validate(&self) -> Result<(), String> {
+        if self.max_network_retries > 10 || self.model_request_timeout_ms == 0 {
+            return Err("invalid model retry or request timeout policy".to_string());
+        }
         if self.max_model_calls == Some(0) {
             return Err("max_model_calls must be greater than zero".to_string());
         }
@@ -210,11 +226,11 @@ pub type ToolFuture =
 pub type PermissionFuture = Pin<Box<dyn Future<Output = PermissionDecision> + Send + 'static>>;
 
 #[derive(Clone)]
-pub struct CancellationToken(Arc<dyn Fn() -> bool + Send + Sync>);
+pub struct CancellationToken(Arc<dyn Fn() -> bool + Send + Sync>, Option<Instant>);
 
 impl CancellationToken {
     pub fn new(callback: impl Fn() -> bool + Send + Sync + 'static) -> Self {
-        Self(Arc::new(callback))
+        Self(Arc::new(callback), None)
     }
 
     pub fn is_cancelled(&self) -> bool {
@@ -224,7 +240,14 @@ impl CancellationToken {
     pub fn with_deadline(&self, deadline: Duration) -> Self {
         let parent = self.clone();
         let expires_at = Instant::now() + deadline;
-        Self::new(move || parent.is_cancelled() || Instant::now() >= expires_at)
+        Self(
+            Arc::new(move || parent.is_cancelled() || Instant::now() >= expires_at),
+            Some(expires_at),
+        )
+    }
+
+    pub fn deadline_exceeded(&self) -> bool {
+        self.1.is_some_and(|deadline| Instant::now() >= deadline)
     }
 
     pub(super) fn callback(&self) -> &(dyn Fn() -> bool + Send + Sync) {
@@ -378,6 +401,14 @@ impl RuntimeToolSnapshot {
 
 pub trait ToolHandler: Send + Sync {
     fn execute(&self, arguments: Value, cancellation: CancellationToken) -> ToolFuture;
+
+    fn execute_for_invocation(
+        &self,
+        invocation: ToolInvocation,
+        cancellation: CancellationToken,
+    ) -> ToolFuture {
+        self.execute(invocation.arguments, cancellation)
+    }
 }
 
 pub trait ToolExecutor: Send + Sync {
@@ -545,6 +576,11 @@ impl ToolExecutor for NoopToolExecutor {
 }
 
 pub trait AgentEventSink: Send {
+    fn background_tasks(
+        &mut self,
+    ) -> Result<Vec<crate::tasks::agent_delivery::TaskDelivery>, String> {
+        Ok(Vec::new())
+    }
     fn record(&mut self, data: AgentEventData) -> Result<AgentEventEnvelope, String>;
 
     fn transition(&mut self, changed: RunStateChanged) -> Result<AgentEventEnvelope, String>;

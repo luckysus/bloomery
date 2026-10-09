@@ -4,12 +4,11 @@ use super::{
     ToolHandler, ToolInvocation, ToolRegistration, TurnSnapshot,
 };
 use crate::agent::context::{ContextItem, ContextSource};
-use crate::agent::protocol::{AgentEventEnvelope, RunOutcome};
+use crate::agent::protocol::RunOutcome;
 use crate::agent::tool_repair::ToolSpec;
 use crate::providers::profiles::ProviderCapability;
 use serde::Deserialize;
 use serde_json::{json, Value};
-use std::path::PathBuf;
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -21,78 +20,34 @@ use child_events::ChildAgentEventSink;
 mod child_result;
 use child_result::{completed as child_result, details as child_result_details};
 
+mod child_store;
+pub use child_store::{ChildTurnStore, SqliteChildTurnStore};
+
+mod snapshot;
+pub use snapshot::{child_limits, SnapshotToolExecutor};
+
 pub const MAX_SUBAGENT_TOOL_ROUNDS: usize = 30;
 pub const MAX_SUBAGENT_MODEL_CALLS: usize = 32;
 pub const MAX_SUBAGENT_TOOL_CALLS: usize = 64;
 const TASK_TOOL_ID: &str = "agent.task";
 const TASK_TOOL_NAME: &str = "task";
 
-pub trait ChildTurnStore: Send + Sync {
-    fn begin(&self, snapshot: &TurnSnapshot) -> Result<(), String>;
-    fn append(&self, event: &AgentEventEnvelope) -> Result<(), String>;
-    fn finish(&self, child_turn_id: Uuid, outcome: RunOutcome) -> Result<(), String>;
-}
-
-#[derive(Clone)]
-pub struct SqliteChildTurnStore {
-    database: PathBuf,
-    workspace_id: String,
-}
-
-impl SqliteChildTurnStore {
-    pub fn new(database: impl Into<PathBuf>, workspace_id: impl Into<String>) -> Self {
-        Self {
-            database: database.into(),
-            workspace_id: workspace_id.into(),
-        }
-    }
-
-    fn with_connection<T>(
-        &self,
-        operation: impl FnOnce(&mut rusqlite::Connection) -> Result<T, crate::storage::StorageError>,
-    ) -> Result<T, String> {
-        let (mut connection, _) =
-            crate::storage::database::open(&self.database).map_err(|error| error.to_string())?;
-        operation(&mut connection).map_err(|error| error.to_string())
-    }
-}
-
-impl ChildTurnStore for SqliteChildTurnStore {
-    fn begin(&self, snapshot: &TurnSnapshot) -> Result<(), String> {
-        self.with_connection(|connection| {
-            crate::storage::repositories::child_turns::create(
-                connection,
-                &self.workspace_id,
-                snapshot,
-                chrono::Utc::now(),
-            )
-        })
-    }
-
-    fn append(&self, event: &AgentEventEnvelope) -> Result<(), String> {
-        self.with_connection(|connection| {
-            crate::storage::repositories::child_turns::append(connection, &self.workspace_id, event)
-                .map(|_| ())
-        })
-    }
-
-    fn finish(&self, child_turn_id: Uuid, outcome: RunOutcome) -> Result<(), String> {
-        self.with_connection(|connection| {
-            crate::storage::repositories::child_turns::finish(
-                connection,
-                &self.workspace_id,
-                child_turn_id,
-                outcome,
-                chrono::Utc::now(),
-            )
-        })
-    }
-}
-
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct TaskRequest {
     task: String,
+    agent_id: Option<String>,
+}
+
+#[derive(Clone)]
+pub struct SubagentProfile {
+    pub id: String,
+    pub system_prompt: String,
+    pub model: Arc<dyn ModelAdapter>,
+    pub tools: Arc<dyn ToolExecutor>,
+    pub limits: AgentLoopLimits,
+    pub provider: String,
+    pub model_name: String,
 }
 
 pub struct SubagentTool {
@@ -106,7 +61,16 @@ impl SubagentTool {
         permissions: Arc<dyn PermissionResolver>,
         hooks: Arc<dyn AgentHooks>,
     ) -> Self {
-        Self::new_with_parent(model, tools, permissions, hooks, None, None, None)
+        Self::new_with_parent(
+            model,
+            tools,
+            permissions,
+            hooks,
+            None,
+            None,
+            None,
+            Vec::new(),
+        )
     }
 
     pub fn new_for_parent(
@@ -125,6 +89,7 @@ impl SubagentTool {
             Some(runtime),
             Some(parent_turn_id),
             None,
+            Vec::new(),
         )
     }
 
@@ -145,6 +110,29 @@ impl SubagentTool {
             Some(runtime),
             Some(parent_turn_id),
             Some(store),
+            Vec::new(),
+        )
+    }
+
+    pub fn new_for_parent_with_profiles(
+        model: Arc<dyn ModelAdapter>,
+        tools: Arc<dyn ToolExecutor>,
+        permissions: Arc<dyn PermissionResolver>,
+        hooks: Arc<dyn AgentHooks>,
+        runtime: RuntimeHost,
+        parent_turn_id: Uuid,
+        store: Arc<dyn ChildTurnStore>,
+        profiles: Vec<SubagentProfile>,
+    ) -> Self {
+        Self::new_with_parent(
+            model,
+            tools,
+            permissions,
+            hooks,
+            Some(runtime),
+            Some(parent_turn_id),
+            Some(store),
+            profiles,
         )
     }
 
@@ -156,6 +144,7 @@ impl SubagentTool {
         runtime: Option<RuntimeHost>,
         parent_turn_id: Option<Uuid>,
         store: Option<Arc<dyn ChildTurnStore>>,
+        profiles: Vec<SubagentProfile>,
     ) -> Self {
         let handler = SubagentHandler {
             model,
@@ -165,6 +154,7 @@ impl SubagentTool {
             runtime,
             parent_turn_id,
             store,
+            profiles: Arc::new(profiles),
         };
         Self {
             registration: ToolRegistration::new(
@@ -173,7 +163,10 @@ impl SubagentTool {
                     name: TASK_TOOL_NAME.to_string(),
                     input_schema: json!({
                         "type": "object",
-                        "properties": {"task": {"type": "string", "minLength": 1}},
+                        "properties": {
+                            "task": {"type": "string", "minLength": 1, "maxLength": 16000},
+                            "agent_id": {"type": "string", "minLength": 1, "maxLength": 128}
+                        },
                         "required": ["task"],
                         "additionalProperties": false
                     }),
@@ -192,9 +185,17 @@ impl ToolExecutor for SubagentTool {
     }
 
     fn execute(&self, invocation: ToolInvocation, cancellation: CancellationToken) -> ToolFuture {
+        if invocation.tool_id != TASK_TOOL_ID || invocation.tool_name != TASK_TOOL_NAME {
+            return Box::pin(async {
+                Err(ToolExecutionError::new(
+                    "tool_not_registered",
+                    "task tool is not registered",
+                ))
+            });
+        }
         self.registration
             .handler
-            .execute(invocation.arguments, cancellation)
+            .execute_for_invocation(invocation, cancellation)
     }
 }
 
@@ -206,6 +207,7 @@ struct SubagentHandler {
     runtime: Option<RuntimeHost>,
     parent_turn_id: Option<Uuid>,
     store: Option<Arc<dyn ChildTurnStore>>,
+    profiles: Arc<Vec<SubagentProfile>>,
 }
 
 impl ToolHandler for SubagentHandler {
@@ -217,16 +219,71 @@ impl ToolHandler for SubagentHandler {
         let runtime = self.runtime.clone();
         let parent_turn_id = self.parent_turn_id;
         let child_store = self.store.clone();
+        let profiles = self.profiles.clone();
         Box::pin(async move {
-            let task = serde_json::from_value::<TaskRequest>(arguments)
+            if cancellation.is_cancelled() {
+                return Err(ToolExecutionError::cancelled());
+            }
+            let request = serde_json::from_value::<TaskRequest>(arguments)
                 .map_err(|error| ToolExecutionError::new("invalid_task", error.to_string()))?;
-            let task = task.task.trim().to_string();
-            if task.is_empty() {
+            let task = request.task.trim().to_string();
+            if task.is_empty() || task.chars().count() > 16000 {
                 return Err(ToolExecutionError::new(
                     "invalid_task",
-                    "task must not be empty",
+                    "task must contain between 1 and 16000 characters",
                 ));
             }
+            let profile = request
+                .agent_id
+                .as_deref()
+                .map(|id| {
+                    if id.trim().is_empty() || id.len() > 128 {
+                        return Err(ToolExecutionError::new(
+                            "invalid_task",
+                            "agent_id is invalid",
+                        ));
+                    }
+                    let mut matching = profiles.iter().filter(|profile| profile.id == id);
+                    let profile = matching.next().ok_or_else(|| {
+                        ToolExecutionError::new(
+                            "agent_profile_disabled",
+                            "requested expert is unavailable or disabled",
+                        )
+                    })?;
+                    if matching.next().is_some() {
+                        return Err(ToolExecutionError::new(
+                            "subagent_configuration_error",
+                            "duplicate expert profile",
+                        ));
+                    }
+                    profile.limits.validate().map_err(|error| {
+                        ToolExecutionError::new("subagent_configuration_error", error)
+                    })?;
+                    Ok(profile.clone())
+                })
+                .transpose()?;
+            let model = profile
+                .as_ref()
+                .map(|profile| profile.model.clone())
+                .unwrap_or(model);
+            let mut selected_tools = profile
+                .as_ref()
+                .map(|profile| {
+                    SnapshotToolExecutor::intersect(profile.tools.as_ref(), tools.as_ref())
+                })
+                .unwrap_or_else(|| SnapshotToolExecutor::from(tools.as_ref()));
+            let parent = match (runtime.as_ref(), parent_turn_id) {
+                (Some(runtime), Some(parent_turn_id)) => Some(
+                    runtime
+                        .snapshot(parent_turn_id)
+                        .map_err(|error| ToolExecutionError::new("child_turn_start", error))?,
+                ),
+                _ => None,
+            };
+            if let Some(parent) = &parent {
+                selected_tools.restrict_to_ids(&parent.tool_ids);
+            }
+            let tools: Arc<dyn ToolExecutor> = Arc::new(selected_tools);
             if tools.registrations().iter().any(|registration| {
                 registration.spec.id == TASK_TOOL_ID || registration.spec.name == TASK_TOOL_NAME
             }) {
@@ -244,27 +301,27 @@ impl ToolHandler for SubagentHandler {
             let child_turn_id = Uuid::new_v4();
             let child_runtime = match (runtime.clone(), parent_turn_id) {
                 (Some(runtime), Some(parent_turn_id)) => {
-                    let parent = runtime
-                        .snapshot(parent_turn_id)
-                        .map_err(|error| ToolExecutionError::new("child_turn_start", error))?;
+                    let parent = parent.as_ref().expect("parent snapshot checked above");
                     let mut snapshot = TurnSnapshot {
                         turn_id: child_turn_id,
                         session_id: parent.session_id,
                         parent_turn_id: Some(parent_turn_id),
                         child_turn_limit: parent.child_turn_limit,
-                        provider: parent.provider,
-                        model: parent.model,
-                        model_context_window: parent.model_context_window,
-                        output_reservation: 2_048,
+                        provider: profile
+                            .as_ref()
+                            .map(|profile| profile.provider.clone())
+                            .unwrap_or_else(|| parent.provider.clone()),
+                        model: profile
+                            .as_ref()
+                            .map(|profile| profile.model_name.clone())
+                            .unwrap_or_else(|| parent.model.clone()),
+                        model_context_window: model.capabilities().context_window,
+                        output_reservation: parent.output_reservation,
                         reasoning_reservation: parent.reasoning_reservation,
-                        limits: AgentLoopLimits {
-                            max_model_calls: Some(MAX_SUBAGENT_MODEL_CALLS),
-                            max_tool_calls: Some(MAX_SUBAGENT_TOOL_CALLS),
-                            max_tool_rounds: Some(MAX_SUBAGENT_TOOL_ROUNDS),
-                            context_budget: parent.limits.context_budget,
-                            save_checkpoints: parent.limits.save_checkpoints,
-                            ..AgentLoopLimits::default()
-                        },
+                        limits: child_limits(
+                            Some(&parent.limits),
+                            profile.as_ref().map(|profile| &profile.limits),
+                        ),
                         tool_ids: Vec::new(),
                         tool_snapshot: Vec::new(),
                     };
@@ -279,7 +336,9 @@ impl ToolHandler for SubagentHandler {
                         }
                     };
                     if let Some(store) = child_store.as_ref() {
-                        if let Err(error) = store.begin(&snapshot) {
+                        if let Err(error) =
+                            store.begin_task(&snapshot, &task, request.agent_id.as_deref())
+                        {
                             runtime.finish_turn(child_turn_id);
                             return Err(ToolExecutionError::new("child_turn_start", error));
                         }
@@ -294,7 +353,7 @@ impl ToolHandler for SubagentHandler {
                     ContextEntry::new(ContextItem::new(
                         "subagent-system",
                         ContextSource::System,
-                        "You are a focused subagent. Complete only the delegated task and return a concise conclusion. Do not delegate further.",
+                        format!("You are a focused subagent. Complete only the delegated task and return a concise conclusion. Do not delegate further.\n\n{}", profile.as_ref().map(|profile| profile.system_prompt.as_str()).unwrap_or("")),
                     )),
                     ContextEntry::new(ContextItem::new(
                         "subagent-task",
@@ -302,7 +361,7 @@ impl ToolHandler for SubagentHandler {
                         task,
                     )),
                 ],
-                output_reservation: 2_048,
+                output_reservation: child_runtime.as_ref().map(|(_, _, _, snapshot)| snapshot.output_reservation).unwrap_or(2_048),
                 reasoning_reservation: child_runtime
                     .as_ref()
                     .map(|(_, _, _, snapshot)| snapshot.reasoning_reservation)
@@ -312,12 +371,7 @@ impl ToolHandler for SubagentHandler {
                 limits: child_runtime
                     .as_ref()
                     .map(|(_, _, _, snapshot)| snapshot.limits.clone())
-                    .unwrap_or(AgentLoopLimits {
-                        max_model_calls: Some(MAX_SUBAGENT_MODEL_CALLS),
-                        max_tool_calls: Some(MAX_SUBAGENT_TOOL_CALLS),
-                        max_tool_rounds: Some(MAX_SUBAGENT_TOOL_ROUNDS),
-                        ..AgentLoopLimits::default()
-                    }),
+                    .unwrap_or_else(|| child_limits(None, profile.as_ref().map(|profile| &profile.limits))),
                 input_queue: child_runtime
                     .as_ref()
                     .map(|(_, _, handle, _)| handle.input_queue.clone())
@@ -422,48 +476,6 @@ impl ToolHandler for SubagentHandler {
             }
             Ok(child_result(child_turn_id, &result, sink.events()))
         })
-    }
-}
-
-pub struct SnapshotToolExecutor {
-    registrations: Vec<ToolRegistration>,
-}
-
-impl SnapshotToolExecutor {
-    pub fn from(source: &dyn ToolExecutor) -> Self {
-        Self {
-            registrations: source
-                .registrations()
-                .iter()
-                .filter(|registration| {
-                    registration.spec.id != TASK_TOOL_ID && registration.spec.name != TASK_TOOL_NAME
-                })
-                .cloned()
-                .collect(),
-        }
-    }
-}
-
-impl ToolExecutor for SnapshotToolExecutor {
-    fn registrations(&self) -> &[ToolRegistration] {
-        &self.registrations
-    }
-
-    fn execute(&self, invocation: ToolInvocation, cancellation: CancellationToken) -> ToolFuture {
-        let Some(registration) = self.registrations.iter().find(|registration| {
-            registration.spec.id == invocation.tool_id
-                && registration.spec.name == invocation.tool_name
-        }) else {
-            return Box::pin(async {
-                Err(ToolExecutionError::new(
-                    "tool_not_registered",
-                    "tool is not registered",
-                ))
-            });
-        };
-        registration
-            .handler
-            .execute(invocation.arguments, cancellation)
     }
 }
 

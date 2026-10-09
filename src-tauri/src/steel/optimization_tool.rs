@@ -1,6 +1,7 @@
 use crate::agent::protocol::PermissionRisk;
 use crate::agent::runtime::{
-    CancellationToken, ToolExecutionError, ToolFuture, ToolHandler, ToolRegistration,
+    CancellationToken, ToolExecutionError, ToolFuture, ToolHandler, ToolInvocation,
+    ToolRegistration,
 };
 use crate::agent::tool_repair::ToolSpec;
 use serde::Deserialize;
@@ -14,6 +15,14 @@ use std::sync::Arc;
 /// request DTO remains inside the app layer.
 pub trait OptimizationGateway: Send + Sync {
     fn submit(&self, arguments: Value) -> Result<Value, String>;
+    fn submit_for_tool_call(
+        &self,
+        arguments: Value,
+        tool_call_id: uuid::Uuid,
+    ) -> Result<Value, String> {
+        let _ = tool_call_id;
+        self.submit(arguments)
+    }
     fn status(&self, task_id: &str) -> Result<Value, String>;
 }
 
@@ -21,8 +30,13 @@ struct OptimizeConstrainedTool {
     gateway: Arc<dyn OptimizationGateway>,
 }
 
-impl ToolHandler for OptimizeConstrainedTool {
-    fn execute(&self, arguments: Value, cancellation: CancellationToken) -> ToolFuture {
+impl OptimizeConstrainedTool {
+    fn submit(
+        &self,
+        arguments: Value,
+        cancellation: CancellationToken,
+        tool_call_id: Option<uuid::Uuid>,
+    ) -> ToolFuture {
         let gateway = self.gateway.clone();
         Box::pin(async move {
             if cancellation.is_cancelled() {
@@ -32,10 +46,30 @@ impl ToolHandler for OptimizeConstrainedTool {
                 ));
             }
             validate_optimization_arguments(&arguments)?;
-            gateway
-                .submit(arguments)
-                .map_err(|error| ToolExecutionError::new("steel_optimization_submit_failed", error))
+            match tool_call_id {
+                Some(tool_call_id) => gateway.submit_for_tool_call(arguments, tool_call_id),
+                None => gateway.submit(arguments),
+            }
+            .map_err(|error| ToolExecutionError::new("steel_optimization_submit_failed", error))
         })
+    }
+}
+
+impl ToolHandler for OptimizeConstrainedTool {
+    fn execute(&self, arguments: Value, cancellation: CancellationToken) -> ToolFuture {
+        self.submit(arguments, cancellation, None)
+    }
+
+    fn execute_for_invocation(
+        &self,
+        invocation: ToolInvocation,
+        cancellation: CancellationToken,
+    ) -> ToolFuture {
+        self.submit(
+            invocation.arguments,
+            cancellation,
+            Some(invocation.tool_call_id),
+        )
     }
 }
 

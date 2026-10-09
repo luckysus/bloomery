@@ -22,15 +22,15 @@ fn estimate_for(items: &[ContextItem], ids: &[&str]) -> usize {
 #[test]
 fn token_estimator_distinguishes_latin_and_cjk() {
     assert_eq!(estimate_tokens("steel"), 2);
-    assert_eq!(estimate_tokens("steelsteel"), 3);
-    assert_eq!(estimate_tokens("钢铁钢铁"), 4);
+    assert_eq!(estimate_tokens("steelsteel"), 4);
+    assert_eq!(estimate_tokens("钢铁钢铁"), 12);
     assert!(estimate_tokens("钢铁钢铁") > estimate_tokens("steelsteel"));
 }
 
 #[test]
 fn token_estimator_counts_whitespace_and_mixed_structured_text() {
     assert_eq!(estimate_tokens(" \n\t"), 3);
-    assert_eq!(estimate_tokens("a 钢\n{}"), 6);
+    assert_eq!(estimate_tokens("a 钢\n{}"), 8);
 }
 
 #[test]
@@ -230,13 +230,13 @@ fn optional_unicode_content_is_truncated_on_a_character_boundary_and_recorded() 
         .find(|item| item.id == "evidence")
         .expect("evidence prefix is included");
 
-    assert_eq!(included.content, "钢铁锻");
+    assert_eq!(included.content, "钢");
     assert_eq!(
         report.truncations,
         vec![TruncationRecord {
             id: "evidence".to_string(),
             original_tokens: estimate_tokens(&evidence_text),
-            included_tokens: 3,
+            included_tokens: estimate_tokens("钢"),
         }]
     );
     assert_eq!(report.omitted_ids, vec!["memory"]);
@@ -264,8 +264,10 @@ fn large_unicode_content_is_truncated_to_the_exact_token_limit() {
         .find(|item| item.id == "evidence")
         .expect("evidence prefix is included");
 
-    assert_eq!(included.content.chars().count(), evidence_limit);
-    assert_eq!(estimate_tokens(&included.content), evidence_limit);
+    let expected_chars = evidence_limit / "钢".chars().next().unwrap().len_utf8();
+    assert_eq!(included.content.chars().count(), expected_chars);
+    assert!(estimate_tokens(&included.content) <= evidence_limit);
+    assert!(estimate_tokens(&included.content) + estimate_tokens("钢") > evidence_limit);
 }
 
 #[test]

@@ -1,3 +1,4 @@
+mod background;
 #[path = "../loop_run.rs"]
 mod execution;
 mod generation;

@@ -242,6 +242,8 @@ fn checkpoint_storage_rejects_payloads_over_512_kib() {
 fn turn_snapshot_round_trips_without_credentials() {
     let connection = setup_with_run();
     let snapshot = turn_snapshots::AgentTurnSnapshot {
+        agent_profile: None,
+        working_directory: None,
         turn: TurnSnapshot {
             turn_id: id(RUN_ID),
             session_id: id(CONVERSATION_ID),
@@ -427,4 +429,97 @@ fn timestamp(value: &str) -> DateTime<Utc> {
     DateTime::parse_from_rfc3339(value)
         .unwrap()
         .with_timezone(&Utc)
+}
+
+#[test]
+fn background_receipt_acknowledgement_rolls_back_with_failed_context_checkpoint() {
+    let mut connection = setup_with_run();
+    connection
+        .execute(
+            "UPDATE agent_runs SET state = 'executing_tools' WHERE id = ?1",
+            params![RUN_ID],
+        )
+        .unwrap();
+    let task = suna::tasks::sources::create(
+        &mut connection,
+        suna::tasks::NewTask {
+            workspace_id: WORKSPACE.into(),
+            kind: "training".into(),
+            payload_json: "{}".into(),
+            checkpoint_json: None,
+            next_run_at: None,
+            progress: 0,
+        },
+        suna::tasks::sources::AgentTaskSource {
+            workspace_id: WORKSPACE.into(),
+            run_id: id(RUN_ID),
+            tool_call_id: Uuid::new_v4(),
+        },
+    )
+    .unwrap();
+    connection.execute("UPDATE background_tasks SET state = 'completed', progress = 100, checkpoint_json = ?1 WHERE id = ?2", params![r#"{"result":{"r2":0.96}}"#, task.id.to_string()]).unwrap();
+    let received = suna::tasks::agent_delivery::ready_for_run(&connection, WORKSPACE, id(RUN_ID))
+        .unwrap()
+        .remove(0);
+    let checkpoint = AgentContextCheckpoint {
+        reason: ContextCheckpointReason::ModelCall,
+        model_call_index: 1,
+        model_calls: 2,
+        tool_calls: 1,
+        tool_round: 1,
+        recovery_attempt: 0,
+        messages: vec![ChatMessage::new("user", received.message())],
+    };
+    {
+        let mut oversized = checkpoint.clone();
+        oversized
+            .messages
+            .push(ChatMessage::new("assistant", "x".repeat(600_000)));
+        let mut sink = SqliteAgentEventSink::new(
+            &mut connection,
+            WORKSPACE,
+            id(RUN_ID),
+            |_event: &AgentEventEnvelope| Ok(()),
+        );
+        assert!(sink.checkpoint(oversized).is_err());
+    }
+    assert!(checkpoints::get(&connection, WORKSPACE, id(RUN_ID))
+        .unwrap()
+        .is_none());
+    assert_eq!(
+        suna::tasks::agent_delivery::ready_for_run(&connection, WORKSPACE, id(RUN_ID))
+            .unwrap()
+            .len(),
+        1,
+        "failed persistence must keep receipt pending"
+    );
+    {
+        let mut sink = SqliteAgentEventSink::new(
+            &mut connection,
+            WORKSPACE,
+            id(RUN_ID),
+            |_event: &AgentEventEnvelope| Ok(()),
+        );
+        sink.checkpoint(checkpoint.clone()).unwrap();
+    }
+    assert!(
+        suna::tasks::agent_delivery::ready_for_run(&connection, WORKSPACE, id(RUN_ID))
+            .unwrap()
+            .is_empty()
+    );
+    assert_eq!(
+        checkpoints::get(&connection, WORKSPACE, id(RUN_ID))
+            .unwrap()
+            .unwrap()
+            .messages,
+        checkpoint.messages
+    );
+    assert_eq!(
+        events::replay(&connection, WORKSPACE, id(RUN_ID), 0)
+            .unwrap()
+            .iter()
+            .filter(|event| matches!(event.data, AgentEventData::CheckpointSaved(_)))
+            .count(),
+        1
+    );
 }

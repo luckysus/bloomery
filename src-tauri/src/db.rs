@@ -83,12 +83,6 @@ pub(crate) fn database_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
     Ok(app_data_directory(app)?.join("suna.sqlite3"))
 }
 
-fn content_root_for(database: &PathBuf) -> Result<PathBuf, String> {
-    database
-        .parent()
-        .map(std::path::Path::to_path_buf)
-        .ok_or_else(|| "resolve RAG content root failed".to_string())
-}
 #[tauri::command]
 pub fn db_init(
     app: tauri::AppHandle,
@@ -138,7 +132,7 @@ pub fn db_init(
     use crate::app::event_sink::TauriEventSink;
     use crate::tasks::scheduler::{Scheduler, SchedulerConfig, SystemClock};
     let sink = Arc::new(TauriEventSink::new(app.clone()));
-    let content_root = content_root_for(&path)?;
+    let content_root = crate::app::agent_automation::content_root_for(&path)?;
     let scheduler = Scheduler::new(
         path.clone(),
         current_workspace_id().to_string(),
@@ -211,6 +205,7 @@ pub fn db_init(
             });
         }
     }
+    crate::app::agent_automation::start_for_database(&app, path)?;
     Ok(())
 }
 
@@ -225,7 +220,7 @@ pub fn create_backup_archive(
         return Err("backup archive path is required".to_string());
     }
     let database = database_path(&app)?;
-    let content_root = content_root_for(&database)?;
+    let content_root = crate::app::agent_automation::content_root_for(&database)?;
     with_conn(&db, |connection| {
         crate::storage::backup::create_backup(connection, &database, &content_root, &archive_path)
     })
@@ -254,7 +249,9 @@ pub fn restore_backup_archive(
     if archive_path.as_os_str().is_empty() {
         return Err("backup archive path is required".to_string());
     }
+    crate::app::agent_automation::prepare_restore(&app, &agent_state)?;
     if !scheduler_state.shutdown(Duration::from_secs(10)) {
+        crate::app::agent_automation::start_for_database(&app, database_path(&app)?)?;
         return Err("background scheduler did not stop before restore".to_string());
     }
     let connection = {
@@ -264,7 +261,7 @@ pub fn restore_backup_archive(
     drop(connection);
 
     let database = database_path(&app)?;
-    let content_root = content_root_for(&database)?;
+    let content_root = crate::app::agent_automation::content_root_for(&database)?;
     let domains_root = app_data_directory(&app)?.join("domains");
     let result = crate::storage::backup::restore_backup_with_domain_validation(
         &archive_path,
