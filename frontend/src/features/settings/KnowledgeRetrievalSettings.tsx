@@ -13,6 +13,7 @@ type KnowledgePreferences = {
   similarityThreshold: number;
   rerankerEnabled: boolean;
   citationsEnabled: boolean;
+  autoRetrieve: boolean;
   degradationPolicy: "fallback" | "strict";
 };
 
@@ -25,6 +26,7 @@ const defaults: KnowledgePreferences = {
   similarityThreshold: 0.7,
   rerankerEnabled: true,
   citationsEnabled: true,
+  autoRetrieve: false,
   degradationPolicy: "fallback",
 };
 
@@ -41,6 +43,7 @@ function normalize(raw: string | null, onboardingEmbeddingProfileId: string | nu
     similarityThreshold: typeof value.similarity_threshold === "number" ? Math.min(1, Math.max(0, value.similarity_threshold)) : defaults.similarityThreshold,
     rerankerEnabled: typeof value.reranker_enabled === "boolean" ? value.reranker_enabled : defaults.rerankerEnabled,
     citationsEnabled: typeof value.citations_enabled === "boolean" ? value.citations_enabled : defaults.citationsEnabled,
+    autoRetrieve: typeof value.auto_retrieve === "boolean" ? value.auto_retrieve : defaults.autoRetrieve,
     degradationPolicy: value.degradation_policy === "strict" ? "strict" : defaults.degradationPolicy,
   };
 }
@@ -56,6 +59,7 @@ function serialize(value: KnowledgePreferences) {
     similarity_threshold: value.similarityThreshold,
     reranker_enabled: value.rerankerEnabled,
     citations_enabled: value.citationsEnabled,
+    auto_retrieve: value.autoRetrieve,
     degradation_policy: value.degradationPolicy,
   });
 }
@@ -222,7 +226,7 @@ export default function KnowledgeRetrievalSettings() {
         <label className="suna-settings-field"><span>Similarity Threshold</span><input type="number" min="0" max="1" step="0.05" value={value.similarityThreshold} onChange={(event) => update({ similarityThreshold: Number(event.target.value) })} /></label>
         <label className="suna-settings-field"><span>检索失败策略</span><select value={value.degradationPolicy} onChange={(event) => update({ degradationPolicy: event.target.value === "strict" ? "strict" : "fallback" })}><option value="fallback">自动降级到全文检索</option><option value="strict">严格模式：直接返回错误</option></select></label>
       </div>
-      <div className="suna-settings-subsection"><div className="suna-settings-subsection-heading"><SlidersHorizontal size={17} /><div><strong>检索增强</strong><small>控制结果是否经过重排、Embedding 失败时如何处理，以及回答是否保留可验证来源。</small></div></div><div className="suna-settings-toggle-list"><Toggle checked={value.rerankerEnabled} label="启用 Reranker" description="对混合检索候选进行二次排序。" onChange={(rerankerEnabled) => update({ rerankerEnabled })} /><Toggle checked={value.citationsEnabled} label="启用引用" description="在 Agent 回答中保留文档、页码和来源位置。" onChange={(citationsEnabled) => update({ citationsEnabled })} /></div></div>
+      <div className="suna-settings-subsection"><div className="suna-settings-subsection-heading"><SlidersHorizontal size={17} /><div><strong>检索增强</strong><small>控制自动检索、结果重排、Embedding 失败时如何处理，以及回答是否保留可验证来源。</small></div></div><div className="suna-settings-toggle-list"><Toggle checked={value.autoRetrieve} label="自动检索知识库" description="钢铁材料问题会在发送前自动检索所选知识库；问候和普通闲聊不会触发检索。" onChange={(autoRetrieve) => update({ autoRetrieve })} /><Toggle checked={value.rerankerEnabled} label="启用 Reranker" description="对混合检索候选进行二次排序。" onChange={(rerankerEnabled) => update({ rerankerEnabled })} /><Toggle checked={value.citationsEnabled} label="启用引用" description="在 Agent 回答中保留文档、页码和来源位置。" onChange={(citationsEnabled) => update({ citationsEnabled })} /></div></div>
       <footer className="suna-settings-form-actions"><button type="button" className="suna-secondary-button" onClick={reset}><RotateCcw size={15} />恢复默认检索设置</button><div className={`suna-settings-retrieval-save-state is-${saveState}`} role="status">{saveState === "saving" && <LoaderCircle size={14} className="suna-spin" />}{saveState === "saved" && <Check size={14} />}{saveState === "error" ? (saveError ?? "保存失败，修改后将重试") : saveState === "saving" ? "正在保存..." : saveState === "saved" ? "已保存" : "自动保存"}</div></footer>
     </>}
   </section>;

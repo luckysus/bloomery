@@ -19,6 +19,7 @@ use chrono::Utc;
 use rusqlite::Connection;
 use serde_json::Value;
 use std::collections::HashSet;
+use std::path::PathBuf;
 use uuid::Uuid;
 
 pub struct ChatPreparation {
@@ -31,6 +32,7 @@ pub struct ChatPreparation {
     pub config: LocalLlmConfig,
     pub evidence_pack: Option<EvidencePack>,
     pub attachments: Vec<LocalAgentAttachment>,
+    pub attachment_roots: Vec<PathBuf>,
     pub skills: SkillContext,
     pub active_domains: Vec<crate::domains::DomainManifest>,
     pub selected_memories: Vec<Value>,
@@ -75,6 +77,7 @@ pub fn build_agent_loop_request_with_attachments(
                 data: attachment.data.clone(),
                 mime: attachment.mime.clone(),
                 name: attachment.name.clone(),
+                path: attachment.path.clone(),
             })
             .collect(),
         limits: AgentLoopLimits::default(),
@@ -135,6 +138,26 @@ pub fn prepare_chat(
     if !agent_preferences.allow_file_access && !request.attachments.is_empty() {
         return Err("文件访问已在 Agent 设置中关闭，不能处理附件".to_string());
     }
+    let attachment_roots = request
+        .attachments
+        .iter()
+        .filter_map(|attachment| attachment.path.as_deref())
+        .map(|path| {
+            let candidate = PathBuf::from(path.trim());
+            if !candidate.is_absolute() {
+                return Err("附件路径必须是绝对路径".to_string());
+            }
+            let metadata =
+                std::fs::metadata(&candidate).map_err(|error| format!("无法读取附件：{error}"))?;
+            if !metadata.is_file() {
+                return Err("附件路径必须指向文件".to_string());
+            }
+            candidate
+                .parent()
+                .map(|parent| parent.to_path_buf())
+                .ok_or_else(|| "附件路径没有可用的父目录".to_string())
+        })
+        .collect::<Result<Vec<_>, _>>()?;
     let conversation_id = super::session::resolve_conversation(
         conn,
         workspace_id,
@@ -193,8 +216,6 @@ pub fn prepare_chat(
         .and_then(Value::as_array)
         .cloned()
         .unwrap_or_default();
-    super::session::start_agent_run(conn, workspace_id, conversation_id, run_id, &message)?;
-
     let unavailable_response = route.unavailable_capability.map(|_| {
         super::routing::build_capability_unavailable_response_json(
             &run_id.to_string(),
@@ -218,6 +239,10 @@ pub fn prepare_chat(
         let prompt = format!("{}\n\n{}", agent_preferences.system_prompt, context_prompt);
         (config, prompt, active_domains)
     };
+    // Validate and prepare the provider before creating the durable run. A
+    // missing credential or malformed model configuration must not leave an
+    // active `created` run that the recovery service later treats as work.
+    super::session::start_agent_run(conn, workspace_id, conversation_id, run_id, &message)?;
     Ok(ChatPreparation {
         run_id,
         conversation_id,
@@ -228,6 +253,7 @@ pub fn prepare_chat(
         config,
         evidence_pack,
         attachments: request.attachments,
+        attachment_roots,
         skills,
         active_domains,
         selected_memories,

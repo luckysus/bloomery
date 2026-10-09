@@ -14,6 +14,7 @@ use crate::providers::capabilities::{
     ChatImage, ChatMessage, ChatResponse, ChatToolCall, ChatUsage,
 };
 use crate::providers::http::ProviderErrorCode;
+use base64::{engine::general_purpose::STANDARD, Engine as _};
 use serde_json::{json, Value};
 use uuid::Uuid;
 
@@ -331,17 +332,48 @@ pub(super) fn render_context_messages(
         .iter()
         .find(|entry| entry.item.source == ContextSource::CurrentRequest)
     {
-        messages.push(ChatMessage::with_images(
-            role_text(entry.role),
-            entry.item.content.clone(),
-            attachments
-                .iter()
-                .map(|attachment| ChatImage {
+        let mut content = entry.item.content.clone();
+        let mut images = Vec::new();
+        for attachment in attachments {
+            if attachment.mime.to_ascii_lowercase().starts_with("image/") {
+                images.push(ChatImage {
                     data: attachment.data.clone(),
                     mime: attachment.mime.clone(),
-                })
-                .collect(),
-        ));
+                });
+                continue;
+            }
+            let attachment_note = if let Some(path) = attachment
+                .path
+                .as_deref()
+                .filter(|path| !path.trim().is_empty())
+            {
+                format!(
+                    "附件已登记在本地路径：{path}。如需读取，请使用受 Agent 权限约束的文件工具。"
+                )
+            } else {
+                match STANDARD.decode(&attachment.data) {
+                    Ok(bytes) => match String::from_utf8(bytes) {
+                        Ok(text) if !text.trim().is_empty() => {
+                            let bounded = text.chars().take(120_000).collect::<String>();
+                            format!("附件内容：\n{bounded}")
+                        }
+                        _ => "二进制附件已添加。请使用可用的文献或文件工具读取它。".to_string(),
+                    },
+                    Err(_) => {
+                        "附件内容无法直接预览，请使用可用的文献或文件工具读取它。".to_string()
+                    }
+                }
+            };
+            content.push_str(&format!(
+                "\n\n[附件：{}，类型：{}]\n{}",
+                attachment.name, attachment.mime, attachment_note
+            ));
+        }
+        messages.push(if images.is_empty() {
+            ChatMessage::new(role_text(entry.role), content)
+        } else {
+            ChatMessage::with_images(role_text(entry.role), content, images)
+        });
     }
     messages
 }
@@ -833,6 +865,32 @@ mod tests {
                 .sum::<usize>()
                 <= 20
         );
+    }
+
+    #[test]
+    fn rendered_context_keeps_document_attachments_out_of_model_image_payloads() {
+        use crate::agent::context::{budget_context, ContextItem, ContextSource};
+        use crate::agent::runtime::{AgentLoopAttachment, ContextEntry};
+        let entry = ContextEntry::new(ContextItem::new(
+            "request",
+            ContextSource::CurrentRequest,
+            "请阅读附件",
+        ));
+        let report = budget_context(std::slice::from_ref(&entry.item), Some(2_048), 0, 0)
+            .expect("request fits");
+        let rendered = render_context_messages(
+            &report,
+            &[entry],
+            &[AgentLoopAttachment {
+                data: String::new(),
+                mime: "application/pdf".to_string(),
+                name: "标准.pdf".to_string(),
+                path: Some("C:/research/标准.pdf".to_string()),
+            }],
+        );
+        assert!(rendered[0].images.is_empty());
+        assert!(rendered[0].content.contains("标准.pdf"));
+        assert!(rendered[0].content.contains("C:/research/标准.pdf"));
     }
 
     #[test]

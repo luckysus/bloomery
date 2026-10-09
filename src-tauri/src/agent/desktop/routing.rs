@@ -48,20 +48,27 @@ pub fn classify_desktop_intent(message: &str) -> DesktopRoute {
             "explicit optimization task request",
         );
     }
-    if has_any(
+    let explicit_knowledge = has_any(
         &lower,
         &[
             "knowledge base",
             "literature",
             "paper",
-            "search",
             "rag",
             "标准",
             "文献",
             "检索",
             "知识库",
         ],
-    ) {
+    );
+    let contextual_search = has_any(&lower, &["search", "搜索"])
+        && has_any(
+            &lower,
+            &[
+                "material", "steel", "grade", "q345", "q355", "材料", "钢", "牌号",
+            ],
+        );
+    if explicit_knowledge || contextual_search {
         return route(
             DesktopIntentKind::KnowledgeQa,
             0.86,

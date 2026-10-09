@@ -29,8 +29,10 @@ vi.mock("../../bridge/desktop", () => ({
     listKnowledgeBases: vi.fn(),
     queryLocalKnowledge: vi.fn(),
     listProviderProfiles: vi.fn(),
+    listAgentProfiles: vi.fn(),
     setDefaultProvider: vi.fn(),
     resolveKnowledgeCitation: vi.fn(),
+    openFileDialog: vi.fn(),
     saveFileDialog: vi.fn(),
     exportConversation: vi.fn(),
   },
@@ -52,6 +54,34 @@ const userMessage: Message = {
   content: "Q355B 的屈服强度是多少？",
   response_json: null,
   created_at: conversation.created_at,
+};
+
+const expertAgent = {
+  id: "knowledge",
+  name: "Knowledge Agent",
+  description: "知识检索和证据引用",
+  enabled: true,
+  status: "ready",
+  preset: true,
+  systemPrompt: "只回答有来源的问题",
+  providerId: null,
+  toolIds: ["steel.knowledge_search"],
+  permissionRestrictions: {
+    allowFileAccess: false,
+    allowShell: false,
+    allowNetwork: false,
+    allowDatabase: false,
+    allowMcp: false,
+    confirmDangerous: true,
+  },
+  limits: {
+    maxTurns: 8,
+    maxToolCalls: 12,
+    contextBudget: 12000,
+    retries: 1,
+    recoveryRetries: 1,
+    runTimeoutSeconds: 300,
+  },
 };
 
 const evidencePack: EvidencePack = {
@@ -122,6 +152,8 @@ describe("ChatPage", () => {
       secret_configured: true,
     }]);
     vi.mocked(desktop.setDefaultProvider).mockResolvedValue(undefined);
+    vi.mocked(desktop.listAgentProfiles).mockResolvedValue([]);
+    vi.mocked(desktop.openFileDialog).mockResolvedValue(null);
     vi.mocked(desktop.resolveKnowledgeCitation).mockResolvedValue(null);
     vi.mocked(desktop.resolveAgentPermission).mockResolvedValue(undefined);
     vi.mocked(desktop.steerAgentRun).mockResolvedValue(undefined);
@@ -228,6 +260,72 @@ describe("ChatPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "更多操作" }));
     fireEvent.click(screen.getByRole("menuitem", { name: "置顶聊天" }));
     await waitFor(() => expect(desktop.updateConversationPinned).toHaveBeenCalledWith(conversation.id, true));
+  });
+
+  it("exposes every configured chat provider in the model picker", async () => {
+    vi.mocked(desktop.listProviderProfiles).mockResolvedValue([
+      ...["open_ai_compatible", "anthropic", "qwen", "deepseek", "ollama", "siliconflow"].map((kind, index) => ({
+        id: `profile-${index}`,
+        kind: kind as "open_ai_compatible",
+        display_name: kind,
+        base_url: "http://127.0.0.1:8001",
+        model_id: `${kind}-model`,
+        enabled: true,
+        revision: 1,
+        secret_generation: 1,
+        secret_configured: kind === "ollama",
+      })),
+    ]);
+    render(<ChatPage />);
+    await screen.findByRole("button", { name: "Q355B 标准" });
+    fireEvent.click(screen.getByTitle("切换当前对话模型"));
+    for (const kind of ["open_ai_compatible", "anthropic", "qwen", "deepseek", "ollama", "siliconflow"]) {
+      expect(screen.getByRole("menuitem", { name: `${kind}-model` })).toBeInTheDocument();
+    }
+  });
+
+  it("sends the explicitly selected expert Agent with the question", async () => {
+    vi.mocked(desktop.listAgentProfiles).mockResolvedValue([expertAgent]);
+    render(<ChatPage />);
+    await screen.findByRole("button", { name: "Q355B 标准" });
+    fireEvent.click(screen.getByRole("button", { name: "选择 Agent" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Knowledge Agent" }));
+    fireEvent.change(screen.getByRole("textbox"), { target: { value: "给出 Q355B 标准来源" } });
+    fireEvent.click(screen.getByRole("button", { name: "发送" }));
+    await waitFor(() => expect(desktop.desktopAgentChat).toHaveBeenCalledWith(expect.objectContaining({
+      agentId: "knowledge",
+    })));
+  });
+
+  it("sends only the knowledge bases selected in the composer", async () => {
+    vi.mocked(desktop.listKnowledgeBases).mockResolvedValue([
+      { id: "kb-steel", name: "Steel standards", created_at: conversation.created_at, updated_at: conversation.updated_at },
+      { id: "kb-research", name: "Research papers", created_at: conversation.created_at, updated_at: conversation.updated_at },
+    ]);
+    vi.mocked(desktop.queryLocalKnowledge).mockResolvedValue(evidencePack);
+    render(<ChatPage />);
+    await screen.findByRole("button", { name: "Q355B 标准" });
+    fireEvent.click(screen.getByRole("button", { name: "选择知识库" }));
+    fireEvent.click(screen.getByRole("menuitemcheckbox", { name: "Research papers" }));
+    fireEvent.click(screen.getByRole("button", { name: "智能搜索" }));
+    fireEvent.change(screen.getByRole("textbox"), { target: { value: "Q355B strength" } });
+    fireEvent.click(screen.getByRole("button", { name: "发送" }));
+    await waitFor(() => expect(desktop.queryLocalKnowledge).toHaveBeenCalledWith(expect.objectContaining({
+      knowledge_base_ids: ["kb-steel"],
+    })));
+  });
+
+  it("passes native document attachment paths to the Agent runtime", async () => {
+    vi.mocked(desktop.openFileDialog).mockResolvedValue("C:/research/standard.pdf");
+    render(<ChatPage />);
+    await screen.findByRole("button", { name: "Q355B 标准" });
+    fireEvent.click(screen.getByRole("button", { name: "添加附件" }));
+    expect(await screen.findByText("standard.pdf")).toBeInTheDocument();
+    fireEvent.change(screen.getByRole("textbox"), { target: { value: "读取这个标准" } });
+    fireEvent.click(screen.getByRole("button", { name: "发送" }));
+    await waitFor(() => expect(desktop.desktopAgentChat).toHaveBeenCalledWith(expect.objectContaining({
+      attachments: [expect.objectContaining({ name: "standard.pdf", path: "C:/research/standard.pdf", mime: "application/pdf" })],
+    })));
   });
 
   it("can disable local smart search without changing the agent request", async () => {

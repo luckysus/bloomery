@@ -5,8 +5,11 @@ import {
   type Conversation,
   type ConversationExportFormat,
   type HistoryHit,
+  type KnowledgeBaseRecord,
   type LocalAgentAttachment,
   type Message,
+  type AgentProfileSummary,
+  type EvidenceItem,
   type ProviderProfileResponse,
   type RecoveredRun,
 } from "../../bridge/desktop";
@@ -70,6 +73,7 @@ function parseKnowledgePreferences(raw: string | null) {
     return {
       defaultKnowledgeBase: typeof value.default_knowledge_base === "string" ? value.default_knowledge_base.trim() : "",
       citationsEnabled: value.citations_enabled !== false,
+      autoRetrieve: value.auto_retrieve === true,
       retrievalOptions: {
         lexical_limit: topK * 3,
         dense_limit: topK * 3,
@@ -80,7 +84,7 @@ function parseKnowledgePreferences(raw: string | null) {
       },
     };
   } catch {
-    return { defaultKnowledgeBase: "", citationsEnabled: true, retrievalOptions: { degradation_policy: "fallback" } };
+    return { defaultKnowledgeBase: "", citationsEnabled: true, autoRetrieve: false, retrievalOptions: { degradation_policy: "fallback" } };
   }
 }
 
@@ -107,6 +111,12 @@ export interface ChatControllerProps {
   recovery: RecoveredRun | null;
   chatProfiles: ProviderProfileResponse[];
   activeChatProfileId: string | null;
+  agentProfiles: AgentProfileSummary[];
+  activeAgentId: string | null;
+  knowledgeBases: KnowledgeBaseRecord[];
+  selectedKnowledgeBaseIds: string[];
+  streamingCitations: EvidenceItem[];
+  autoKnowledgeSearchEnabled: boolean;
   smartSearchEnabled: boolean;
   attachments: LocalAgentAttachment[];
   error: string | null;
@@ -129,6 +139,8 @@ export interface ChatControllerProps {
   onDeleteConversation: (conversationId: string) => void;
   onSearchHistory: (query: string) => Promise<HistoryHit[]>;
   onSelectChatProfile: (profileId: string) => void;
+  onSelectAgent: (agentId: string | null) => void;
+  onSelectKnowledgeBases: (knowledgeBaseIds: string[]) => void;
   onToggleSmartSearch: () => void;
 }
 
@@ -150,9 +162,14 @@ export function useChatController(): ChatControllerProps {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [knowledgeBaseIds, setKnowledgeBaseIds] = useState<string[]>([]);
+  const [knowledgeBases, setKnowledgeBases] = useState<KnowledgeBaseRecord[]>([]);
   const [chatProfiles, setChatProfiles] = useState<ProviderProfileResponse[]>([]);
   const [activeChatProfileId, setActiveChatProfileId] = useState<string | null>(null);
+  const [agentProfiles, setAgentProfiles] = useState<AgentProfileSummary[]>([]);
+  const [activeAgentId, setActiveAgentId] = useState<string | null>(null);
   const [smartSearchEnabled, setSmartSearchEnabled] = useState(false);
+  const [autoSearchEnabled, setAutoSearchEnabled] = useState(false);
+  const [streamingCitations, setStreamingCitations] = useState<EvidenceItem[]>([]);
   const [attachments, setAttachments] = useState<LocalAgentAttachment[]>([]);
   const [draft, setDraft] = useState("");
   const [pendingQuestion, setPendingQuestion] = useState<string | null>(null);
@@ -191,6 +208,7 @@ export function useChatController(): ChatControllerProps {
 
   const loadConversation = async (conversationId: string) => {
     setLoadingMessages(true);
+    setStreamingCitations([]);
     try {
       const [nextMessages, nextDraft] = await Promise.all([
         desktop.listMessages(conversationId),
@@ -227,23 +245,28 @@ export function useChatController(): ChatControllerProps {
     void Promise.all([
       desktop.listKnowledgeBases(),
       desktop.listProviderProfiles(),
+      typeof desktop.listAgentProfiles === "function" ? desktop.listAgentProfiles().catch(() => [] as AgentProfileSummary[]) : Promise.resolve([] as AgentProfileSummary[]),
       desktop.recoverAgentRuns().catch(() => [] as RecoveredRun[]),
     ])
-      .then(async ([bases, profiles, recoveries]) => {
+      .then(async ([bases, profiles, agentEntries, recoveries]) => {
         if (!mounted) return;
         const knowledgePreferencesRaw = typeof desktop.getSetting === "function"
           ? await desktop.getSetting("knowledge.preferences").catch(() => null)
           : null;
         const knowledgePreferences = parseKnowledgePreferences(knowledgePreferencesRaw);
         const allKnowledgeBaseIds = bases.map((base) => base.id);
-        setKnowledgeBaseIds(knowledgePreferences.defaultKnowledgeBase && allKnowledgeBaseIds.includes(knowledgePreferences.defaultKnowledgeBase)
+        setKnowledgeBases(bases);
+        const configuredKnowledgeBaseIds = knowledgePreferences.defaultKnowledgeBase && allKnowledgeBaseIds.includes(knowledgePreferences.defaultKnowledgeBase)
           ? [knowledgePreferences.defaultKnowledgeBase]
-          : allKnowledgeBaseIds);
-        const available = profiles.filter((profile) => profile.enabled && profile.model_id && ["deepseek", "open_ai_compatible", "ollama"].includes(profile.kind));
+          : allKnowledgeBaseIds;
+        setKnowledgeBaseIds(configuredKnowledgeBaseIds);
+        setAutoSearchEnabled(knowledgePreferences.autoRetrieve === true);
+        const available = profiles.filter((profile) => profile.enabled && profile.model_id && profile.kind !== "mineru");
         setChatProfiles(available);
         setActiveChatProfileId((current) => current && available.some((profile) => profile.id === current)
           ? current
           : available[0]?.id ?? null);
+        setAgentProfiles(agentEntries.filter((profile) => profile.enabled));
         recoveredRunsRef.current = recoveries;
         setRecoveredRuns(recoveries);
         await loadConversations();
@@ -277,6 +300,19 @@ export function useChatController(): ChatControllerProps {
       setAgentRun((visible) => visible?.runId === event.run_id && visible.conversationId === event.conversation_id
         ? next
         : visible ?? next);
+      if (event.type === "evidence_attached" && event.data.citation_numbers.length > 0) {
+        void Promise.all(event.data.citation_numbers.map((citationNumber) =>
+          desktop.resolveKnowledgeCitation(event.data.evidence_pack_id, citationNumber).catch(() => null),
+        )).then((citations) => {
+          if (!mounted) return;
+          const evidence = citations.filter((citation): citation is NonNullable<typeof citation> => citation !== null).map((citation) => ({
+            citation_number: citation.citation_number,
+            chunk: citation.chunk,
+            assets: citation.assets,
+          }));
+          setStreamingCitations(evidence);
+        });
+      }
       if (event.sequence > previousSequence + 1 && !replayingRuns.current.has(key)) {
         replayingRuns.current.add(key);
         void desktop.replayAgentRun(event.run_id, previousSequence)
@@ -390,18 +426,20 @@ export function useChatController(): ChatControllerProps {
       const runId = crypto.randomUUID();
       const submittedMessage = question || "请分析附加图片";
       const submittedAttachments = attachments;
+      const shouldSearch = (smartSearchEnabled || autoSearchEnabled) && shouldRunSmartSearch(question);
       setPendingQuestion(submittedMessage);
       setAgentRun(createAgentRunView(runId, conversationId));
       setActiveRunId(runId);
       setDraft("");
       setAttachments([]);
+      setStreamingCitations([]);
 
       let evidencePackId: string | undefined;
-      if (smartSearchEnabled && shouldRunSmartSearch(question) && knowledgeBaseIds.length > 0) {
+      if (shouldSearch && knowledgeBaseIds.length > 0) {
         try {
           const knowledgePreferences = typeof desktop.getSetting === "function"
-            ? await desktop.getSetting("knowledge.preferences").then(parseKnowledgePreferences).catch(() => ({ defaultKnowledgeBase: "", citationsEnabled: true, retrievalOptions: {} }))
-            : { defaultKnowledgeBase: "", citationsEnabled: true, retrievalOptions: {} };
+            ? await desktop.getSetting("knowledge.preferences").then(parseKnowledgePreferences).catch(() => ({ defaultKnowledgeBase: "", citationsEnabled: true, autoRetrieve: false, retrievalOptions: {} }))
+            : { defaultKnowledgeBase: "", citationsEnabled: true, autoRetrieve: false, retrievalOptions: {} };
           if (knowledgePreferences.citationsEnabled) {
             const evidencePack = await desktop.queryLocalKnowledge({ query: question, knowledge_base_ids: knowledgeBaseIds, ...knowledgePreferences.retrievalOptions });
             evidencePackId = evidencePack.id;
@@ -414,8 +452,9 @@ export function useChatController(): ChatControllerProps {
         sessionId: conversationId,
         message: submittedMessage,
         runId,
+        agentId: activeAgentId ?? undefined,
         evidencePackId,
-        smartSearchEnabled,
+        smartSearchEnabled: shouldSearch,
         attachments: submittedAttachments,
       });
       setAgentRun((current) => {
@@ -484,7 +523,8 @@ export function useChatController(): ChatControllerProps {
         sessionId: selectedId,
         message: sourceMessage.content,
         runId,
-        smartSearchEnabled,
+        agentId: activeAgentId ?? undefined,
+        smartSearchEnabled: smartSearchEnabled || autoSearchEnabled,
       });
       setAgentRun((current) => current?.runId === runId && !current.assistantText && response.answer
         ? { ...current, assistantText: response.answer }
@@ -576,6 +616,14 @@ export function useChatController(): ChatControllerProps {
     }
   };
 
+  const selectAgent = (agentId: string | null) => {
+    setActiveAgentId(agentId);
+  };
+
+  const selectKnowledgeBases = (ids: string[]) => {
+    setKnowledgeBaseIds(ids);
+  };
+
   return {
     conversations,
     selectedId,
@@ -589,6 +637,12 @@ export function useChatController(): ChatControllerProps {
     recovery: recoveredRuns.find((candidate) => candidate.run.id === agentRun?.runId) ?? null,
     chatProfiles,
     activeChatProfileId,
+    agentProfiles,
+    activeAgentId,
+    knowledgeBases,
+    selectedKnowledgeBaseIds: knowledgeBaseIds,
+    streamingCitations,
+    autoKnowledgeSearchEnabled: autoSearchEnabled,
     smartSearchEnabled,
     attachments,
     error,
@@ -611,6 +665,8 @@ export function useChatController(): ChatControllerProps {
     onDeleteConversation: (conversationId) => void deleteConversation(conversationId),
     onSearchHistory: searchHistory,
     onSelectChatProfile: (profileId) => void selectChatProfile(profileId),
+    onSelectAgent: selectAgent,
+    onSelectKnowledgeBases: selectKnowledgeBases,
     onToggleSmartSearch: () => setSmartSearchEnabled((enabled) => !enabled),
   };
 }

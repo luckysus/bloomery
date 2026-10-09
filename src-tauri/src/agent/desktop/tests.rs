@@ -29,6 +29,30 @@ fn routes_steel_requests_without_cloud_dependencies() {
 }
 
 #[test]
+fn ordinary_search_is_not_misclassified_as_knowledge_retrieval() {
+    assert_eq!(
+        classify_desktop_intent("搜索一下今天的会议安排").intent,
+        DesktopIntentKind::LocalQa
+    );
+    assert_eq!(
+        classify_desktop_intent("搜索 Q355B 的标准").intent,
+        DesktopIntentKind::KnowledgeQa
+    );
+}
+
+#[test]
+fn explicit_actions_win_over_broad_domain_words() {
+    assert_eq!(
+        classify_desktop_intent("上传文献并入库").intent,
+        DesktopIntentKind::LiteratureTask
+    );
+    assert_eq!(
+        classify_desktop_intent("开始工艺优化并比较候选方案").intent,
+        DesktopIntentKind::OptimizationTask
+    );
+}
+
+#[test]
 fn knowledge_route_uses_a_local_evidence_pack_when_one_is_available() {
     let route = super::routing::route_with_evidence_pack(
         classify_desktop_intent("search Q355B literature"),

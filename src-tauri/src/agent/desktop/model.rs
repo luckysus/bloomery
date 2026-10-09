@@ -248,6 +248,8 @@ pub struct LocalAgentAttachment {
     pub data: String,
     pub mime: String,
     pub name: String,
+    #[serde(default)]
+    pub path: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]

@@ -441,6 +441,7 @@ pub struct AgentLoopAttachment {
     pub data: String,
     pub mime: String,
     pub name: String,
+    pub path: Option<String>,
 }
 
 #[derive(Debug, Clone)]

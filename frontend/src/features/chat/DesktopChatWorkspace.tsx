@@ -8,6 +8,7 @@ import {
   CornerDownLeft,
   Download,
   FileJson,
+  FileText,
   Globe,
   LoaderCircle,
   MessageSquarePlus,
@@ -289,9 +290,12 @@ export default function DesktopChatWorkspace({
   const [renamingTitle, setRenamingTitle] = useState("");
   const [menuId, setMenuId] = useState<string | null>(null);
   const [modelMenuOpen, setModelMenuOpen] = useState(false);
+  const [agentMenuOpen, setAgentMenuOpen] = useState(false);
+  const [knowledgeMenuOpen, setKnowledgeMenuOpen] = useState(false);
   const [sendShortcut, setSendShortcut] = useState("Ctrl+Enter");
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
   const messagesRef = useRef<HTMLDivElement>(null);
   const activeProfile = controller.chatProfiles.find((profile) => profile.id === controller.activeChatProfileId);
   const selectedModel = activeProfile?.model_id || activeProfile?.display_name || "本地模型";
@@ -329,18 +333,32 @@ export default function DesktopChatWorkspace({
     }
   };
 
-  const onImageFiles = (files: FileList | File[]) => {
-    const images = Array.from(files).filter((file) => file.type.startsWith("image/"));
-    if (images.length === 0) return;
-    void Promise.all(images.map((file) => new Promise<{ name: string; mime: string; data: string } | null>((resolve) => {
+  const encodeBytes = (bytes: Uint8Array) => {
+    let binary = "";
+    const chunkSize = 0x8000;
+    for (let offset = 0; offset < bytes.length; offset += chunkSize) {
+      binary += String.fromCharCode(...bytes.subarray(offset, offset + chunkSize));
+    }
+    return btoa(binary);
+  };
+
+  const onAttachmentFiles = (files: FileList | File[]) => {
+    const accepted = Array.from(files).filter((file) => file.type.startsWith("image/") || /\.(pdf|docx?|xlsx?|csv|txt|md|markdown|json|html?)$/i.test(file.name));
+    if (accepted.length === 0) return;
+    void Promise.all(accepted.map((file) => new Promise<{ name: string; mime: string; data: string } | null>((resolve) => {
       const reader = new FileReader();
       reader.onload = () => {
-        const result = String(reader.result || "");
-        const data = result.includes(",") ? result.slice(result.indexOf(",") + 1) : result;
-        resolve(data ? { name: file.name || "image", mime: file.type || "image/png", data } : null);
+        const value = reader.result;
+        const data = typeof value === "string"
+          ? (file.type.startsWith("text/") || /\.(csv|txt|md|markdown|json|html?)$/i.test(file.name)
+            ? encodeBytes(new TextEncoder().encode(value))
+            : (value.includes(",") ? value.slice(value.indexOf(",") + 1) : value))
+          : encodeBytes(new Uint8Array(value as ArrayBuffer));
+        resolve(data ? { name: file.name || "attachment", mime: file.type || "application/octet-stream", data } : null);
       };
       reader.onerror = () => resolve(null);
-      reader.readAsDataURL(file);
+      if (file.type.startsWith("text/") || /\.(csv|txt|md|markdown|json|html?)$/i.test(file.name)) reader.readAsText(file);
+      else reader.readAsDataURL(file);
     }))).then((items) => {
       const next = items.filter((item): item is { name: string; mime: string; data: string } => item !== null);
       if (next.length > 0) controller.onAttachmentsChange([...controller.attachments, ...next]);
@@ -348,8 +366,39 @@ export default function DesktopChatWorkspace({
   };
 
   const onFileInputChange = (event: ChangeEvent<HTMLInputElement>) => {
-    if (event.target.files) onImageFiles(event.target.files);
+    if (event.target.files) onAttachmentFiles(event.target.files);
     event.target.value = "";
+  };
+
+  const nativeMime = (name: string) => {
+    const extension = name.toLowerCase().split(".").pop() || "";
+    const known: Record<string, string> = {
+      pdf: "application/pdf", doc: "application/msword", docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      xls: "application/vnd.ms-excel", xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      csv: "text/csv", txt: "text/plain", md: "text/markdown", markdown: "text/markdown", json: "application/json", html: "text/html", htm: "text/html",
+    };
+    return known[extension] || "application/octet-stream";
+  };
+
+  const pickNativeAttachments = async () => {
+    try {
+      const selected = await desktop.openFileDialog({
+        multiple: true,
+        directory: false,
+        title: "添加 Agent 附件",
+        filters: [{ name: "支持的文档附件", extensions: ["pdf", "doc", "docx", "xls", "xlsx", "csv", "txt", "md", "markdown", "json", "html", "htm"] }],
+      });
+      const paths = Array.isArray(selected) ? selected : selected ? [selected] : [];
+      const next = paths.map((path) => ({
+        name: path.split(/[\\/]/).pop() || "attachment",
+        mime: nativeMime(path),
+        data: "",
+        path,
+      }));
+      if (next.length > 0) controller.onAttachmentsChange([...controller.attachments, ...next]);
+    } catch {
+      // Keep the composer usable when the native picker is unavailable.
+    }
   };
 
   const beginRename = (conversation: Conversation) => {
@@ -513,6 +562,7 @@ export default function DesktopChatWorkspace({
                       <AIAnswerRenderer answer={controller.agentRun?.assistantText || t("contextPreparing")} literatureResults={[]} />
                       {controller.agentRun?.assistantText && <span className="ai-typing-cursor" aria-hidden="true" />}
                     </div>
+                    {controller.agentRun?.evidencePackId && controller.streamingCitations.length > 0 && <CitationPanel auditId={controller.agentRun.evidencePackId} evidence={controller.streamingCitations} />}
                   </article>
                 </>
               )}
@@ -533,10 +583,10 @@ export default function DesktopChatWorkspace({
 
         <form className="suna-chat-composer" data-testid="desktop-agent-composer" onSubmit={submit}>
           {controller.attachments.length > 0 && (
-            <div className="mb-2 flex flex-wrap gap-2" aria-label="已添加图片">
+            <div className="mb-2 flex flex-wrap gap-2" aria-label="已添加附件">
               {controller.attachments.map((attachment, index) => (
                 <div className="group/attachment relative h-16 w-16 overflow-hidden rounded-lg border border-[var(--suna-line)] bg-[var(--suna-bg-soft)]" key={`${attachment.name}-${index}`}>
-                  <img src={`data:${attachment.mime};base64,${attachment.data}`} alt={attachment.name} className="h-full w-full object-cover" />
+                  {attachment.mime.startsWith("image/") ? <img src={`data:${attachment.mime};base64,${attachment.data}`} alt={attachment.name} className="h-full w-full object-cover" /> : <div className="flex h-full w-full flex-col items-center justify-center gap-1 p-1 text-[var(--suna-text-muted)]"><FileText size={22} /><span className="max-w-full truncate text-[10px]">{attachment.name}</span></div>}
                   <button type="button" className="absolute right-0.5 top-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-black/55 text-white" aria-label={`移除图片 ${attachment.name}`} title={`移除图片 ${attachment.name}`} onClick={() => controller.onAttachmentsChange(controller.attachments.filter((_, itemIndex) => itemIndex !== index))}><X size={12} /></button>
                 </div>
               ))}
@@ -549,9 +599,9 @@ export default function DesktopChatWorkspace({
             onKeyDown={onComposerKeyDown}
             onPaste={(event) => {
               const files = event.clipboardData?.files;
-              if (files && Array.from(files).some((file) => file.type.startsWith("image/"))) {
+              if (files && files.length > 0) {
                 event.preventDefault();
-                onImageFiles(files);
+                onAttachmentFiles(files);
               }
             }}
             aria-label={t("inputMessage")}
@@ -561,9 +611,11 @@ export default function DesktopChatWorkspace({
           />
           <div className="suna-chat-composer-footer">
             <div className="suna-chat-composer-tools">
-              <button type="button" className={`suna-chat-composer-tool ${controller.smartSearchEnabled ? "is-active" : ""}`} aria-label="智能搜索" aria-pressed={controller.smartSearchEnabled} title="使用本地知识库检索" onClick={controller.onToggleSmartSearch} disabled={controller.pendingQuestion !== null}><Globe size={15} /><span>智能搜索</span></button>
-              <button type="button" className="suna-chat-composer-tool" aria-label="添加图片" title="添加图片" onClick={() => fileInputRef.current?.click()} disabled={controller.pendingQuestion !== null}><MessageSquarePlus size={15} /><span>图片</span></button>
-              <input ref={fileInputRef} type="file" accept="image/*" multiple hidden onChange={onFileInputChange} />
+              <button type="button" className={`suna-chat-composer-tool ${controller.smartSearchEnabled || controller.autoKnowledgeSearchEnabled ? "is-active" : ""}`} aria-label="智能搜索" aria-pressed={controller.smartSearchEnabled || controller.autoKnowledgeSearchEnabled} title="使用本地知识库检索" onClick={controller.onToggleSmartSearch} disabled={controller.pendingQuestion !== null}><Globe size={15} /><span>智能搜索</span></button>
+              <button type="button" className="suna-chat-composer-tool" aria-label="添加图片" title="添加图片" onClick={() => imageInputRef.current?.click()} disabled={controller.pendingQuestion !== null}><MessageSquarePlus size={15} /><span>图片</span></button>
+              <button type="button" className="suna-chat-composer-tool" aria-label="添加附件" title="添加 PDF、Office、Markdown 或文本附件" onClick={() => void pickNativeAttachments()} disabled={controller.pendingQuestion !== null}><FileText size={15} /><span>附件</span></button>
+              <input ref={imageInputRef} type="file" accept="image/*" multiple hidden onChange={onFileInputChange} />
+              <input ref={fileInputRef} type="file" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.md,.markdown,.json,.html,.htm" multiple hidden onChange={onFileInputChange} />
             </div>
             <div className="suna-chat-composer-right">
               {controller.pendingQuestion !== null && (
@@ -603,6 +655,36 @@ export default function DesktopChatWorkspace({
                 )}
                 <button type="button" className="suna-chat-model-button" aria-label="切换当前对话模型" title="切换当前对话模型" aria-expanded={modelMenuOpen} onClick={() => setModelMenuOpen((open) => !open)} disabled={controller.pendingQuestion !== null}>
                   <span>{selectedModel}</span><ChevronDown size={14} className={modelMenuOpen ? "is-open" : undefined} />
+                </button>
+              </div>
+              <div className="suna-chat-model-picker">
+                {agentMenuOpen && (
+                  <div className="suna-chat-model-menu" role="menu">
+                    <button type="button" role="menuitem" className={controller.activeAgentId === null ? "is-active" : ""} onClick={() => { setAgentMenuOpen(false); controller.onSelectAgent(null); }}>
+                      <span>自动选择 Agent</span>{controller.activeAgentId === null && <Check size={14} />}
+                    </button>
+                    {controller.agentProfiles.map((profile) => (
+                      <button type="button" role="menuitem" className={profile.id === controller.activeAgentId ? "is-active" : ""} key={profile.id} onClick={() => { setAgentMenuOpen(false); controller.onSelectAgent(profile.id); }}>
+                        <span>{profile.name}</span>{profile.id === controller.activeAgentId && <Check size={14} />}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                <button type="button" className="suna-chat-model-button" aria-label="选择 Agent" title="选择本轮使用的 Agent" aria-expanded={agentMenuOpen} onClick={() => { setAgentMenuOpen((open) => !open); setModelMenuOpen(false); }} disabled={controller.pendingQuestion !== null}>
+                  <span>{controller.activeAgentId ? controller.agentProfiles.find((profile) => profile.id === controller.activeAgentId)?.name ?? controller.activeAgentId : "自动 Agent"}</span><ChevronDown size={14} className={agentMenuOpen ? "is-open" : undefined} />
+                </button>
+              </div>
+              <div className="suna-chat-model-picker">
+                {knowledgeMenuOpen && (
+                  <div className="suna-chat-model-menu" role="menu" aria-label="选择知识库">
+                    {controller.knowledgeBases.length === 0 ? <span className="suna-chat-model-empty">暂无可用知识库</span> : controller.knowledgeBases.map((base) => {
+                      const checked = controller.selectedKnowledgeBaseIds.includes(base.id);
+                      return <button type="button" role="menuitemcheckbox" aria-checked={checked} className={checked ? "is-active" : ""} key={base.id} onClick={() => controller.onSelectKnowledgeBases(checked ? controller.selectedKnowledgeBaseIds.filter((id) => id !== base.id) : [...controller.selectedKnowledgeBaseIds, base.id])}><span>{base.name}</span>{checked && <Check size={14} />}</button>;
+                    })}
+                  </div>
+                )}
+                <button type="button" className="suna-chat-model-button" aria-label="选择知识库" title="选择本轮检索的知识库" aria-expanded={knowledgeMenuOpen} onClick={() => { setKnowledgeMenuOpen((open) => !open); setModelMenuOpen(false); setAgentMenuOpen(false); }} disabled={controller.pendingQuestion !== null}>
+                  <span>{controller.selectedKnowledgeBaseIds.length === 0 ? "无知识库" : controller.selectedKnowledgeBaseIds.length === controller.knowledgeBases.length ? "全部知识库" : `知识库 ${controller.selectedKnowledgeBaseIds.length}`}</span><ChevronDown size={14} className={knowledgeMenuOpen ? "is-open" : undefined} />
                 </button>
               </div>
               <button type={controller.pendingQuestion ? "button" : "submit"} className={`suna-chat-send-button ${controller.pendingQuestion ? "is-stop" : ""}`} aria-label={controller.pendingQuestion ? t("stopGenerating") : t("send")} title={controller.pendingQuestion ? t("stopGenerating") : t("send")} disabled={!controller.pendingQuestion && !controller.draft.trim() && controller.attachments.length === 0} onClick={controller.pendingQuestion ? controller.onCancel : undefined}>

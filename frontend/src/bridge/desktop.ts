@@ -52,6 +52,7 @@ export interface LocalAgentAttachment {
   data: string;
   mime: string;
   name: string;
+  path?: string;
 }
 
 export interface AgentRunRecord {

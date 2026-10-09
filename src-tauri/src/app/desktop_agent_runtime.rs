@@ -441,7 +441,7 @@ async fn run_standard_agent_inner(
         }
         Some(crate::agent::runtime::LocalToolExecutor::new(
             working_directory.clone(),
-            Vec::new(),
+            preparation.attachment_roots.clone(),
             agent_preferences.allow_file_access,
             agent_preferences.allow_shell && agent_preferences.allow_network,
         )?)
@@ -970,6 +970,7 @@ async fn resume_recovered_agent_inner(
         config,
         evidence_pack,
         attachments: Vec::new(),
+        attachment_roots: Vec::new(),
         skills: crate::skills::SkillContext::default(),
         active_domains,
         selected_memories: Vec::new(),
