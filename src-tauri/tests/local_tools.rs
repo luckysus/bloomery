@@ -240,8 +240,14 @@ async fn powershell_preserves_utf8_and_bounds_both_output_streams() {
     assert_eq!(result["stderr_truncated"], true);
 }
 
-fn spawn_child_script() -> &'static str {
-    r#"$start=New-Object System.Diagnostics.ProcessStartInfo; $start.FileName=Join-Path $env:SystemRoot 'System32/ping.exe'; $start.Arguments='-n 60 127.0.0.1'; $start.UseShellExecute=$false; $child=[System.Diagnostics.Process]::Start($start); [IO.File]::WriteAllText((Join-Path $PWD.Path 'child.pid'), [string]$child.Id); Start-Sleep -Seconds 60"#
+fn spawn_child_script(pid_path: &std::path::Path) -> String {
+    let pid_path = pid_path
+        .to_string_lossy()
+        .replace('\\', "\\\\")
+        .replace('"', "\\\"");
+    format!(
+        r#"$start=New-Object System.Diagnostics.ProcessStartInfo; $start.FileName=Join-Path $env:SystemRoot 'System32/ping.exe'; $start.Arguments='-n 60 127.0.0.1'; $start.UseShellExecute=$false; $child=[System.Diagnostics.Process]::Start($start); [IO.File]::WriteAllText("{pid_path}", [string]$child.Id); Start-Sleep -Seconds 60"#
+    )
 }
 
 fn assert_child_stopped(fixture: &Fixture) {
@@ -272,7 +278,7 @@ async fn powershell_timeout_terminates_its_process_tree() {
         .execute(
             invocation(
                 "powershell",
-                json!({"command": spawn_child_script(), "working_directory": fixture.0.join("workspace"), "timeout_ms": 10000}),
+                json!({"command": spawn_child_script(&fixture.0.join("workspace/child.pid")), "working_directory": fixture.0.join("workspace"), "timeout_ms": 10000}),
             ),
             CancellationToken::new(|| false),
         )
@@ -287,6 +293,8 @@ async fn powershell_timeout_terminates_its_process_tree() {
 async fn powershell_cancellation_terminates_its_process_tree() {
     let fixture = Fixture::new();
     let working_directory = fixture.0.join("workspace");
+    let pid_path = fixture.0.join("workspace/child.pid");
+    let command = spawn_child_script(&pid_path);
     let cancelled = Arc::new(AtomicBool::new(false));
     let task = tokio::spawn({
         let tools = fixture.tools(true, true);
@@ -294,14 +302,17 @@ async fn powershell_cancellation_terminates_its_process_tree() {
         async move {
             tools
                 .execute(
-                    invocation("powershell", json!({"command": spawn_child_script(), "working_directory": working_directory})),
+                    invocation(
+                        "powershell",
+                        json!({"command": command, "working_directory": working_directory}),
+                    ),
                     CancellationToken::new(move || cancelled.load(Ordering::SeqCst)),
                 )
                 .await
         }
     });
     let deadline = Instant::now() + Duration::from_secs(20);
-    while !fixture.0.join("workspace/child.pid").exists() && Instant::now() < deadline {
+    while !pid_path.exists() && Instant::now() < deadline {
         tokio::time::sleep(Duration::from_millis(25)).await;
     }
     let child_started = fixture.0.join("workspace/child.pid").exists();

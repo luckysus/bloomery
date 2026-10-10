@@ -68,6 +68,7 @@ pub(super) fn run_powershell(
     for key in [
         "SystemRoot",
         "WINDIR",
+        "ComSpec",
         "PATH",
         "PATHEXT",
         "TEMP",
