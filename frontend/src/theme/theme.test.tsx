@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { desktop, isDesktopRuntime } from "../bridge/desktop";
+import { resetSettingsStoreForTests } from "../stores/settingsStore";
 import { ThemeProvider, useTheme } from "./theme";
 
 vi.mock("../bridge/desktop", () => ({
@@ -24,6 +25,7 @@ function ThemeProbe() {
 describe("ThemeProvider", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    resetSettingsStoreForTests();
     vi.mocked(desktop.getSetting).mockResolvedValue(null);
     vi.mocked(desktop.setSetting).mockResolvedValue(undefined);
     document.documentElement.removeAttribute("data-theme");

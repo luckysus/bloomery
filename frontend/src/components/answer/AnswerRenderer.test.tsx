@@ -30,4 +30,26 @@ describe("AIAnswerRenderer", () => {
       expect(labels).toEqual(expect.arrayContaining(["Reference1", "Image1"]));
     });
   });
+
+  it("renders inline and block math with KaTeX", () => {
+    const { container } = render(
+      <LocaleProvider>
+        <AIAnswerRenderer answer={"质能方程 $E = mc^2$\n\n$$\n\\sigma_y = \\frac{F}{A}\n$$"} literatureResults={[]} />
+      </LocaleProvider>,
+    );
+
+    expect(container.querySelectorAll(".katex").length).toBeGreaterThanOrEqual(2);
+    expect(container.querySelector(".katex-display")).not.toBeNull();
+  });
+
+  it("renders GFM tables and fenced code blocks", () => {
+    const { container } = render(
+      <LocaleProvider>
+        <AIAnswerRenderer answer={"| 牌号 | 屈服强度 |\n| --- | --- |\n| Q355B | 355 |\n\n```python\nprint(1)\n```"} literatureResults={[]} />
+      </LocaleProvider>,
+    );
+
+    expect(container.querySelector("table")).not.toBeNull();
+    expect(container.querySelector("code")).not.toBeNull();
+  });
 });

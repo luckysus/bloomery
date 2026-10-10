@@ -47,7 +47,9 @@ describe("KnowledgeRetrievalSettings", () => {
     expect(screen.queryByRole("option", { name: "自定义 Provider 模型" })).not.toBeInTheDocument();
     expect(screen.queryByRole("option", { name: "text-embedding-3-small" })).not.toBeInTheDocument();
 
-    fireEvent.change(provider, { target: { value: embeddingProfile.id } });
+    // Radix Select 不是原生 select：先按下指针打开列表，再点选目标项。
+    fireEvent.pointerDown(provider, { button: 0, ctrlKey: false });
+    fireEvent.click(await screen.findByRole("option", { name: /SiliconFlow Embedding/ }));
 
     await waitFor(() => expect(desktop.setDefaultProvider).toHaveBeenCalledWith("embedding", embeddingProfile.id));
     expect(desktop.setSetting).toHaveBeenCalledWith(

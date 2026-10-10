@@ -1,6 +1,7 @@
 import { Activity, AlertCircle, Check, MoreHorizontal, RefreshCw } from "lucide-react";
 import LanguageSelect from "../../components/common/LanguageSelect";
 import type { MessageKey } from "../../i18n/locale";
+import { Input } from "../../components/ui/input";
 
 interface Props {
   t: (key: MessageKey, values?: Record<string, string | number>) => string;
@@ -56,7 +57,7 @@ export default function SettingsPageChrome({
     {error && <div className="suna-settings-alert" role="alert"><AlertCircle size={17} aria-hidden="true" /><span>{error}</span></div>}
     {notice && <div className="suna-settings-notice" role="status"><Check size={17} aria-hidden="true" /><span>{notice}</span></div>}
     {showUtilities && <div className="suna-settings-toolbar">
-      <input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder={t("settingsSearchPlaceholder")} aria-label={t("settingsSearch")} />
+      <Input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder={t("settingsSearchPlaceholder")} aria-label={t("settingsSearch")} />
     </div>}
   </>;
 }

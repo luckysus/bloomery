@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { AlertTriangle, Clock, Cpu } from "lucide-react";
 import type { WebPendingConfirmation } from "./webTypes";
+import { Input } from "../../../components/ui/input";
 
 function readArg(item: WebPendingConfirmation, keys: string[]) {
   for (const key of keys) {
@@ -40,7 +41,7 @@ function ConfirmCard({
       {danger && (
         <div className="mt-3">
           <label className="block text-xs font-medium text-red-700">请输入 <code className="rounded bg-red-50 px-1 py-0.5 font-mono">confirm</code> 以确认执行</label>
-          <input value={confirmText} onChange={(event) => setConfirmText(event.target.value)} placeholder="confirm" className="mt-1 w-full rounded-md border border-red-200 bg-white px-2 py-1.5 text-sm outline-none focus:border-red-400 focus:ring-2 focus:ring-red-100" />
+          <Input value={confirmText} onChange={(event) => setConfirmText(event.target.value)} placeholder="confirm" className="mt-1 w-full rounded-md border border-red-200 bg-white px-2 py-1.5 text-sm outline-none focus:border-red-400 focus:ring-2 focus:ring-red-100" />
         </div>
       )}
       <div className="mt-3 flex gap-2">

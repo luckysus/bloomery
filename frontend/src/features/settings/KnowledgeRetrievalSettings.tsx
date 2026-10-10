@@ -3,6 +3,9 @@ import { Check, CircleAlert, LoaderCircle, RefreshCw, RotateCcw, SlidersHorizont
 import { desktop, isDesktopRuntime, type PostgresKnowledgeBase, type ProviderKind, type ProviderProfileResponse } from "../../bridge/desktop";
 import { getSettingValue, parseObject, setSettingValue } from "./settingsModel";
 import { settingsErrorMessage } from "./settingsError";
+import { Checkbox } from "../../components/ui/checkbox";
+import { Input } from "../../components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../components/ui/select";
 
 type KnowledgePreferences = {
   defaultKnowledgeBase: string;
@@ -78,7 +81,7 @@ function configuredEmbeddingProfiles(profiles: ProviderProfileResponse[]) {
 }
 
 function Toggle({ checked, label, description, onChange }: { checked: boolean; label: string; description: string; onChange: (value: boolean) => void }) {
-  return <label className="suna-settings-toggle-row"><span><strong>{label}</strong><small>{description}</small></span><input type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} /><i aria-hidden="true" /></label>;
+  return <label className="suna-settings-toggle-row"><span><strong>{label}</strong><small>{description}</small></span><Checkbox aria-label={label} checked={checked} onCheckedChange={(value) => onChange(value === true)} /></label>;
 }
 
 export default function KnowledgeRetrievalSettings() {
@@ -218,13 +221,25 @@ export default function KnowledgeRetrievalSettings() {
     <header className="suna-settings-form-heading"><div><span className="suna-settings-kicker">RETRIEVAL POLICY</span><h2 id="knowledge-retrieval-heading">知识库检索参数</h2><p>这些参数会作为新的知识检索和 Agent 引用请求的默认策略。</p></div><SlidersHorizontal size={22} aria-hidden="true" /></header>
     {!loaded || loadError ? <div className="suna-settings-state">{!loaded && <p className="suna-settings-loading" role="status" aria-live="polite"><LoaderCircle size={16} className="suna-spin" />正在加载检索设置...</p>}{loadError && <><p className="suna-settings-inline-error" role="alert"><CircleAlert size={14} />{loadError}</p><button type="button" className="suna-secondary-button" onClick={() => setReloadToken((value) => value + 1)}><RefreshCw size={14} />重新加载</button></>}</div> : <>
       <div className="suna-settings-form-grid">
-        <label className="suna-settings-field"><span>默认知识库</span><select value={value.defaultKnowledgeBase} onChange={(event) => update({ defaultKnowledgeBase: event.target.value })}><option value="">当前工作区（自动）</option>{baseOptions.map((base) => <option key={base.id} value={base.id}>{base.name}</option>)}</select>{knowledgeBases.length === 0 && <small className="suna-settings-field-hint">暂无已连接的知识库，将使用当前工作区。</small>}</label>
-        <div className="suna-settings-field"><span>Embedding Provider</span>{embeddingProfiles.length > 0 ? <select aria-label="Embedding Provider" value={value.embeddingProfileId ?? ""} onChange={(event) => selectEmbeddingProfile(event.target.value)}><option value="">未选择 Embedding Provider</option>{embeddingProfiles.map((profile) => <option key={profile.id} value={profile.id}>{profile.display_name} · {profile.model_id}</option>)}</select> : <p className="suna-settings-empty-state" role="status">尚未配置可用的 Embedding Provider，请先在模型配置中添加已启用且已设置凭据的 Provider。</p>}{selectedEmbeddingProfile && <small className="suna-settings-field-hint">当前模型：{selectedEmbeddingProfile.model_id}</small>}{staleEmbeddingProfile && <small className="suna-settings-field-hint">当前选择的 Provider 已禁用、凭据缺失或不支持 Embedding，请重新选择。</small>}</div>
-        <label className="suna-settings-field"><span>Chunk Size</span><input type="number" min="128" max="4096" step="64" value={value.chunkSize} onChange={(event) => update({ chunkSize: Number(event.target.value) })} /></label>
-        <label className="suna-settings-field"><span>Chunk Overlap</span><input type="number" min="0" max="1024" step="16" value={value.chunkOverlap} onChange={(event) => update({ chunkOverlap: Number(event.target.value) })} /></label>
-        <label className="suna-settings-field"><span>Top K</span><input type="number" min="1" max="50" value={value.topK} onChange={(event) => update({ topK: Number(event.target.value) })} /></label>
-        <label className="suna-settings-field"><span>Similarity Threshold</span><input type="number" min="0" max="1" step="0.05" value={value.similarityThreshold} onChange={(event) => update({ similarityThreshold: Number(event.target.value) })} /></label>
-        <label className="suna-settings-field"><span>检索失败策略</span><select value={value.degradationPolicy} onChange={(event) => update({ degradationPolicy: event.target.value === "strict" ? "strict" : "fallback" })}><option value="fallback">自动降级到全文检索</option><option value="strict">严格模式：直接返回错误</option></select></label>
+        <label className="suna-settings-field"><span>默认知识库</span><Select value={value.defaultKnowledgeBase} onValueChange={(value) => update({ defaultKnowledgeBase: value })}>
+  <SelectTrigger aria-label="默认知识库"><SelectValue /></SelectTrigger>
+  <SelectContent><SelectItem value="">当前工作区（自动）</SelectItem>{baseOptions.map((base) => <SelectItem key={base.id} value={base.id}>{base.name}</SelectItem>)}
+  </SelectContent>
+</Select>{knowledgeBases.length === 0 && <small className="suna-settings-field-hint">暂无已连接的知识库，将使用当前工作区。</small>}</label>
+        <div className="suna-settings-field"><span>Embedding Provider</span>{embeddingProfiles.length > 0 ? <Select value={value.embeddingProfileId ?? ""} onValueChange={(value) => selectEmbeddingProfile(value)}>
+  <SelectTrigger aria-label="Embedding Provider"><SelectValue /></SelectTrigger>
+  <SelectContent><SelectItem value="">未选择 Embedding Provider</SelectItem>{embeddingProfiles.map((profile) => <SelectItem key={profile.id} value={profile.id}>{profile.display_name} · {profile.model_id}</SelectItem>)}
+  </SelectContent>
+</Select> : <p className="suna-settings-empty-state" role="status">尚未配置可用的 Embedding Provider，请先在模型配置中添加已启用且已设置凭据的 Provider。</p>}{selectedEmbeddingProfile && <small className="suna-settings-field-hint">当前模型：{selectedEmbeddingProfile.model_id}</small>}{staleEmbeddingProfile && <small className="suna-settings-field-hint">当前选择的 Provider 已禁用、凭据缺失或不支持 Embedding，请重新选择。</small>}</div>
+        <label className="suna-settings-field"><span>Chunk Size</span><Input type="number" min="128" max="4096" step="64" value={value.chunkSize} onChange={(event) => update({ chunkSize: Number(event.target.value) })} /></label>
+        <label className="suna-settings-field"><span>Chunk Overlap</span><Input type="number" min="0" max="1024" step="16" value={value.chunkOverlap} onChange={(event) => update({ chunkOverlap: Number(event.target.value) })} /></label>
+        <label className="suna-settings-field"><span>Top K</span><Input type="number" min="1" max="50" value={value.topK} onChange={(event) => update({ topK: Number(event.target.value) })} /></label>
+        <label className="suna-settings-field"><span>Similarity Threshold</span><Input type="number" min="0" max="1" step="0.05" value={value.similarityThreshold} onChange={(event) => update({ similarityThreshold: Number(event.target.value) })} /></label>
+        <label className="suna-settings-field"><span>检索失败策略</span><Select value={value.degradationPolicy} onValueChange={(value) => update({ degradationPolicy: value === "strict" ? "strict" : "fallback" })}>
+  <SelectTrigger aria-label="检索失败策略"><SelectValue /></SelectTrigger>
+  <SelectContent><SelectItem value="fallback">自动降级到全文检索</SelectItem><SelectItem value="strict">严格模式：直接返回错误</SelectItem>
+  </SelectContent>
+</Select></label>
       </div>
       <div className="suna-settings-subsection"><div className="suna-settings-subsection-heading"><SlidersHorizontal size={17} /><div><strong>检索增强</strong><small>控制自动检索、结果重排、Embedding 失败时如何处理，以及回答是否保留可验证来源。</small></div></div><div className="suna-settings-toggle-list"><Toggle checked={value.autoRetrieve} label="自动检索知识库" description="钢铁材料问题会在发送前自动检索所选知识库；问候和普通闲聊不会触发检索。" onChange={(autoRetrieve) => update({ autoRetrieve })} /><Toggle checked={value.rerankerEnabled} label="启用 Reranker" description="对混合检索候选进行二次排序。" onChange={(rerankerEnabled) => update({ rerankerEnabled })} /><Toggle checked={value.citationsEnabled} label="启用引用" description="在 Agent 回答中保留文档、页码和来源位置。" onChange={(citationsEnabled) => update({ citationsEnabled })} /></div></div>
       <footer className="suna-settings-form-actions"><button type="button" className="suna-secondary-button" onClick={reset}><RotateCcw size={15} />恢复默认检索设置</button><div className={`suna-settings-retrieval-save-state is-${saveState}`} role="status">{saveState === "saving" && <LoaderCircle size={14} className="suna-spin" />}{saveState === "saved" && <Check size={14} />}{saveState === "error" ? (saveError ?? "保存失败，修改后将重试") : saveState === "saving" ? "正在保存..." : saveState === "saved" ? "已保存" : "自动保存"}</div></footer>

@@ -4,6 +4,10 @@ import { desktop, isDesktopRuntime } from "../../bridge/desktop";
 import { useLocale } from "../../i18n/locale";
 import { getSettingValue, parseObject, setSettingValue } from "./settingsModel";
 import { settingsErrorMessage } from "./settingsError";
+import { Checkbox } from "../../components/ui/checkbox";
+import { Input } from "../../components/ui/input";
+import { Textarea } from "../../components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../components/ui/select";
 
 type AgentSettings = {
   defaultAgent: string;
@@ -33,7 +37,7 @@ type AgentSettings = {
 const defaults: AgentSettings = {
   defaultAgent: "master",
   autoSelectAgent: true,
-  systemPrompt: "你是 Suna 的钢铁材料研发智能体。回答必须区分事实、推断和待验证内容。",
+  systemPrompt: "你是 Suna 的钢铁材料研发智能体。回答必须区分事实、推断和待验证内容。回答按「结论 → 分析依据 → 知识来源 → 数据分析 → 模型结果 → 建议 → 引用」的顺序组织；只向用户呈现任务进度、Agent 状态、工具调用摘要与最终结果，不要暴露内部推理过程。",
   maxTurns: 20,
   maxToolCalls: 64,
   contextBudget: 32768,
@@ -92,7 +96,7 @@ export function normalizeAgentPreferences(raw: string | null): AgentSettings {
 }
 
 function Toggle({ checked, label, copy, onChange }: { checked: boolean; label: string; copy: string; onChange: (value: boolean) => void }) {
-  return <label className="suna-settings-toggle-row"><span><strong>{label}</strong><small>{copy}</small></span><input type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} /><i aria-hidden="true" /></label>;
+  return <label className="suna-settings-toggle-row"><span><strong>{label}</strong><small>{copy}</small></span><Checkbox aria-label={label} checked={checked} onCheckedChange={(value) => onChange(value === true)} /></label>;
 }
 
 export default function SettingsAgentPanel() {
@@ -178,16 +182,20 @@ export default function SettingsAgentPanel() {
     {error && !loadError && <p className="suna-settings-inline-error" role="alert">{error}</p>}
     {!loaded || loadError ? <div className="suna-settings-state">{!loaded && <p className="suna-settings-loading" role="status"><LoaderCircle size={16} className="suna-spin" />加载 Agent 配置...</p>}{loadError && <p className="suna-settings-inline-error" role="alert">{error ?? "无法读取 Agent 设置，请重试"}<button type="button" className="suna-settings-inline-retry" onClick={() => setLoadNonce((nonce) => nonce + 1)}><RefreshCw size={13} />重试</button></p>}</div> : <>
       <div className="suna-settings-form-grid">
-        <label className="suna-settings-field"><span>默认 Agent</span><select value={value.defaultAgent} onChange={(event) => update("defaultAgent", event.target.value)}>{profileOptions.map((profile) => <option key={profile.id} value={profile.id}>{profile.name}</option>)}</select></label>
-        <label className="suna-settings-field"><span>上下文预算 Token</span><input type="number" min="1024" max="262144" step="1024" value={value.contextBudget} onChange={(event) => update("contextBudget", Number(event.target.value))} /></label>
-        <label className="suna-settings-field"><span>最大循环次数</span><input type="number" min="1" max="100" value={value.maxTurns} onChange={(event) => update("maxTurns", Number(event.target.value))} /></label>
-        <label className="suna-settings-field"><span>最大工具调用次数</span><input type="number" min="1" max="1000" value={value.maxToolCalls} onChange={(event) => update("maxToolCalls", Number(event.target.value))} /></label>
-        <label className="suna-settings-field"><span>网络重试次数</span><input type="number" min="0" max="10" value={value.retries} onChange={(event) => update("retries", Number(event.target.value))} /></label>
-        <label className="suna-settings-field"><span>检查点恢复次数</span><input type="number" min="0" max="10" value={value.recoveryRetries} onChange={(event) => update("recoveryRetries", Number(event.target.value))} /></label>
-        <label className="suna-settings-field"><span>整次运行期限（秒）</span><input type="number" min="30" max="86400" value={value.runTimeoutSeconds} onChange={(event) => update("runTimeoutSeconds", Number(event.target.value))} /></label>
+        <label className="suna-settings-field"><span>默认 Agent</span><Select value={value.defaultAgent} onValueChange={(value) => update("defaultAgent", value)}>
+  <SelectTrigger aria-label="默认 Agent"><SelectValue /></SelectTrigger>
+  <SelectContent>{profileOptions.map((profile) => <SelectItem key={profile.id} value={profile.id}>{profile.name}</SelectItem>)}
+  </SelectContent>
+</Select></label>
+        <label className="suna-settings-field"><span>上下文预算 Token</span><Input type="number" min="1024" max="262144" step="1024" value={value.contextBudget} onChange={(event) => update("contextBudget", Number(event.target.value))} /></label>
+        <label className="suna-settings-field"><span>最大循环次数</span><Input type="number" min="1" max="100" value={value.maxTurns} onChange={(event) => update("maxTurns", Number(event.target.value))} /></label>
+        <label className="suna-settings-field"><span>最大工具调用次数</span><Input type="number" min="1" max="1000" value={value.maxToolCalls} onChange={(event) => update("maxToolCalls", Number(event.target.value))} /></label>
+        <label className="suna-settings-field"><span>网络重试次数</span><Input type="number" min="0" max="10" value={value.retries} onChange={(event) => update("retries", Number(event.target.value))} /></label>
+        <label className="suna-settings-field"><span>检查点恢复次数</span><Input type="number" min="0" max="10" value={value.recoveryRetries} onChange={(event) => update("recoveryRetries", Number(event.target.value))} /></label>
+        <label className="suna-settings-field"><span>整次运行期限（秒）</span><Input type="number" min="30" max="86400" value={value.runTimeoutSeconds} onChange={(event) => update("runTimeoutSeconds", Number(event.target.value))} /></label>
       </div>
-      <label className="suna-settings-field suna-settings-textarea-field"><span>Agent 工作目录</span><input aria-label="Agent 工作目录" value={value.workingDirectory} placeholder="留空使用应用的 Agent 工作目录" onChange={(event) => update("workingDirectory", event.target.value)} /><small>文件读写和 Shell 仅允许在此目录内执行。留空使用应用专用目录。</small><button type="button" className="suna-secondary-button" onClick={() => void desktop.openFileDialog({ directory: true, multiple: false }).then((path) => { if (typeof path === "string") update("workingDirectory", path); }).catch((cause) => setError(settingsErrorMessage(cause, "无法选择工作目录")))}>选择文件夹</button></label>
-      <label className="suna-settings-field suna-settings-textarea-field"><span>System Prompt</span><textarea rows={4} value={value.systemPrompt} onChange={(event) => update("systemPrompt", event.target.value)} /></label>
+      <label className="suna-settings-field suna-settings-textarea-field"><span>Agent 工作目录</span><Input aria-label="Agent 工作目录" value={value.workingDirectory} placeholder="留空使用应用的 Agent 工作目录" onChange={(event) => update("workingDirectory", event.target.value)} /><small>文件读写和 Shell 仅允许在此目录内执行。留空使用应用专用目录。</small><button type="button" className="suna-secondary-button" onClick={() => void desktop.openFileDialog({ directory: true, multiple: false }).then((path) => { if (typeof path === "string") update("workingDirectory", path); }).catch((cause) => setError(settingsErrorMessage(cause, "无法选择工作目录")))}>选择文件夹</button></label>
+      <label className="suna-settings-field suna-settings-textarea-field"><span>System Prompt</span><Textarea rows={4} value={value.systemPrompt} onChange={(event) => update("systemPrompt", event.target.value)} /></label>
       <div className="suna-settings-subsection"><div className="suna-settings-subsection-heading"><ShieldCheck size={17} /><div><strong>运行策略</strong><small>这些开关会直接影响 Agent Loop 的规划、知识检索、工具调用和输出行为。</small></div></div><div className="suna-settings-toggle-list">
         <Toggle checked={value.autoSelectAgent} label="自动选择 Agent" copy="根据任务类型选择最合适的 Agent 配置。" onChange={(next) => update("autoSelectAgent", next)} />
         <Toggle checked={value.autoPlan} label="自动规划" copy="允许 Agent 在执行前拆解任务并跟踪步骤。" onChange={(next) => update("autoPlan", next)} />

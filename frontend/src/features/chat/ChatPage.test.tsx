@@ -3,10 +3,15 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import ChatPage from "./ChatPage";
 import { desktop, type Conversation, type EvidencePack, type Message } from "../../bridge/desktop";
 import type { AgentEventEnvelope, PermissionDecision } from "../../bridge/generated/protocol";
+import { resetAgentStoreForTests } from "../../stores/agentStore";
+import { resetChatStoreForTests } from "../../stores/chatStore";
+import { resetKnowledgeStoreForTests } from "../../stores/knowledgeStore";
+import { resetModelStoreForTests } from "../../stores/modelStore";
 
 let publishAgentEvent: ((event: AgentEventEnvelope) => void) | undefined;
 
 vi.mock("../../bridge/desktop", () => ({
+  isDesktopRuntime: () => false,
   desktop: {
     listConversations: vi.fn(),
     searchHistory: vi.fn(),
@@ -123,6 +128,11 @@ const evidencePack: EvidencePack = {
 describe("ChatPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    window.localStorage.removeItem("suna.setting.model.preferences");
+    resetChatStoreForTests();
+    resetAgentStoreForTests();
+    resetModelStoreForTests();
+    resetKnowledgeStoreForTests();
     publishAgentEvent = undefined;
     vi.mocked(desktop.listConversations).mockResolvedValue([conversation]);
     vi.mocked(desktop.searchHistory).mockResolvedValue([]);
@@ -218,6 +228,36 @@ describe("ChatPage", () => {
     expect(screen.getByTestId("desktop-agent-composer")).toBeInTheDocument();
     expect(screen.getByText("STEEL AGENT / LOCAL RUNTIME")).toBeInTheDocument();
     expect(screen.getByText("本地智能体")).toBeInTheDocument();
+  });
+
+  it("adds files dropped onto the composer", async () => {
+    render(<ChatPage />);
+
+    await screen.findByRole("button", { name: "Q355B 标准" });
+    const composer = screen.getByTestId("desktop-agent-composer");
+    const dropped = new File(["temperature,carbon\n900,0.2"], "material.csv", { type: "text/csv" });
+    fireEvent.dragOver(composer, { dataTransfer: { files: [dropped] } });
+    expect(screen.getByRole("region", { name: "拖拽文件到输入框" })).toBeInTheDocument();
+    fireEvent.drop(composer, { dataTransfer: { files: [dropped] } });
+
+    expect(await screen.findByText("material.csv")).toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "拖拽文件到输入框" })).not.toBeInTheDocument();
+  });
+
+  it("exposes model parameters beside the composer", async () => {
+    render(<ChatPage />);
+
+    await screen.findByRole("button", { name: "Q355B 标准" });
+    fireEvent.click(screen.getByRole("button", { name: "模型参数" }));
+
+    expect(await screen.findByLabelText("Temperature")).toBeInTheDocument();
+    expect(screen.getByLabelText("Context")).toBeInTheDocument();
+    expect(screen.getByLabelText("Max Tokens")).toBeInTheDocument();
+    expect(screen.getByText("Provider")).toBeInTheDocument();
+    expect(screen.getByText("Model")).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("Temperature"), { target: { value: "0.7" } });
+    await waitFor(() => expect(window.localStorage.getItem("suna.setting.model.preferences")).toContain("0.7"));
   });
 
   it("sends through the local bridge without invoking Web fetch", async () => {

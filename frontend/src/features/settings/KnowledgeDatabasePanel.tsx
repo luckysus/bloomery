@@ -2,6 +2,9 @@ import { useEffect, useState } from "react";
 import { Check, Database, ExternalLink, LoaderCircle, RefreshCw, Save, Unplug } from "lucide-react";
 import { desktop, isDesktopRuntime, type KnowledgeDatabaseConfig, type KnowledgeDatabaseHealth } from "../../bridge/desktop";
 import { settingsErrorMessage } from "./settingsError";
+import { Checkbox } from "../../components/ui/checkbox";
+import { Input } from "../../components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../components/ui/select";
 
 const emptyHealth: KnowledgeDatabaseHealth = {
   configured: false,
@@ -143,16 +146,28 @@ export default function KnowledgeDatabasePanel() {
       </div>
       {loading && <p className="suna-settings-loading" role="status"><LoaderCircle size={15} className="suna-spin" />正在读取知识库状态...</p>}
       <div className="grid gap-3 md:grid-cols-2">
-        <label>地址<input value={config.host} placeholder="127.0.0.1" onChange={(event) => update("host", event.target.value)} /></label>
-        <label>端口<input type="number" min="1" max="65535" value={config.port} onChange={(event) => update("port", event.target.value)} /></label>
-        <label>数据库<input value={config.database} placeholder="suna" onChange={(event) => update("database", event.target.value)} /></label>
-        <label>用户名<input value={config.username} placeholder="postgres" onChange={(event) => update("username", event.target.value)} /></label>
-        <label className="md:col-span-2">密码<input type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="off" /></label>
-        <label className="flex items-center gap-2"><input type="checkbox" checked={config.ssl} onChange={(event) => update("ssl", String(event.target.checked))} />启用 SSL</label>
-        <label>Vector Store<select value={config.vector_store} onChange={(event) => update("vector_store", event.target.value)}><option value="postgresql_pgvector">PostgreSQL + pgvector</option></select></label>
-        <label>Embedding 模型<select value={config.embedding_model} onChange={(event) => update("embedding_model", event.target.value)}><option value="BAAI/bge-m3">BGE-M3</option><option value="text-embedding-3-small">text-embedding-3-small</option></select></label>
-        <label>向量维度<input type="number" min="1" max="65536" value={config.vector_dimension} onChange={(event) => update("vector_dimension", event.target.value)} /></label>
-        <label>向量索引<select value={config.index_type} onChange={(event) => update("index_type", event.target.value)}><option value="hnsw">HNSW</option><option value="ivfflat">IVFFlat</option></select></label>
+        <label>地址<Input value={config.host} placeholder="127.0.0.1" onChange={(event) => update("host", event.target.value)} /></label>
+        <label>端口<Input type="number" min="1" max="65535" value={config.port} onChange={(event) => update("port", event.target.value)} /></label>
+        <label>数据库<Input value={config.database} placeholder="suna" onChange={(event) => update("database", event.target.value)} /></label>
+        <label>用户名<Input value={config.username} placeholder="postgres" onChange={(event) => update("username", event.target.value)} /></label>
+        <label className="md:col-span-2">密码<Input type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="off" /></label>
+        <label className="flex items-center gap-2"><Checkbox aria-label="启用 SSL" checked={config.ssl} onCheckedChange={(checked) => update("ssl", String(checked === true))} />启用 SSL</label>
+        <label>Vector Store<Select value={config.vector_store} onValueChange={(value) => update("vector_store", value)}>
+  <SelectTrigger aria-label="Vector Store"><SelectValue /></SelectTrigger>
+  <SelectContent><SelectItem value="postgresql_pgvector">PostgreSQL + pgvector</SelectItem>
+  </SelectContent>
+</Select></label>
+        <label>Embedding 模型<Select value={config.embedding_model} onValueChange={(value) => update("embedding_model", value)}>
+  <SelectTrigger aria-label="Embedding 模型"><SelectValue /></SelectTrigger>
+  <SelectContent><SelectItem value="BAAI/bge-m3">BGE-M3</SelectItem><SelectItem value="text-embedding-3-small">text-embedding-3-small</SelectItem>
+  </SelectContent>
+</Select></label>
+        <label>向量维度<Input type="number" min="1" max="65536" value={config.vector_dimension} onChange={(event) => update("vector_dimension", event.target.value)} /></label>
+        <label>向量索引<Select value={config.index_type} onValueChange={(value) => update("index_type", value)}>
+  <SelectTrigger aria-label="向量索引"><SelectValue /></SelectTrigger>
+  <SelectContent><SelectItem value="hnsw">HNSW</SelectItem><SelectItem value="ivfflat">IVFFlat</SelectItem>
+  </SelectContent>
+</Select></label>
       </div>
       <div className="flex flex-wrap gap-2">
         <button type="button" onClick={() => void test()} disabled={loading || busy}><RefreshCw size={15} />测试连接</button>

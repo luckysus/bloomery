@@ -4,6 +4,9 @@ import SettingsPage from "./SettingsPage";
 import { desktop, isDesktopRuntime, type PermissionRuleRecord, type ProviderProfileResponse } from "../../bridge/desktop";
 import { ThemeProvider } from "../../theme/theme";
 import { AppearanceProvider } from "../../settings/appearance";
+import { resetSettingsStoreForTests } from "../../stores/settingsStore";
+import { resetMcpStoreForTests } from "../../stores/mcpStore";
+import { resetSkillStoreForTests } from "../../stores/skillStore";
 
 vi.mock("../../i18n/locale", () => ({
   useLocale: () => ({
@@ -82,6 +85,9 @@ describe("SettingsPage", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    resetSettingsStoreForTests();
+    resetMcpStoreForTests();
+    resetSkillStoreForTests();
     vi.mocked(isDesktopRuntime).mockReturnValue(true);
     vi.mocked(desktop.listDatabaseConnections).mockResolvedValue([]);
     vi.mocked(desktop.listProviderProfiles).mockResolvedValue([chatProfile, embeddingProfile]);
@@ -202,9 +208,9 @@ describe("SettingsPage", () => {
     const name = await screen.findByDisplayValue("Steel LLM");
     const chatForm = name.closest("form");
     if (!chatForm) throw new Error("chat provider form is missing");
-    fireEvent.change(within(chatForm).getByRole("combobox"), {
-      target: { value: "deepseek" },
-    });
+    // Radix Select 不是原生 select：需要先按下指针打开列表，再点选目标项。
+    fireEvent.pointerDown(within(chatForm).getByRole("combobox"), { button: 0, ctrlKey: false });
+    fireEvent.click(await screen.findByRole("option", { name: "providerDeepSeek" }));
     fireEvent.click(within(chatForm).getByRole("button", { name: "settingsSave" }));
 
     await waitFor(() =>

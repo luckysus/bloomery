@@ -3,7 +3,10 @@ import { createPortal } from "react-dom";
 import { FileText, Globe, ImageIcon } from "lucide-react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
+import remarkMath from "remark-math";
+import rehypeKatex from "rehype-katex";
 import type { PluggableList } from "unified";
+import "katex/dist/katex.min.css";
 import { proxyImg, sanitizeUrl } from "../../utils/searchRender";
 import { useLocale } from "../../i18n/locale";
 
@@ -30,7 +33,8 @@ export interface WebSourceRef {
   snippet?: string;
 }
 
-const remarkGfmNoSingleTilde: PluggableList = [[remarkGfm, { singleTilde: false }]];
+const remarkGfmNoSingleTilde: PluggableList = [[remarkGfm, { singleTilde: false }], remarkMath];
+const rehypePlugins: PluggableList = [rehypeKatex];
 
 let globalUnlock: (() => void) | null = null;
 
@@ -413,6 +417,7 @@ export default function AIAnswerRenderer({
   return (
     <ReactMarkdown
       remarkPlugins={remarkGfmNoSingleTilde}
+      rehypePlugins={rehypePlugins}
       skipHtml
       urlTransform={sanitizeUrl}
       components={components}

@@ -16,11 +16,11 @@ import DiagnosticsHeader from "./DiagnosticsHeader";
 import DiagnosticsHealthGrid from "./DiagnosticsHealthGrid";
 import DiagnosticsTaskList from "./DiagnosticsTaskList";
 import { formatBytes } from "./diagnosticsModel";
+import { useTaskStore } from "../../stores/taskStore";
 
 interface DiagnosticsSnapshot {
   storage: StorageHealth | null;
   index: IndexHealthReport | null;
-  tasks: BackgroundTask[];
   steelPackage: {
     status: "ready" | "error" | "unknown";
     error: string | null;
@@ -30,7 +30,6 @@ interface DiagnosticsSnapshot {
 const emptySnapshot: DiagnosticsSnapshot = {
   storage: null,
   index: null,
-  tasks: [],
   steelPackage: { status: "unknown", error: null },
 };
 
@@ -60,6 +59,9 @@ function errorMessage(error: unknown, fallback: string) {
 
 export default function DiagnosticsPage() {
   const { t } = useLocale();
+  // 第 77 章：后台任务列表由 taskStore 承载。
+  const tasks = useTaskStore((state) => state.tasks);
+  const setTasks = useTaskStore((state) => state.setTasks);
   const [snapshot, setSnapshot] = useState(emptySnapshot);
   const [loading, setLoading] = useState(true);
   const [indexError, setIndexError] = useState(false);
@@ -106,10 +108,10 @@ export default function DiagnosticsPage() {
           setIndexError(true);
         }
       }
+      setTasks(tasks);
       setSnapshot({
         storage,
         index,
-        tasks,
         steelPackage: { status: steelPackageStatus, error: steelPackageError },
       });
       return true;
@@ -159,10 +161,7 @@ export default function DiagnosticsPage() {
     setNotice(null);
     try {
       const updated = await desktop.retryBackgroundTask(task.id);
-      setSnapshot((current) => ({
-        ...current,
-        tasks: current.tasks.map((item) => item.id === updated.id ? updated : item),
-      }));
+      setTasks((current) => current.map((item) => item.id === updated.id ? updated : item));
       setNotice(t("diagnosticsTaskRetried"));
     } catch (cause) {
       setError(errorMessage(cause, t("diagnosticsRetryError")));
@@ -270,7 +269,7 @@ export default function DiagnosticsPage() {
           />
 
           <DiagnosticsTaskList
-            tasks={snapshot.tasks}
+            tasks={tasks}
             busyTask={busyTask}
             onRetry={(task) => void retryTask(task)}
           />

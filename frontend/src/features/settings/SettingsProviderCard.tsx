@@ -7,6 +7,9 @@ import {
   slotTitles,
 } from "./settingsModel";
 import type { ProviderKind } from "../../bridge/desktop";
+import { Checkbox } from "../../components/ui/checkbox";
+import { Input } from "../../components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../components/ui/select";
 
 interface SettingsProviderCardProps {
   editor: SettingsEditor;
@@ -51,23 +54,28 @@ export default function SettingsProviderCard({
         {editor.slot === "chat" && (
           <>
             <label htmlFor="settings-chat-kind">{t("settingsProviderType")}</label>
-            <select id="settings-chat-kind" value={editor.kind} onChange={(event) => updateKind(event.target.value as ProviderKind)}>
-              <option value="deepseek">{t("providerDeepSeek")}</option>
-              <option value="anthropic">{t("providerAnthropic")}</option>
-              <option value="qwen">{t("providerQwen")}</option>
-              <option value="open_ai_compatible">{t("providerOpenAiCompatible")}</option>
-              <option value="ollama">{t("providerOllama")}</option>
-            </select>
+            <Select value={editor.kind} onValueChange={(value) => updateKind(value as ProviderKind)}>
+              <SelectTrigger id="settings-chat-kind" aria-label={t("settingsProviderType")}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="deepseek">{t("providerDeepSeek")}</SelectItem>
+                <SelectItem value="anthropic">{t("providerAnthropic")}</SelectItem>
+                <SelectItem value="qwen">{t("providerQwen")}</SelectItem>
+                <SelectItem value="open_ai_compatible">{t("providerOpenAiCompatible")}</SelectItem>
+                <SelectItem value="ollama">{t("providerOllama")}</SelectItem>
+              </SelectContent>
+            </Select>
           </>
         )}
         <label htmlFor={`settings-${editor.slot}-name`}>{t("settingsDisplayName")}</label>
-        <input id={`settings-${editor.slot}-name`} value={editor.displayName} onChange={(event) => update("displayName", event.target.value)} required />
+        <Input id={`settings-${editor.slot}-name`} value={editor.displayName} onChange={(event) => update("displayName", event.target.value)} required />
         <label htmlFor={`settings-${editor.slot}-url`}>{t("settingsBaseUrl")}</label>
-        <input id={`settings-${editor.slot}-url`} value={editor.baseUrl} onChange={(event) => update("baseUrl", event.target.value)} required />
+        <Input id={`settings-${editor.slot}-url`} value={editor.baseUrl} onChange={(event) => update("baseUrl", event.target.value)} required />
         {editor.kind !== "mineru" && (
           <>
             <label htmlFor={`settings-${editor.slot}-model`}>{t("settingsModelId")}</label>
-            <input id={`settings-${editor.slot}-model`} list={editor.kind === "deepseek" ? "deepseek-models" : undefined} value={editor.modelId} onChange={(event) => update("modelId", event.target.value)} required />
+            <Input id={`settings-${editor.slot}-model`} list={editor.kind === "deepseek" ? "deepseek-models" : undefined} value={editor.modelId} onChange={(event) => update("modelId", event.target.value)} required />
             {editor.kind === "deepseek" && (
               <datalist id="deepseek-models">
                 <option value="deepseek-v4-flash" />
@@ -77,13 +85,13 @@ export default function SettingsProviderCard({
           </>
         )}
         <label htmlFor={`settings-${editor.slot}-temperature`}>Temperature</label>
-        <input id={`settings-${editor.slot}-temperature`} type="number" min="0" max="2" step="0.1" value={editor.temperature} onChange={(event) => update("temperature", Number(event.target.value))} />
+        <Input id={`settings-${editor.slot}-temperature`} type="number" min="0" max="2" step="0.1" value={editor.temperature} onChange={(event) => update("temperature", Number(event.target.value))} />
         <label htmlFor={`settings-${editor.slot}-max-tokens`}>Max Tokens</label>
-        <input id={`settings-${editor.slot}-max-tokens`} type="number" min="256" max="262144" step="256" value={editor.maxTokens} onChange={(event) => update("maxTokens", Number(event.target.value))} />
+        <Input id={`settings-${editor.slot}-max-tokens`} type="number" min="256" max="262144" step="256" value={editor.maxTokens} onChange={(event) => update("maxTokens", Number(event.target.value))} />
         <label htmlFor={`settings-${editor.slot}-key`}>{t("settingsApiKey")}</label>
-        <input id={`settings-${editor.slot}-key`} aria-label={`provider.${editor.slot}.apiKey`} type="password" autoComplete="new-password" value={editor.apiKey} onChange={(event) => update("apiKey", event.target.value)} placeholder={t("settingsApiKeyPlaceholder")} />
+        <Input id={`settings-${editor.slot}-key`} aria-label={`provider.${editor.slot}.apiKey`} type="password" autoComplete="new-password" value={editor.apiKey} onChange={(event) => update("apiKey", event.target.value)} placeholder={t("settingsApiKeyPlaceholder")} />
       </div>
-      <label className="suna-settings-enabled"><input type="checkbox" checked={editor.enabled} onChange={(event) => update("enabled", event.target.checked)} />{t("settingsEnabled")}</label>
+      <label className="suna-settings-enabled"><Checkbox aria-label={t("settingsEnabled")} checked={editor.enabled} onCheckedChange={(value) => update("enabled", value === true)} />{t("settingsEnabled")}</label>
       <div className="suna-settings-card-actions">
         <button type="submit" className="suna-action-primary" disabled={busy}><Save size={16} aria-hidden="true" />{busy ? t("saving") : t("settingsSave")}</button>
         <button type="button" className="suna-action-secondary" onClick={() => void onTest(editor)} disabled={testing || busy}><PlugZap size={16} aria-hidden="true" />{testing ? t("testing") : t("settingsTest")}</button>

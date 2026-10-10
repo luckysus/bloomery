@@ -20,6 +20,7 @@ import {
   RotateCcw,
   Search,
   ShieldAlert,
+  SlidersHorizontal,
   Square,
   Trash2,
   Wrench,
@@ -31,9 +32,12 @@ import type { Conversation, Message, PostgresKnowledgeSearchFilters } from "../.
 import type { PermissionDecision } from "../../bridge/generated/protocol";
 import AIAnswerRenderer from "../../components/answer/AnswerRenderer";
 import CitationPanel from "./CitationPanel";
+import ChatModelParameters from "./ChatModelParameters";
 import type { AgentPermissionView, AgentRunView } from "./agentEvents";
 import type { ChatControllerProps } from "./chatController";
 import AgentRunInspector from "./AgentRunInspector";
+import { Input } from "../../components/ui/input";
+import { Textarea } from "../../components/ui/textarea";
 import { parseWebResponse, toWebMessage, type WebPendingConfirmation } from "./web/webTypes";
 import WebConfirmDialog from "./web/WebConfirmDialog";
 import WebFeedback from "./web/WebFeedback";
@@ -279,6 +283,17 @@ function conversationTitle(conversation: Conversation) {
   return conversation.title.trim() || "新建对话";
 }
 
+/** Provider 显示名（第 19 章：模型选择需展示 Provider）。 */
+const PROVIDER_KIND_LABELS: Record<string, string> = {
+  open_ai_compatible: "OpenAI 兼容",
+  anthropic: "Anthropic",
+  qwen: "Qwen",
+  deepseek: "DeepSeek",
+  ollama: "本地 Ollama",
+  siliconflow: "SiliconFlow",
+  mineru: "MinerU",
+};
+
 export default function DesktopChatWorkspace({
   onOpenSection: _onOpenSection,
   ...controller
@@ -292,6 +307,8 @@ export default function DesktopChatWorkspace({
   const [modelMenuOpen, setModelMenuOpen] = useState(false);
   const [agentMenuOpen, setAgentMenuOpen] = useState(false);
   const [knowledgeMenuOpen, setKnowledgeMenuOpen] = useState(false);
+  const [paramsOpen, setParamsOpen] = useState(false);
+  const [dragging, setDragging] = useState(false);
   const [sendShortcut, setSendShortcut] = useState("Ctrl+Enter");
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -299,6 +316,7 @@ export default function DesktopChatWorkspace({
   const messagesRef = useRef<HTMLDivElement>(null);
   const activeProfile = controller.chatProfiles.find((profile) => profile.id === controller.activeChatProfileId);
   const selectedModel = activeProfile?.model_id || activeProfile?.display_name || "本地模型";
+  const providerLabel = activeProfile ? PROVIDER_KIND_LABELS[activeProfile.kind] ?? activeProfile.kind : "未配置";
   const conversations = controller.conversations.filter((conversation) => {
     if (conversation.archived) return false;
     return !search.trim() || conversation.title.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase());
@@ -433,7 +451,7 @@ export default function DesktopChatWorkspace({
         </div>
         <label className="suna-chat-search">
           <Search size={15} aria-hidden="true" />
-          <input
+          <Input
             type="search"
             value={search}
             onChange={(event) => setSearch(event.target.value)}
@@ -451,7 +469,7 @@ export default function DesktopChatWorkspace({
           ) : conversations.map((conversation) => (
             <div className={`suna-chat-session-wrap ${conversation.id === controller.selectedId ? "is-active" : ""}`} key={conversation.id}>
               {renamingId === conversation.id ? (
-                <input
+                <Input
                   className="suna-chat-session-rename"
                   value={renamingTitle}
                   autoFocus
@@ -524,13 +542,13 @@ export default function DesktopChatWorkspace({
             <div className="suna-chat-empty"><LoaderCircle size={20} className="suna-spin" /><span>{t("loading")}</span></div>
           ) : controller.messages.length === 0 && controller.pendingQuestion === null ? (
             <div className="suna-chat-empty suna-chat-empty-large suna-new-welcome">
-              <div className="suna-welcome-brand"><span className="suna-welcome-mark"><SunaLogo size={58} title="Suna" /></span><div><strong>Suna</strong><small>钢铁材料智能体平台</small></div></div>
+              <div className="suna-welcome-brand"><span className="suna-welcome-mark"><SunaLogo size={58} title="Suna" /></span><div><strong>Suna</strong><small>钢铁材料研发智能助手</small></div></div>
               <h1>你好，我是 <em>Suna</em></h1>
               <span className="suna-welcome-compat-copy">从一个具体问题开始</span>
               <span className="suna-welcome-compat-copy">例如：比较 Q345B 与 Q355B 的屈服强度要求，并指出适用标准。</span>
               <p>我可以帮助你进行钢铁材料的专业分析与问答，覆盖材料、工艺、性能、文献和数据等多个领域。</p>
               <div className="suna-welcome-cards">
-                {[{ icon: "◈", title: "智能问答", text: "多 Agent 协同，精准解答复杂问题" }, { icon: "▣", title: "知识中心", text: "构建专属钢铁知识库" }, { icon: "▤", title: "文献研究", text: "文献检索、总结、对比" }, { icon: "▥", title: "数据实验室", text: "数据处理、分析、可视化" }, { icon: "△", title: "性能预测", text: "多模型预测材料性能" }, { icon: "✥", title: "工艺优化", text: "多目标优化算法" }, { icon: "♜", title: "实验助手", text: "智能设计实验方案" }, { icon: "✦", title: "Agent 管理", text: "多智能体协同与配置" }].map((item) => <button type="button" className="suna-welcome-card" key={item.title} onClick={() => controller.onDraftChange(`${item.title}：`)}><span>{item.icon}</span><strong>{item.title}</strong><small>{item.text}</small><b>→</b></button>)}
+                {[{ icon: "◈", title: "材料分析", text: "成分、组织与性能关联分析" }, { icon: "▤", title: "文献研究", text: "文献检索、总结、对比" }, { icon: "▥", title: "数据分析", text: "数据处理、分析、可视化" }, { icon: "△", title: "性能预测", text: "多模型预测材料性能" }, { icon: "✥", title: "工艺优化", text: "多目标优化算法" }, { icon: "♜", title: "实验设计", text: "智能设计实验方案" }].map((item) => <button type="button" className="suna-welcome-card" key={item.title} onClick={() => controller.onDraftChange(`${item.title}：`)}><span>{item.icon}</span><strong>{item.title}</strong><small>{item.text}</small><b>→</b></button>)}
               </div>
             </div>
           ) : (
@@ -581,7 +599,23 @@ export default function DesktopChatWorkspace({
           />
         </div>
 
-        <form className="suna-chat-composer" data-testid="desktop-agent-composer" onSubmit={submit}>
+        <form
+          className={`suna-chat-composer ${dragging ? "is-dragging" : ""}`}
+          data-testid="desktop-agent-composer"
+          onSubmit={submit}
+          onDragOver={(event) => { event.preventDefault(); if (!dragging) setDragging(true); }}
+          onDragLeave={(event) => {
+            const next = event.relatedTarget as Node | null;
+            if (next && event.currentTarget.contains(next)) return;
+            setDragging(false);
+          }}
+          onDrop={(event) => {
+            event.preventDefault();
+            setDragging(false);
+            if (event.dataTransfer?.files?.length) onAttachmentFiles(event.dataTransfer.files);
+          }}
+        >
+          {dragging && <div className="suna-chat-dropzone" role="region" aria-label="拖拽文件到输入框"><FileText size={18} /><span>松开即可添加 PDF、Excel、CSV、Word 或图片</span></div>}
           {controller.attachments.length > 0 && (
             <div className="mb-2 flex flex-wrap gap-2" aria-label="已添加附件">
               {controller.attachments.map((attachment, index) => (
@@ -592,7 +626,7 @@ export default function DesktopChatWorkspace({
               ))}
             </div>
           )}
-          <textarea
+          <Textarea
             ref={inputRef}
             value={controller.draft}
             onChange={(event) => controller.onDraftChange(event.target.value)}
@@ -653,8 +687,14 @@ export default function DesktopChatWorkspace({
                     ))}
                   </div>
                 )}
-                <button type="button" className="suna-chat-model-button" aria-label="切换当前对话模型" title="切换当前对话模型" aria-expanded={modelMenuOpen} onClick={() => setModelMenuOpen((open) => !open)} disabled={controller.pendingQuestion !== null}>
+                <button type="button" className="suna-chat-model-button" aria-label="切换当前对话模型" title="切换当前对话模型" aria-expanded={modelMenuOpen} onClick={() => { setModelMenuOpen((open) => !open); setParamsOpen(false); }} disabled={controller.pendingQuestion !== null}>
                   <span>{selectedModel}</span><ChevronDown size={14} className={modelMenuOpen ? "is-open" : undefined} />
+                </button>
+              </div>
+              <div className="suna-chat-model-picker">
+                {paramsOpen && <ChatModelParameters providerLabel={providerLabel} modelLabel={selectedModel} />}
+                <button type="button" className="suna-chat-model-button" aria-label="模型参数" title="调整 Temperature、Context、Max Tokens" aria-expanded={paramsOpen} onClick={() => { setParamsOpen((open) => !open); setModelMenuOpen(false); setAgentMenuOpen(false); setKnowledgeMenuOpen(false); }} disabled={controller.pendingQuestion !== null}>
+                  <SlidersHorizontal size={14} /><span>参数</span>
                 </button>
               </div>
               <div className="suna-chat-model-picker">
@@ -670,7 +710,7 @@ export default function DesktopChatWorkspace({
                     ))}
                   </div>
                 )}
-                <button type="button" className="suna-chat-model-button" aria-label="选择 Agent" title="选择本轮使用的 Agent" aria-expanded={agentMenuOpen} onClick={() => { setAgentMenuOpen((open) => !open); setModelMenuOpen(false); }} disabled={controller.pendingQuestion !== null}>
+                <button type="button" className="suna-chat-model-button" aria-label="选择 Agent" title="选择本轮使用的 Agent" aria-expanded={agentMenuOpen} onClick={() => { setAgentMenuOpen((open) => !open); setModelMenuOpen(false); setParamsOpen(false); }} disabled={controller.pendingQuestion !== null}>
                   <span>{controller.activeAgentId ? controller.agentProfiles.find((profile) => profile.id === controller.activeAgentId)?.name ?? controller.activeAgentId : "自动 Agent"}</span><ChevronDown size={14} className={agentMenuOpen ? "is-open" : undefined} />
                 </button>
               </div>
@@ -691,7 +731,7 @@ export default function DesktopChatWorkspace({
                         ["year", "年份"],
                         ["tag", "标签"],
                       ] as const).map(([key, label]) => (
-                        <input
+                        <Input
                           key={key}
                           aria-label={label}
                           placeholder={label}
@@ -709,7 +749,7 @@ export default function DesktopChatWorkspace({
                     </div>
                   </div>
                 )}
-                <button type="button" className="suna-chat-model-button" aria-label="选择知识库" title="选择本轮检索的知识库" aria-expanded={knowledgeMenuOpen} onClick={() => { setKnowledgeMenuOpen((open) => !open); setModelMenuOpen(false); setAgentMenuOpen(false); }} disabled={controller.pendingQuestion !== null}>
+                <button type="button" className="suna-chat-model-button" aria-label="选择知识库" title="选择本轮检索的知识库" aria-expanded={knowledgeMenuOpen} onClick={() => { setKnowledgeMenuOpen((open) => !open); setModelMenuOpen(false); setAgentMenuOpen(false); setParamsOpen(false); }} disabled={controller.pendingQuestion !== null}>
                   <span>{controller.selectedKnowledgeBaseIds.length === 0 ? "无知识库" : controller.selectedKnowledgeBaseIds.length === controller.knowledgeBases.length ? "全部知识库" : `知识库 ${controller.selectedKnowledgeBaseIds.length}`}</span><ChevronDown size={14} className={knowledgeMenuOpen ? "is-open" : undefined} />
                 </button>
               </div>

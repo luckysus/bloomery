@@ -1,5 +1,6 @@
 import { Languages } from "lucide-react";
 import { useLocale, type LanguagePreference } from "../../i18n/locale";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../components/ui/select";
 
 export default function LanguageSelect() {
   const { preference, setPreference, t } = useLocale();
@@ -8,15 +9,14 @@ export default function LanguageSelect() {
     <label className="suna-language-control">
       <Languages size={15} aria-hidden="true" />
       <span className="sr-only">{t("languageLabel")}</span>
-      <select
-        aria-label={t("languageLabel")}
-        value={preference}
-        onChange={(event) => setPreference(event.target.value as LanguagePreference)}
-      >
-        <option value="system">{t("languageSystem")}</option>
-        <option value="zh-CN">{t("languageChinese")}</option>
-        <option value="en-US">{t("languageEnglish")}</option>
-      </select>
+      <Select value={preference} onValueChange={(value) => setPreference(value as LanguagePreference)}>
+  <SelectTrigger aria-label={t("languageLabel")}><SelectValue /></SelectTrigger>
+  <SelectContent>
+        <SelectItem value="system">{t("languageSystem")}</SelectItem>
+        <SelectItem value="zh-CN">{t("languageChinese")}</SelectItem>
+        <SelectItem value="en-US">{t("languageEnglish")}</SelectItem>
+  </SelectContent>
+</Select>
     </label>
   );
 }

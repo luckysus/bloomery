@@ -20,6 +20,7 @@ import {
 } from "../../bridge/desktop";
 import { useLocale } from "../../i18n/locale";
 import { settingsErrorMessage } from "./settingsError";
+import { Input } from "../../components/ui/input";
 
 type Draft = {
   id: string | null;
@@ -214,12 +215,12 @@ export default function DatabaseConnectionsPanel() {
       <form className="suna-mcp-form" onSubmit={(event) => void save(event)}>
         <div className="suna-mcp-form-heading"><strong>{draft.id ? t("settingsDatabaseEdit") : t("settingsDatabaseAdd")}</strong><span>{t("settingsDatabaseSecretNote")}</span></div>
         <div className="suna-mcp-fields">
-          <label><span>{t("settingsDatabaseDisplayName")}</span><input value={draft.display_name} onChange={(event) => setDraft({ ...draft, display_name: event.target.value })} required /></label>
-          <label><span>{t("settingsDatabaseHost")}</span><input value={draft.host} onChange={(event) => setDraft({ ...draft, host: event.target.value })} required /></label>
-          <label><span>{t("settingsDatabasePort")}</span><input type="number" min="1" max="65535" value={draft.port} onChange={(event) => setDraft({ ...draft, port: event.target.value })} required /></label>
-          <label><span>{t("settingsDatabaseUsername")}</span><input value={draft.username} onChange={(event) => setDraft({ ...draft, username: event.target.value })} required autoComplete="off" /></label>
-          <label><span>{t("settingsDatabasePassword")}</span><input type="password" value={draft.password} onChange={(event) => setDraft({ ...draft, password: event.target.value })} placeholder={draft.id ? t("settingsDatabasePasswordPlaceholder") : undefined} autoComplete="new-password" /></label>
-          <label><span>{t("settingsDatabaseTimeout")}</span><input type="number" min="1000" max="60000" step="500" aria-label={t("settingsDatabaseTimeout")} value={draft.timeout_ms} onChange={(event) => setDraft({ ...draft, timeout_ms: event.target.value })} required /></label>
+          <label><span>{t("settingsDatabaseDisplayName")}</span><Input value={draft.display_name} onChange={(event) => setDraft({ ...draft, display_name: event.target.value })} required /></label>
+          <label><span>{t("settingsDatabaseHost")}</span><Input value={draft.host} onChange={(event) => setDraft({ ...draft, host: event.target.value })} required /></label>
+          <label><span>{t("settingsDatabasePort")}</span><Input type="number" min="1" max="65535" value={draft.port} onChange={(event) => setDraft({ ...draft, port: event.target.value })} required /></label>
+          <label><span>{t("settingsDatabaseUsername")}</span><Input value={draft.username} onChange={(event) => setDraft({ ...draft, username: event.target.value })} required autoComplete="off" /></label>
+          <label><span>{t("settingsDatabasePassword")}</span><Input type="password" value={draft.password} onChange={(event) => setDraft({ ...draft, password: event.target.value })} placeholder={draft.id ? t("settingsDatabasePasswordPlaceholder") : undefined} autoComplete="new-password" /></label>
+          <label><span>{t("settingsDatabaseTimeout")}</span><Input type="number" min="1000" max="60000" step="500" aria-label={t("settingsDatabaseTimeout")} value={draft.timeout_ms} onChange={(event) => setDraft({ ...draft, timeout_ms: event.target.value })} required /></label>
         </div>
         {duplicate && <p className="suna-settings-alert" role="status">{t("settingsDatabaseDuplicate")}</p>}
         <div className="suna-mcp-form-actions"><button type="submit" className="suna-secondary-button" disabled={busy === "save"}><Save size={15} aria-hidden="true" />{busy === "save" ? t("settingsDatabaseSaving") : t("settingsDatabaseSave")}</button>{draft.id && <button type="button" className="suna-icon-button" onClick={() => setDraft(emptyDraft())} aria-label={t("settingsDatabaseCancelEdit")} title={t("settingsDatabaseCancelEdit")}><CircleX size={17} aria-hidden="true" /></button>}</div>

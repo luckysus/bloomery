@@ -2,6 +2,10 @@ import { useEffect, useState } from "react";
 import { CalendarClock, LoaderCircle, Pencil, Plus, RefreshCw, Trash2 } from "lucide-react";
 import { desktop, type AgentSchedule, type Conversation, type SaveAgentScheduleRequest } from "../../bridge/desktop";
 import "./agentSchedules.css";
+import { Checkbox } from "../../components/ui/checkbox";
+import { Input } from "../../components/ui/input";
+import { Textarea } from "../../components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../components/ui/select";
 
 type Props = { agentId?: string; conversationId?: string };
 
@@ -75,7 +79,7 @@ export default function AgentSchedulesPanel({ agentId, conversationId }: Props) 
           {job.lastError && <p className="suna-schedule-error">最近计划状态：{job.lastError}</p>}
         </div>
         <div className="suna-schedule-actions">
-          <label><input type="checkbox" checked={job.enabled} disabled={busy} onChange={(event) => void change(() => desktop.setAgentScheduleEnabled(job.id, event.target.checked))} />启用</label>
+          <label><Checkbox aria-label="启用" checked={job.enabled} disabled={busy} onCheckedChange={(checked) => void change(() => desktop.setAgentScheduleEnabled(job.id, checked === true))} />启用</label>
           <button type="button" className="suna-icon-button" aria-label="编辑计划" disabled={busy} onClick={() => edit(job)}><Pencil size={14} /></button>
           <button type="button" className="suna-icon-button" aria-label="删除计划" disabled={busy} onClick={() => void change(() => desktop.deleteAgentSchedule(job.id))}><Trash2 size={14} /></button>
         </div>
@@ -84,16 +88,23 @@ export default function AgentSchedulesPanel({ agentId, conversationId }: Props) 
         <h4>{draft.id ? "编辑计划" : "新建计划"}</h4>
         <fieldset disabled={busy || loading}>
           <div className="suna-schedule-fields">
-            <label>结果会话<select required value={draft.conversationId} onChange={(event) => setDraft({ ...draft, conversationId: event.target.value })}>
-              <option value="">选择已有会话</option>{conversations.map((session) => <option key={session.id} value={session.id}>{session.title || "未命名会话"}</option>)}
-            </select></label>
-            <label>时区<input required value={draft.timezone} placeholder="Asia/Shanghai" onChange={(event) => setDraft({ ...draft, timezone: event.target.value })} /></label>
-            <label>Cron 表达式<input aria-label="Cron 表达式" required value={draft.expression} placeholder="0 9 * * *" onChange={(event) => setDraft({ ...draft, expression: event.target.value })} /><small>分钟 小时 日期 月份 星期；0 9 * * * 表示每天 09:00。</small></label>
-            <label>重复执行<select value={String(draft.recurring)} onChange={(event) => setDraft({ ...draft, recurring: event.target.value === "true" })}><option value="true">按计划重复</option><option value="false">只执行下一次</option></select></label>
+            <label>结果会话<Select value={draft.conversationId} required onValueChange={(value) => setDraft({ ...draft, conversationId: value })}>
+  <SelectTrigger aria-label="结果会话"><SelectValue /></SelectTrigger>
+  <SelectContent>
+              <SelectItem value="">选择已有会话</SelectItem>{conversations.map((session) => <SelectItem key={session.id} value={session.id}>{session.title || "未命名会话"}</SelectItem>)}
+  </SelectContent>
+</Select></label>
+            <label>时区<Input required value={draft.timezone} placeholder="Asia/Shanghai" onChange={(event) => setDraft({ ...draft, timezone: event.target.value })} /></label>
+            <label>Cron 表达式<Input aria-label="Cron 表达式" required value={draft.expression} placeholder="0 9 * * *" onChange={(event) => setDraft({ ...draft, expression: event.target.value })} /><small>分钟 小时 日期 月份 星期；0 9 * * * 表示每天 09:00。</small></label>
+            <label>重复执行<Select value={String(draft.recurring)} onValueChange={(value) => setDraft({ ...draft, recurring: value === "true" })}>
+  <SelectTrigger aria-label="重复执行"><SelectValue /></SelectTrigger>
+  <SelectContent><SelectItem value="true">按计划重复</SelectItem><SelectItem value="false">只执行下一次</SelectItem>
+  </SelectContent>
+</Select></label>
           </div>
-          <label className="suna-schedule-prompt">执行指令<textarea required maxLength={16000} rows={3} value={draft.prompt} placeholder="例如：总结本会话已有研究记录，并列出下一步实验建议。" onChange={(event) => setDraft({ ...draft, prompt: event.target.value })} /></label>
+          <label className="suna-schedule-prompt">执行指令<Textarea required maxLength={16000} rows={3} value={draft.prompt} placeholder="例如：总结本会话已有研究记录，并列出下一步实验建议。" onChange={(event) => setDraft({ ...draft, prompt: event.target.value })} /></label>
           <footer>
-            <label><input type="checkbox" checked={draft.enabled} onChange={(event) => setDraft({ ...draft, enabled: event.target.checked })} />保存后启用</label>
+            <label><Checkbox aria-label="保存后启用" checked={draft.enabled} onCheckedChange={(checked) => setDraft({ ...draft, enabled: checked === true })} />保存后启用</label>
             <div>{draft.id && <button type="button" className="suna-button is-soft" onClick={() => setDraft(newSchedule(agentId, conversationId || conversations[0]?.id))}>取消编辑</button>}
               <button type="submit" className="suna-button" disabled={!draft.conversationId || !draft.prompt.trim()}>{busy ? <LoaderCircle size={14} /> : <Plus size={14} />}{draft.id ? "保存计划" : "创建计划"}</button></div>
           </footer>

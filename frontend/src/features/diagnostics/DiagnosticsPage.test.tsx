@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import DiagnosticsPage from "./DiagnosticsPage";
 import { desktop, type BackgroundTask } from "../../bridge/desktop";
+import { resetTaskStoreForTests } from "../../stores/taskStore";
 
 vi.mock("../../i18n/locale", () => ({
   useLocale: () => ({
@@ -49,6 +50,7 @@ const task: BackgroundTask = {
 describe("DiagnosticsPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    resetTaskStoreForTests();
     vi.mocked(desktop.getStorageHealth).mockResolvedValue({
       database_ok: true,
       current_migration_version: 7,

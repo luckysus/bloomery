@@ -1,4 +1,4 @@
-import { createContext, createElement, useCallback, useContext, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { createContext, createElement, useCallback, useContext, useEffect, useMemo, useRef, type FormEvent, type ReactNode } from "react";
 import { useLocale } from "../../i18n/locale";
 import {
   desktop,
@@ -17,6 +17,10 @@ import {
 import type { PermissionDecision } from "../../bridge/generated/protocol";
 import { createAgentRunView, reduceAgentEvent, reduceAgentEvents, type AgentRunView } from "./agentEvents";
 import { useAppearanceSettings } from "../../settings/appearance";
+import { useAgentStore } from "../../stores/agentStore";
+import { useChatStore } from "../../stores/chatStore";
+import { useKnowledgeStore } from "../../stores/knowledgeStore";
+import { useModelStore } from "../../stores/modelStore";
 
 function errorMessage(error: unknown, fallback: string) {
   return error instanceof Error ? error.message : fallback;
@@ -161,29 +165,58 @@ export function useChatControllerContext() {
 export function useChatController(): ChatControllerProps {
   const { t } = useLocale();
   const { preferences, loaded: appearanceLoaded } = useAppearanceSettings();
-  const [conversations, setConversations] = useState<Conversation[]>([]);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [knowledgeBaseIds, setKnowledgeBaseIds] = useState<string[]>([]);
-  const [knowledgeBases, setKnowledgeBases] = useState<KnowledgeBaseRecord[]>([]);
-  const [knowledgeFilters, setKnowledgeFilters] = useState<PostgresKnowledgeSearchFilters>({});
-  const [chatProfiles, setChatProfiles] = useState<ProviderProfileResponse[]>([]);
-  const [activeChatProfileId, setActiveChatProfileId] = useState<string | null>(null);
-  const [agentProfiles, setAgentProfiles] = useState<AgentProfileSummary[]>([]);
-  const [activeAgentId, setActiveAgentId] = useState<string | null>(null);
-  const [smartSearchEnabled, setSmartSearchEnabled] = useState(false);
-  const [autoSearchEnabled, setAutoSearchEnabled] = useState(false);
-  const [streamingCitations, setStreamingCitations] = useState<EvidenceItem[]>([]);
-  const [attachments, setAttachments] = useState<LocalAgentAttachment[]>([]);
-  const [draft, setDraft] = useState("");
-  const [pendingQuestion, setPendingQuestion] = useState<string | null>(null);
-  const [agentRun, setAgentRun] = useState<AgentRunView | null>(null);
-  const [recoveredRuns, setRecoveredRuns] = useState<RecoveredRun[]>([]);
-  const [activeRunId, setActiveRunId] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [loadingMessages, setLoadingMessages] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
+  // 第 77 章：状态由 Zustand store 承载。setter 保持 useState 的更新器语义，
+  // 因此本文件其余逻辑与所有消费方都无需改动。
+  const conversations = useChatStore((state) => state.conversations);
+  const selectedId = useChatStore((state) => state.selectedId);
+  const messages = useChatStore((state) => state.messages);
+  const draft = useChatStore((state) => state.draft);
+  const pendingQuestion = useChatStore((state) => state.pendingQuestion);
+  const streamingCitations = useChatStore((state) => state.streamingCitations);
+  const attachments = useChatStore((state) => state.attachments);
+  const loading = useChatStore((state) => state.loading);
+  const loadingMessages = useChatStore((state) => state.loadingMessages);
+  const error = useChatStore((state) => state.error);
+  const notice = useChatStore((state) => state.notice);
+  const smartSearchEnabled = useChatStore((state) => state.smartSearchEnabled);
+  const autoSearchEnabled = useChatStore((state) => state.autoSearchEnabled);
+
+  const agentRun = useAgentStore((state) => state.agentRun);
+  const recoveredRuns = useAgentStore((state) => state.recoveredRuns);
+  const activeRunId = useAgentStore((state) => state.activeRunId);
+  const agentProfiles = useAgentStore((state) => state.agentProfiles);
+  const activeAgentId = useAgentStore((state) => state.activeAgentId);
+
+  const chatProfiles = useModelStore((state) => state.chatProfiles);
+  const activeChatProfileId = useModelStore((state) => state.activeChatProfileId);
+
+  const knowledgeBases = useKnowledgeStore((state) => state.knowledgeBases);
+  const knowledgeBaseIds = useKnowledgeStore((state) => state.selectedKnowledgeBaseIds);
+  const knowledgeFilters = useKnowledgeStore((state) => state.knowledgeFilters);
+
+  const {
+    setConversations,
+    setSelectedId,
+    setMessages,
+    setDraft,
+    setPendingQuestion,
+    setStreamingCitations,
+    setAttachments,
+    setLoading,
+    setLoadingMessages,
+    setError,
+    setNotice,
+    setSmartSearchEnabled,
+    setAutoSearchEnabled,
+  } = useChatStore.getState();
+  const { setAgentRun, setRecoveredRuns, setActiveRunId, setAgentProfiles, setActiveAgentId } = useAgentStore.getState();
+  const { setChatProfiles, setActiveChatProfileId } = useModelStore.getState();
+  const {
+    setKnowledgeBases,
+    setSelectedKnowledgeBaseIds: setKnowledgeBaseIds,
+    setKnowledgeFilters,
+  } = useKnowledgeStore.getState();
+
   const agentViews = useRef(new Map<string, AgentRunView>());
   const replayingRuns = useRef(new Set<string>());
   const recoveredRunsRef = useRef<RecoveredRun[]>([]);

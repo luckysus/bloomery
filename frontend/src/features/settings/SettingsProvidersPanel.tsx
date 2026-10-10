@@ -1,6 +1,7 @@
 import { CircleHelp, LoaderCircle } from "lucide-react";
 import { useLocale } from "../../i18n/locale";
 import SettingsProviderCard from "./SettingsProviderCard";
+import { RadioGroup, RadioGroupItem } from "../../components/ui/radio-group";
 import type { ProviderSlot, RetrievalPlan, SettingsEditor } from "./settingsModel";
 
 export default function SettingsProvidersPanel({
@@ -33,8 +34,10 @@ export default function SettingsProvidersPanel({
         <div><h2 id="settings-plan-heading">{t("settingsPlanTitle")}</h2></div>
         <fieldset className="suna-settings-plan-options">
           <legend>{t("settingsPlanLabel")}</legend>
-          <label><input type="radio" name="siliconflow-plan" checked={plan === "free"} onChange={() => onPlanChange("free")} aria-label={t("settingsPlanFree")} />{t("freePlan")}</label>
-          <label><input type="radio" name="siliconflow-plan" checked={plan === "pro"} onChange={() => onPlanChange("pro")} aria-label={t("settingsPlanPro")} />{t("proPlan")}</label>
+          <RadioGroup value={plan} onValueChange={(value) => onPlanChange(value as RetrievalPlan)} aria-label={t("settingsPlanLabel")}>
+            <label><RadioGroupItem value="free" aria-label={t("settingsPlanFree")} />{t("freePlan")}</label>
+            <label><RadioGroupItem value="pro" aria-label={t("settingsPlanPro")} />{t("proPlan")}</label>
+          </RadioGroup>
         </fieldset>
       </section>
 

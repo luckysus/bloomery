@@ -1,22 +1,27 @@
 :root {
   color-scheme: light;
-  --suna-bg: #f7faff;
+  /* 第 15 章主色板：Primary #2563EB / 浅蓝 #EFF6FF / 背景 #F8FAFC / 白 #FFFFFF
+     边框 #E5E7EB / 主文字 #111827 / 次文字 #6B7280 / 成功 #22C55E / 警告 #F59E0B / 错误 #EF4444 */
+  --suna-bg: #f8fafc;
   --suna-bg-raised: #ffffff;
-  --suna-bg-soft: #f1f6ff;
-  --suna-bg-hover: #eaf2ff;
-  --suna-sidebar: #f5f9ff;
-  --suna-line: #dfe8f5;
-  --suna-line-strong: #c8d8ee;
-  --suna-text: #13284b;
-  --suna-text-soft: #243d64;
-  --suna-text-muted: #6e82a2;
+  --suna-bg-soft: #eff6ff;
+  --suna-bg-hover: #e6efff;
+  --suna-sidebar: #f8fafc;
+  --suna-line: #e5e7eb;
+  --suna-line-strong: #d1d5db;
+  --suna-text: #111827;
+  --suna-text-soft: #374151;
+  --suna-text-muted: #6b7280;
   --suna-steel: #2563eb;
+  --suna-primary: #2563eb;
   --suna-amber: #2563eb;
-  --suna-amber-soft: #e9f1ff;
-  --suna-green: #3f8b75;
-  --suna-green-soft: #eef9f6;
-  --suna-red: #c64545;
-  --suna-red-soft: #fff4f0;
+  --suna-amber-soft: #eff6ff;
+  --suna-green: #22c55e;
+  --suna-green-soft: #dcfce7;
+  --suna-red: #ef4444;
+  --suna-red-soft: #fee2e2;
+  --suna-warning: #f59e0b;
+  --suna-warning-soft: #fef3c7;
   --suna-accent: #2563eb;
   --suna-sidebar-width: 258px;
   --suna-sidebar-collapsed-width: 72px;
@@ -63,12 +68,15 @@ html[data-motion="reduced"] *::after { animation-duration: .01ms !important; ani
   --suna-text-soft: #d0def2;
   --suna-text-muted: #91a7c6;
   --suna-steel: #5b9cff;
+  --suna-primary: #5b9cff;
   --suna-amber: #5b9cff;
   --suna-amber-soft: #1d3e74;
   --suna-green: #69c39b;
   --suna-green-soft: #1d463d;
   --suna-red: #f08b94;
   --suna-red-soft: #4b2737;
+  --suna-warning: #f0b45b;
+  --suna-warning-soft: #4a3a1e;
   --suna-accent: #5b9cff;
   --suna-shadow: 0 16px 36px rgba(0, 0, 0, 0.36);
   --suna-shadow-soft: 0 4px 14px rgba(0, 0, 0, 0.24);

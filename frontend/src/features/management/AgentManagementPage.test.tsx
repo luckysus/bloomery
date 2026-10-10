@@ -36,7 +36,9 @@ describe("AgentManagementPage", () => {
     const editor = render(<AgentManagementPage />);
     const prompt = await screen.findByRole("textbox", { name: "独立 System Prompt" });
     fireEvent.change(prompt, { target: { value: "Return cited evidence only" } });
-    fireEvent.change(screen.getByRole("combobox", { name: "Provider / 模型" }), { target: { value: "provider-1" } });
+    // Radix Select 不是原生 select：先按下指针打开列表，再点选目标项。
+    fireEvent.pointerDown(screen.getByRole("combobox", { name: "Provider / 模型" }), { button: 0, ctrlKey: false });
+    fireEvent.click(await screen.findByRole("option", { name: /研究模型/ }));
     fireEvent.click(screen.getByRole("checkbox", { name: "启用此 Agent" }));
     fireEvent.click(screen.getByRole("button", { name: "全部取消" }));
     fireEvent.click(screen.getByRole("checkbox", { name: "网络访问" }));
@@ -53,7 +55,8 @@ describe("AgentManagementPage", () => {
     render(<AgentManagementPage />);
     expect(await screen.findByRole("textbox", { name: "独立 System Prompt" })).toHaveValue("Return cited evidence only");
     expect(screen.getByRole("checkbox", { name: "启用此 Agent" })).not.toBeChecked();
-    expect(screen.getByRole("combobox", { name: "Provider / 模型" })).toHaveValue("provider-1");
+    // Radix Select 的触发器是按钮，展示选中项文本而非原生 value。
+    expect(screen.getByRole("combobox", { name: "Provider / 模型" })).toHaveTextContent(/研究模型/);
   });
 
   it("copies a preset into a custom expert and keeps preset deletion unavailable", async () => {

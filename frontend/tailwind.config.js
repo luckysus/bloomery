@@ -113,6 +113,49 @@ export default {
           900: "#6b3a20",
           950: "#3d1e0e",
         },
+        /*
+         * shadcn/ui 语义色。全部映射到项目既有的 --suna-* 设计令牌，
+         * 因此 shadcn 组件会自动跟随 [data-theme] 的浅色/深色切换，
+         * 不会引入第二套配色。
+         */
+        border: "var(--suna-line)",
+        input: "var(--suna-line)",
+        ring: "var(--suna-accent)",
+        background: "var(--suna-bg)",
+        foreground: "var(--suna-text)",
+        primary: {
+          DEFAULT: "var(--suna-accent)",
+          foreground: "#ffffff",
+        },
+        secondary: {
+          DEFAULT: "var(--suna-bg-soft)",
+          foreground: "var(--suna-text)",
+        },
+        destructive: {
+          DEFAULT: "var(--suna-red)",
+          foreground: "#ffffff",
+        },
+        muted: {
+          DEFAULT: "var(--suna-bg-soft)",
+          foreground: "var(--suna-text-muted)",
+        },
+        accent: {
+          DEFAULT: "var(--suna-bg-hover)",
+          foreground: "var(--suna-text)",
+        },
+        popover: {
+          DEFAULT: "var(--suna-bg-raised)",
+          foreground: "var(--suna-text)",
+        },
+        card: {
+          DEFAULT: "var(--suna-bg-raised)",
+          foreground: "var(--suna-text)",
+        },
+      },
+      borderRadius: {
+        lg: "var(--suna-radius)",
+        md: "var(--suna-radius-small)",
+        sm: "calc(var(--suna-radius-small) - 2px)",
       },
       fontFamily: {
         sans: [

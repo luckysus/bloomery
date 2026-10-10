@@ -1,9 +1,9 @@
-import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { desktop, isDesktopRuntime } from "../bridge/desktop";
+import { useEffect, useMemo, type ReactNode } from "react";
+import { ensureLocaleLoaded, useLocaleStore } from "../stores/localeStore";
+import { resolveLocale, type LanguagePreference, type Locale, type LocaleSaveState } from "./localeModel";
 
-export type Locale = "zh-CN" | "en-US";
-export type LanguagePreference = "system" | Locale;
-export type LocaleSaveState = "idle" | "saving" | "saved" | "error";
+export type { LanguagePreference, Locale, LocaleSaveState };
+export { resolveLocale } from "./localeModel";
 
 const zhCN = {
   languageLabel: "界面语言",
@@ -1692,27 +1692,8 @@ const messages: Record<Locale, Record<MessageKey, string>> = {
   },
 };
 
-export function resolveLocale(preference: LanguagePreference, systemLocale = "zh-CN"): Locale {
-  if (preference === "zh-CN" || preference === "en-US") return preference;
-  return systemLocale.toLowerCase().startsWith("en") ? "en-US" : "zh-CN";
-}
-
-function detectSystemLocale() {
-  return typeof navigator !== "undefined" ? navigator.language : "zh-CN";
-}
-
 export function formatMessage(message: string, params: Record<string, string | number> = {}) {
   return message.replace(/\{(\w+)\}/g, (_, name: string) => String(params[name] ?? `{${name}}`));
-}
-
-function parsePreference(value: string | null): LanguagePreference {
-  if (!value) return "zh-CN";
-  try {
-    const parsed = JSON.parse(value) as { preference?: unknown };
-    return parsed.preference === "zh-CN" || parsed.preference === "en-US" ? parsed.preference : "zh-CN";
-  } catch {
-    return "zh-CN";
-  }
 }
 
 interface LocaleContextValue {
@@ -1726,71 +1707,17 @@ interface LocaleContextValue {
   t: (key: MessageKey, params?: Record<string, string | number>) => string;
 }
 
-const defaultLocale: LocaleContextValue = {
-  locale: "zh-CN",
-  preference: "zh-CN",
-  setPreference: () => undefined,
-  saveState: "idle",
-  loadError: null,
-  retryLoad: () => undefined,
-  retrySave: () => undefined,
-  t: (key, params) => formatMessage(messages["zh-CN"][key], params),
-};
-
-const LocaleContext = createContext<LocaleContextValue>(defaultLocale);
-
 export function LocaleProvider({ children }: { children: ReactNode }) {
-  const [preference, setPreference] = useState<LanguagePreference>("zh-CN");
-  const [systemLocale] = useState(detectSystemLocale);
-  const [saveState, setSaveState] = useState<LocaleSaveState>("idle");
-  const [loadError, setLoadError] = useState<string | null>(null);
-  const [loadNonce, setLoadNonce] = useState(0);
-  const requestRef = useRef(0);
-  const pendingRef = useRef<LanguagePreference>("zh-CN");
+  useEffect(() => {
+    ensureLocaleLoaded();
+  }, []);
 
   useEffect(() => {
-    let mounted = true;
-    setLoadError(null);
-    if (!isDesktopRuntime()) {
-      try {
-        const next = parsePreference(window.localStorage.getItem("suna.ui.locale"));
-        pendingRef.current = next;
-        setPreference(next);
-      } catch {
-        if (mounted) setLoadError("无法读取界面语言设置，请重试");
-      }
-      return () => {
-        mounted = false;
-      };
-    }
-    desktop.getSetting("ui.locale").then((value) => {
-      if (!mounted) return;
-      const next = parsePreference(value);
-      pendingRef.current = next;
-      setPreference(next);
-    }).catch(() => {
-      if (mounted) setLoadError("无法读取界面语言设置，请重试");
-    });
-    return () => {
-      mounted = false;
-    };
-  }, [loadNonce]);
-
-  useEffect(() => {
-    const reset = () => {
-      pendingRef.current = "zh-CN";
-      setPreference("zh-CN");
-      setLoadError(null);
-      setSaveState("saved");
-    };
+    const reset = () => useLocaleStore.getState().resetToDefault();
     const changed = (event: Event) => {
       const detail = (event as CustomEvent<{ key?: string; value?: string }>).detail;
       if (detail?.key !== "ui.locale" || !detail.value) return;
-      const next = parsePreference(detail.value);
-      pendingRef.current = next;
-      setPreference(next);
-      setLoadError(null);
-      setSaveState("saved");
+      useLocaleStore.getState().applyExternal(detail.value);
     };
     window.addEventListener("suna:settings-reset", reset);
     window.addEventListener("suna:setting-changed", changed);
@@ -1800,45 +1727,30 @@ export function LocaleProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  const locale = resolveLocale(preference, systemLocale);
-  const persist = (next: LanguagePreference) => {
-    const request = ++requestRef.current;
-    pendingRef.current = next;
-    setSaveState("saving");
-    const serialized = JSON.stringify({ version: 1, preference: next });
-    try {
-      window.localStorage.setItem("suna.ui.locale", serialized);
-    } catch {
-      // The desktop credential-backed setting remains authoritative when local storage is unavailable.
-    }
-    if (!isDesktopRuntime()) {
-      if (request === requestRef.current) setSaveState("saved");
-      return;
-    }
-    void desktop.setSetting("ui.locale", serialized).then(() => {
-      if (request === requestRef.current) setSaveState("saved");
-    }).catch(() => {
-      if (request === requestRef.current) setSaveState("error");
-    });
-  };
-
-  const value = useMemo<LocaleContextValue>(() => ({
-    locale,
-    preference,
-    setPreference: (next) => {
-      setPreference(next);
-      persist(next);
-    },
-    saveState,
-    loadError,
-    retryLoad: () => setLoadNonce((nonce) => nonce + 1),
-    retrySave: () => persist(pendingRef.current),
-    t: (key, params) => formatMessage(messages[locale][key], params),
-  }), [locale, preference, saveState, loadError]);
-
-  return <LocaleContext.Provider value={value}>{children}</LocaleContext.Provider>;
+  return <>{children}</>;
 }
 
-export function useLocale() {
-  return useContext(LocaleContext);
+export function useLocale(): LocaleContextValue {
+  const locale = useLocaleStore((state) => state.locale);
+  const preference = useLocaleStore((state) => state.preference);
+  const setPreference = useLocaleStore((state) => state.setPreference);
+  const saveState = useLocaleStore((state) => state.saveState);
+  const loadError = useLocaleStore((state) => state.loadError);
+  const retryLoad = useLocaleStore((state) => state.retryLoad);
+  const retrySave = useLocaleStore((state) => state.retrySave);
+
+  return useMemo(
+    () => ({
+      locale,
+      preference,
+      setPreference,
+      saveState,
+      loadError,
+      retryLoad,
+      retrySave,
+      t: (key: MessageKey, params?: Record<string, string | number>) =>
+        formatMessage(messages[locale][key], params),
+    }),
+    [locale, preference, setPreference, saveState, loadError, retryLoad, retrySave],
+  );
 }

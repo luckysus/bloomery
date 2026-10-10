@@ -43,11 +43,13 @@ describe("AgentSchedulesPanel", () => {
   it("creates a schedule for the selected expert and chosen result conversation", async () => {
     render(<AgentSchedulesPanel agentId="knowledge" />);
     await ready();
-    fireEvent.change(screen.getByRole("combobox", { name: "结果会话" }), { target: { value: "conversation-2" } });
+    fireEvent.pointerDown(screen.getByRole("combobox", { name: "结果会话" }), { button: 0, ctrlKey: false });
+    fireEvent.click(await screen.findByRole("option", { name: "实验结果" }));
     fireEvent.change(screen.getByRole("textbox", { name: "Cron 表达式" }), { target: { value: "30 10 * * 1" } });
     fireEvent.change(screen.getByRole("textbox", { name: "时区" }), { target: { value: "Asia/Tokyo" } });
     fireEvent.change(screen.getByRole("textbox", { name: "执行指令" }), { target: { value: "核验实验结果与标准的差异" } });
-    fireEvent.change(screen.getByRole("combobox", { name: "重复执行" }), { target: { value: "false" } });
+    fireEvent.pointerDown(screen.getByRole("combobox", { name: "重复执行" }), { button: 0, ctrlKey: false });
+    fireEvent.click(await screen.findByRole("option", { name: "只执行下一次" }));
     fireEvent.click(screen.getByRole("button", { name: "创建计划" }));
     await waitFor(() => expect(desktop.saveAgentSchedule).toHaveBeenCalledWith({
       agentId: "knowledge", conversationId: "conversation-2", expression: "30 10 * * 1", timezone: "Asia/Tokyo",
