@@ -1,6 +1,6 @@
 <div align="center">
 
-![Suna](docs/assets/suna-banner.png)
+<img src="docs/assets/suna-banner.png" alt="Suna" width="600" />
 
 <h1>Suna</h1>
 
