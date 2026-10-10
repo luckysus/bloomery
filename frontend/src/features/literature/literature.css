@@ -3,3 +3,13 @@
 .suna-literature-compare-actions{display:flex;align-items:center;gap:8px}.suna-literature-compare-actions .suna-ghost-button{font-size:calc(11px * var(--suna-ui-font-scale));padding:6px 9px}.suna-literature-reading .suna-ghost-button{margin-top:10px;font-size:calc(11px * var(--suna-ui-font-scale));padding:6px 9px}.suna-literature-ai-result,.suna-literature-review{margin:14px 16px 16px;padding:14px;border:1px solid #d7e6fa;border-radius:7px;background:#f8fbff}.suna-literature-ai-result strong,.suna-literature-review strong{color:#2868ed;font-size:calc(12px * var(--suna-ui-font-scale))}.suna-literature-ai-result p,.suna-literature-review p{margin-top:8px;color:#5f789b;font-size:calc(12px * var(--suna-ui-font-scale));line-height:1.8;white-space:pre-wrap;max-height:420px;overflow:auto}.suna-literature-review{margin:16px 0}.suna-literature-review>div{display:flex;justify-content:space-between;gap:10px}.suna-literature-review>div span{color:#8298b6;font-size:calc(11px * var(--suna-ui-font-scale))}
 .suna-literature-filter{display:flex;justify-content:flex-end;margin-top:8px;padding:10px 12px;border:1px solid #d7e4f4;border-radius:7px;background:#fff}.suna-literature-filter label{display:flex;align-items:center;gap:8px;color:#637c9f;font-size:calc(11px * var(--suna-ui-font-scale))}.suna-literature-filter select{min-width:180px;padding:6px 8px;border:1px solid #d7e4f4;border-radius:5px;background:#fff;color:#3c5c85;font:inherit;font-size:calc(11px * var(--suna-ui-font-scale))}
 .suna-literature-layout{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(340px,.65fr);gap:16px;margin-top:16px;align-items:start}.suna-literature-results{min-width:0}
+
+/* 第 26–29 章：综述 / 研究趋势正文（Markdown + 表格）与「加入知识库」对话框 */
+.suna-literature-review-body{margin-top:8px;max-height:520px;overflow:auto;color:#41597e;font-size:calc(12px * var(--suna-ui-font-scale));line-height:1.8}
+.suna-literature-review-body p{white-space:normal;max-height:none;overflow:visible;margin-top:6px;color:inherit;font-size:inherit}
+.suna-literature-review-body table{width:100%;border-collapse:collapse;margin-top:8px}
+.suna-literature-review-body th,.suna-literature-review-body td{border:1px solid #d7e6fa;padding:6px 8px;text-align:left;vertical-align:top}
+.suna-literature-review-body th{background:#eef5ff;color:#2a4a7d;font-weight:600}
+.suna-literature-review>div>button{flex:0 0 auto}
+.suna-literature-library-dialog{display:flex;align-items:flex-end;gap:10px;margin:14px 0;padding:14px;border:1px solid #d7e6fa;border-radius:7px;background:#f8fbff}
+.suna-literature-library-dialog label{display:flex;flex-direction:column;gap:6px;color:#5f789b;font-size:calc(11px * var(--suna-ui-font-scale))}

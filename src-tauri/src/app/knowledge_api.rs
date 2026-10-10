@@ -80,7 +80,7 @@ async fn handle_connection(mut stream: TcpStream, app: tauri::AppHandle) -> Resu
             _ => "500 Internal Server Error",
         },
     };
-    eprintln!(
+    log::info!(
         "{}",
         crate::diagnostics::observability::redact_line(
             &json!({

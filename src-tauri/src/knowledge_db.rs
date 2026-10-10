@@ -360,6 +360,8 @@ pub struct PostgresKnowledgeSearchFilters {
     pub property: Option<String>,
     pub year: Option<i32>,
     pub tag: Option<String>,
+    /// 第 25 章：按来源（期刊 / 文献出处）过滤。
+    pub source: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -2454,6 +2456,11 @@ pub(crate) async fn search_postgres_hybrid_pool(
         .as_deref()
         .map(str::trim)
         .filter(|value| !value.is_empty());
+    let source = filters
+        .source
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
     let year = filters.year;
     let rows = sqlx::query(
         "WITH lexical AS (
@@ -2465,12 +2472,13 @@ pub(crate) async fn search_postgres_hybrid_pool(
             JOIN source_documents d ON d.id = v.document_id
             JOIN knowledge_bases kb ON kb.id = d.knowledge_base_id AND kb.deleted_at IS NULL
             WHERE d.knowledge_base_id = $1 AND d.deleted_at IS NULL
-              AND ($7::text IS NULL OR d.source_kind = $7)
+              AND ($7::text IS NULL OR d.source_kind = $7 OR d.metadata ->> 'category' = $7)
               AND ($8::text IS NULL OR lower(coalesce(d.metadata ->> 'material', '')) LIKE lower('%' || $8 || '%'))
               AND ($9::text IS NULL OR lower(coalesce(d.metadata ->> 'process', '')) LIKE lower('%' || $9 || '%'))
               AND ($10::text IS NULL OR lower(coalesce(d.metadata ->> 'property', '')) LIKE lower('%' || $10 || '%'))
               AND ($11::text IS NULL OR (d.metadata -> 'tags') ? $11 OR lower(coalesce(d.metadata ->> 'tags', '')) LIKE lower('%' || $11 || '%'))
               AND ($12::int IS NULL OR d.metadata ->> 'year' = $12::text)
+              AND ($14::text IS NULL OR lower(coalesce(d.metadata ->> 'source', d.display_name, '')) LIKE lower('%' || $14 || '%'))
               AND c.search_vector @@ plainto_tsquery('simple', $2)
             ORDER BY position
             LIMIT $4
@@ -2482,12 +2490,13 @@ pub(crate) async fn search_postgres_hybrid_pool(
             JOIN source_documents d ON d.id = v.document_id
             JOIN knowledge_bases kb ON kb.id = d.knowledge_base_id AND kb.deleted_at IS NULL
             WHERE d.knowledge_base_id = $1 AND d.deleted_at IS NULL
-              AND ($7::text IS NULL OR d.source_kind = $7)
+              AND ($7::text IS NULL OR d.source_kind = $7 OR d.metadata ->> 'category' = $7)
               AND ($8::text IS NULL OR lower(coalesce(d.metadata ->> 'material', '')) LIKE lower('%' || $8 || '%'))
               AND ($9::text IS NULL OR lower(coalesce(d.metadata ->> 'process', '')) LIKE lower('%' || $9 || '%'))
               AND ($10::text IS NULL OR lower(coalesce(d.metadata ->> 'property', '')) LIKE lower('%' || $10 || '%'))
               AND ($11::text IS NULL OR (d.metadata -> 'tags') ? $11 OR lower(coalesce(d.metadata ->> 'tags', '')) LIKE lower('%' || $11 || '%'))
               AND ($12::int IS NULL OR d.metadata ->> 'year' = $12::text)
+              AND ($14::text IS NULL OR lower(coalesce(d.metadata ->> 'source', d.display_name, '')) LIKE lower('%' || $14 || '%'))
               AND e.knowledge_base_id = d.knowledge_base_id
               AND e.dimension = $6
               AND e.model_id = v.embedding_model_id
@@ -2521,6 +2530,7 @@ pub(crate) async fn search_postgres_hybrid_pool(
     .bind(property)
     .bind(tag)
     .bind(year)
+    .bind(source)
     .bind(similarity_threshold)
     .fetch_all(pool)
     .await
@@ -3106,6 +3116,68 @@ pub async fn list_postgres_documents(
                     .map_err(|error| error.to_string())?,
                 updated_at: row
                     .try_get("updated_at")
+                    .map_err(|error| error.to_string())?,
+            })
+        })
+        .collect()
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct PostgresKnowledgeBaseMetricsRecord {
+    pub knowledge_base_id: Uuid,
+    pub document_count: i64,
+    pub indexed_document_count: i64,
+    pub chunk_count: i64,
+    pub embedded_chunk_count: i64,
+}
+
+/// 第 23 章：知识库卡片需要文件数量、知识片段、Embedding 状态与更新时间。
+#[tauri::command]
+pub async fn get_postgres_knowledge_base_metrics(
+    state: tauri::State<'_, KnowledgeDatabaseState>,
+) -> Result<Vec<PostgresKnowledgeBaseMetricsRecord>, String> {
+    let pool = active_pool(&state)?;
+    let rows = sqlx::query(
+        "SELECT kb.id AS knowledge_base_id,
+                COUNT(DISTINCT d.id) AS document_count,
+                COUNT(DISTINCT av.document_id) AS indexed_document_count,
+                COUNT(DISTINCT c.id) AS chunk_count,
+                COUNT(DISTINCT e.chunk_id) AS embedded_chunk_count
+         FROM knowledge_bases kb
+         LEFT JOIN source_documents d
+                ON d.knowledge_base_id = kb.id AND d.deleted_at IS NULL
+         LEFT JOIN LATERAL (
+                SELECT v.id AS version_id, v.document_id
+                FROM document_versions v
+                WHERE v.document_id = d.id AND v.activated_at IS NOT NULL
+                ORDER BY v.activated_at DESC, v.id DESC
+                LIMIT 1
+         ) av ON TRUE
+         LEFT JOIN document_chunks c ON c.version_id = av.version_id
+         LEFT JOIN chunk_embeddings e ON e.chunk_id = c.id
+         WHERE kb.deleted_at IS NULL
+         GROUP BY kb.id",
+    )
+    .fetch_all(&pool)
+    .await
+    .map_err(|error| format!("读取知识库指标失败: {}", safe_error(&error.to_string())))?;
+    rows.into_iter()
+        .map(|row| {
+            Ok(PostgresKnowledgeBaseMetricsRecord {
+                knowledge_base_id: row
+                    .try_get("knowledge_base_id")
+                    .map_err(|error| error.to_string())?,
+                document_count: row
+                    .try_get("document_count")
+                    .map_err(|error| error.to_string())?,
+                indexed_document_count: row
+                    .try_get("indexed_document_count")
+                    .map_err(|error| error.to_string())?,
+                chunk_count: row
+                    .try_get("chunk_count")
+                    .map_err(|error| error.to_string())?,
+                embedded_chunk_count: row
+                    .try_get("embedded_chunk_count")
                     .map_err(|error| error.to_string())?,
             })
         })
@@ -5310,32 +5382,32 @@ pub(crate) fn auto_initialize_knowledge_database(app: tauri::AppHandle) {
             Ok(Some(config)) => config,
             Ok(None) => return,
             Err(error) => {
-                eprintln!("读取已保存的 PostgreSQL 配置失败: {error}");
+                log::error!("读取已保存的 PostgreSQL 配置失败: {error}");
                 return;
             }
         };
         let stored_password = match read_password(&secrets) {
             Ok(password) => password,
             Err(error) => {
-                eprintln!("自动连接 PostgreSQL 失败: {error}");
+                log::error!("自动连接 PostgreSQL 失败: {error}");
                 return;
             }
         };
         let pool = match connect(&config, stored_password.expose()).await {
             Ok(pool) => pool,
             Err(error) => {
-                eprintln!("自动连接 PostgreSQL 失败: {error}");
+                log::error!("自动连接 PostgreSQL 失败: {error}");
                 return;
             }
         };
         if let Err(error) = prepare_pool(&pool).await {
             pool.close().await;
-            eprintln!("自动初始化 PostgreSQL 知识库失败: {error}");
+            log::error!("自动初始化 PostgreSQL 知识库失败: {error}");
             return;
         }
         match state.pool.lock() {
             Ok(mut active) => *active = Some(pool),
-            Err(_) => eprintln!("保存 PostgreSQL 知识库连接失败: 知识库状态已损坏"),
+            Err(_) => log::error!("保存 PostgreSQL 知识库连接失败: 知识库状态已损坏"),
         };
     });
 }

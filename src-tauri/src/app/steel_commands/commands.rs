@@ -1,9 +1,12 @@
 use super::logic::{
-    self, AnalyzeSteelDatasetRequest, CarbonEquivalentRequest, SaveSteelDatasetRequest,
+    self, AnalyzeSteelDatasetRequest, CarbonEquivalentRequest, CleanSteelDatasetRequest,
+    SaveSteelDatasetRequest, SteelDatasetSeriesRequest, SteelModelExplanationRequest,
+    SteelMultivariateRequest,
 };
 use crate::db::DbState;
 use crate::steel::{
-    CarbonEquivalentResult, DatasetAnalysis, DatasetPreview, DatasetPreviewRequest,
+    CarbonEquivalentResult, DatasetAnalysis, DatasetPreview, DatasetPreviewRequest, DatasetSeries,
+    MultivariateResult, ShapExplanation,
 };
 use crate::storage::repositories::steel::SteelDatasetRecord;
 
@@ -46,4 +49,37 @@ pub fn analyze_steel_dataset(
     request: AnalyzeSteelDatasetRequest,
 ) -> Result<DatasetAnalysis, String> {
     logic::analyze_steel_dataset(db, request)
+}
+
+#[tauri::command]
+pub fn read_steel_dataset_series(
+    db: tauri::State<DbState>,
+    request: SteelDatasetSeriesRequest,
+) -> Result<DatasetSeries, String> {
+    logic::read_steel_dataset_series(db, request)
+}
+
+#[tauri::command]
+pub fn analyze_steel_dataset_multivariate(
+    db: tauri::State<DbState>,
+    request: SteelMultivariateRequest,
+) -> Result<MultivariateResult, String> {
+    logic::analyze_steel_dataset_multivariate(db, request)
+}
+
+#[tauri::command]
+pub fn explain_steel_model(
+    db: tauri::State<DbState>,
+    request: SteelModelExplanationRequest,
+) -> Result<ShapExplanation, String> {
+    logic::explain_steel_model(db, request)
+}
+
+#[tauri::command]
+pub fn clean_steel_dataset(
+    app: tauri::AppHandle,
+    db: tauri::State<DbState>,
+    request: CleanSteelDatasetRequest,
+) -> Result<logic::CleanedSteelDataset, String> {
+    logic::clean_steel_dataset(app, db, request)
 }
