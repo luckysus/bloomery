@@ -229,7 +229,7 @@ async fn capability_switches_and_confirmation_metadata_are_enforced() {
 async fn powershell_preserves_utf8_and_bounds_both_output_streams() {
     let fixture = Fixture::new();
     let result = fixture.tools(true, true).execute(
-        invocation("powershell", json!({"command": "[Console]::Out.Write('你好'); [Console]::Out.Write(('x' * 100000)); [Console]::Error.Write(('e' * 100000))"})),
+        invocation("powershell", json!({"command": "[Console]::Out.Write('你好'); [Console]::Out.Write(('x' * 100000)); [Console]::Error.Write(('e' * 100000))", "timeout_ms": 60000})),
         CancellationToken::new(|| false),
     ).await.unwrap();
     assert_eq!(result["success"], true);
@@ -241,7 +241,7 @@ async fn powershell_preserves_utf8_and_bounds_both_output_streams() {
 }
 
 fn spawn_child_script() -> &'static str {
-    r#"$child=Start-Process -FilePath (Join-Path $env:SystemRoot 'System32/ping.exe') -ArgumentList '-n 60 127.0.0.1' -PassThru -WindowStyle Hidden; [IO.File]::WriteAllText((Join-Path $PWD.Path 'child.pid'), [string]$child.Id); Start-Sleep -Seconds 60"#
+    r#"$start=New-Object System.Diagnostics.ProcessStartInfo; $start.FileName=Join-Path $env:SystemRoot 'System32/ping.exe'; $start.Arguments='-n 60 127.0.0.1'; $start.UseShellExecute=$false; $child=[System.Diagnostics.Process]::Start($start); [IO.File]::WriteAllText((Join-Path $PWD.Path 'child.pid'), [string]$child.Id); Start-Sleep -Seconds 60"#
 }
 
 fn assert_child_stopped(fixture: &Fixture) {
