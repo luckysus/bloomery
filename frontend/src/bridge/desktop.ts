@@ -200,6 +200,33 @@ export interface SteelDatasetColumnRecord {
   max: number | null;
 }
 
+/** 第 31 章数据清洗：重复行 / 缺失值 / 异常值的处理计划。 */
+export interface SteelCleaningPlan {
+  dropDuplicateRows: boolean;
+  missingStrategy: "keep" | "drop_rows" | "fill_mean";
+  outlierStrategy: "keep" | "drop_rows" | "clip";
+  outlierIqrMultiplier: number;
+  columns: number[];
+}
+
+export interface SteelCleaningSummary {
+  rowCountBefore: number;
+  rowCountAfter: number;
+  duplicateRows: number;
+  duplicateRowsRemoved: number;
+  missingCells: number;
+  missingRowsRemoved: number;
+  filledCells: number;
+  outlierCells: number;
+  outlierRowsRemoved: number;
+  clippedCells: number;
+}
+
+export interface CleanedSteelDataset {
+  dataset: SteelDatasetRecord;
+  summary: SteelCleaningSummary;
+}
+
 export interface SteelDatasetRecord {
   id: string;
   sourceName: string;
@@ -286,6 +313,71 @@ export interface DatasetAnalysis {
   warnings: string[];
 }
 
+/** 折线图与散点图的数据来源：按行返回被选列的数值。 */
+export interface DatasetSeriesColumn {
+  ordinal: number;
+  name: string;
+  unit: string | null;
+}
+
+export interface DatasetSeries {
+  columns: DatasetSeriesColumn[];
+  rows: Array<Array<number | null>>;
+  totalRows: number;
+  sampled: boolean;
+}
+
+/** PCA 主成分分析结果（第 32 章）。 */
+export interface PcaComponent {
+  loadings: number[];
+  explainedVarianceRatio: number;
+}
+
+export interface MultivariateResult {
+  columnOrdinals: number[];
+  sampleCount: number;
+  excludedRowCount: number;
+  pca: {
+    components: PcaComponent[];
+    scores: number[][];
+    means: number[];
+    standardDeviations: number[];
+  };
+  clusters: {
+    labels: number[];
+    centroids: number[][];
+    inertia: number;
+    iterations: number;
+  };
+}
+
+/** 线性模型的精确 SHAP（第 37 章）。 */
+export interface ShapValue {
+  feature: string;
+  value: number;
+  contribution: number;
+  share: number;
+}
+
+export interface ShapExplanation {
+  modelType: string;
+  baseValue: number;
+  prediction: number;
+  values: ShapValue[];
+}
+
+/** 第 35 章模型中心支持的训练算法族。 */
+export type SteelTrainingAlgorithm =
+  | "linear_regression"
+  | "elasticnet"
+  | "random_forest"
+  | "hist_gradient_boosting"
+  | "lightgbm"
+  | "xgboost"
+  | "svr"
+  | "mlp"
+  | "transformer";
+
 export interface TrainSteelDatasetRequest {
   datasetId: string;
   targetColumn: number;
@@ -295,7 +387,15 @@ export interface TrainSteelDatasetRequest {
     validationFraction: number;
     seed?: number;
   };
-  algorithm?: "linear_regression" | "elasticnet" | "random_forest" | "hist_gradient_boosting";
+  algorithm?: SteelTrainingAlgorithm;
+}
+
+/** 训练产物的单组指标（train / validation 各一份）。 */
+export interface ComputeModelMetrics {
+  sample_count: number;
+  mae: number | null;
+  rmse: number | null;
+  r2: number | null;
 }
 
 export interface ComputeTrainingResult {
@@ -305,9 +405,27 @@ export interface ComputeTrainingResult {
     model_id: string;
     model_type: string;
     feature_names: string[];
-    metrics: Record<string, unknown>;
+    metrics: { train?: ComputeModelMetrics; validation?: ComputeModelMetrics };
+    feature_importance?: number[];
     applicability_range: Array<{ min: number | null; max: number | null }>;
   };
+}
+
+/** 第 35 章模型中心：已注册的模型版本（steel_models 表记录）。 */
+export interface SteelModelRecord {
+  id: string;
+  lineage_id: string;
+  kind: "linear_artifact" | "sklearn_artifact" | "transformer_artifact" | "onnx";
+  version: number;
+  source_task_id: string | null;
+  model_sha256: string;
+  /** 注册时的 manifest；artifact 类模型含 metrics，ONNX 模型含 I/O schema。 */
+  manifest_json: string;
+  /** artifact 类模型的完整训练产物；ONNX 模型为 null。 */
+  artifact_json: string | null;
+  model_base64: string | null;
+  is_active: boolean;
+  created_at: string;
 }
 
 export interface ComputePredictionResult {
@@ -318,6 +436,8 @@ export interface ComputePredictionResult {
   feature_names: string[];
   input_values: Array<number | null>;
   predictions: number[];
+  /** 第 37 章 Prediction Interval：基于验证集残差的预测区间。 */
+  prediction_interval?: Array<{ lower: number; upper: number; confidence: number; basis: string } | null> | null;
   applicability_range: Array<{ min: number | null; max: number | null }>;
   applicability_warnings: Array<{
     code: string;
@@ -346,6 +466,8 @@ export interface ComputeOptimizationRequest {
   }>;
   trials: number;
   seed: number;
+  /** 第 41 章算法族：nsga2 / tpe / ga / pso / grid；缺省时按目标数自动选择。 */
+  algorithm?: "nsga2" | "tpe" | "ga" | "pso" | "grid";
 }
 
 export interface ComputeOptimizationRecommendation {
@@ -368,6 +490,30 @@ export interface ComputeOptimizationResult {
   trials_completed: number;
   deterministic_seed: number;
   recommendations: ComputeOptimizationRecommendation[];
+  /** 第 42 章：非支配解集，供二维/三维 Pareto 图使用。 */
+  pareto_front: ComputeOptimizationRecommendation[];
+}
+
+/** 第 43 章：实验计划（experiments 表记录）。 */
+export interface ExperimentPlanRecord {
+  id: string;
+  conversation_id: string | null;
+  run_id: string | null;
+  title: string;
+  objective: string;
+  /** `[{name, low?, high?, value?}]`；value 为优化推荐取值。 */
+  variables_json: string;
+  recommendation_json: string | null;
+  state: "draft" | "proposed" | "accepted" | "rejected";
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ExperimentPlanVariable {
+  name: string;
+  low?: number;
+  high?: number;
+  value?: number;
 }
 
 export interface ComputeOnnxPredictionResult {
@@ -469,6 +615,15 @@ export interface KnowledgeHealth {
   average_processing_duration_ms: number | null;
 }
 
+/** 每个知识库的文件数量、已索引文档、知识片段与已生成 Embedding 的片段数。 */
+export interface KnowledgeBaseMetrics {
+  knowledge_base_id: string;
+  document_count: number;
+  indexed_document_count: number;
+  chunk_count: number;
+  embedded_chunk_count: number;
+}
+
 export interface KnowledgeDatabaseConfig {
   host: string;
   port: number;
@@ -539,6 +694,7 @@ export interface PostgresKnowledgeSearchFilters {
   property?: string;
   year?: number;
   tag?: string;
+  source?: string;
 }
 
 export interface PostgresKnowledgeSearchHit {
@@ -1368,6 +1524,23 @@ export const desktop = {
     groupByColumn?: number;
     correlationColumns?: number[];
   }) => call<DatasetAnalysis>("analyze_steel_dataset", { request }),
+  readSteelDatasetSeries: (request: {
+    datasetId: string;
+    columns: number[];
+    maxRows?: number;
+  }) => call<DatasetSeries>("read_steel_dataset_series", { request }),
+  analyzeSteelDatasetMultivariate: (request: {
+    datasetId: string;
+    columns: number[];
+    components?: number;
+    clusters?: number;
+  }) => call<MultivariateResult>("analyze_steel_dataset_multivariate", { request }),
+  explainSteelModel: (request: {
+    modelId: string;
+    features: number[];
+  }) => call<ShapExplanation>("explain_steel_model", { request }),
+  cleanSteelDataset: (request: { datasetId: string; plan: SteelCleaningPlan }) =>
+    call<CleanedSteelDataset>("clean_steel_dataset", { request }),
   trainSteelDataset: (request: TrainSteelDatasetRequest) =>
     call<BackgroundTask>("train_steel_dataset", { request }),
   getComputeTrainingResult: (id: string) =>
@@ -1381,6 +1554,23 @@ export const desktop = {
     call<ComputePredictionResult | null>("get_compute_prediction_result", { id }),
   hashOnnxModelFile: (path: string) =>
     call<string>("hash_onnx_model_file", { path }),
+  registerSteelModel: (request: { taskId: string; lineageId?: string }) =>
+    call<SteelModelRecord>("register_steel_model", { request }),
+  listAllSteelModels: () => call<SteelModelRecord[]>("list_all_steel_models"),
+  createExperimentPlan: (request: {
+    source: "optimization" | "manual";
+    title: string;
+    objectiveNote?: string;
+    variables: ExperimentPlanVariable[];
+    recommendation?: Record<string, unknown>;
+  }) => call<ExperimentPlanRecord>("create_experiment_plan", { request }),
+  listExperimentPlans: () => call<ExperimentPlanRecord[]>("list_experiment_plans"),
+  setExperimentPlanState: (id: string, state: ExperimentPlanRecord["state"]) =>
+    call<ExperimentPlanRecord>("set_experiment_plan_state", { id, state }),
+  deleteExperimentPlan: (id: string) => call<void>("delete_experiment_plan", { id }),
+  setActiveSteelModel: (id: string) =>
+    call<SteelModelRecord>("set_active_steel_model", { id }),
+  deleteSteelModel: (id: string) => call<void>("delete_steel_model", { id }),
 optimizeSteelProcess: (request: ComputeOptimizationRequest) =>
     call<BackgroundTask>("optimize_steel_process", { request }),
 getComputeOptimizationResult: (id: string) =>
@@ -1523,6 +1713,7 @@ getComputeOptimizationResult: (id: string) =>
       };
     }),
   getKnowledgeHealth: () => call<KnowledgeHealth>("get_postgres_knowledge_health"),
+  getKnowledgeBaseMetrics: () => call<KnowledgeBaseMetrics[]>("get_postgres_knowledge_base_metrics"),
   testKnowledgeDatabase: (config: KnowledgeDatabaseConfig, password: string) =>
     call<KnowledgeDatabaseHealth>("test_knowledge_database", { config, password }),
   configureKnowledgeDatabase: (config: KnowledgeDatabaseConfig, password: string) =>

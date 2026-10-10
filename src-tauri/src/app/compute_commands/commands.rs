@@ -72,6 +72,11 @@ pub fn list_steel_models(
 }
 
 #[tauri::command]
+pub fn list_all_steel_models(db: tauri::State<DbState>) -> Result<Vec<SteelModelRecord>, String> {
+    logic::list_all_steel_models(db)
+}
+
+#[tauri::command]
 pub fn set_active_steel_model(
     db: tauri::State<DbState>,
     id: String,

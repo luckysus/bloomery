@@ -13,6 +13,11 @@ custom-protocol = ["tauri/custom-protocol"]
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
+# 仅用于修复构建依赖图：indexmap 1.9.3 的 [features] 没有 default，std 默认关闭；
+# 它的 build.rs 依赖 autocfg 探测 std，在 rustc 1.96 上探测失败，导致 has_std 未设置，
+# IndexMap<K, V, S> 失去 S 的默认类型参数，使 tauri-build -> schemars 0.8.22 编译失败（E0107）。
+# 显式启用 std 可让 build.rs 直接短路。schemars 只存在于构建依赖图，故必须声明在 build-dependencies。
+indexmap = { version = "1.9", features = ["std"] }
 
 [dependencies]
 tauri = { version = "2", features = [] }
@@ -21,6 +26,8 @@ tauri-plugin-single-instance = "2"
 tauri-plugin-dialog = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+log = "0.4"
+env_logger = "0.11"
 base64 = "0.22"
 rusqlite = { version = "0.32", features = ["bundled"] }
 uuid = { version = "1", features = ["v4", "serde"] }
@@ -79,5 +86,8 @@ harness = false
 
 # 压缩 debug 构建的调试信息，显著减小 target/ 体积（仅保留行号表，
 # 保留 panic backtrace 的文件/行号定位能力，基本不影响日常调试）。
+[dev-dependencies]
+serial_test = "3"
+
 [profile.dev]
 debug = "line-tables-only"

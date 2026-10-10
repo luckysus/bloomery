@@ -3,7 +3,7 @@ use chrono::Utc;
 use reqwest::StatusCode;
 use serde::{Deserialize, Serialize};
 
-const RELEASE_API: &str = "https://api.github.com/repos/luckysus/bloomery/releases/latest";
+const RELEASE_API: &str = "https://api.github.com/repos/luckysus/Suna/releases/latest";
 
 #[derive(Debug, Clone, Serialize)]
 pub struct UpdateCheckResult {

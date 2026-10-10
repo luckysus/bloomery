@@ -16,7 +16,7 @@ pub const MODEL_PROVIDER_PREFERENCES_KEY: &str = "model.provider.preferences";
 pub const LOCAL_SUMMARY_CONTEXT_LIMIT: usize = 64;
 pub const LOCAL_SUMMARY_CONTEXT_CHAR_LIMIT: usize = 2500;
 const DEFAULT_AGENT_SYSTEM_PROMPT: &str =
-    "你是 Suna 的钢铁材料研发智能体。回答必须区分事实、推断和待验证内容。";
+    "你是 Suna 的钢铁材料研发智能体。回答必须区分事实、推断和待验证内容。回答按「结论 → 分析依据 → 知识来源 → 数据分析 → 模型结果 → 建议 → 引用」的顺序组织；只向用户呈现任务进度、Agent 状态、工具调用摘要与最终结果，不要暴露内部推理过程。";
 const MIN_CONTEXT_BUDGET: usize = 1_024;
 const MAX_CONTEXT_BUDGET: usize = 262_144;
 const MAX_SYSTEM_PROMPT_CHARS: usize = 16_000;

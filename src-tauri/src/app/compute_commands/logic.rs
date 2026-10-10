@@ -57,6 +57,8 @@ pub struct OptimizeSteelProcessRequest {
     pub trials: u32,
     #[serde(default)]
     pub seed: i64,
+    #[serde(default)]
+    pub algorithm: Option<String>,
 }
 
 pub const MAX_OPTIMIZATION_TRIALS: u32 = 500;
@@ -68,9 +70,15 @@ fn requested_training_algorithm(request: &TrainSteelDatasetRequest) -> Result<&s
         .unwrap_or("linear_regression")
         .trim();
     match algorithm {
-        "linear_regression" | "elasticnet" | "random_forest" | "hist_gradient_boosting" => {
-            Ok(algorithm)
-        }
+        "linear_regression"
+        | "elasticnet"
+        | "random_forest"
+        | "hist_gradient_boosting"
+        | "lightgbm"
+        | "xgboost"
+        | "svr"
+        | "mlp"
+        | "transformer" => Ok(algorithm),
         _ => Err(format!("unsupported training algorithm: {algorithm}")),
     }
 }
@@ -392,6 +400,21 @@ fn validate_onnx_features(features: &[Vec<f64>]) -> Result<(), String> {
     Ok(())
 }
 
+pub const SUPPORTED_OPTIMIZATION_ALGORITHMS: [&str; 5] = ["nsga2", "tpe", "ga", "pso", "grid"];
+
+fn requested_optimization_algorithm(request: &OptimizeSteelProcessRequest) -> Result<Option<&str>, String> {
+    let Some(algorithm) = request.algorithm.as_deref().map(str::trim).filter(|value| !value.is_empty()) else {
+        return Ok(None);
+    };
+    if !SUPPORTED_OPTIMIZATION_ALGORITHMS.contains(&algorithm) {
+        return Err(format!(
+            "algorithm must be one of {}",
+            SUPPORTED_OPTIMIZATION_ALGORITHMS.join(", ")
+        ));
+    }
+    Ok(Some(algorithm))
+}
+
 pub fn build_optimization_payload(
     dataset_id: &str,
     training_task_id: &str,
@@ -401,6 +424,7 @@ pub fn build_optimization_payload(
     if dataset_id.trim().is_empty() {
         return Err("dataset ID is required".to_string());
     }
+    let algorithm = requested_optimization_algorithm(request)?;
     if training_task_id.trim().is_empty() {
         return Err("training task ID is required".to_string());
     }
@@ -547,6 +571,7 @@ pub fn build_optimization_payload(
             "constraints": constraints,
             "trials": request.trials,
             "seed": request.seed,
+            "algorithm": algorithm,
         }
     }))
 }
@@ -559,8 +584,17 @@ fn is_supported_optimization_artifact(artifact: &Value) -> bool {
         (Some("linear-regression.v1"), Some("linear_regression")) => true,
         (
             Some("sklearn-pickle.v1"),
-            Some("elasticnet" | "random_forest" | "hist_gradient_boosting"),
+            Some(
+                "elasticnet"
+                | "random_forest"
+                | "hist_gradient_boosting"
+                | "lightgbm"
+                | "xgboost"
+                | "svr"
+                | "mlp",
+            ),
         ) => true,
+        (Some("transformer.v1"), Some("transformer")) => true,
         _ => false,
     }
 }
@@ -718,7 +752,7 @@ pub fn predict_steel_model_on_connection(
         Some("linear-regression.v1") => {
             crate::compute::handler::COMPUTE_PREDICT_LINEAR_REGRESSION_KIND
         }
-        Some("sklearn-pickle.v1") => {
+        Some("sklearn-pickle.v1") | Some("transformer.v1") => {
             payload["operation"] = json!("predict_trained_model");
             crate::compute::handler::COMPUTE_PREDICT_TRAINED_KIND
         }
@@ -909,6 +943,7 @@ pub(crate) fn register_steel_model(
                 let (kind, lineage_prefix) = match artifact["artifact_version"].as_str() {
                     Some("linear-regression.v1") => ("linear_artifact", "linear"),
                     Some("sklearn-pickle.v1") => ("sklearn_artifact", "sklearn"),
+                    Some("transformer.v1") => ("transformer_artifact", "transformer"),
                     _ => return Err("unsupported training model artifact".to_string()),
                 };
                 let artifact_json =
@@ -972,6 +1007,13 @@ pub(crate) fn list_steel_models(
 ) -> Result<Vec<SteelModelRecord>, String> {
     with_conn(&db, |connection| {
         model_repository::list(connection, current_workspace_id(), &lineage_id)
+    })
+}
+
+/// 第 35 章模型中心：列出当前工作区的全部模型版本（跨 lineage）。
+pub(crate) fn list_all_steel_models(db: tauri::State<DbState>) -> Result<Vec<SteelModelRecord>, String> {
+    with_conn(&db, |connection| {
+        model_repository::list_all(connection, current_workspace_id())
     })
 }
 
@@ -1184,6 +1226,41 @@ mod tests {
     }
 
     #[test]
+    fn training_algorithm_whitelist_matches_the_worker_contract() {
+        for algorithm in [
+            "linear_regression",
+            "elasticnet",
+            "random_forest",
+            "hist_gradient_boosting",
+            "lightgbm",
+            "xgboost",
+            "svr",
+            "mlp",
+            "transformer",
+        ] {
+            assert_eq!(
+                requested_training_algorithm(&TrainSteelDatasetRequest {
+                    dataset_id: "dataset-1".to_string(),
+                    target_column: 0,
+                    feature_columns: vec![1],
+                    split_policy: None,
+                    algorithm: Some(algorithm.to_string()),
+                })
+                .expect("supported algorithm"),
+                algorithm
+            );
+        }
+        assert!(requested_training_algorithm(&TrainSteelDatasetRequest {
+            dataset_id: "dataset-1".to_string(),
+            target_column: 0,
+            feature_columns: vec![1],
+            split_policy: None,
+            algorithm: Some("lstm".to_string()),
+        })
+        .is_err());
+    }
+
+    #[test]
     fn builds_numeric_training_payload_and_preserves_missing_features() {
         let table = DatasetTable {
             source_name: "heats.csv".to_string(),
@@ -1368,6 +1445,7 @@ mod tests {
             })],
             trials: 24,
             seed: 7,
+            algorithm: None,
         };
 
         let payload = build_optimization_payload("dataset-1", "task-1", &artifact, &request)
@@ -1407,6 +1485,7 @@ mod tests {
             constraints: Vec::new(),
             trials: 24,
             seed: 0,
+            algorithm: None,
         };
 
         let error = build_optimization_payload("dataset-1", "task-1", &artifact, &base)

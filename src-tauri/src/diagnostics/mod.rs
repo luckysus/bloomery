@@ -1,4 +1,5 @@
 pub(crate) mod export;
+pub mod logging;
 pub mod observability;
 pub mod redaction;
 

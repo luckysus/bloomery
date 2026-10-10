@@ -123,10 +123,10 @@ pub fn db_init(
         )
     });
     if let Err(error) = status_result {
-        eprintln!("persist bundled steel domain status failed: {error}");
+        log::error!("persist bundled steel domain status failed: {error}");
     }
     if let Err(error) = bundled_result {
-        eprintln!("ensure bundled steel domain package failed: {error}");
+        log::error!("ensure bundled steel domain package failed: {error}");
     }
     // Start scheduler with Tauri event sink for real progress updates
     use crate::app::event_sink::TauriEventSink;
@@ -159,7 +159,7 @@ pub fn db_init(
                 ) {
                     Ok(waits) => waits,
                     Err(error) => {
-                        eprintln!("restore agent permissions after startup failed: {error}");
+                        log::error!("restore agent permissions after startup failed: {error}");
                         None
                     }
                 }
@@ -200,7 +200,7 @@ pub fn db_init(
                     .await
                 };
                 if let Err(error) = result {
-                    eprintln!("resume agent run after startup failed: {error}");
+                    log::error!("resume agent run after startup failed: {error}");
                 }
             });
         }

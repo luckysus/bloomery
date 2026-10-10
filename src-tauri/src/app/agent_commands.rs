@@ -72,7 +72,7 @@ pub fn recover_agent_runs(
         ) {
             Ok(waits) => waits,
             Err(error) => {
-                eprintln!("restore agent permissions from the desktop control failed: {error}");
+                log::error!("restore agent permissions from the desktop control failed: {error}");
                 None
             }
         };
@@ -103,7 +103,7 @@ pub fn recover_agent_runs(
                 .await
             };
             if let Err(error) = result {
-                eprintln!("resume agent run from the desktop control failed: {error}");
+                log::error!("resume agent run from the desktop control failed: {error}");
             }
         });
     }

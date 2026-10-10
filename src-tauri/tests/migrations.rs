@@ -158,7 +158,15 @@ fn seed_database_at_version(connection: &mut Connection, version: u32) {
             32,
             include_str!("../src/storage/migrations/0032_agent_automations.sql"),
         ),
-    ];
+        (
+            33,
+            include_str!("../src/storage/migrations/0033_data_model_completion.sql"),
+        ),
+        (
+            34,
+            include_str!("../src/storage/migrations/0034_transformer_model_kind.sql"),
+        ),
+];
 
     for (migration_version, sql) in migrations.into_iter().take(version as usize) {
         connection
@@ -485,6 +493,12 @@ fn version_twelve_database_receives_summary_source_backfill() {
         DROP TABLE agent_task_sources;
         DROP INDEX idx_background_tasks_claim_token;
         DROP TABLE task_claim_tokens;
+        DROP TABLE experiments;
+        DROP TABLE optimization_tasks;
+        DROP TABLE prediction_tasks;
+        DROP TABLE skills;
+        DROP TABLE tools;
+        DROP TABLE agents;
         ALTER TABLE background_tasks DROP COLUMN lease_expires_at;
         ALTER TABLE background_tasks DROP COLUMN claim_token;
         ALTER TABLE background_tasks DROP COLUMN owner;

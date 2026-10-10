@@ -120,6 +120,7 @@ fn optimization_request(training_task_id: uuid::Uuid) -> OptimizeSteelProcessReq
         })],
         trials: 24,
         seed: 7,
+        algorithm: None,
     }
 }
 

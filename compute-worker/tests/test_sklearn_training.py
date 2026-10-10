@@ -25,7 +25,18 @@ def dataset(rows=60):
     }
 
 
-@pytest.mark.parametrize("algorithm", ["elasticnet", "random_forest", "hist_gradient_boosting"])
+@pytest.mark.parametrize(
+    "algorithm",
+    [
+        "elasticnet",
+        "random_forest",
+        "hist_gradient_boosting",
+        "lightgbm",
+        "xgboost",
+        "svr",
+        "mlp",
+    ],
+)
 def test_sklearn_pipelines_train_and_predict_round_trip(algorithm):
     payload = dataset()
     payload["algorithm"] = algorithm
@@ -125,7 +136,7 @@ def test_predict_model_rejects_a_different_runtime_environment():
 def test_predict_model_rejects_an_unapproved_model_type():
     artifact = {
         "artifact_version": "sklearn-pickle.v1",
-        "model_type": "xgboost",
+        "model_type": "unsupported_family",
         "feature_names": ["temperature"],
         "preprocessing": {"means": [0.0], "scales": [1.0]},
         "environment": environment_lock(),

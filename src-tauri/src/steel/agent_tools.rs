@@ -344,7 +344,7 @@ pub(crate) fn agent_gateway_tools(gateway: Arc<dyn SteelAgentGateway>) -> Vec<To
                     "feature_columns": {"type": "array", "items": {"type": "integer"}, "minItems": 1},
                     "splitPolicy": {"type": "object"},
                     "split_policy": {"type": "object"},
-                    "algorithm": {"type": "string", "enum": ["linear_regression", "elasticnet", "random_forest", "hist_gradient_boosting"]},
+                    "algorithm": {"type": "string", "enum": ["linear_regression", "elasticnet", "random_forest", "hist_gradient_boosting", "lightgbm", "xgboost", "svr", "mlp"]},
                     "model_version": {"type": "string"},
                     "query": {"type": "string"}
                 },

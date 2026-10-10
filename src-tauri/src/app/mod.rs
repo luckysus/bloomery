@@ -16,6 +16,7 @@ pub(crate) mod desktop_summary_commands;
 pub mod domain_commands;
 pub(crate) mod domain_removal;
 pub(crate) mod event_sink;
+pub(crate) mod experiment_commands;
 pub(crate) mod identity;
 pub(crate) mod knowledge_api;
 pub(crate) mod knowledge_commands;
@@ -40,7 +41,9 @@ use tauri::{Manager, RunEvent};
 pub(crate) const SUNA_TOKIO_WORKER_STACK_BYTES: usize = 8 * 1024 * 1024;
 
 pub fn run() {
-    // 先安装脱敏 panic hook，确保任何崩溃报告在写入 stderr 前都经过 Redactor。
+    // 先安装统一日志出口：之后所有 log 宏记录都会经 Redactor 脱敏再写 stderr。
+    crate::diagnostics::logging::install();
+    // 再安装脱敏 panic hook，确保任何崩溃报告在写入 stderr 前都经过 Redactor。
     crate::diagnostics::observability::install_panic_hook();
     install_async_runtime();
 

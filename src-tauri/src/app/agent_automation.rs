@@ -53,7 +53,7 @@ impl AgentAutomationState {
                     &generation,
                     expected_generation,
                 ) {
-                    eprintln!("Agent schedule pump failed: {error}");
+                    log::error!("Agent schedule pump failed: {error}");
                 }
                 tokio::time::sleep(Duration::from_secs(1)).await;
             }

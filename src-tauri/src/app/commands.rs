@@ -108,6 +108,7 @@ macro_rules! handler {
             crate::knowledge_db::retry_postgres_ingestion_job,
             crate::knowledge_db::cancel_postgres_ingestion_job,
             crate::knowledge_db::list_postgres_documents,
+            crate::knowledge_db::get_postgres_knowledge_base_metrics,
             crate::knowledge_db::list_postgres_knowledge_chunks,
             crate::knowledge_db::get_postgres_document_preview,
             crate::knowledge_db::update_postgres_document_metadata,
@@ -180,6 +181,10 @@ macro_rules! handler {
             crate::app::steel_commands::commands::save_steel_dataset,
             crate::app::steel_commands::commands::activate_steel_dataset,
             crate::app::steel_commands::commands::analyze_steel_dataset,
+            crate::app::steel_commands::commands::read_steel_dataset_series,
+            crate::app::steel_commands::commands::analyze_steel_dataset_multivariate,
+            crate::app::steel_commands::commands::explain_steel_model,
+            crate::app::steel_commands::commands::clean_steel_dataset,
             crate::app::compute_commands::commands::train_steel_dataset,
             crate::app::compute_commands::commands::get_compute_training_result,
             crate::app::compute_commands::commands::predict_steel_model,
@@ -193,8 +198,13 @@ macro_rules! handler {
             crate::app::compute_commands::commands::get_compute_export_result,
             crate::app::compute_commands::commands::register_steel_model,
             crate::app::compute_commands::commands::list_steel_models,
+            crate::app::compute_commands::commands::list_all_steel_models,
             crate::app::compute_commands::commands::set_active_steel_model,
             crate::app::compute_commands::commands::delete_steel_model,
+            crate::app::experiment_commands::create_experiment_plan,
+            crate::app::experiment_commands::list_experiment_plans,
+            crate::app::experiment_commands::set_experiment_plan_state,
+            crate::app::experiment_commands::delete_experiment_plan,
         ]
     };
 }

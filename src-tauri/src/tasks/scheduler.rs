@@ -444,7 +444,7 @@ impl Scheduler {
                 match self.interrupt_active() {
                     Ok(()) => break true,
                     Err(err) => {
-                        eprintln!("scheduler shutdown persistence error: {err}");
+                        log::error!("scheduler shutdown persistence error: {err}");
                         thread_control.wait(poll_interval);
                         continue;
                     }
@@ -452,7 +452,7 @@ impl Scheduler {
             }
             if let Err(err) = self.tick() {
                 // Log or persist error here; shutdown on first non-transient failure
-                eprintln!("scheduler tick error: {}", err);
+                log::error!("scheduler tick error: {}", err);
                 thread_control.request_shutdown();
             }
             if !thread_control.shutdown_requested() {
@@ -499,7 +499,7 @@ impl Scheduler {
         #[cfg(not(test))]
         let spawn_result = thread::Builder::new().spawn(worker);
         if let Err(error) = spawn_result {
-            eprintln!("scheduler worker spawn error: {error}");
+            log::error!("scheduler worker spawn error: {error}");
         }
     }
 

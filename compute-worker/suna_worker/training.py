@@ -19,14 +19,23 @@ MAX_PICKLE_BYTES = 4 * 1024 * 1024
 MAX_PICKLE_BASE64_CHARS = ((MAX_PICKLE_BYTES + 2) // 3) * 4
 ARTIFACT_VERSION = "linear-regression.v1"
 SKLEARN_ARTIFACT_VERSION = "sklearn-pickle.v1"
+TRANSFORMER_ARTIFACT_VERSION = "transformer.v1"
 SUPPORTED_ALGORITHMS = {
     "linear_regression",
     "elasticnet",
     "random_forest",
     "hist_gradient_boosting",
+    "lightgbm",
+    "xgboost",
+    "svr",
+    "mlp",
+    "transformer",
 }
 
 _ALLOWED_PICKLE_GLOBALS = {
+    ("builtins", "bytearray"),
+    ("collections", "OrderedDict"),
+    ("collections", "defaultdict"),
     ("numpy", "ndarray"),
     ("numpy", "dtype"),
     ("numpy._core.multiarray", "_reconstruct"),
@@ -34,8 +43,10 @@ _ALLOWED_PICKLE_GLOBALS = {
     ("numpy.core.multiarray", "_reconstruct"),
     ("numpy.core.multiarray", "scalar"),
     ("numpy.random._pcg64", "PCG64"),
+    ("numpy.random._mt19937", "MT19937"),
     ("numpy.random._pickle", "__generator_ctor"),
     ("numpy.random._pickle", "__bit_generator_ctor"),
+    ("numpy.random._pickle", "__randomstate_ctor"),
     ("numpy.random.bit_generator", "SeedSequence"),
     ("numpy.random.bit_generator", "__pyx_unpickle_SeedSequence"),
     ("sklearn.ensemble._forest", "RandomForestRegressor"),
@@ -53,13 +64,45 @@ _ALLOWED_PICKLE_GLOBALS = {
         "TreePredictor",
     ),
     ("sklearn.linear_model._coordinate_descent", "ElasticNet"),
+    ("sklearn.neural_network._multilayer_perceptron", "MLPRegressor"),
+    ("sklearn.neural_network._stochastic_optimizers", "AdamOptimizer"),
+    ("sklearn.svm._classes", "SVR"),
     ("sklearn.tree._classes", "DecisionTreeRegressor"),
     ("sklearn.tree._tree", "Tree"),
     ("sklearn._loss._loss", "CyHalfSquaredError"),
     ("sklearn._loss.link", "IdentityLink"),
     ("sklearn._loss.link", "Interval"),
     ("sklearn._loss.loss", "HalfSquaredError"),
+    ("lightgbm.basic", "Booster"),
+    ("lightgbm.sklearn", "LGBMRegressor"),
+    ("xgboost.core", "Booster"),
+    ("xgboost.sklearn", "XGBRegressor"),
 }
+
+_TREE_ALGORITHMS = {
+    "random_forest",
+    "hist_gradient_boosting",
+    "lightgbm",
+    "xgboost",
+}
+
+
+def runtime_dependencies() -> dict[str, str]:
+    """Record optional training-library versions used by an artifact."""
+    dependencies: dict[str, str] = {}
+    for module in ("lightgbm", "xgboost"):
+        try:
+            dependencies[module] = __import__(module).__version__
+        except ImportError:
+            continue
+    return dependencies
+
+
+def _tree_estimators(payload: Mapping[str, Any]) -> int:
+    estimators = int(payload.get("n_estimators", 100))
+    if estimators < 1 or estimators > 1000:
+        raise ValueError("n_estimators must be between 1 and 1000")
+    return estimators
 
 
 def train_linear_regression(payload: Mapping[str, Any]) -> dict[str, Any]:
@@ -187,6 +230,10 @@ def train_sklearn_model(payload: Mapping[str, Any]) -> dict[str, Any]:
     algorithm = payload.get("algorithm", "linear_regression")
     if algorithm == "linear_regression":
         return train_linear_regression(payload)
+    if algorithm == "transformer":
+        from .transformer import train_transformer
+
+        return train_transformer(payload)
     try:
         import numpy as np
     except ImportError as error:
@@ -214,9 +261,7 @@ def train_sklearn_model(payload: Mapping[str, Any]) -> dict[str, Any]:
     elif algorithm == "random_forest":
         from sklearn.ensemble import RandomForestRegressor
 
-        estimators = int(payload.get("n_estimators", 100))
-        if estimators < 1 or estimators > 1000:
-            raise ValueError("n_estimators must be between 1 and 1000")
+        estimators = _tree_estimators(payload)
         parameters.update({"n_estimators": estimators})
         model = RandomForestRegressor(n_estimators=estimators, random_state=seed_value)
     elif algorithm == "hist_gradient_boosting":
@@ -227,13 +272,71 @@ def train_sklearn_model(payload: Mapping[str, Any]) -> dict[str, Any]:
             raise ValueError("max_iter must be between 1 and 2000")
         parameters.update({"max_iter": max_iter})
         model = HistGradientBoostingRegressor(max_iter=max_iter, random_state=seed_value)
+    elif algorithm == "lightgbm":
+        from lightgbm import LGBMRegressor
+
+        estimators = _tree_estimators(payload)
+        parameters.update({"n_estimators": estimators})
+        model = LGBMRegressor(
+            n_estimators=estimators, random_state=seed_value, verbose=-1
+        )
+    elif algorithm == "xgboost":
+        from xgboost import XGBRegressor
+
+        estimators = _tree_estimators(payload)
+        parameters.update({"n_estimators": estimators})
+        model = XGBRegressor(
+            n_estimators=estimators, random_state=seed_value, verbosity=0
+        )
+    elif algorithm == "svr":
+        from sklearn.svm import SVR
+
+        c_value = float(payload.get("c", 1.0))
+        epsilon = float(payload.get("epsilon", 0.1))
+        if c_value <= 0 or epsilon < 0:
+            raise ValueError("svr requires C > 0 and epsilon >= 0")
+        parameters.update({"c": c_value, "epsilon": epsilon})
+        model = SVR(C=c_value, epsilon=epsilon)
+    elif algorithm == "mlp":
+        from sklearn.neural_network import MLPRegressor
+
+        hidden_layer_size = int(payload.get("hidden_layer_size", 32))
+        max_iter = int(payload.get("max_iter", 500))
+        if not 1 <= hidden_layer_size <= 256 or not 1 <= max_iter <= 5000:
+            raise ValueError(
+                "mlp requires 1 <= hidden_layer_size <= 256 and 1 <= max_iter <= 5000"
+            )
+        parameters.update(
+            {"hidden_layer_size": hidden_layer_size, "max_iter": max_iter}
+        )
+        model = MLPRegressor(
+            hidden_layer_sizes=(hidden_layer_size,),
+            max_iter=max_iter,
+            random_state=seed_value,
+        )
     else:
         raise ValueError(f"unsupported training algorithm: {algorithm}")
 
-    model.fit(train_rows, train_targets)
-    all_predictions = [
-        float(value) for value in model.predict(np.asarray(transformed, dtype=np.float64))
-    ]
+    # SVR / MLP are scale-sensitive on the response side; standardise the
+    # training targets and invert the transform when producing predictions.
+    target_scaling: dict[str, float] | None = None
+    fit_targets = train_targets
+    if algorithm in {"svr", "mlp"}:
+        target_mean = float(np.mean(train_targets))
+        target_std = float(np.std(train_targets))
+        target_scale = target_std if target_std > 0 else 1.0
+        target_scaling = {"mean": target_mean, "scale": target_scale}
+        fit_targets = (train_targets - target_mean) / target_scale
+
+    model.fit(train_rows, fit_targets)
+    raw_predictions = model.predict(np.asarray(transformed, dtype=np.float64))
+    if target_scaling is None:
+        all_predictions = [float(value) for value in raw_predictions]
+    else:
+        all_predictions = [
+            float(value) * target_scaling["scale"] + target_scaling["mean"]
+            for value in raw_predictions
+        ]
 
     if hasattr(model, "coef_"):
         importance = [abs(float(value)) for value in np.asarray(model.coef_).ravel()]
@@ -258,6 +361,7 @@ def train_sklearn_model(payload: Mapping[str, Any]) -> dict[str, Any]:
             "imputation": "train_mean",
             "means": means,
             "scales": scales,
+            **({"target_scaling": target_scaling} if target_scaling else {}),
         },
         "parameters": parameters,
         "split": split,
@@ -268,6 +372,7 @@ def train_sklearn_model(payload: Mapping[str, Any]) -> dict[str, Any]:
         "feature_importance": importance,
         "applicability_range": _applicability_range(features, split["train_indices"]),
         "environment": environment_lock(),
+        "runtime_dependencies": runtime_dependencies(),
         "model_pickle_base64": base64.b64encode(model_pickle).decode("ascii"),
     }
     artifact["model_id"] = _artifact_id(artifact)
@@ -281,6 +386,10 @@ def predict_model(
     version = artifact.get("artifact_version")
     if version == ARTIFACT_VERSION:
         return predict_linear_regression(artifact, features)
+    if version == TRANSFORMER_ARTIFACT_VERSION:
+        from .transformer import predict_transformer
+
+        return predict_transformer(artifact, features)
     if version != SKLEARN_ARTIFACT_VERSION:
         raise ValueError("unsupported model artifact version")
     model_type = artifact.get("model_type")
@@ -288,6 +397,10 @@ def predict_model(
         "elasticnet",
         "random_forest",
         "hist_gradient_boosting",
+        "lightgbm",
+        "xgboost",
+        "svr",
+        "mlp",
     }:
         raise ValueError("unsupported model type")
     _validate_environment_lock(artifact)
@@ -310,6 +423,18 @@ def predict_model(
     ):
         raise ValueError("model preprocessing schema is invalid")
     rows = _normalise_features(features, len(names))
+    target_scaling = preprocessing.get("target_scaling")
+    target_mean = 0.0
+    target_scale = 1.0
+    if isinstance(target_scaling, Mapping):
+        target_mean = float(target_scaling.get("mean", 0.0))
+        target_scale = float(target_scaling.get("scale", 1.0))
+        if (
+            not math.isfinite(target_mean)
+            or not math.isfinite(target_scale)
+            or target_scale == 0
+        ):
+            raise ValueError("model preprocessing schema is invalid")
     transformed = [
         [
             ((value if value is not None else float(means[column])) - float(means[column]))
@@ -328,7 +453,7 @@ def predict_model(
             raise ValueError("model predictions row count does not match input")
         predictions = []
         for value in raw_predictions:
-            number = float(value)
+            number = float(value) * target_scale + target_mean
             if not math.isfinite(number):
                 raise ValueError("model predictions must be finite")
             predictions.append(number)
@@ -371,6 +496,14 @@ def _validate_environment_lock(artifact: Mapping[str, Any]) -> None:
     current = environment_lock()
     if any(environment.get(key) != current[key] for key in current):
         raise ValueError("model environment lock does not match current worker")
+    dependencies = artifact.get("runtime_dependencies")
+    if isinstance(dependencies, Mapping) and dependencies:
+        current_dependencies = runtime_dependencies()
+        for name, version in dependencies.items():
+            if current_dependencies.get(name) != version:
+                raise ValueError(
+                    f"model dependency lock does not match current worker: {name}"
+                )
 
 
 class _TrustedModelUnpickler(pickle.Unpickler):

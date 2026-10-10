@@ -406,7 +406,7 @@ fn has_numeric_value(rows: &[Vec<String>], ordinal: usize) -> bool {
         .any(|value| parse_number(value.trim()).is_some())
 }
 
-fn parse_number(value: &str) -> Option<f64> {
+pub(crate) fn parse_number(value: &str) -> Option<f64> {
     value
         .parse::<f64>()
         .ok()

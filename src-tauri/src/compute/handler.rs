@@ -360,6 +360,8 @@ fn run_task(
     }
     if expected_operation == "predict_linear_regression" {
         result = annotate_prediction_result(result, &payload.payload)?;
+    } else if expected_operation == "predict_trained_model" {
+        attach_prediction_interval(&mut result, &payload.payload["artifact"]);
     } else if expected_operation == "predict_onnx" {
         if result.get("model_sha256").and_then(Value::as_str).is_none()
             || result.get("predictions").is_none()
@@ -440,7 +442,38 @@ fn annotate_prediction_result(mut result: Value, payload: &Value) -> Result<Valu
     result["applicability_warnings"] = Value::Array(warnings);
     result["confidence"] = Value::Null;
     result["constraints"] = json!([]);
+    attach_prediction_interval(&mut result, &payload["artifact"]);
     Ok(result)
+}
+
+/// 第 37 章 Prediction Interval：用验证集残差（RMSE）给出 95% 预测区间。
+fn attach_prediction_interval(result: &mut Value, artifact: &Value) {
+    const Z_95: f64 = 1.959_963_984_540_054;
+    let rmse = artifact["metrics"]["validation"]["rmse"]
+        .as_f64()
+        .filter(|value| value.is_finite() && *value > 0.0);
+    let Some(predictions) = result.get("predictions").and_then(Value::as_array) else {
+        result["prediction_interval"] = Value::Null;
+        return;
+    };
+    let Some(rmse) = rmse else {
+        result["prediction_interval"] = Value::Null;
+        return;
+    };
+    let margin = Z_95 * rmse;
+    let intervals = predictions
+        .iter()
+        .map(|value| match value.as_f64() {
+            Some(center) => json!({
+                "lower": center - margin,
+                "upper": center + margin,
+                "confidence": 0.95,
+                "basis": "validation_rmse",
+            }),
+            None => Value::Null,
+        })
+        .collect::<Vec<_>>();
+    result["prediction_interval"] = Value::Array(intervals);
 }
 
 fn validate_optimization_result(result: &Value) -> Result<(), HandlerError> {

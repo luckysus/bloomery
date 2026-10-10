@@ -1,5 +1,6 @@
 use rusqlite::Connection;
 use serde_json::json;
+use serial_test::serial;
 use sha2::{Digest, Sha256};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
@@ -59,6 +60,7 @@ fn python_worker_config() -> WorkerConfig {
     config
 }
 
+#[serial]
 #[test]
 fn worker_can_load_runtime_dependencies_after_spawn() {
     let mut client = WorkerClient::spawn(python_worker_config()).expect("spawn worker");
@@ -133,6 +135,7 @@ fn onnx_model_path_and_hash() -> (PathBuf, String) {
     (path, format!("{:x}", digest.finalize()))
 }
 
+#[serial]
 #[test]
 fn scheduler_runs_training_and_persists_a_queryable_result() {
     let path = std::env::temp_dir().join(format!(
@@ -223,6 +226,7 @@ fn scheduler_runs_training_and_persists_a_queryable_result() {
     let _ = std::fs::remove_file(path);
 }
 
+#[serial]
 #[test]
 fn scheduler_runs_prediction_and_records_applicability_metadata() {
     let path = std::env::temp_dir().join(format!(
@@ -355,6 +359,7 @@ fn decode_base64(input: &str) -> Vec<u8> {
     out
 }
 
+#[serial]
 #[test]
 fn scheduler_trains_sklearn_model_and_predicts_through_trained_path() {
     let path = std::env::temp_dir().join(format!(
@@ -515,6 +520,7 @@ fn scheduler_trains_sklearn_model_and_predicts_through_trained_path() {
     let _ = std::fs::remove_file(path);
 }
 
+#[serial]
 #[test]
 fn scheduler_exports_onnx_and_imported_model_matches_source_predictions() {
     let path =
@@ -691,6 +697,7 @@ fn scheduler_exports_onnx_and_imported_model_matches_source_predictions() {
     let _ = std::fs::remove_file(path);
 }
 
+#[serial]
 #[test]
 fn scheduler_runs_optimization_and_enforces_constraints() {
     let path = std::env::temp_dir().join(format!(
@@ -810,6 +817,7 @@ fn scheduler_runs_optimization_and_enforces_constraints() {
     let _ = std::fs::remove_file(path);
 }
 
+#[serial]
 #[test]
 fn scheduler_runs_onnx_prediction_and_persists_model_provenance() {
     let path =
