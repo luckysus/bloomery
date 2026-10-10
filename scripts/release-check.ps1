@@ -86,7 +86,7 @@ foreach ($requiredPath in @(
     (Join-Path $repoRoot "README.md"),
     (Join-Path $repoRoot "LICENSE"),
     (Join-Path $repoRoot "NOTICE"),
-    (Join-Path $repoRoot "docs\PROTOCOL.md"),
+    (Join-Path $repoRoot "docs\AGENT_RUNTIME.md"),
     (Join-Path $repoRoot "src-tauri\deny.toml"),
     (Join-Path $repoRoot "src-tauri\about.toml"),
     (Join-Path $repoRoot "src-tauri\THIRD_PARTY_NOTICES.hbs"),

@@ -55,7 +55,7 @@ yanked = "warn"
 #   命中即按错误处理；无“warn”档位。为保持 unmaintained 不阻断构建（等价于告警/非阻断），
 #   将其对应 RUSTSEC ID 登记到下方 ignore，cargo-deny 会以“已忽略”提示列出且 exit 0。
 unmaintained = "all"
-# 已评估并接受的 unmaintained 公告（逐条说明见 docs/dependency-exceptions.md）。
+# 已评估并接受的 unmaintained 公告（原 docs/dependency-exceptions.md 已随文档体系切换移除，逐条理由如下）。
 # 均为经 tauri/gtk3/rust-unic 生态引入的传递依赖，无安全升级路径，owner=luckysus，
 # review date=2026-11-08。
 ignore = [
