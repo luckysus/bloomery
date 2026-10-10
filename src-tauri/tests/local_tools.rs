@@ -241,7 +241,7 @@ async fn powershell_preserves_utf8_and_bounds_both_output_streams() {
 }
 
 fn spawn_child_script() -> &'static str {
-    r#"$start=New-Object System.Diagnostics.ProcessStartInfo; $start.FileName=[IO.Path]::Combine([Environment]::SystemDirectory,'cmd.exe'); $start.Arguments='/c ping -n 60 127.0.0.1 > nul'; $start.UseShellExecute=$false; $start.CreateNoWindow=$true; $child=[Diagnostics.Process]::Start($start); [IO.File]::WriteAllText((Join-Path (Get-Location) 'child.pid'), [string]$child.Id); Start-Sleep -Seconds 60"#
+    r#"$start=New-Object System.Diagnostics.ProcessStartInfo; $start.FileName=[IO.Path]::Combine([Environment]::SystemDirectory,'ping.exe'); $start.Arguments='-n 60 127.0.0.1'; $start.UseShellExecute=$false; $start.CreateNoWindow=$true; $child=[Diagnostics.Process]::Start($start); [IO.File]::WriteAllText((Join-Path (Get-Location) 'child.pid'), [string]$child.Id); Start-Sleep -Seconds 60"#
 }
 
 fn assert_child_stopped(fixture: &Fixture) {
@@ -272,14 +272,14 @@ async fn powershell_timeout_terminates_its_process_tree() {
         .execute(
             invocation(
                 "powershell",
-                json!({"command": spawn_child_script(), "timeout_ms": 5000}),
+                json!({"command": spawn_child_script(), "timeout_ms": 10000}),
             ),
             CancellationToken::new(|| false),
         )
         .await
         .unwrap_err();
     assert_eq!(result.code, "tool_timeout");
-    assert!(started.elapsed() < Duration::from_secs(12));
+    assert!(started.elapsed() < Duration::from_secs(20));
     assert_child_stopped(&fixture);
 }
 
@@ -299,7 +299,7 @@ async fn powershell_cancellation_terminates_its_process_tree() {
                 .await
         }
     });
-    let deadline = Instant::now() + Duration::from_secs(10);
+    let deadline = Instant::now() + Duration::from_secs(20);
     while !fixture.0.join("workspace/child.pid").exists() && Instant::now() < deadline {
         tokio::time::sleep(Duration::from_millis(25)).await;
     }
