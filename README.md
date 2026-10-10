@@ -4,13 +4,19 @@
 
 <h1>Suna</h1>
 
-**Windows 优先、本地优先的钢铁与材料工程智能体工作台。**
+**钢铁材料研发智能体平台**
+
+AI Agent Platform for Steel Materials Research
+
+*AI for Steel Research* · 让钢铁材料研发更智能
+
+Windows 优先、本地优先的桌面智能体工作台。
 
 简体中文 · [English](README.en.md)
 
-[GitHub](https://github.com/luckysus/suna) · [Gitee](https://gitee.com/neusu/suna)
+[GitHub](https://github.com/luckysus/Suna) · [Gitee](https://gitee.com/neusu/Suna)
 
-[![质量检查](https://github.com/luckysus/suna/actions/workflows/quality.yml/badge.svg)](https://github.com/luckysus/suna/actions/workflows/quality.yml)
+[![质量检查](https://github.com/luckysus/Suna/actions/workflows/quality.yml/badge.svg)](https://github.com/luckysus/Suna/actions/workflows/quality.yml)
 ![许可证](https://img.shields.io/badge/license-Apache--2.0-blue)
 ![平台](https://img.shields.io/badge/platform-Windows%2010-0078D4)
 ![桌面框架](https://img.shields.io/badge/Tauri-2-FFC131)
@@ -54,7 +60,7 @@ SiliconFlow 的免费版和 Pro 版由用户自行选择。API Key 通过设置�
 开发环境需要 Windows 10、Node.js 20/22/24、Rust stable、Visual Studio Build Tools（`Desktop development with C++`）、WebView2 Runtime、Git 与 Tauri 2 的 Windows 前置依赖。
 
 ```powershell
-git clone https://github.com/luckysus/suna.git
+git clone https://github.com/luckysus/Suna.git
 Set-Location suna/frontend
 npm install
 npm run build

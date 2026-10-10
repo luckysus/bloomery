@@ -4,13 +4,19 @@
 
 <h1>Suna</h1>
 
-**A Windows-first, local-first agent workbench for steel and materials engineering.**
+**AI Agent Platform for Steel Materials Research**
+
+钢铁材料研发智能体平台
+
+*AI for Steel Research* · Making steel materials research smarter
+
+A Windows-first, local-first desktop agent workbench.
 
 [简体中文](README.md) · English
 
-[GitHub](https://github.com/luckysus/suna) · [Gitee](https://gitee.com/neusu/suna)
+[GitHub](https://github.com/luckysus/Suna) · [Gitee](https://gitee.com/neusu/Suna)
 
-[![Quality checks](https://github.com/luckysus/suna/actions/workflows/quality.yml/badge.svg)](https://github.com/luckysus/suna/actions/workflows/quality.yml)
+[![Quality checks](https://github.com/luckysus/Suna/actions/workflows/quality.yml/badge.svg)](https://github.com/luckysus/Suna/actions/workflows/quality.yml)
 ![License](https://img.shields.io/badge/license-Apache--2.0-blue)
 ![Platform](https://img.shields.io/badge/platform-Windows%2010-0078D4)
 ![Desktop framework](https://img.shields.io/badge/Tauri-2-FFC131)
@@ -54,7 +60,7 @@ Users choose SiliconFlow Free or Pro themselves. API keys are entered in Setting
 The development environment requires Windows 10, Node.js 20/22/24, Rust stable, Visual Studio Build Tools with `Desktop development with C++`, WebView2 Runtime, Git, and the Tauri 2 Windows prerequisites.
 
 ```powershell
-git clone https://github.com/luckysus/suna.git
+git clone https://github.com/luckysus/Suna.git
 Set-Location suna/frontend
 npm install
 npm run build

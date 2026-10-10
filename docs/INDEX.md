@@ -1,0 +1,24 @@
+# Suna 完整提示词包索引
+
+共 19 份独立 Markdown 文档。先读 README，再执行
+CODEX_EXECUTION_PROMPTS.md 的 Prompt 0。
+
+-   `README_使用说明.md`
+-   `PRODUCT.md`
+-   `ARCHITECTURE.md`
+-   `UI_DESIGN.md`
+-   `DEVELOPMENT_RULES.md`
+-   `ROADMAP.md`
+-   `AGENT_RUNTIME.md`
+-   `MODEL_RUNTIME.md`
+-   `TOOLS_MCP_SKILLS.md`
+-   `DATABASE_API.md`
+-   `KNOWLEDGE_RAG.md`
+-   `LITERATURE_RESEARCH.md`
+-   `DATA_LAB.md`
+-   `PREDICTION.md`
+-   `OPTIMIZATION_EXPERIMENT.md`
+-   `SETTINGS_ADMIN.md`
+-   `CHAT_WORKSPACE.md`
+-   `TESTING_DEPLOYMENT.md`
+-   `CODEX_EXECUTION_PROMPTS.md`

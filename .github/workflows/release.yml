@@ -163,8 +163,8 @@ jobs:
           SUNA_AUTHENTICODE_TIMESTAMP_URL: ${{ vars.SUNA_AUTHENTICODE_TIMESTAMP_URL }}
           SUNA_OFFICIAL_PUBLIC_KEY_2026: ${{ vars.SUNA_OFFICIAL_PUBLIC_KEY_2026 }}
           SUNA_UPDATER_PUBLIC_KEY: ${{ vars.SUNA_UPDATER_PUBLIC_KEY }}
-          SUNA_UPDATER_ENDPOINT: https://github.com/luckysus/suna/releases/latest/download/latest.json
-          SUNA_RELEASE_ASSET_BASE_URL: https://github.com/luckysus/suna/releases/download/${{ inputs.release_tag }}
+          SUNA_UPDATER_ENDPOINT: https://github.com/luckysus/Suna/releases/latest/download/latest.json
+          SUNA_RELEASE_ASSET_BASE_URL: https://github.com/luckysus/Suna/releases/download/${{ inputs.release_tag }}
           GITHUB_REF_TYPE: tag
           GITHUB_REF_NAME: ${{ inputs.release_tag }}
           RELEASE_TAG: ${{ inputs.release_tag }}
