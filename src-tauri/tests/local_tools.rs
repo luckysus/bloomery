@@ -241,7 +241,7 @@ async fn powershell_preserves_utf8_and_bounds_both_output_streams() {
 }
 
 fn spawn_child_script() -> &'static str {
-    r#"$start=New-Object System.Diagnostics.ProcessStartInfo; $start.FileName=[IO.Path]::Combine([Environment]::SystemDirectory,'ping.exe'); $start.Arguments='-n 60 127.0.0.1'; $start.UseShellExecute=$false; $start.CreateNoWindow=$true; $child=[Diagnostics.Process]::Start($start); [IO.File]::WriteAllText((Join-Path (Get-Location) 'child.pid'), [string]$child.Id); Start-Sleep -Seconds 60"#
+    r#"$child=Start-Process -FilePath (Join-Path $env:SystemRoot 'System32/ping.exe') -ArgumentList '-n 60 127.0.0.1' -PassThru -WindowStyle Hidden; [IO.File]::WriteAllText((Join-Path $PWD.Path 'child.pid'), [string]$child.Id); Start-Sleep -Seconds 60"#
 }
 
 fn assert_child_stopped(fixture: &Fixture) {
@@ -272,7 +272,7 @@ async fn powershell_timeout_terminates_its_process_tree() {
         .execute(
             invocation(
                 "powershell",
-                json!({"command": spawn_child_script(), "timeout_ms": 10000}),
+                json!({"command": spawn_child_script(), "working_directory": fixture.0.join("workspace"), "timeout_ms": 10000}),
             ),
             CancellationToken::new(|| false),
         )
@@ -286,6 +286,7 @@ async fn powershell_timeout_terminates_its_process_tree() {
 #[tokio::test]
 async fn powershell_cancellation_terminates_its_process_tree() {
     let fixture = Fixture::new();
+    let working_directory = fixture.0.join("workspace");
     let cancelled = Arc::new(AtomicBool::new(false));
     let task = tokio::spawn({
         let tools = fixture.tools(true, true);
@@ -293,7 +294,7 @@ async fn powershell_cancellation_terminates_its_process_tree() {
         async move {
             tools
                 .execute(
-                    invocation("powershell", json!({"command": spawn_child_script()})),
+                    invocation("powershell", json!({"command": spawn_child_script(), "working_directory": working_directory})),
                     CancellationToken::new(move || cancelled.load(Ordering::SeqCst)),
                 )
                 .await
