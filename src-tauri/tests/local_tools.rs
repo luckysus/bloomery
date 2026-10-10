@@ -245,8 +245,9 @@ fn spawn_child_script(pid_path: &std::path::Path) -> String {
         .to_string_lossy()
         .replace('\\', "\\\\")
         .replace('"', "\\\"");
+    let error_path = pid_path.replace(".pid", ".error");
     format!(
-        r#"$start=New-Object System.Diagnostics.ProcessStartInfo; $start.FileName=Join-Path $env:SystemRoot 'System32/ping.exe'; $start.Arguments='-n 60 127.0.0.1'; $start.UseShellExecute=$false; $child=[System.Diagnostics.Process]::Start($start); [IO.File]::WriteAllText("{pid_path}", [string]$child.Id); Start-Sleep -Seconds 60"#
+        r#"try {{$start=New-Object System.Diagnostics.ProcessStartInfo; $start.FileName=Join-Path $env:SystemRoot 'System32/ping.exe'; $start.Arguments='-n 60 127.0.0.1'; $start.UseShellExecute=$false; $child=[System.Diagnostics.Process]::Start($start); if ($null -eq $child) {{ throw 'Process.Start returned null' }}; [IO.File]::WriteAllText("{pid_path}", [string]$child.Id)}} catch {{ [IO.File]::WriteAllText("{error_path}", $_.Exception.ToString()); Start-Sleep -Seconds 60 }}; if ($null -ne $child) {{ Start-Sleep -Seconds 60 }}"#
     )
 }
 
@@ -255,10 +256,15 @@ fn assert_child_stopped(fixture: &Fixture) {
     use windows_sys::Win32::System::Threading::{
         OpenProcess, WaitForSingleObject, PROCESS_SYNCHRONIZE,
     };
-    let pid: u32 = fs::read_to_string(fixture.0.join("workspace/child.pid"))
-        .expect("PowerShell did not write the child process fixture PID")
-        .parse()
-        .unwrap();
+    let pid_path = fixture.0.join("workspace/child.pid");
+    let pid_text = fs::read_to_string(&pid_path).unwrap_or_else(|error| {
+        let diagnostic = fs::read_to_string(fixture.0.join("workspace/child.error"))
+            .unwrap_or_else(|_| "no child startup diagnostic was written".to_string());
+        panic!(
+            "PowerShell did not write the child process fixture PID: {error}; diagnostic: {diagnostic}"
+        );
+    });
+    let pid: u32 = pid_text.parse().unwrap();
     let process = unsafe { OpenProcess(PROCESS_SYNCHRONIZE, 0, pid) };
     if !process.is_null() {
         let waited = unsafe { WaitForSingleObject(process, 2000) };
