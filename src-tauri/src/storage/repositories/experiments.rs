@@ -127,7 +127,11 @@ pub fn create(
                 workspace_id,
                 id,
                 title,
-                experiment.objective.map(str::trim).filter(|note| !note.is_empty()).unwrap_or(""),
+                experiment
+                    .objective
+                    .map(str::trim)
+                    .filter(|note| !note.is_empty())
+                    .unwrap_or(""),
                 experiment.variables_json,
                 experiment.recommendation_json,
                 experiment.state,
@@ -136,7 +140,8 @@ pub fn create(
         )
         .map_err(|error| error.to_string())?;
     transaction.commit().map_err(|error| error.to_string())?;
-    get(connection, workspace_id, &id)?.ok_or_else(|| "created experiment plan could not be read back".to_string())
+    get(connection, workspace_id, &id)?
+        .ok_or_else(|| "created experiment plan could not be read back".to_string())
 }
 
 pub fn get(
@@ -145,7 +150,11 @@ pub fn get(
     id: &str,
 ) -> Result<Option<ExperimentRecord>, String> {
     connection
-        .query_row(SELECT_EXPERIMENT, params![workspace_id, id], row_to_experiment)
+        .query_row(
+            SELECT_EXPERIMENT,
+            params![workspace_id, id],
+            row_to_experiment,
+        )
         .optional()
         .map_err(|error| error.to_string())
 }
@@ -192,7 +201,8 @@ pub fn set_state(
     if updated == 0 {
         return Err("experiment plan was not found".to_string());
     }
-    get(connection, workspace_id, id)?.ok_or_else(|| "updated experiment plan could not be read back".to_string())
+    get(connection, workspace_id, id)?
+        .ok_or_else(|| "updated experiment plan could not be read back".to_string())
 }
 
 pub fn delete(connection: &mut Connection, workspace_id: &str, id: &str) -> Result<(), String> {

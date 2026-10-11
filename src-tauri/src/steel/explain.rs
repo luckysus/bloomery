@@ -112,7 +112,13 @@ pub fn parse_linear_artifact(artifact: &serde_json::Value) -> Result<LinearModel
         return Err("artifact contains a zero scale; the model cannot be explained".to_string());
     }
 
-    Ok(LinearModel { feature_names, means, scales, coefficients, intercept })
+    Ok(LinearModel {
+        feature_names,
+        means,
+        scales,
+        coefficients,
+        intercept,
+    })
 }
 
 /// 计算单个样本的精确 SHAP 值。
@@ -132,7 +138,9 @@ pub fn explain_linear(model: &LinearModel, features: &[f64]) -> Result<ShapExpla
         .coefficients
         .iter()
         .enumerate()
-        .map(|(index, coefficient)| coefficient * (features[index] - model.means[index]) / model.scales[index])
+        .map(|(index, coefficient)| {
+            coefficient * (features[index] - model.means[index]) / model.scales[index]
+        })
         .collect();
     let total: f64 = contributions.iter().map(|value| value.abs()).sum();
     let prediction = model.intercept + contributions.iter().sum::<f64>();
@@ -145,7 +153,11 @@ pub fn explain_linear(model: &LinearModel, features: &[f64]) -> Result<ShapExpla
             feature: name.clone(),
             value: features[index],
             contribution: contributions[index],
-            share: if total > 1e-12 { contributions[index].abs() / total } else { 0.0 },
+            share: if total > 1e-12 {
+                contributions[index].abs() / total
+            } else {
+                0.0
+            },
         })
         .collect();
     // 按贡献绝对值降序，前端直接按顺序渲染即可。
@@ -186,7 +198,12 @@ mod tests {
         let explanation = explain_linear(&model, &[0.3, 1.5]).expect("explain");
 
         // 效率性：基准值 + 各特征贡献 = 模型预测值。
-        let sum = explanation.base_value + explanation.values.iter().map(|item| item.contribution).sum::<f64>();
+        let sum = explanation.base_value
+            + explanation
+                .values
+                .iter()
+                .map(|item| item.contribution)
+                .sum::<f64>();
         assert!((sum - explanation.prediction).abs() < 1e-9);
         // C: 30 * (0.3-0.2)/0.1 = 30；Mn: 10 * (1.5-1.0)/0.5 = 10
         assert!((explanation.prediction - 240.0).abs() < 1e-9);

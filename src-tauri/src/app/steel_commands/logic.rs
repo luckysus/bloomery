@@ -295,8 +295,7 @@ pub fn clean_steel_dataset(
     request: CleanSteelDatasetRequest,
 ) -> Result<CleanedSteelDataset, String> {
     let (dataset, table) = load_dataset_table(&db, &request.dataset_id)?;
-    let (rows, summary) =
-        crate::steel::clean_dataset(&table.headers, &table.rows, &request.plan)?;
+    let (rows, summary) = crate::steel::clean_dataset(&table.headers, &table.rows, &request.plan)?;
     let directory = crate::db::app_data_directory(&app)?.join("datasets");
     std::fs::create_dir_all(&directory).map_err(|error| error.to_string())?;
     let stem = std::path::Path::new(&dataset.source_name)

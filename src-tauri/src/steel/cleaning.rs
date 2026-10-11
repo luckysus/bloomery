@@ -74,7 +74,10 @@ fn format_number(value: f64) -> String {
         format!("{}", value as i64)
     } else {
         let rendered = format!("{value:.6}");
-        rendered.trim_end_matches('0').trim_end_matches('.').to_string()
+        rendered
+            .trim_end_matches('0')
+            .trim_end_matches('.')
+            .to_string()
     }
 }
 
@@ -119,10 +122,16 @@ pub fn clean_dataset(
     rows: &[Vec<String>],
     plan: &DatasetCleaningPlan,
 ) -> Result<(Vec<Vec<String>>, DatasetCleaningSummary), String> {
-    if !matches!(plan.missing_strategy.as_str(), "keep" | "drop_rows" | "fill_mean") {
+    if !matches!(
+        plan.missing_strategy.as_str(),
+        "keep" | "drop_rows" | "fill_mean"
+    ) {
         return Err("unsupported missing value strategy".to_string());
     }
-    if !matches!(plan.outlier_strategy.as_str(), "keep" | "drop_rows" | "clip") {
+    if !matches!(
+        plan.outlier_strategy.as_str(),
+        "keep" | "drop_rows" | "clip"
+    ) {
         return Err("unsupported outlier strategy".to_string());
     }
     if !plan.outlier_iqr_multiplier.is_finite() || plan.outlier_iqr_multiplier < 0.0 {
@@ -181,7 +190,11 @@ pub fn clean_dataset(
         let missing: Vec<usize> = selected
             .iter()
             .copied()
-            .filter(|ordinal| row.get(*ordinal).map(|value| value.trim().is_empty()).unwrap_or(true))
+            .filter(|ordinal| {
+                row.get(*ordinal)
+                    .map(|value| value.trim().is_empty())
+                    .unwrap_or(true)
+            })
             .collect();
         if !missing.is_empty() {
             summary.missing_cells += missing.len();
@@ -245,7 +258,8 @@ pub fn clean_dataset(
                     let Some(Some((lower, upper))) = bounds.get(ordinal) else {
                         continue;
                     };
-                    let Some(number) = row.get(ordinal).and_then(|value| parse_number(value)) else {
+                    let Some(number) = row.get(ordinal).and_then(|value| parse_number(value))
+                    else {
                         continue;
                     };
                     let clamped = number.max(*lower).min(*upper);
@@ -273,10 +287,21 @@ pub fn to_csv(headers: &[String], rows: &[Vec<String>]) -> String {
         }
     }
     let mut output = String::new();
-    output.push_str(&headers.iter().map(|value| escape(value)).collect::<Vec<_>>().join(","));
+    output.push_str(
+        &headers
+            .iter()
+            .map(|value| escape(value))
+            .collect::<Vec<_>>()
+            .join(","),
+    );
     output.push('\n');
     for row in rows {
-        output.push_str(&row.iter().map(|value| escape(value)).collect::<Vec<_>>().join(","));
+        output.push_str(
+            &row.iter()
+                .map(|value| escape(value))
+                .collect::<Vec<_>>()
+                .join(","),
+        );
         output.push('\n');
     }
     output

@@ -70,16 +70,16 @@ struct Lcg(u64);
 
 impl Lcg {
     fn next_unit(&mut self) -> f64 {
-        self.0 = self.0.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1_442_695_040_888_963_407);
+        self.0 = self
+            .0
+            .wrapping_mul(6_364_136_223_846_793_005)
+            .wrapping_add(1_442_695_040_888_963_407);
         ((self.0 >> 11) as f64) / ((1u64 << 53) as f64)
     }
 }
 
 /// 抽取完整样本矩阵（仅保留所选列全部有值的行）。
-fn complete_case_matrix(
-    rows: &[Vec<Option<f64>>],
-    columns: &[usize],
-) -> (Vec<Vec<f64>>, usize) {
+fn complete_case_matrix(rows: &[Vec<Option<f64>>], columns: &[usize]) -> (Vec<Vec<f64>>, usize) {
     let mut matrix = Vec::new();
     let mut excluded = 0usize;
     for row in rows {
@@ -328,7 +328,12 @@ fn kmeans(matrix: &[Vec<f64>], k: usize, seed: u64) -> KMeansResult {
         .map(|(index, row)| squared_distance(row, &centroids[labels[index]]))
         .sum();
 
-    KMeansResult { labels, centroids, inertia, iterations }
+    KMeansResult {
+        labels,
+        centroids,
+        inertia,
+        iterations,
+    }
 }
 
 /// PCA + k-means 主入口。
@@ -351,9 +356,7 @@ pub fn multivariate_analysis(
         matrix.truncate(MAX_MULTIVARIATE_ROWS);
     }
     if matrix.len() < 3 {
-        return Err(
-            "multivariate analysis requires at least three complete rows".to_string(),
-        );
+        return Err("multivariate analysis requires at least three complete rows".to_string());
     }
 
     let dimension = request.columns.len();
@@ -385,17 +388,19 @@ pub fn multivariate_analysis(
         })
         .collect();
 
-    let cluster_count = request
-        .clusters
-        .unwrap_or(3)
-        .clamp(1, matrix.len().min(8));
+    let cluster_count = request.clusters.unwrap_or(3).clamp(1, matrix.len().min(8));
     let clusters = kmeans(&normalized, cluster_count, 20_261);
 
     Ok(MultivariateResult {
         column_ordinals: request.columns.clone(),
         sample_count: matrix.len(),
         excluded_row_count: excluded,
-        pca: PcaResult { components, scores, means, standard_deviations: scales },
+        pca: PcaResult {
+            components,
+            scores,
+            means,
+            standard_deviations: scales,
+        },
         clusters,
     })
 }
@@ -405,7 +410,11 @@ mod tests {
     use super::*;
 
     fn request(columns: Vec<usize>) -> MultivariateRequest {
-        MultivariateRequest { columns, components: Some(2), clusters: Some(2) }
+        MultivariateRequest {
+            columns,
+            components: Some(2),
+            clusters: Some(2),
+        }
     }
 
     /// 构造两个强相关列：第二列近似第一列的 2 倍。
@@ -413,7 +422,11 @@ mod tests {
         (0..20)
             .map(|index| {
                 let value = index as f64;
-                vec![Some(value), Some(value * 2.0), Some(if index < 10 { 0.0 } else { 10.0 })]
+                vec![
+                    Some(value),
+                    Some(value * 2.0),
+                    Some(if index < 10 { 0.0 } else { 10.0 }),
+                ]
             })
             .collect()
     }
@@ -432,7 +445,8 @@ mod tests {
 
     #[test]
     fn clusters_separate_two_distinct_groups() {
-        let result = multivariate_analysis(&correlated_rows(), &request(vec![0, 2])).expect("kmeans");
+        let result =
+            multivariate_analysis(&correlated_rows(), &request(vec![0, 2])).expect("kmeans");
         assert_eq!(result.clusters.labels.len(), 20);
         assert_eq!(result.clusters.centroids.len(), 2);
         // 第 2 列只有 0 与 10 两个取值，聚类应把它们分开。
@@ -461,8 +475,10 @@ mod tests {
 
     #[test]
     fn same_input_produces_same_clusters() {
-        let first = multivariate_analysis(&correlated_rows(), &request(vec![0, 2])).expect("kmeans");
-        let second = multivariate_analysis(&correlated_rows(), &request(vec![0, 2])).expect("kmeans");
+        let first =
+            multivariate_analysis(&correlated_rows(), &request(vec![0, 2])).expect("kmeans");
+        let second =
+            multivariate_analysis(&correlated_rows(), &request(vec![0, 2])).expect("kmeans");
         assert_eq!(first.clusters.labels, second.clusters.labels);
     }
 }

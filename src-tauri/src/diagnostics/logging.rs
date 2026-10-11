@@ -21,9 +21,8 @@ static INSTALL: Once = Once::new();
 /// 安装进程级日志（幂等）。
 pub fn install() {
     INSTALL.call_once(|| {
-        let mut builder = env_logger::Builder::from_env(
-            env_logger::Env::new().default_filter_or("info"),
-        );
+        let mut builder =
+            env_logger::Builder::from_env(env_logger::Env::new().default_filter_or("info"));
         // 每条日志在写出前先脱敏，保证凭据不会进入终端或日志文件。
         builder.format(|buffer, record| {
             writeln!(

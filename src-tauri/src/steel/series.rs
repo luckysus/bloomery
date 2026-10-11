@@ -141,10 +141,14 @@ mod tests {
 
     #[test]
     fn returns_selected_numeric_columns_in_row_order() {
-        let series = dataset_series(&headers(), &rows(), &DatasetSeriesRequest {
-            columns: vec![0, 1],
-            max_rows: None,
-        })
+        let series = dataset_series(
+            &headers(),
+            &rows(),
+            &DatasetSeriesRequest {
+                columns: vec![0, 1],
+                max_rows: None,
+            },
+        )
         .expect("build series");
 
         assert_eq!(series.total_rows, 3);
@@ -160,10 +164,14 @@ mod tests {
         let big: Vec<Vec<String>> = (0..1_000)
             .map(|index| vec![index.to_string(), index.to_string(), "x".into()])
             .collect();
-        let series = dataset_series(&headers(), &big, &DatasetSeriesRequest {
-            columns: vec![0],
-            max_rows: Some(10),
-        })
+        let series = dataset_series(
+            &headers(),
+            &big,
+            &DatasetSeriesRequest {
+                columns: vec![0],
+                max_rows: Some(10),
+            },
+        )
         .expect("build sampled series");
 
         assert!(series.sampled);
@@ -174,20 +182,32 @@ mod tests {
 
     #[test]
     fn rejects_out_of_range_and_duplicate_columns() {
-        assert!(dataset_series(&headers(), &rows(), &DatasetSeriesRequest {
-            columns: vec![9],
-            max_rows: None,
-        })
+        assert!(dataset_series(
+            &headers(),
+            &rows(),
+            &DatasetSeriesRequest {
+                columns: vec![9],
+                max_rows: None,
+            }
+        )
         .is_err());
-        assert!(dataset_series(&headers(), &rows(), &DatasetSeriesRequest {
-            columns: vec![0, 0],
-            max_rows: None,
-        })
+        assert!(dataset_series(
+            &headers(),
+            &rows(),
+            &DatasetSeriesRequest {
+                columns: vec![0, 0],
+                max_rows: None,
+            }
+        )
         .is_err());
-        assert!(dataset_series(&headers(), &rows(), &DatasetSeriesRequest {
-            columns: vec![],
-            max_rows: None,
-        })
+        assert!(dataset_series(
+            &headers(),
+            &rows(),
+            &DatasetSeriesRequest {
+                columns: vec![],
+                max_rows: None,
+            }
+        )
         .is_err());
     }
 }

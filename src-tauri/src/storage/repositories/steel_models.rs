@@ -86,7 +86,9 @@ pub fn create(
             return Err("sklearn model versions must store an artifact and no blob".to_string());
         }
         "transformer_artifact" if model.artifact_json.is_none() || model.model_base64.is_some() => {
-            return Err("transformer model versions must store an artifact and no blob".to_string());
+            return Err(
+                "transformer model versions must store an artifact and no blob".to_string(),
+            );
         }
         "onnx" if model.model_base64.is_none() || model.artifact_json.is_some() => {
             return Err("onnx model versions must store a blob and no artifact".to_string());
@@ -273,13 +275,21 @@ mod tests {
         assert_eq!(transformer.kind, "transformer_artifact");
         assert!(transformer.is_active);
 
-        create(&mut connection, "ws", sample("sklearn_artifact", r#"{"model_id":"s1"}"#))
-            .expect("create sklearn model");
+        create(
+            &mut connection,
+            "ws",
+            sample("sklearn_artifact", r#"{"model_id":"s1"}"#),
+        )
+        .expect("create sklearn model");
 
         let all = list_all(&connection, "ws").expect("list all models");
         assert_eq!(all.len(), 2);
-        assert!(all.iter().any(|model| model.lineage_id == "transformer:dataset-1"));
-        assert!(all.iter().any(|model| model.lineage_id == "sklearn:dataset-1"));
+        assert!(all
+            .iter()
+            .any(|model| model.lineage_id == "transformer:dataset-1"));
+        assert!(all
+            .iter()
+            .any(|model| model.lineage_id == "sklearn:dataset-1"));
         // 同 lineage 内版本倒序。
         let scoped = list(&connection, "ws", "transformer:dataset-1").expect("list lineage");
         assert_eq!(scoped.len(), 1);
@@ -301,8 +311,12 @@ mod tests {
     #[test]
     fn active_versions_switch_within_a_lineage_and_block_deletion() {
         let mut connection = database();
-        let first = create(&mut connection, "ws", sample("sklearn_artifact", r#"{"v":1}"#))
-            .expect("create first version");
+        let first = create(
+            &mut connection,
+            "ws",
+            sample("sklearn_artifact", r#"{"v":1}"#),
+        )
+        .expect("create first version");
         let mut second_manifest = sample("sklearn_artifact", r#"{"v":2}"#);
         second_manifest.lineage_id = "sklearn:dataset-1";
         let second = create(&mut connection, "ws", second_manifest).expect("create second version");
@@ -313,7 +327,12 @@ mod tests {
 
         let activated = set_active(&mut connection, "ws", &second.id).expect("activate second");
         assert!(activated.is_active);
-        assert!(!get(&connection, "ws", &first.id).unwrap().unwrap().is_active);
+        assert!(
+            !get(&connection, "ws", &first.id)
+                .unwrap()
+                .unwrap()
+                .is_active
+        );
 
         // 活动版本不可删除，切换后旧版本可以。
         assert!(delete(&mut connection, "ws", &second.id).is_err());

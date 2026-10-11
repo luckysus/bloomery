@@ -166,7 +166,7 @@ fn seed_database_at_version(connection: &mut Connection, version: u32) {
             34,
             include_str!("../src/storage/migrations/0034_transformer_model_kind.sql"),
         ),
-];
+    ];
 
     for (migration_version, sql) in migrations.into_iter().take(version as usize) {
         connection

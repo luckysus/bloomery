@@ -1227,17 +1227,20 @@ mod tests {
             .iter()
             .map(|profile| profile.id.as_str())
             .collect::<Vec<_>>();
-        assert_eq!(ids, vec![
-            "master",
-            "knowledge",
-            "literature",
-            "data",
-            "material",
-            "prediction",
-            "optimization",
-            "experiment",
-            "report",
-        ]);
+        assert_eq!(
+            ids,
+            vec![
+                "master",
+                "knowledge",
+                "literature",
+                "data",
+                "material",
+                "prediction",
+                "optimization",
+                "experiment",
+                "report",
+            ]
+        );
         // 只有 Master 持有 agent.task，其余 8 个都是可委派的专家。
         for profile in presets.iter().filter(|profile| profile.id != "master") {
             assert!(
