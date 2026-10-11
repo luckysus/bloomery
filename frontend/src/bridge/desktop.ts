@@ -494,6 +494,37 @@ export interface ComputeOptimizationResult {
   pareto_front: ComputeOptimizationRecommendation[];
 }
 
+/** 第 44–46 章：实验设计结果。 */
+export interface ExperimentDesignPoint {
+  values: Record<string, number>;
+  /** bayesian：期望改进。 */
+  expected_improvement?: number;
+  predicted_mean?: number;
+  predicted_std?: number;
+  /** active_learning：与已有实验的最小归一化距离（覆盖缺口）。 */
+  coverage_gap?: number;
+}
+
+export interface ExperimentDesignResult {
+  method: "doe" | "orthogonal" | "ccd" | "bayesian" | "active_learning";
+  variables: string[];
+  direction: "minimize" | "maximize";
+  points: ExperimentDesignPoint[];
+  notes: string[];
+}
+
+export interface ExperimentVariableRange {
+  name: string;
+  low: number;
+  high: number;
+}
+
+export interface ExperimentDesignExisting {
+  feature_names: string[];
+  features: number[][];
+  targets: number[];
+}
+
 /** 第 43 章：实验计划（experiments 表记录）。 */
 export interface ExperimentPlanRecord {
   id: string;
@@ -1564,6 +1595,17 @@ export const desktop = {
     variables: ExperimentPlanVariable[];
     recommendation?: Record<string, unknown>;
   }) => call<ExperimentPlanRecord>("create_experiment_plan", { request }),
+  designExperiments: (request: {
+    method: ExperimentDesignResult["method"];
+    variables: ExperimentVariableRange[];
+    levels?: number;
+    count?: number;
+    direction?: "minimize" | "maximize";
+    seed?: number;
+    existing?: ExperimentDesignExisting;
+  }) => call<BackgroundTask>("design_experiments", { request }),
+  getComputeDesignResult: (id: string) =>
+    call<ExperimentDesignResult | null>("get_compute_design_result", { id }),
   listExperimentPlans: () => call<ExperimentPlanRecord[]>("list_experiment_plans"),
   setExperimentPlanState: (id: string, state: ExperimentPlanRecord["state"]) =>
     call<ExperimentPlanRecord>("set_experiment_plan_state", { id, state }),

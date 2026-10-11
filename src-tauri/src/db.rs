@@ -304,40 +304,8 @@ fn rag_task_handlers_with_compute(
         content_root.clone(),
         embedding_factory,
     ));
-    vec![
-        Arc::new(crate::compute::handler::ComputeTaskHandler::from_optional(
-            compute_worker.clone(),
-        )),
-        Arc::new(
-            crate::compute::handler::ComputePredictionTaskHandler::from_optional(
-                compute_worker.clone(),
-            ),
-        ),
-        Arc::new(
-            crate::compute::handler::ComputeOnnxPredictionTaskHandler::from_optional(
-                compute_worker.clone(),
-            ),
-        ),
-        Arc::new(
-            crate::compute::handler::ComputeOptimizationTaskHandler::from_optional(
-                compute_worker.clone(),
-            ),
-        ),
-        Arc::new(
-            crate::compute::handler::ComputeExportOnnxTaskHandler::from_optional(
-                compute_worker.clone(),
-            ),
-        ),
-        Arc::new(
-            crate::compute::handler::ComputeTrainedPredictionTaskHandler::from_optional(
-                compute_worker.clone(),
-            ),
-        ),
-        Arc::new(
-            crate::compute::handler::ComputeSklearnTrainingTaskHandler::from_optional(
-                compute_worker,
-            ),
-        ),
+    let mut handlers = crate::compute::handler::compute_task_handlers(compute_worker);
+    let domain_handlers: Vec<Arc<dyn TaskHandler>> = vec![
         Arc::new(MinerUTaskHandler::new(
             content_root.clone(),
             remote_factory,
@@ -348,7 +316,9 @@ fn rag_task_handlers_with_compute(
         Arc::new(crate::database::query_task::DatabaseQueryTaskHandler::new(
             database,
         )),
-    ]
+    ];
+    handlers.extend(domain_handlers);
+    handlers
 }
 
 fn compute_worker_config(app: &tauri::AppHandle) -> Option<crate::compute::worker::WorkerConfig> {

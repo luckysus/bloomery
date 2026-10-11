@@ -2,13 +2,14 @@ from __future__ import annotations
 
 from typing import Any, BinaryIO
 
+from .design import DesignError, design_experiments
 from .onnx_export import export_linear_onnx
 from .onnx_inference import OnnxInferenceError, predict_onnx
 from .optimization import OptimizationError, optimize_constrained
 from .protocol import PROTOCOL_VERSION, FrameError, encode_frame, parse_request, read_frame
 from .training import predict_linear_regression, predict_model, train_linear_regression, train_sklearn_model, xgboost_available
 
-WORKER_VERSION = "0.5.0"
+WORKER_VERSION = "0.6.0"
 
 
 def _response(request_id: str, *, result: dict[str, Any] | None = None, error: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -65,6 +66,7 @@ def _dispatch(request: dict[str, Any], output: BinaryIO) -> bool:
                         "predict_trained_model",
                         "predict_onnx",
                         "optimize_constrained",
+                        "design_experiments",
                         "export_linear_onnx",
                     ],
                 },
@@ -105,6 +107,7 @@ def _dispatch(request: dict[str, Any], output: BinaryIO) -> bool:
             "predict_trained_model",
             "predict_onnx",
             "optimize_constrained",
+            "design_experiments",
             "export_linear_onnx",
         }:
             _write(
@@ -249,6 +252,39 @@ def _dispatch(request: dict[str, Any], output: BinaryIO) -> bool:
                 )
             except OptimizationError as error:
                 if error.code == "optimization_cancelled":
+                    _write(
+                        output,
+                        _response(
+                            request_id,
+                            result={"task_id": task_id, "state": "cancelled"},
+                        ),
+                    )
+                else:
+                    _write(output, _error(request_id, error.code, str(error)))
+            else:
+                _write(output, _progress(task_id, 100, "completed"))
+                _write(
+                    output,
+                    _response(
+                        request_id,
+                        result={"task_id": task_id, "state": "completed", **result},
+                    ),
+                )
+        elif operation == "design_experiments":
+            payload = params.get("payload", {})
+            if not isinstance(payload, dict):
+                _write(output, _error(request_id, "invalid_params", "payload must be an object"))
+                return False
+            _write(output, _progress(task_id, 5, "validated"))
+            try:
+                result = design_experiments(
+                    payload,
+                    report=lambda stage, progress: _write(
+                        output, _progress(task_id, progress, stage)
+                    ),
+                )
+            except DesignError as error:
+                if error.code == "design_cancelled":
                     _write(
                         output,
                         _response(

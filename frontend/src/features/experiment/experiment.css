@@ -4,3 +4,13 @@
 /* 第 43 章：实验计划面板 */
 .suna-plan-badge{padding:2px 8px;border-radius:6px;background:var(--suna-bg-soft);color:var(--suna-text-soft);font-size:calc(11px * var(--suna-ui-font-scale))}
 .suna-plan-badge:not(.is-muted){background:var(--suna-primary-soft,#EFF6FF);color:var(--suna-primary,#2563EB)}
+
+/* 第 44–46 章：实验设计工作台 */
+.suna-design-panel{display:grid;gap:12px;padding:16px;border:1px solid var(--suna-line);border-radius:10px;background:var(--suna-bg-raised)}
+.suna-design-form{display:grid;gap:10px;max-width:620px}
+.suna-design-form label{display:grid;gap:6px;color:var(--suna-text-muted);font-size:calc(11px * var(--suna-ui-font-scale))}
+.suna-design-form fieldset{border:1px solid var(--suna-line);border-radius:8px;padding:10px;display:grid;gap:6px}
+.suna-design-form legend{color:var(--suna-text-muted);font-size:calc(11px * var(--suna-ui-font-scale));padding:0 4px}
+.suna-design-variable-head{display:flex;align-items:center;justify-content:space-between;color:var(--suna-text);font-size:calc(12px * var(--suna-ui-font-scale))}
+.suna-design-result{display:grid;gap:10px;border-top:1px solid var(--suna-line);padding-top:12px}
+.suna-design-notes{margin:0;padding-left:18px;color:var(--suna-text-muted);font-size:calc(12px * var(--suna-ui-font-scale));display:grid;gap:4px}

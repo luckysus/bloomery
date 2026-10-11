@@ -15,6 +15,29 @@ pub const COMPUTE_OPTIMIZE_CONSTRAINED_KIND: &str = "compute_optimize_constraine
 pub const COMPUTE_EXPORT_ONNX_KIND: &str = "compute_export_onnx";
 pub const COMPUTE_PREDICT_TRAINED_KIND: &str = "compute_predict_trained_model";
 pub const COMPUTE_TRAIN_SKLEARN_KIND: &str = "compute_train_sklearn_model";
+pub const COMPUTE_DESIGN_EXPERIMENTS_KIND: &str = "compute_design_experiments";
+
+/// db.rs 装配 compute 任务处理器；新增 compute 任务类型时在此登记。
+pub fn compute_task_handlers(worker: Option<WorkerConfig>) -> Vec<std::sync::Arc<dyn TaskHandler>> {
+    vec![
+        std::sync::Arc::new(ComputeTaskHandler::from_optional(worker.clone())),
+        std::sync::Arc::new(ComputePredictionTaskHandler::from_optional(worker.clone())),
+        std::sync::Arc::new(ComputeOnnxPredictionTaskHandler::from_optional(
+            worker.clone(),
+        )),
+        std::sync::Arc::new(ComputeOptimizationTaskHandler::from_optional(
+            worker.clone(),
+        )),
+        std::sync::Arc::new(ComputeDesignExperimentsTaskHandler::from_optional(
+            worker.clone(),
+        )),
+        std::sync::Arc::new(ComputeExportOnnxTaskHandler::from_optional(worker.clone())),
+        std::sync::Arc::new(ComputeTrainedPredictionTaskHandler::from_optional(
+            worker.clone(),
+        )),
+        std::sync::Arc::new(ComputeSklearnTrainingTaskHandler::from_optional(worker)),
+    ]
+}
 
 pub fn is_training_task_kind(kind: &str) -> bool {
     matches!(
@@ -156,6 +179,32 @@ impl TaskHandler for ComputeOptimizationTaskHandler {
     fn run(&self, task: TaskRecord, context: HandlerContext) -> HandlerFuture {
         let worker = self.worker.clone();
         Box::pin(async move { run_task(task, context, worker, "optimize_constrained") })
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct ComputeDesignExperimentsTaskHandler {
+    worker: Option<WorkerConfig>,
+}
+
+impl ComputeDesignExperimentsTaskHandler {
+    pub fn from_optional(worker: Option<WorkerConfig>) -> Self {
+        Self { worker }
+    }
+}
+
+impl TaskHandler for ComputeDesignExperimentsTaskHandler {
+    fn kind(&self) -> &str {
+        COMPUTE_DESIGN_EXPERIMENTS_KIND
+    }
+
+    fn resumable(&self) -> bool {
+        true
+    }
+
+    fn run(&self, task: TaskRecord, context: HandlerContext) -> HandlerFuture {
+        let worker = self.worker.clone();
+        Box::pin(async move { run_task(task, context, worker, "design_experiments") })
     }
 }
 
@@ -350,6 +399,8 @@ fn run_task(
         result["state"] == "completed" && result.get("predictions").is_some()
     } else if expected_operation == "optimize_constrained" {
         result["state"] == "completed" && result.get("recommendations").is_some()
+    } else if expected_operation == "design_experiments" {
+        result["state"] == "completed" && result.get("points").map(Value::is_array).unwrap_or(false)
     } else if expected_operation == "export_linear_onnx" {
         result["state"] == "completed" && result.get("model_base64").is_some()
     } else {
@@ -382,6 +433,8 @@ fn run_task(
         }
     } else if expected_operation == "optimize_constrained" {
         validate_optimization_result(&result)?;
+    } else if expected_operation == "design_experiments" {
+        validate_design_result(&result)?;
     } else if expected_operation == "export_linear_onnx" {
         validate_export_result(&result)?;
     }
@@ -474,6 +527,21 @@ fn attach_prediction_interval(result: &mut Value, artifact: &Value) {
         })
         .collect::<Vec<_>>();
     result["prediction_interval"] = Value::Array(intervals);
+}
+
+fn validate_design_result(result: &Value) -> Result<(), HandlerError> {
+    let points = result
+        .get("points")
+        .and_then(Value::as_array)
+        .ok_or_else(|| HandlerError::permanent("compute_worker_invalid_result"))?;
+    if points.is_empty()
+        || result.get("method").and_then(Value::as_str).is_none()
+        || result.get("variables").and_then(Value::as_array).is_none()
+        || result.get("notes").and_then(Value::as_array).is_none()
+    {
+        return Err(HandlerError::permanent("compute_worker_invalid_result"));
+    }
+    Ok(())
 }
 
 fn validate_optimization_result(result: &Value) -> Result<(), HandlerError> {

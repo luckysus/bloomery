@@ -32,7 +32,10 @@ fn production_scheduler_registers_mineru_ingest_handler() {
     std::fs::create_dir_all(&root).expect("create handler root");
     let handlers = rag_task_handlers_with_compute(root.join("suna.sqlite3"), root.clone(), None);
 
-    assert_eq!(handlers.len(), 10);
+    assert_eq!(handlers.len(), 11);
+    assert!(handlers
+        .iter()
+        .any(|handler| handler.kind() == crate::compute::handler::COMPUTE_DESIGN_EXPERIMENTS_KIND));
     assert!(handlers.iter().any(|handler| {
         handler.kind() == crate::compute::handler::COMPUTE_TRAIN_LINEAR_REGRESSION_KIND
     }));

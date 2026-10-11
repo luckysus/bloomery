@@ -25,7 +25,11 @@ pub fn create_experiment_plan(
     if request.source != "optimization" && request.source != "manual" {
         return Err("experiment plan source must be optimization or manual".to_string());
     }
-    let state = if request.source == "optimization" { "proposed" } else { "draft" };
+    let state = if request.source == "optimization" {
+        "proposed"
+    } else {
+        "draft"
+    };
     let variables_json = serde_json::to_string(&request.variables)
         .map_err(|error| format!("variables must be serializable: {error}"))?;
     let recommendation_json = match request.recommendation {
@@ -51,9 +55,7 @@ pub fn create_experiment_plan(
 }
 
 #[tauri::command]
-pub fn list_experiment_plans(
-    db: tauri::State<DbState>,
-) -> Result<Vec<ExperimentRecord>, String> {
+pub fn list_experiment_plans(db: tauri::State<DbState>) -> Result<Vec<ExperimentRecord>, String> {
     with_conn(&db, |connection| {
         experiments::list(connection, current_workspace_id())
     })

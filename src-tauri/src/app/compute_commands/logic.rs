@@ -63,6 +63,196 @@ pub struct OptimizeSteelProcessRequest {
 
 pub const MAX_OPTIMIZATION_TRIALS: u32 = 500;
 
+#[derive(Debug, Clone, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExperimentVariableRange {
+    pub name: String,
+    pub low: f64,
+    pub high: f64,
+}
+
+#[derive(Debug, Clone, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DesignExperimentsExisting {
+    pub feature_names: Vec<String>,
+    pub features: Vec<Vec<f64>>,
+    pub targets: Vec<f64>,
+}
+
+#[derive(Debug, Clone, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DesignExperimentsRequest {
+    pub method: String,
+    pub variables: Vec<ExperimentVariableRange>,
+    #[serde(default)]
+    pub levels: Option<u32>,
+    #[serde(default)]
+    pub count: Option<u32>,
+    #[serde(default)]
+    pub direction: Option<String>,
+    #[serde(default)]
+    pub seed: Option<i64>,
+    #[serde(default)]
+    pub existing: Option<DesignExperimentsExisting>,
+}
+
+pub const SUPPORTED_DESIGN_METHODS: [&str; 5] =
+    ["doe", "orthogonal", "ccd", "bayesian", "active_learning"];
+const UNCERTAINTY_DESIGN_METHODS: [&str; 2] = ["bayesian", "active_learning"];
+
+/// 第 44–46 章：构建实验设计任务 payload；纯函数便于单测。
+pub fn build_design_experiments_payload(
+    request: &DesignExperimentsRequest,
+) -> Result<Value, String> {
+    if !SUPPORTED_DESIGN_METHODS.contains(&request.method.as_str()) {
+        return Err(format!(
+            "method must be one of {}",
+            SUPPORTED_DESIGN_METHODS.join(", ")
+        ));
+    }
+    if request.variables.is_empty() || request.variables.len() > 12 {
+        return Err("experiment design requires 1-12 variables".to_string());
+    }
+    let mut names = Vec::new();
+    for (index, variable) in request.variables.iter().enumerate() {
+        let name = variable.name.trim();
+        if name.is_empty() {
+            return Err(format!("variables[{index}].name is required"));
+        }
+        if names.iter().any(|existing: &String| existing == name) {
+            return Err(format!("variable {name} is duplicated"));
+        }
+        if !variable.low.is_finite() || !variable.high.is_finite() || variable.low > variable.high {
+            return Err(format!(
+                "variables[{index}] range must be finite with low <= high"
+            ));
+        }
+        names.push(name.to_string());
+    }
+    if let Some(levels) = request.levels {
+        if !(2..=5).contains(&levels) {
+            return Err("levels must be between 2 and 5".to_string());
+        }
+    }
+    if let Some(count) = request.count {
+        if !(1..=20).contains(&count) {
+            return Err("count must be between 1 and 20".to_string());
+        }
+    }
+    let direction = request.direction.as_deref().unwrap_or("maximize");
+    if direction != "minimize" && direction != "maximize" {
+        return Err("direction must be minimize or maximize".to_string());
+    }
+    let mut payload = json!({
+        "method": request.method,
+        "variables": request.variables.iter().map(|variable| json!({
+            "name": variable.name.trim(),
+            "low": variable.low,
+            "high": variable.high,
+        })).collect::<Vec<_>>(),
+        "direction": direction,
+        "levels": request.levels.unwrap_or(2),
+        "count": request.count.unwrap_or(4),
+        "seed": request.seed.unwrap_or(0),
+    });
+    if let Some(existing) = &request.existing {
+        if existing.feature_names.len() != names.len()
+            || existing
+                .feature_names
+                .iter()
+                .zip(names.iter())
+                .any(|(left, right)| left != right)
+        {
+            return Err(
+                "existing feature names must match the design variables in order".to_string(),
+            );
+        }
+        if existing.targets.len() != existing.features.len() {
+            return Err("existing targets must align with feature rows".to_string());
+        }
+        if existing.features.len() < 5 {
+            return Err(
+                "bayesian and active_learning require at least 5 existing rows".to_string(),
+            );
+        }
+        for (index, row) in existing.features.iter().enumerate() {
+            if row.len() != names.len()
+                || row.iter().any(|value| !value.is_finite())
+                || !existing.targets[index].is_finite()
+            {
+                return Err(format!("existing row {index} is invalid"));
+            }
+        }
+        payload["existing"] = json!({
+            "feature_names": existing.feature_names,
+            "features": existing.features,
+            "targets": existing.targets,
+        });
+    } else if UNCERTAINTY_DESIGN_METHODS.contains(&request.method.as_str()) {
+        return Err(format!(
+            "{} requires existing experiment data",
+            request.method
+        ));
+    }
+    Ok(json!({"operation": "design_experiments", "payload": payload}))
+}
+
+pub(crate) fn design_experiments(
+    db: tauri::State<DbState>,
+    request: DesignExperimentsRequest,
+) -> Result<BackgroundTaskResponse, String> {
+    let payload = build_design_experiments_payload(&request)?;
+    with_conn_mut(&db, |connection| {
+        submit_design_experiments_on_connection(connection, current_workspace_id(), payload)
+            .map(background_task_response)
+    })
+}
+
+pub fn submit_design_experiments_on_connection(
+    connection: &rusqlite::Connection,
+    workspace_id: &str,
+    payload: Value,
+) -> Result<crate::tasks::model::TaskRecord, String> {
+    let task_payload = serialize_compute_task_payload(&payload)?;
+    task_repository::create(
+        connection,
+        NewTask {
+            workspace_id: workspace_id.to_string(),
+            kind: crate::compute::handler::COMPUTE_DESIGN_EXPERIMENTS_KIND.to_string(),
+            payload_json: task_payload,
+            checkpoint_json: Some(json!({"stage": "queued"}).to_string()),
+            next_run_at: None,
+            progress: 0,
+        },
+    )
+    .map_err(|error| error.to_string())
+}
+
+pub(crate) fn get_compute_design_result(
+    db: tauri::State<DbState>,
+    id: String,
+) -> Result<Option<Value>, String> {
+    let id = uuid::Uuid::parse_str(&id).map_err(|error| format!("invalid task ID: {error}"))?;
+    with_conn(&db, |connection| {
+        let task = task_repository::get(connection, current_workspace_id(), id)
+            .map_err(|error| error.to_string())?
+            .ok_or_else(|| "task_not_found: task not found".to_string())?;
+        if task.kind != crate::compute::handler::COMPUTE_DESIGN_EXPERIMENTS_KIND {
+            return Err("task is not an experiment design task".to_string());
+        }
+        if task.state != crate::tasks::TaskState::Completed {
+            return Ok(None);
+        }
+        let checkpoint: Value = serde_json::from_str(
+            task.checkpoint_json
+                .as_deref()
+                .ok_or_else(|| "completed design task has no result".to_string())?,
+        )
+        .map_err(|error| format!("invalid design checkpoint: {error}"))?;
+        Ok(checkpoint.get("result").cloned())
+    })
+}
+
 fn requested_training_algorithm(request: &TrainSteelDatasetRequest) -> Result<&str, String> {
     let algorithm = request
         .algorithm
@@ -402,8 +592,15 @@ fn validate_onnx_features(features: &[Vec<f64>]) -> Result<(), String> {
 
 pub const SUPPORTED_OPTIMIZATION_ALGORITHMS: [&str; 5] = ["nsga2", "tpe", "ga", "pso", "grid"];
 
-fn requested_optimization_algorithm(request: &OptimizeSteelProcessRequest) -> Result<Option<&str>, String> {
-    let Some(algorithm) = request.algorithm.as_deref().map(str::trim).filter(|value| !value.is_empty()) else {
+fn requested_optimization_algorithm(
+    request: &OptimizeSteelProcessRequest,
+) -> Result<Option<&str>, String> {
+    let Some(algorithm) = request
+        .algorithm
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    else {
         return Ok(None);
     };
     if !SUPPORTED_OPTIMIZATION_ALGORITHMS.contains(&algorithm) {
@@ -1011,7 +1208,9 @@ pub(crate) fn list_steel_models(
 }
 
 /// 第 35 章模型中心：列出当前工作区的全部模型版本（跨 lineage）。
-pub(crate) fn list_all_steel_models(db: tauri::State<DbState>) -> Result<Vec<SteelModelRecord>, String> {
+pub(crate) fn list_all_steel_models(
+    db: tauri::State<DbState>,
+) -> Result<Vec<SteelModelRecord>, String> {
     with_conn(&db, |connection| {
         model_repository::list_all(connection, current_workspace_id())
     })
@@ -1258,6 +1457,137 @@ mod tests {
             algorithm: Some("lstm".to_string()),
         })
         .is_err());
+    }
+
+    #[test]
+    fn builds_design_experiments_payload_with_existing_data() {
+        let request = DesignExperimentsRequest {
+            method: "bayesian".to_string(),
+            variables: vec![
+                ExperimentVariableRange {
+                    name: "temperature".to_string(),
+                    low: 800.0,
+                    high: 900.0,
+                },
+                ExperimentVariableRange {
+                    name: "time".to_string(),
+                    low: 10.0,
+                    high: 60.0,
+                },
+            ],
+            levels: None,
+            count: Some(3),
+            direction: Some("maximize".to_string()),
+            seed: Some(11),
+            existing: Some(DesignExperimentsExisting {
+                feature_names: vec!["temperature".to_string(), "time".to_string()],
+                features: vec![
+                    vec![800.0, 10.0],
+                    vec![850.0, 30.0],
+                    vec![900.0, 60.0],
+                    vec![820.0, 20.0],
+                    vec![880.0, 40.0],
+                ],
+                targets: vec![355.0, 360.0, 365.0, 358.0, 362.0],
+            }),
+        };
+
+        let payload = build_design_experiments_payload(&request).expect("build design payload");
+
+        assert_eq!(payload["operation"], "design_experiments");
+        assert_eq!(payload["payload"]["method"], "bayesian");
+        assert_eq!(payload["payload"]["direction"], "maximize");
+        assert_eq!(payload["payload"]["count"], 3);
+        assert_eq!(
+            payload["payload"]["existing"]["targets"]
+                .as_array()
+                .map(Vec::len),
+            Some(5)
+        );
+    }
+
+    #[test]
+    fn design_experiments_payload_rejects_unknown_methods_and_missing_existing() {
+        let base =
+            |method: &str, existing: Option<DesignExperimentsExisting>| DesignExperimentsRequest {
+                method: method.to_string(),
+                variables: vec![ExperimentVariableRange {
+                    name: "a".to_string(),
+                    low: 0.0,
+                    high: 1.0,
+                }],
+                levels: None,
+                count: None,
+                direction: None,
+                seed: None,
+                existing,
+            };
+        assert!(build_design_experiments_payload(&base("lstm", None)).is_err());
+        assert_eq!(
+            build_design_experiments_payload(&base("bayesian", None)).unwrap_err(),
+            "bayesian requires existing experiment data"
+        );
+        let mismatched = base(
+            "bayesian",
+            Some(DesignExperimentsExisting {
+                feature_names: vec!["other".to_string()],
+                features: vec![vec![0.0]; 5],
+                targets: vec![0.0; 5],
+            }),
+        );
+        assert!(build_design_experiments_payload(&mismatched).is_err());
+        let too_few = base(
+            "active_learning",
+            Some(DesignExperimentsExisting {
+                feature_names: vec!["a".to_string()],
+                features: vec![vec![0.0]; 4],
+                targets: vec![0.0; 4],
+            }),
+        );
+        assert!(build_design_experiments_payload(&too_few).is_err());
+        let duplicated = DesignExperimentsRequest {
+            variables: vec![
+                ExperimentVariableRange {
+                    name: "a".to_string(),
+                    low: 0.0,
+                    high: 1.0,
+                },
+                ExperimentVariableRange {
+                    name: "a".to_string(),
+                    low: 0.0,
+                    high: 1.0,
+                },
+            ],
+            ..base("doe", None)
+        };
+        assert!(build_design_experiments_payload(&duplicated).is_err());
+    }
+
+    #[test]
+    fn design_experiments_submission_creates_a_task_of_the_design_kind() {
+        let mut connection = rusqlite::Connection::open_in_memory().expect("open database");
+        crate::storage::migrations::migrate(&mut connection).expect("migrate database");
+        let payload = build_design_experiments_payload(&DesignExperimentsRequest {
+            method: "orthogonal".to_string(),
+            variables: vec![ExperimentVariableRange {
+                name: "a".to_string(),
+                low: 0.0,
+                high: 1.0,
+            }],
+            levels: Some(3),
+            count: None,
+            direction: None,
+            seed: None,
+            existing: None,
+        })
+        .expect("build payload");
+
+        let task = submit_design_experiments_on_connection(&mut connection, "local", payload)
+            .expect("submit design task");
+        assert_eq!(
+            task.kind,
+            crate::compute::handler::COMPUTE_DESIGN_EXPERIMENTS_KIND
+        );
     }
 
     #[test]
